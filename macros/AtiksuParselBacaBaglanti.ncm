@@ -5,11 +5,16 @@
 ' Islem Sirasi:
 '   1. C baglanti noktasi secilir
 '   2. Parsel baca noktasi secilir
-'   3. Ikisi arasindaki hat cizgisi secilir
-'   4. C noktasi zemin noktasi secilir (ZK ve AK okunur)
-'   5. Parsel bacasi zemin noktasi secilir (ZK ve AK okunur)
-'   6. Bilgiler hesaplanir ve gorseldeki formatta yazilir
-'   7. Kullanici isterse bir sonraki baglantiya gecer
+'   3. Hat cizgisi secilir
+'   4. C zemin noktasi secilir (ad, ZK, AK okunur)
+'   5. Parsel baca zemin noktasi secilir (ad, ZK, AK okunur)
+'   6. Parsel Baca Text Grubu yerlestirilecek nokta secilir
+'   7. C Baglanti Text Grubu yerlestirilecek nokta secilir
+'   8. Devam/Cik secenegi
+'
+' Text Gruplari:
+'   PARSEL BACA (6 satir): Ad, ZK, AK, YL, EL, Cap
+'   C BAGLANTI  (3 satir): Ad, ZK, AK
 '===========================================================================
 
 Sub Main()
@@ -36,39 +41,33 @@ Sub Main()
     Dim entId
     Dim entType
     Dim sonuc
-    Dim yaziX
-    Dim yaziY
     Dim perpX
     Dim perpY
-    Dim satirSayaci
     Dim yaziAci
-    Dim ortaX
-    Dim ortaY
-    Dim mesafeYaziX
-    Dim mesafeYaziY
     Dim tx
     Dim ty
     Dim metin
     Dim devamMi
     Dim yaziYukseklik
     Dim satirAraligi
-    Dim noktaOffset
     Dim yaziRenk
     Dim hatCapiMetin
     Dim katmanAdi
     Dim tempVal
     Dim sayac
+    Dim yerX
+    Dim yerY
+    Dim yerZ
 
     ' Yapilandirma
     yaziYukseklik = 0.35
     satirAraligi = 0.55
-    noktaOffset = 0.5
     yaziRenk = 6
     hatCapiMetin = "Ø200BB"
     katmanAdi = "PARSEL_BACA_BILGI"
     sayac = 0
 
-    ' Kullanicidan yapilandirma iste
+    ' Kullanicidan yapilandirma
     tempVal = InputBox("Yazi yuksekligi (varsayilan 0.35):", "Ayarlar", "0.35")
     If tempVal <> "" Then
         yaziYukseklik = CDbl(tempVal)
@@ -84,11 +83,10 @@ Sub Main()
         hatCapiMetin = tempVal
     End If
 
-    ' Katman ayarla
     NCSetLayer katmanAdi
 
     ' ===============================================================
-    ' ANA DONGU - Coklu baglanti islemi
+    ' ANA DONGU
     ' ===============================================================
     devamMi = True
 
@@ -97,7 +95,7 @@ Sub Main()
         sayac = sayac + 1
 
         ' -----------------------------------------------------------
-        ' 1. ADIM: C Baglanti Noktasini Sec
+        ' 1. C Baglanti Noktasini Sec
         ' -----------------------------------------------------------
         sonuc = NCInputPoint("1/5 - C baglanti noktasini secin:", cBagX, cBagY, cBagZ)
         If Not sonuc Then
@@ -106,7 +104,7 @@ Sub Main()
         End If
 
         ' -----------------------------------------------------------
-        ' 2. ADIM: Parsel Baca Noktasini Sec
+        ' 2. Parsel Baca Noktasini Sec
         ' -----------------------------------------------------------
         sonuc = NCInputPoint("2/5 - Parsel baca noktasini secin:", parselX, parselY, parselZ)
         If Not sonuc Then
@@ -115,7 +113,7 @@ Sub Main()
         End If
 
         ' -----------------------------------------------------------
-        ' 3. ADIM: Hat Cizgisini Sec
+        ' 3. Hat Cizgisini Sec
         ' -----------------------------------------------------------
         sonuc = NCInputEntity("3/5 - Hat cizgisini secin:", entType, entId)
         If Not sonuc Then
@@ -127,7 +125,7 @@ Sub Main()
         hatEgikMesafe = NCGetLineLength3D(entId)
 
         ' -----------------------------------------------------------
-        ' 4. ADIM: C Noktasi Zemin Noktasini Sec
+        ' 4. C Zemin Noktasini Sec
         ' -----------------------------------------------------------
         sonuc = NCInputEntity("4/5 - C noktasinin zemin noktasini secin:", entType, entId)
         If Not sonuc Then
@@ -137,21 +135,19 @@ Sub Main()
 
         cNoktaAdi = NCGetEntityName(entId)
         cZK = NCGetEntityZ(entId)
-
-        ' AK degerini okumaya calis, bulunamazsa kullanicidan iste
         cAK = 0
         On Error Resume Next
         cAK = NCGetProperty(entId, "AK")
         On Error GoTo 0
         If cAK = 0 Then
-            tempVal = InputBox("C noktasi (" & cNoktaAdi & ") Akar Kotu (AK) bulunamadi." & Chr(13) & "AK degerini girin:", "AK Girisi", "0.00")
+            tempVal = InputBox("C noktasi (" & cNoktaAdi & ") AK degeri:" & Chr(13) & "Akar Kotu girin:", "AK Girisi", "0.00")
             If tempVal <> "" Then
                 cAK = CDbl(tempVal)
             End If
         End If
 
         ' -----------------------------------------------------------
-        ' 5. ADIM: Parsel Bacasi Zemin Noktasini Sec
+        ' 5. Parsel Baca Zemin Noktasini Sec
         ' -----------------------------------------------------------
         sonuc = NCInputEntity("5/5 - Parsel bacasi zemin noktasini secin:", entType, entId)
         If Not sonuc Then
@@ -161,14 +157,12 @@ Sub Main()
 
         parselBacaAdi = NCGetEntityName(entId)
         pZK = NCGetEntityZ(entId)
-
-        ' AK degerini okumaya calis, bulunamazsa kullanicidan iste
         pAK = 0
         On Error Resume Next
         pAK = NCGetProperty(entId, "AK")
         On Error GoTo 0
         If pAK = 0 Then
-            tempVal = InputBox("Parsel bacasi (" & parselBacaAdi & ") Akar Kotu (AK) bulunamadi." & Chr(13) & "AK degerini girin:", "AK Girisi", "0.00")
+            tempVal = InputBox("Parsel bacasi (" & parselBacaAdi & ") AK degeri:" & Chr(13) & "Akar Kotu girin:", "AK Girisi", "0.00")
             If tempVal <> "" Then
                 pAK = CDbl(tempVal)
             End If
@@ -182,13 +176,12 @@ Sub Main()
         hatAci = HesaplaAtn2(dy, dx)
         hatAciDerece = hatAci * 57.2957795130823
 
-        ' Egik mesafe dogrulamasi
         If hatEgikMesafe <= 0 Then
             deltaZ = Abs(pZK - cZK)
             hatEgikMesafe = Sqr(hatYatayMesafe * hatYatayMesafe + deltaZ * deltaZ)
         End If
 
-        ' Yazi acisi (-90 ile 90 derece arasi okunaklilik icin)
+        ' Yazi acisi (okunaklilik icin -90 / +90 arasi)
         yaziAci = hatAciDerece
         If yaziAci > 90 Then
             yaziAci = yaziAci - 180
@@ -197,101 +190,87 @@ Sub Main()
             yaziAci = yaziAci + 180
         End If
 
-        ' Dik yon (text offseti icin)
+        ' Dik yon
         perpX = -Sin(hatAci)
         perpY = Cos(hatAci)
 
-        ' -----------------------------------------------------------
-        ' YAZI RENGI AYARLA
-        ' -----------------------------------------------------------
         NCSetColor yaziRenk
 
-        ' -----------------------------------------------------------
-        ' PARSEL BACA BILGILERINI YAZ (6 satir, baca noktasinda)
-        ' -----------------------------------------------------------
-        satirSayaci = 0
-        yaziX = parselX + perpX * noktaOffset
-        yaziY = parselY + perpY * noktaOffset
+        ' ===========================================================
+        ' PARSEL BACA TEXT GRUBUNU YERLESTIR (6 satir)
+        ' Kullanici fare ile yerlestirme noktasini secer
+        ' ===========================================================
+        sonuc = NCInputPoint("PARSEL BACA text grubunu yerlestirecek noktayi secin:", yerX, yerY, yerZ)
+        If Not sonuc Then
+            MsgBox "Islem iptal edildi."
+            Exit Sub
+        End If
 
         ' Satir 0: Baca Adi
-        tx = yaziX + perpX * satirAraligi * satirSayaci
-        ty = yaziY + perpY * satirAraligi * satirSayaci
+        tx = yerX
+        ty = yerY
         NCCreateText parselBacaAdi, tx, ty, yaziYukseklik, yaziAci
-        satirSayaci = satirSayaci + 1
 
         ' Satir 1: Zemin Kotu
+        tx = yerX + perpX * satirAraligi * 1
+        ty = yerY + perpY * satirAraligi * 1
         metin = "ZK:" & KotFormat(pZK)
-        tx = yaziX + perpX * satirAraligi * satirSayaci
-        ty = yaziY + perpY * satirAraligi * satirSayaci
         NCCreateText metin, tx, ty, yaziYukseklik, yaziAci
-        satirSayaci = satirSayaci + 1
 
         ' Satir 2: Akar Kotu
+        tx = yerX + perpX * satirAraligi * 2
+        ty = yerY + perpY * satirAraligi * 2
         metin = "AK:" & KotFormat(pAK)
-        tx = yaziX + perpX * satirAraligi * satirSayaci
-        ty = yaziY + perpY * satirAraligi * satirSayaci
         NCCreateText metin, tx, ty, yaziYukseklik, yaziAci
-        satirSayaci = satirSayaci + 1
 
         ' Satir 3: Yatay Mesafe
+        tx = yerX + perpX * satirAraligi * 3
+        ty = yerY + perpY * satirAraligi * 3
         metin = "YL=" & KotFormat(hatYatayMesafe) & "m"
-        tx = yaziX + perpX * satirAraligi * satirSayaci
-        ty = yaziY + perpY * satirAraligi * satirSayaci
         NCCreateText metin, tx, ty, yaziYukseklik, yaziAci
-        satirSayaci = satirSayaci + 1
 
         ' Satir 4: Egik Mesafe
+        tx = yerX + perpX * satirAraligi * 4
+        ty = yerY + perpY * satirAraligi * 4
         metin = "EL=" & KotFormat(hatEgikMesafe) & "m"
-        tx = yaziX + perpX * satirAraligi * satirSayaci
-        ty = yaziY + perpY * satirAraligi * satirSayaci
         NCCreateText metin, tx, ty, yaziYukseklik, yaziAci
-        satirSayaci = satirSayaci + 1
 
-        ' Satir 5: Hat Capi (sabit)
-        tx = yaziX + perpX * satirAraligi * satirSayaci
-        ty = yaziY + perpY * satirAraligi * satirSayaci
+        ' Satir 5: Hat Capi
+        tx = yerX + perpX * satirAraligi * 5
+        ty = yerY + perpY * satirAraligi * 5
         NCCreateText hatCapiMetin, tx, ty, yaziYukseklik, yaziAci
 
-        ' -----------------------------------------------------------
-        ' C BAGLANTI NOKTASI BILGILERINI YAZ (3 satir)
-        ' -----------------------------------------------------------
-        satirSayaci = 0
-        yaziX = cBagX + perpX * noktaOffset
-        yaziY = cBagY + perpY * noktaOffset
+        ' ===========================================================
+        ' C BAGLANTI TEXT GRUBUNU YERLESTIR (3 satir)
+        ' Kullanici fare ile yerlestirme noktasini secer
+        ' ===========================================================
+        sonuc = NCInputPoint("C BAGLANTI text grubunu yerlestirecek noktayi secin:", yerX, yerY, yerZ)
+        If Not sonuc Then
+            MsgBox "Islem iptal edildi."
+            Exit Sub
+        End If
 
-        ' C Nokta Adi
-        tx = yaziX + perpX * satirAraligi * satirSayaci
-        ty = yaziY + perpY * satirAraligi * satirSayaci
+        ' Satir 0: C Nokta Adi
+        tx = yerX
+        ty = yerY
         NCCreateText cNoktaAdi, tx, ty, yaziYukseklik, yaziAci
-        satirSayaci = satirSayaci + 1
 
-        ' C Zemin Kotu
+        ' Satir 1: C Zemin Kotu
+        tx = yerX + perpX * satirAraligi * 1
+        ty = yerY + perpY * satirAraligi * 1
         metin = "ZK:" & KotFormat(cZK)
-        tx = yaziX + perpX * satirAraligi * satirSayaci
-        ty = yaziY + perpY * satirAraligi * satirSayaci
         NCCreateText metin, tx, ty, yaziYukseklik, yaziAci
-        satirSayaci = satirSayaci + 1
 
-        ' C Akar Kotu
+        ' Satir 2: C Akar Kotu
+        tx = yerX + perpX * satirAraligi * 2
+        ty = yerY + perpY * satirAraligi * 2
         metin = "AK:" & KotFormat(cAK)
-        tx = yaziX + perpX * satirAraligi * satirSayaci
-        ty = yaziY + perpY * satirAraligi * satirSayaci
         NCCreateText metin, tx, ty, yaziYukseklik, yaziAci
-
-        ' -----------------------------------------------------------
-        ' HAT ORTASINA MESAFE BILGISI YAZ
-        ' -----------------------------------------------------------
-        ortaX = (cBagX + parselX) / 2
-        ortaY = (cBagY + parselY) / 2
-        mesafeYaziX = ortaX + perpX * (noktaOffset * 0.5)
-        mesafeYaziY = ortaY + perpY * (noktaOffset * 0.5)
-        metin = KotFormat(hatYatayMesafe)
-        NCCreateText metin, mesafeYaziX, mesafeYaziY, yaziYukseklik, yaziAci
 
         ' -----------------------------------------------------------
         ' Devam kontrolu
         ' -----------------------------------------------------------
-        tempVal = MsgBox("Baglanti #" & sayac & " tamamlandi." & Chr(13) & Chr(13) & "Baca: " & parselBacaAdi & Chr(13) & "C Noktasi: " & cNoktaAdi & Chr(13) & "YL=" & KotFormat(hatYatayMesafe) & "m  EL=" & KotFormat(hatEgikMesafe) & "m" & Chr(13) & Chr(13) & "Bir sonraki baglantiya devam etmek ister misiniz?", 4, "Parsel Baca Makrosu")
+        tempVal = MsgBox("Baglanti #" & sayac & " tamamlandi." & Chr(13) & Chr(13) & "Baca: " & parselBacaAdi & Chr(13) & "C: " & cNoktaAdi & Chr(13) & Chr(13) & "Devam etmek ister misiniz?", 4, "Parsel Baca Makrosu")
 
         If tempVal = 6 Then
             devamMi = True
@@ -305,8 +284,6 @@ Sub Main()
 
 End Sub
 
-' ===========================================================================
-' Kot degerini 2 ondalikli string olarak formatla
 ' ===========================================================================
 Function KotFormat(deger)
     Dim tamKisim
@@ -337,8 +314,6 @@ Function KotFormat(deger)
     End If
 End Function
 
-' ===========================================================================
-' Atan2 hesaplama (iki parametreli arkus tanjant)
 ' ===========================================================================
 Function HesaplaAtn2(y, x)
     Dim myPI
