@@ -1,0 +1,277 @@
+'===========================================================================
+' ATIKSU PARSEL BACA BAGLANTI BILGILERI YAZMA MAKROSU
+' NetCAD NCM Macro
+'
+' Islem Sirasi:
+'   1. C baglanti noktasi secilir
+'   2. Parsel baca noktasi secilir
+'   3. Ikisi arasindaki hat cizgisi secilir
+'   4. C noktasi zemin noktasi secilir (ZK ve AK okunur)
+'   5. Parsel bacasi zemin noktasi secilir (ZK ve AK okunur)
+'   6. Bilgiler hesaplanir ve gorseldeki formatta yazilir
+'
+' Yazilan Bilgiler:
+'   - Baca Adi (ornek: BPB107)
+'   - Zemin Kotu ZK (ornek: ZK:23.70)
+'   - Akar Kotu AK (ornek: AK:22.30)
+'   - Yatay Mesafe YL (ornek: YL=6.15m)
+'   - Egik Mesafe EL (ornek: EL=6.26m)
+'   - Hat Capi (sabit: Ø200BB)
+'===========================================================================
+
+Option Explicit
+
+Const PI = 3.14159265358979
+Const RAD_TO_DEG = 57.2957795130823
+Const DEG_TO_RAD = 0.0174532925199433
+
+' Yapilandirma Sabitleri
+Const YAZI_YUKSEKLIK = 0.35
+Const SATIR_ARALIGI = 0.55
+Const NOKTA_OFFSET = 0.5
+Const YAZI_RENK = 6
+Const HAT_CAPI_METIN = "Ø200BB"
+
+Sub Main()
+
+    ' -------------------------------------------------------
+    ' Degisken Tanimlari
+    ' -------------------------------------------------------
+    Dim cBagX As Double, cBagY As Double, cBagZ As Double
+    Dim parselX As Double, parselY As Double, parselZ As Double
+    Dim cZeminX As Double, cZeminY As Double
+    Dim pZeminX As Double, pZeminY As Double
+
+    Dim cNoktaAdi As String
+    Dim parselBacaAdi As String
+    Dim cZK As Double, cAK As Double
+    Dim pZK As Double, pAK As Double
+
+    Dim hatYatayMesafe As Double
+    Dim hatEgikMesafe As Double
+    Dim hatAci As Double
+    Dim hatAciDerece As Double
+
+    Dim deltaZ As Double
+    Dim dx As Double, dy As Double
+
+    Dim entId As Long
+    Dim entType As Integer
+    Dim sonuc As Boolean
+
+    Dim yaziX As Double, yaziY As Double
+    Dim perpX As Double, perpY As Double
+    Dim satirSayaci As Integer
+
+    ' -------------------------------------------------------
+    ' 1. ADIM: C Baglanti Noktasini Sec
+    ' -------------------------------------------------------
+    sonuc = NCInputPoint("1/5 - C baglanti noktasini secin:", cBagX, cBagY, cBagZ)
+    If Not sonuc Then
+        MsgBox "Islem iptal edildi.", vbExclamation, "Makro"
+        Exit Sub
+    End If
+
+    ' -------------------------------------------------------
+    ' 2. ADIM: Parsel Baca Noktasini Sec
+    ' -------------------------------------------------------
+    sonuc = NCInputPoint("2/5 - Parsel baca noktasini secin:", parselX, parselY, parselZ)
+    If Not sonuc Then
+        MsgBox "Islem iptal edildi.", vbExclamation, "Makro"
+        Exit Sub
+    End If
+
+    ' -------------------------------------------------------
+    ' 3. ADIM: Hat Cizgisini Sec
+    ' -------------------------------------------------------
+    sonuc = NCInputEntity("3/5 - Hat cizgisini secin:", entType, entId)
+    If Not sonuc Then
+        MsgBox "Islem iptal edildi.", vbExclamation, "Makro"
+        Exit Sub
+    End If
+
+    hatYatayMesafe = NCGetLineLength2D(entId)
+    hatEgikMesafe = NCGetLineLength3D(entId)
+
+    ' -------------------------------------------------------
+    ' 4. ADIM: C Noktasi Zemin Noktasini Sec
+    ' -------------------------------------------------------
+    sonuc = NCInputEntity("4/5 - C noktasinin zemin noktasini secin:", entType, entId)
+    If Not sonuc Then
+        MsgBox "Islem iptal edildi.", vbExclamation, "Makro"
+        Exit Sub
+    End If
+
+    cNoktaAdi = NCGetEntityName(entId)
+    cZK = NCGetEntityZ(entId)
+    cAK = CDbl(NCGetProperty(entId, "AK"))
+    NCGetEntityPos entId, cZeminX, cZeminY
+
+    ' -------------------------------------------------------
+    ' 5. ADIM: Parsel Bacasi Zemin Noktasini Sec
+    ' -------------------------------------------------------
+    sonuc = NCInputEntity("5/5 - Parsel bacasi zemin noktasini secin:", entType, entId)
+    If Not sonuc Then
+        MsgBox "Islem iptal edildi.", vbExclamation, "Makro"
+        Exit Sub
+    End If
+
+    parselBacaAdi = NCGetEntityName(entId)
+    pZK = NCGetEntityZ(entId)
+    pAK = CDbl(NCGetProperty(entId, "AK"))
+    NCGetEntityPos entId, pZeminX, pZeminY
+
+    ' -------------------------------------------------------
+    ' Hesaplamalar
+    ' -------------------------------------------------------
+
+    ' Hat acisini hesapla (C noktasindan parsel bacasina dogru)
+    dx = parselX - cBagX
+    dy = parselY - cBagY
+    hatAci = Atn2(dy, dx)
+    hatAciDerece = hatAci * RAD_TO_DEG
+
+    ' Egik mesafe dogrulamasi (3D mesafe yoksa hesapla)
+    If hatEgikMesafe <= 0 Then
+        deltaZ = Abs(pZK - cZK)
+        hatEgikMesafe = Sqr(hatYatayMesafe * hatYatayMesafe + deltaZ * deltaZ)
+    End If
+
+    ' Yazi acisi ayarlama (okunaklilk icin 0-180 derece arasinda tut)
+    Dim yaziAci As Double
+    yaziAci = hatAciDerece
+    If yaziAci > 90 Then yaziAci = yaziAci - 180
+    If yaziAci < -90 Then yaziAci = yaziAci + 180
+
+    ' Dik yonu hesapla (hat yonune dik, text offseti icin)
+    perpX = -Sin(hatAci)
+    perpY = Cos(hatAci)
+
+    ' -------------------------------------------------------
+    ' PARSEL BACA BILGILERINI YAZ (Baca noktasinda)
+    ' -------------------------------------------------------
+    NCSetColor YAZI_RENK
+    satirSayaci = 0
+
+    ' Baslangic noktasi: parsel baca konumu + offset
+    yaziX = parselX + perpX * NOKTA_OFFSET
+    yaziY = parselY + perpY * NOKTA_OFFSET
+
+    ' Baca Adi
+    Call YaziYerlestir(yaziX, yaziY, parselBacaAdi, yaziAci, YAZI_YUKSEKLIK, perpX, perpY, satirSayaci)
+    satirSayaci = satirSayaci + 1
+
+    ' Zemin Kotu
+    Dim zkMetin As String
+    zkMetin = "ZK:" & Format(pZK, "0.00")
+    Call YaziYerlestir(yaziX, yaziY, zkMetin, yaziAci, YAZI_YUKSEKLIK, perpX, perpY, satirSayaci)
+    satirSayaci = satirSayaci + 1
+
+    ' Akar Kotu
+    Dim akMetin As String
+    akMetin = "AK:" & Format(pAK, "0.00")
+    Call YaziYerlestir(yaziX, yaziY, akMetin, yaziAci, YAZI_YUKSEKLIK, perpX, perpY, satirSayaci)
+    satirSayaci = satirSayaci + 1
+
+    ' Yatay Mesafe
+    Dim ylMetin As String
+    ylMetin = "YL=" & Format(hatYatayMesafe, "0.00") & "m"
+    Call YaziYerlestir(yaziX, yaziY, ylMetin, yaziAci, YAZI_YUKSEKLIK, perpX, perpY, satirSayaci)
+    satirSayaci = satirSayaci + 1
+
+    ' Egik Mesafe
+    Dim elMetin As String
+    elMetin = "EL=" & Format(hatEgikMesafe, "0.00") & "m"
+    Call YaziYerlestir(yaziX, yaziY, elMetin, yaziAci, YAZI_YUKSEKLIK, perpX, perpY, satirSayaci)
+    satirSayaci = satirSayaci + 1
+
+    ' Hat Capi (sabit)
+    Call YaziYerlestir(yaziX, yaziY, HAT_CAPI_METIN, yaziAci, YAZI_YUKSEKLIK, perpX, perpY, satirSayaci)
+
+    ' -------------------------------------------------------
+    ' C BAGLANTI NOKTASI BILGILERINI YAZ
+    ' -------------------------------------------------------
+    satirSayaci = 0
+
+    ' Baslangic noktasi: C baglanti konumu + offset
+    yaziX = cBagX + perpX * NOKTA_OFFSET
+    yaziY = cBagY + perpY * NOKTA_OFFSET
+
+    ' C Nokta Adi
+    Call YaziYerlestir(yaziX, yaziY, cNoktaAdi, yaziAci, YAZI_YUKSEKLIK, perpX, perpY, satirSayaci)
+    satirSayaci = satirSayaci + 1
+
+    ' C Zemin Kotu
+    Dim cZkMetin As String
+    cZkMetin = "ZK:" & Format(cZK, "0.00")
+    Call YaziYerlestir(yaziX, yaziY, cZkMetin, yaziAci, YAZI_YUKSEKLIK, perpX, perpY, satirSayaci)
+    satirSayaci = satirSayaci + 1
+
+    ' C Akar Kotu
+    Dim cAkMetin As String
+    cAkMetin = "AK:" & Format(cAK, "0.00")
+    Call YaziYerlestir(yaziX, yaziY, cAkMetin, yaziAci, YAZI_YUKSEKLIK, perpX, perpY, satirSayaci)
+
+    ' -------------------------------------------------------
+    ' HAT UZERINDE MESAFE BILGISI YAZ (hatin ortasinda)
+    ' -------------------------------------------------------
+    Dim ortaX As Double, ortaY As Double
+    ortaX = (cBagX + parselX) / 2
+    ortaY = (cBagY + parselY) / 2
+
+    Dim mesafeMetin As String
+    mesafeMetin = Format(hatYatayMesafe, "0.00")
+
+    Dim mesafeYaziX As Double, mesafeYaziY As Double
+    mesafeYaziX = ortaX + perpX * (NOKTA_OFFSET * 0.5)
+    mesafeYaziY = ortaY + perpY * (NOKTA_OFFSET * 0.5)
+
+    NCCreateText mesafeMetin, mesafeYaziX, mesafeYaziY, YAZI_YUKSEKLIK, yaziAci
+
+    ' -------------------------------------------------------
+    ' Islem tamamlandi
+    ' -------------------------------------------------------
+    MsgBox "Parsel baca baglanti bilgileri basariyla yazildi." & vbCrLf & _
+           vbCrLf & _
+           "Baca: " & parselBacaAdi & vbCrLf & _
+           "C Noktasi: " & cNoktaAdi & vbCrLf & _
+           "Yatay Mesafe: " & Format(hatYatayMesafe, "0.00") & " m" & vbCrLf & _
+           "Egik Mesafe: " & Format(hatEgikMesafe, "0.00") & " m", _
+           vbInformation, "Makro Tamamlandi"
+
+End Sub
+
+' ===========================================================================
+' Yardimci Fonksiyonlar
+' ===========================================================================
+
+Sub YaziYerlestir(ByVal baseX As Double, ByVal baseY As Double, _
+                  ByVal metin As String, ByVal aci As Double, _
+                  ByVal yukseklik As Double, _
+                  ByVal perpX As Double, ByVal perpY As Double, _
+                  ByVal satirNo As Integer)
+
+    Dim tx As Double, ty As Double
+
+    tx = baseX + perpX * SATIR_ARALIGI * satirNo
+    ty = baseY + perpY * SATIR_ARALIGI * satirNo
+
+    NCCreateText metin, tx, ty, yukseklik, aci
+
+End Sub
+
+Function Atn2(ByVal y As Double, ByVal x As Double) As Double
+    If x > 0 Then
+        Atn2 = Atn(y / x)
+    ElseIf x < 0 And y >= 0 Then
+        Atn2 = Atn(y / x) + PI
+    ElseIf x < 0 And y < 0 Then
+        Atn2 = Atn(y / x) - PI
+    ElseIf x = 0 And y > 0 Then
+        Atn2 = PI / 2
+    ElseIf x = 0 And y < 0 Then
+        Atn2 = -PI / 2
+    Else
+        Atn2 = 0
+    End If
+End Function
