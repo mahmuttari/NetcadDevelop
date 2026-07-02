@@ -87,7 +87,6 @@ With netcad
       Exit Sub
     End If
     j = selNokta.GetSelectedObject(0, oC)
-    cNoktaAdi = oC.pname
     cZK = oC.p1.z
 
     ' 3. C AKAR KOTU NOKTASINI SEC
@@ -97,6 +96,7 @@ With netcad
       Exit Sub
     End If
     j = selNokta.GetSelectedObject(0, oCAK)
+    cNoktaAdi = oCAK.pname
     cAK = oCAK.p1.z
 
     ' 4. PARSEL BACA ZEMIN KOTU NOKTASINI SEC
