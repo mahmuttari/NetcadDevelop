@@ -75,7 +75,7 @@ With netcad
     ' ---------------------------------------------------------
     ' 1. HAT CIZGISINI SEC
     ' ---------------------------------------------------------
-    If Not selHat.SELECT("1/5 - Hat cizgisini secin") Then
+    If Not selHat.SELECT("1/5 - Hat cizgisini secin", Array(oline, opline)) Then
       MsgBox "Islem iptal edildi."
       Exit Sub
     End If
@@ -87,7 +87,7 @@ With netcad
     ' ---------------------------------------------------------
     ' 2. C ZEMIN NOKTASINI SEC
     ' ---------------------------------------------------------
-    If Not selNokta.SELECT("2/5 - C noktasinin zemin noktasini secin") Then
+    If Not selNokta.SELECT("2/5 - C noktasinin zemin noktasini secin", Array(opoint)) Then
       MsgBox "Islem iptal edildi."
       Exit Sub
     End If
@@ -109,7 +109,7 @@ With netcad
     ' 3. PARSEL BACA ZEMIN NOKTASINI SEC
     ' ---------------------------------------------------------
     set selNokta = .NewSelectionSet
-    If Not selNokta.SELECT("3/5 - Parsel bacasi zemin noktasini secin") Then
+    If Not selNokta.SELECT("3/5 - Parsel bacasi zemin noktasini secin", Array(opoint)) Then
       MsgBox "Islem iptal edildi."
       Exit Sub
     End If
@@ -164,7 +164,7 @@ With netcad
     '    Kullanici bir nokta objesi secer, text oraya yazilir
     ' ---------------------------------------------------------
     set selYer = .NewSelectionSet
-    If Not selYer.SELECT("4/5 - PARSEL BACA text grubunu koyacaginiz NOKTAYI secin") Then
+    If Not selYer.SELECT("4/5 - PARSEL BACA text grubunu koyacaginiz NOKTAYI secin", Array(opoint)) Then
       MsgBox "Islem iptal edildi."
       Exit Sub
     End If
@@ -207,7 +207,7 @@ With netcad
     ' 5. C BAGLANTI TEXT GRUBUNU YERLESTIR (3 satir)
     ' ---------------------------------------------------------
     set selYer = .NewSelectionSet
-    If Not selYer.SELECT("5/5 - C BAGLANTI text grubunu koyacaginiz NOKTAYI secin") Then
+    If Not selYer.SELECT("5/5 - C BAGLANTI text grubunu koyacaginiz NOKTAYI secin", Array(opoint)) Then
       MsgBox "Islem iptal edildi."
       Exit Sub
     End If
