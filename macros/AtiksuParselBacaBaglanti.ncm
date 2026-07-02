@@ -11,7 +11,7 @@ DIM j, k, bd, pExt, cr, yaz, lay
 DIM cNoktaAdi, parselBacaAdi
 DIM cZK, cAK, pZK, pAK
 DIM hatYatayMesafe, hatEgikMesafe
-DIM yaziboy, satirar, hatcapi
+DIM yaziboy, satirar, hatcapi, olcek
 DIM yerX, yerY
 DIM devamMi, sayac
 DIM deltaZ, dx, dy, dz
@@ -34,8 +34,13 @@ With netcad
   satirar = bd.ValueByName("satirar")
   hatcapi = bd.ValueByName("hatcapi")
 
-  yaziboy = yaziboy / 1000 * .getparam(94)
-  satirar = satirar / 1000 * .getparam(94)
+  olcek = .getparam(94)
+  If olcek > 0 Then
+    yaziboy = yaziboy / 1000 * olcek
+    satirar = satirar / 1000 * olcek
+  End If
+
+  MsgBox "DEBUG: Olcek=" & olcek & "  Yaziboy=" & yaziboy & "  Satirar=" & satirar, 64, "Debug"
 
   devamMi = True
 
@@ -139,17 +144,17 @@ With netcad
     set lay = .CreateLayer("PARSEL_BACA_BILGI", 6)
 
     set yaz = .MakeText(.newc(yerX, yerY, 0), parselBacaAdi, 0, 0, yaziboy, 0, "M", lay)
-    .AddObject(yaz)
+    .AddObject yaz
     set yaz = .MakeText(.newc(yerX, yerY - satirar, 0), "ZK:" & KotFormat(pZK), 0, 0, yaziboy, 0, "M", lay)
-    .AddObject(yaz)
+    .AddObject yaz
     set yaz = .MakeText(.newc(yerX, yerY - satirar * 2, 0), "AK:" & KotFormat(pAK), 0, 0, yaziboy, 0, "M", lay)
-    .AddObject(yaz)
+    .AddObject yaz
     set yaz = .MakeText(.newc(yerX, yerY - satirar * 3, 0), "YL=" & KotFormat(hatYatayMesafe) & "m", 0, 0, yaziboy, 0, "M", lay)
-    .AddObject(yaz)
+    .AddObject yaz
     set yaz = .MakeText(.newc(yerX, yerY - satirar * 4, 0), "EL=" & KotFormat(hatEgikMesafe) & "m", 0, 0, yaziboy, 0, "M", lay)
-    .AddObject(yaz)
+    .AddObject yaz
     set yaz = .MakeText(.newc(yerX, yerY - satirar * 5, 0), hatcapi, 0, 0, yaziboy, 0, "M", lay)
-    .AddObject(yaz)
+    .AddObject yaz
 
     .NetcadCommand "REDRAW"
 
@@ -164,11 +169,11 @@ With netcad
     yerY = cr.y
 
     set yaz = .MakeText(.newc(yerX, yerY, 0), cNoktaAdi, 0, 0, yaziboy, 0, "M", lay)
-    .AddObject(yaz)
+    .AddObject yaz
     set yaz = .MakeText(.newc(yerX, yerY - satirar, 0), "ZK:" & KotFormat(cZK), 0, 0, yaziboy, 0, "M", lay)
-    .AddObject(yaz)
+    .AddObject yaz
     set yaz = .MakeText(.newc(yerX, yerY - satirar * 2, 0), "AK:" & KotFormat(cAK), 0, 0, yaziboy, 0, "M", lay)
-    .AddObject(yaz)
+    .AddObject yaz
 
     .NetcadCommand "REDRAW"
 
