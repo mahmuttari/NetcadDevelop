@@ -226,7 +226,7 @@ With netcad
     ' BELIRTEC CIZGI - C akar kot noktasindan baslar, 2.27m
     o.p1.x = oCAK.p1.x : o.p1.y = oCAK.p1.y : o.p1.z = oCAK.p1.z
     o.p2.x = oCAK.p1.x + dirX * 2.27 : o.p2.y = oCAK.p1.y + dirY * 2.27 : o.p2.z = oCAK.p1.z
-    .AddObject (.MakeLine(o.p1, o.p2, tabC))
+    .AddObject (.MakeLine(o.p1, o.p2, 0, 0, tabC))
 
     .setparam endblock, true
 
