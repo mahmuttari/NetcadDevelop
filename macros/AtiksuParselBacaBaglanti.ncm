@@ -141,7 +141,7 @@ With netcad
     yerX = cr.x
     yerY = cr.y
 
-    set lay = .CreateLayer("PARSEL_BACA_BILGI", 6)
+    lay = .CreateLayer("PARSEL_BACA_BILGI", 6)
 
     set yaz = .MakeText(.newc(yerX, yerY, 0), parselBacaAdi, 0, 0, yaziboy, 0, "M", lay)
     .AddObject yaz
