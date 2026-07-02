@@ -7,15 +7,18 @@ SUB Main
 
 DIM selHat, selNokta
 DIM oHat, oC, oCAK, oBaca, oBacaAK, o
-DIM j, k, bd, pExt, cr
+DIM j, k, bd, pExt, cr, cr2
 DIM cNoktaAdi, parselBacaAdi
 DIM cZK, cAK, pZK, pAK
 DIM hatYatayMesafe, hatEgikMesafe
 DIM yaziboy, satirar, hatcapi, tabParsel, tabC
 DIM yerX, yerY
+DIM dirX, dirY, sdx, sdy, sMesafe, yaziAci, screenAci
 DIM devamMi, sayac
 DIM deltaZ, dx, dy, dz
 DIM sorgu, mesaj
+DIM myPI
+myPI = 3.14159265358979
 
 sayac = 0
 
@@ -54,7 +57,7 @@ With netcad
 
     ' 1. HAT CIZGISINI SEC
     set selHat = .NewSelectionSet
-    If Not selHat.SELECT("1/7 - Hat cizgisini secin", Array(oline, opline)) Then
+    If Not selHat.SELECT("1/9 - Hat cizgisini secin", Array(oline, opline)) Then
       MsgBox "Islem iptal edildi."
       Exit Sub
     End If
@@ -83,7 +86,7 @@ With netcad
 
     ' 2. C ZEMIN KOTU NOKTASINI SEC
     set selNokta = .NewSelectionSet
-    If Not selNokta.SELECT("2/7 - C noktasinin ZEMIN KOTU noktasini secin", Array(opoint)) Then
+    If Not selNokta.SELECT("2/9 - C noktasinin ZEMIN KOTU noktasini secin", Array(opoint)) Then
       MsgBox "Islem iptal edildi."
       Exit Sub
     End If
@@ -92,7 +95,7 @@ With netcad
 
     ' 3. C AKAR KOTU NOKTASINI SEC
     set selNokta = .NewSelectionSet
-    If Not selNokta.SELECT("3/7 - C noktasinin AKAR KOTU noktasini secin", Array(opoint)) Then
+    If Not selNokta.SELECT("3/9 - C noktasinin AKAR KOTU noktasini secin", Array(opoint)) Then
       MsgBox "Islem iptal edildi."
       Exit Sub
     End If
@@ -102,7 +105,7 @@ With netcad
 
     ' 4. PARSEL BACA ZEMIN KOTU NOKTASINI SEC
     set selNokta = .NewSelectionSet
-    If Not selNokta.SELECT("4/7 - Parsel bacasi ZEMIN KOTU noktasini secin", Array(opoint)) Then
+    If Not selNokta.SELECT("4/9 - Parsel bacasi ZEMIN KOTU noktasini secin", Array(opoint)) Then
       MsgBox "Islem iptal edildi."
       Exit Sub
     End If
@@ -111,7 +114,7 @@ With netcad
 
     ' 5. PARSEL BACA AKAR KOTU NOKTASINI SEC
     set selNokta = .NewSelectionSet
-    If Not selNokta.SELECT("5/7 - Parsel bacasi AKAR KOTU noktasini secin", Array(opoint)) Then
+    If Not selNokta.SELECT("5/9 - Parsel bacasi AKAR KOTU noktasini secin", Array(opoint)) Then
       MsgBox "Islem iptal edildi."
       Exit Sub
     End If
@@ -127,52 +130,94 @@ With netcad
       End If
     End If
 
-    ' 6. PARSEL BACA TEXT GRUBU - ekrandan serbest tikla
+    ' 6. PARSEL BACA TEXT GRUBU - baslangic noktasi
     set cr = .newc(0, 0, 0)
-    If Not .SelectPoint("6/7 - PARSEL BACA textleri icin ekrana tiklayin", cr, -1) Then
+    If Not .SelectPoint("6/9 - PARSEL BACA textleri baslangic noktasini tiklayin", cr, -1) Then
       MsgBox "Islem iptal edildi."
       Exit Sub
     End If
-
     yerX = cr.x
     yerY = cr.y
 
-    o.p1.x = yerX : o.p1.y = yerY : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, parselBacaAdi, 0, 0, yaziboy, 0, "L", tabParsel))
-
-    o.p1.x = yerX - satirar : o.p1.y = yerY : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, "ZK:" & KotFormat(pZK), 0, 0, yaziboy, 0, "L", tabParsel))
-
-    o.p1.x = yerX - satirar * 2 : o.p1.y = yerY : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, "AK:" & KotFormat(pAK), 0, 0, yaziboy, 0, "L", tabParsel))
-
-    o.p1.x = yerX - satirar * 3 : o.p1.y = yerY : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, "YL=" & KotFormat(hatYatayMesafe) & "m", 0, 0, yaziboy, 0, "L", tabParsel))
-
-    o.p1.x = yerX - satirar * 4 : o.p1.y = yerY : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, "EL=" & KotFormat(hatEgikMesafe) & "m", 0, 0, yaziboy, 0, "L", tabParsel))
-
-    o.p1.x = yerX - satirar * 5 : o.p1.y = yerY : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, hatcapi, 0, 0, yaziboy, 0, "L", tabParsel))
-
-    ' 7. C BAGLANTI TEXT GRUBU - ekrandan serbest tikla
-    set cr = .newc(0, 0, 0)
-    If Not .SelectPoint("7/7 - C BAGLANTI textleri icin ekrana tiklayin", cr, -1) Then
+    ' 7. PARSEL BACA TEXT GRUBU - dizilme yonu
+    set cr2 = .newc(0, 0, 0)
+    If Not .SelectPoint("7/9 - Alt alta dizilme yonunu belirleyin (ikinci nokta)", cr2, -1) Then
       MsgBox "Islem iptal edildi."
       Exit Sub
     End If
+    sdx = cr2.x - yerX
+    sdy = cr2.y - yerY
+    sMesafe = Sqr(sdx * sdx + sdy * sdy)
+    If sMesafe > 0 Then
+      dirX = sdx / sMesafe
+      dirY = sdy / sMesafe
+    Else
+      dirX = -1
+      dirY = 0
+    End If
 
+    screenAci = Atan2(sdx, sdy)
+    yaziAci = screenAci + myPI / 2
+    If yaziAci > myPI / 2 Then yaziAci = yaziAci - myPI
+    If yaziAci < -myPI / 2 Then yaziAci = yaziAci + myPI
+
+    o.p1.x = yerX : o.p1.y = yerY : o.p1.z = 0
+    .AddObject (.MakeText(o.p1, parselBacaAdi, 0, 0, yaziboy, yaziAci, "L", tabParsel))
+
+    o.p1.x = yerX + dirX * satirar : o.p1.y = yerY + dirY * satirar : o.p1.z = 0
+    .AddObject (.MakeText(o.p1, "ZK:" & KotFormat(pZK), 0, 0, yaziboy, yaziAci, "L", tabParsel))
+
+    o.p1.x = yerX + dirX * satirar * 2 : o.p1.y = yerY + dirY * satirar * 2 : o.p1.z = 0
+    .AddObject (.MakeText(o.p1, "AK:" & KotFormat(pAK), 0, 0, yaziboy, yaziAci, "L", tabParsel))
+
+    o.p1.x = yerX + dirX * satirar * 3 : o.p1.y = yerY + dirY * satirar * 3 : o.p1.z = 0
+    .AddObject (.MakeText(o.p1, "YL=" & KotFormat(hatYatayMesafe) & "m", 0, 0, yaziboy, yaziAci, "L", tabParsel))
+
+    o.p1.x = yerX + dirX * satirar * 4 : o.p1.y = yerY + dirY * satirar * 4 : o.p1.z = 0
+    .AddObject (.MakeText(o.p1, "EL=" & KotFormat(hatEgikMesafe) & "m", 0, 0, yaziboy, yaziAci, "L", tabParsel))
+
+    o.p1.x = yerX + dirX * satirar * 5 : o.p1.y = yerY + dirY * satirar * 5 : o.p1.z = 0
+    .AddObject (.MakeText(o.p1, hatcapi, 0, 0, yaziboy, yaziAci, "L", tabParsel))
+
+    ' 8. C BAGLANTI TEXT GRUBU - baslangic noktasi
+    set cr = .newc(0, 0, 0)
+    If Not .SelectPoint("8/9 - C BAGLANTI textleri baslangic noktasini tiklayin", cr, -1) Then
+      MsgBox "Islem iptal edildi."
+      Exit Sub
+    End If
     yerX = cr.x
     yerY = cr.y
 
+    ' 9. C BAGLANTI TEXT GRUBU - dizilme yonu
+    set cr2 = .newc(0, 0, 0)
+    If Not .SelectPoint("9/9 - Alt alta dizilme yonunu belirleyin (ikinci nokta)", cr2, -1) Then
+      MsgBox "Islem iptal edildi."
+      Exit Sub
+    End If
+    sdx = cr2.x - yerX
+    sdy = cr2.y - yerY
+    sMesafe = Sqr(sdx * sdx + sdy * sdy)
+    If sMesafe > 0 Then
+      dirX = sdx / sMesafe
+      dirY = sdy / sMesafe
+    Else
+      dirX = -1
+      dirY = 0
+    End If
+
+    screenAci = Atan2(sdx, sdy)
+    yaziAci = screenAci + myPI / 2
+    If yaziAci > myPI / 2 Then yaziAci = yaziAci - myPI
+    If yaziAci < -myPI / 2 Then yaziAci = yaziAci + myPI
+
     o.p1.x = yerX : o.p1.y = yerY : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, cNoktaAdi, 0, 0, yaziboy, 0, "L", tabC))
+    .AddObject (.MakeText(o.p1, cNoktaAdi, 0, 0, yaziboy, yaziAci, "L", tabC))
 
-    o.p1.x = yerX - satirar : o.p1.y = yerY : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, "ZK:" & KotFormat(cZK), 0, 0, yaziboy, 0, "L", tabC))
+    o.p1.x = yerX + dirX * satirar : o.p1.y = yerY + dirY * satirar : o.p1.z = 0
+    .AddObject (.MakeText(o.p1, "ZK:" & KotFormat(cZK), 0, 0, yaziboy, yaziAci, "L", tabC))
 
-    o.p1.x = yerX - satirar * 2 : o.p1.y = yerY : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, "AK:" & KotFormat(cAK), 0, 0, yaziboy, 0, "L", tabC))
+    o.p1.x = yerX + dirX * satirar * 2 : o.p1.y = yerY + dirY * satirar * 2 : o.p1.z = 0
+    .AddObject (.MakeText(o.p1, "AK:" & KotFormat(cAK), 0, 0, yaziboy, yaziAci, "L", tabC))
 
     .setparam endblock, true
 
@@ -201,6 +246,24 @@ End With
 MsgBox "Toplam " & sayac & " baglanti islendi.", 64, "Parsel Baca Makrosu"
 
 END SUB
+
+Function Atan2(y, x)
+  Dim pi
+  pi = 3.14159265358979
+  If x > 0 Then
+    Atan2 = Atn(y / x)
+  ElseIf x < 0 And y >= 0 Then
+    Atan2 = Atn(y / x) + pi
+  ElseIf x < 0 And y < 0 Then
+    Atan2 = Atn(y / x) - pi
+  ElseIf x = 0 And y > 0 Then
+    Atan2 = pi / 2
+  ElseIf x = 0 And y < 0 Then
+    Atan2 = -pi / 2
+  Else
+    Atan2 = 0
+  End If
+End Function
 
 Function KotFormat(deger)
   Dim tamKisim, ondalikKisim, tempDeger, isaret
