@@ -139,19 +139,19 @@ With netcad
     o.p1.x = yerX : o.p1.y = yerY : o.p1.z = 0
     .AddObject (.MakeText(o.p1, parselBacaAdi, 0, 0, yaziboy, 0, "L", tabNo))
 
-    o.p1.x = yerX : o.p1.y = yerY - satirar : o.p1.z = 0
+    o.p1.x = yerX - satirar : o.p1.y = yerY : o.p1.z = 0
     .AddObject (.MakeText(o.p1, "ZK:" & KotFormat(pZK), 0, 0, yaziboy, 0, "L", tabNo))
 
-    o.p1.x = yerX : o.p1.y = yerY - satirar * 2 : o.p1.z = 0
+    o.p1.x = yerX - satirar * 2 : o.p1.y = yerY : o.p1.z = 0
     .AddObject (.MakeText(o.p1, "AK:" & KotFormat(pAK), 0, 0, yaziboy, 0, "L", tabNo))
 
-    o.p1.x = yerX : o.p1.y = yerY - satirar * 3 : o.p1.z = 0
+    o.p1.x = yerX - satirar * 3 : o.p1.y = yerY : o.p1.z = 0
     .AddObject (.MakeText(o.p1, "YL=" & KotFormat(hatYatayMesafe) & "m", 0, 0, yaziboy, 0, "L", tabNo))
 
-    o.p1.x = yerX : o.p1.y = yerY - satirar * 4 : o.p1.z = 0
+    o.p1.x = yerX - satirar * 4 : o.p1.y = yerY : o.p1.z = 0
     .AddObject (.MakeText(o.p1, "EL=" & KotFormat(hatEgikMesafe) & "m", 0, 0, yaziboy, 0, "L", tabNo))
 
-    o.p1.x = yerX : o.p1.y = yerY - satirar * 5 : o.p1.z = 0
+    o.p1.x = yerX - satirar * 5 : o.p1.y = yerY : o.p1.z = 0
     .AddObject (.MakeText(o.p1, hatcapi, 0, 0, yaziboy, 0, "L", tabNo))
 
     ' 7. C BAGLANTI TEXT GRUBU - ekrandan serbest tikla
@@ -167,10 +167,10 @@ With netcad
     o.p1.x = yerX : o.p1.y = yerY : o.p1.z = 0
     .AddObject (.MakeText(o.p1, cNoktaAdi, 0, 0, yaziboy, 0, "L", tabNo))
 
-    o.p1.x = yerX : o.p1.y = yerY - satirar : o.p1.z = 0
+    o.p1.x = yerX - satirar : o.p1.y = yerY : o.p1.z = 0
     .AddObject (.MakeText(o.p1, "ZK:" & KotFormat(cZK), 0, 0, yaziboy, 0, "L", tabNo))
 
-    o.p1.x = yerX : o.p1.y = yerY - satirar * 2 : o.p1.z = 0
+    o.p1.x = yerX - satirar * 2 : o.p1.y = yerY : o.p1.z = 0
     .AddObject (.MakeText(o.p1, "AK:" & KotFormat(cAK), 0, 0, yaziboy, 0, "L", tabNo))
 
     .setparam endblock, true
