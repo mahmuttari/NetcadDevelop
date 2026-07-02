@@ -218,10 +218,10 @@ With netcad
     .AddObject (.MakeText(o.p1, cNoktaAdi, 0, 0, yaziboyC, yaziAci, "L", tabC))
 
     o.p1.x = yerX + dirX * satirarC : o.p1.y = yerY + dirY * satirarC : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, "ZK:" & KotFormat(cZK), 0, 0, yaziboyC, yaziAci, "L", tabC))
+    .AddObject (.MakeText(o.p1, "Z:" & KotFormat(cZK), 0, 0, yaziboyC, yaziAci, "L", tabC))
 
     o.p1.x = yerX + dirX * satirarC * 2 : o.p1.y = yerY + dirY * satirarC * 2 : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, "AK:" & KotFormat(cAK), 0, 0, yaziboyC, yaziAci, "L", tabC))
+    .AddObject (.MakeText(o.p1, "A:" & KotFormat(cAK), 0, 0, yaziboyC, yaziAci, "L", tabC))
 
     .setparam endblock, true
 
