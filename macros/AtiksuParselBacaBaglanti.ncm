@@ -3,9 +3,9 @@
 ' NetCAD VBScript Macro
 '
 ' Islem Sirasi:
-'   1. Hat cizgisi secilir (yatay ve egik mesafe okunur)
-'   2. C zemin noktasi secilir (ad, ZK, AK okunur)
-'   3. Parsel baca zemin noktasi secilir (ad, ZK, AK okunur)
+'   1. Hat cizgisi secilir (yatay ve egik mesafe hesaplanir)
+'   2. C zemin noktasi secilir (ad, ZK okunur, AK sorulur)
+'   3. Parsel baca zemin noktasi secilir (ad, ZK okunur, AK sorulur)
 '   4. Parsel Baca text grubu icin yerlestirme noktasi secilir
 '   5. C Baglanti text grubu icin yerlestirme noktasi secilir
 '   6. Devam/Cik
@@ -13,13 +13,19 @@
 ' Text Gruplari:
 '   PARSEL BACA (6 satir): Ad, ZK, AK, YL, EL, Cap
 '   C BAGLANTI  (3 satir): Ad, ZK, AK
+'
+' NetCAD Obje Ozellikleri:
+'   Nokta: o.p1.x, o.p1.y, o.p1.z, o.pname
+'   Cizgi: o.p1.x/y/z, o.p2.x/y/z (baslangic/bitis)
+'   Polyline: GetPlineExt(o) -> p.num, p.cor(i).x/y/z
+'   Sabitler: opoint=1, oline=2, opline=7
 '===========================================================================
 
 SUB Main
 
 DIM selHat, selNokta, selYer
 DIM o, oHat, oC, oBaca, oYer
-DIM i, j, bd
+DIM i, j, k, bd, pExt
 DIM cNoktaAdi, parselBacaAdi
 DIM cZK, cAK, pZK, pAK
 DIM hatYatayMesafe, hatEgikMesafe
@@ -27,7 +33,8 @@ DIM yaziboy, satirar, hatcapi
 DIM hatAci, yaziAci, perpX, perpY
 DIM yerX, yerY, tx, ty
 DIM tabNo, devamMi, sayac
-DIM deltaZ, dx, dy, myPI
+DIM deltaZ, dx, dy, dz, myPI
+DIM segYatay, segEgik
 
 myPI = 3.14159265358979
 sayac = 0
@@ -40,7 +47,7 @@ With netcad
   set bd = Netcad.NewBDialog("Atiksu Parsel Baca Baglanti Ayarlari")
   bd.Getfloat "yaziboy", "Yazi Yuksekligi:", 0.35, 2
   bd.Getfloat "satirar", "Satir Araligi:", 0.55, 2
-  bd.Getstring "hatcapi", "Hat Capi Metni:", "Ø200BB", 20
+  bd.Getstring "hatcapi", "Hat Capi Metni:", "O200BB", 20
 
   If Not bd.showmodal Then
     Exit Sub
@@ -64,7 +71,6 @@ With netcad
     set selHat = .NewSelectionSet
     set selNokta = .NewSelectionSet
     set selYer = .NewSelectionSet
-    set o = .NewObject
     set oHat = .NewObject
     set oC = .NewObject
     set oBaca = .NewObject
@@ -81,8 +87,26 @@ With netcad
     End If
 
     j = selHat.GetSelectedObject(0, oHat)
-    hatYatayMesafe = oHat.length
-    hatEgikMesafe = oHat.length3d
+
+    hatYatayMesafe = 0
+    hatEgikMesafe = 0
+
+    If oHat.tag = oline Then
+      dx = oHat.p2.x - oHat.p1.x
+      dy = oHat.p2.y - oHat.p1.y
+      dz = oHat.p2.z - oHat.p1.z
+      hatYatayMesafe = Sqr(dx * dx + dy * dy)
+      hatEgikMesafe = Sqr(dx * dx + dy * dy + dz * dz)
+    ElseIf oHat.tag = opline Then
+      set pExt = .GetPlineExt(oHat)
+      For k = 0 To pExt.num - 2
+        dx = pExt.cor(k + 1).x - pExt.cor(k).x
+        dy = pExt.cor(k + 1).y - pExt.cor(k).y
+        dz = pExt.cor(k + 1).z - pExt.cor(k).z
+        hatYatayMesafe = hatYatayMesafe + Sqr(dx * dx + dy * dy)
+        hatEgikMesafe = hatEgikMesafe + Sqr(dx * dx + dy * dy + dz * dz)
+      Next
+    End If
 
     ' ---------------------------------------------------------
     ' 2. C ZEMIN NOKTASINI SEC
@@ -94,16 +118,9 @@ With netcad
 
     j = selNokta.GetSelectedObject(0, oC)
     cNoktaAdi = oC.pname
-    cZK = oC.z
+    cZK = oC.p1.z
 
-    ' AK degerini oku
-    cAK = 0
-    On Error Resume Next
-    cAK = oC.pcode
-    On Error GoTo 0
-    If cAK = 0 Or cAK = "" Then
-      cAK = CDbl(InputBox("C noktasi (" & cNoktaAdi & ") Akar Kotu (AK) girin:", "AK Girisi", "0.00"))
-    End If
+    cAK = CDbl(InputBox("C noktasi (" & cNoktaAdi & ") Akar Kotu (AK) girin:", "AK Girisi", "0.00"))
 
     ' ---------------------------------------------------------
     ' 3. PARSEL BACA ZEMIN NOKTASINI SEC
@@ -116,22 +133,15 @@ With netcad
 
     j = selNokta.GetSelectedObject(0, oBaca)
     parselBacaAdi = oBaca.pname
-    pZK = oBaca.z
+    pZK = oBaca.p1.z
 
-    ' AK degerini oku
-    pAK = 0
-    On Error Resume Next
-    pAK = oBaca.pcode
-    On Error GoTo 0
-    If pAK = 0 Or pAK = "" Then
-      pAK = CDbl(InputBox("Parsel bacasi (" & parselBacaAdi & ") Akar Kotu (AK) girin:", "AK Girisi", "0.00"))
-    End If
+    pAK = CDbl(InputBox("Parsel bacasi (" & parselBacaAdi & ") Akar Kotu (AK) girin:", "AK Girisi", "0.00"))
 
     ' ---------------------------------------------------------
     ' HESAPLAMALAR
     ' ---------------------------------------------------------
-    dx = oBaca.x - oC.x
-    dy = oBaca.y - oC.y
+    dx = oBaca.p1.x - oC.p1.x
+    dy = oBaca.p1.y - oC.p1.y
 
     If dx = 0 And dy = 0 Then
       hatAci = 0
@@ -142,7 +152,6 @@ With netcad
       If dx < 0 Then hatAci = hatAci + myPI
     End If
 
-    ' Egik mesafe kontrolu
     If hatEgikMesafe <= 0 Or hatEgikMesafe = hatYatayMesafe Then
       deltaZ = Abs(pZK - cZK)
       If deltaZ > 0 Then
@@ -150,18 +159,15 @@ With netcad
       End If
     End If
 
-    ' Yazi acisi (okunaklilik icin -90/+90)
     yaziAci = hatAci * 57.2957795130823
     If yaziAci > 90 Then yaziAci = yaziAci - 180
     If yaziAci < -90 Then yaziAci = yaziAci + 180
 
-    ' Dik yon (satir offseti icin)
     perpX = -Sin(hatAci)
     perpY = Cos(hatAci)
 
     ' ---------------------------------------------------------
     ' 4. PARSEL BACA TEXT GRUBUNU YERLESTIR (6 satir)
-    '    Kullanici bir nokta objesi secer, text oraya yazilir
     ' ---------------------------------------------------------
     set selYer = .NewSelectionSet
     If Not selYer.SELECT("4/5 - PARSEL BACA text grubunu koyacaginiz NOKTAYI secin", Array(opoint)) Then
@@ -170,38 +176,39 @@ With netcad
     End If
 
     j = selYer.GetSelectedObject(0, oYer)
-    yerX = oYer.x
-    yerY = oYer.y
+    yerX = oYer.p1.x
+    yerY = oYer.p1.y
 
-    ' Satir 0: Baca Adi
     tx = yerX
     ty = yerY
-    .AddObject (.MakeText (.MakeCoord(tx, ty, 0), parselBacaAdi, yaziAci, 0, yaziboy, 0, "L", tabNo))
+    set o = .NewObject
+    o.p1.x = tx : o.p1.y = ty : o.p1.z = 0
+    .AddObject (.MakeText(o.p1, parselBacaAdi, yaziAci, 0, yaziboy, 0, "L", tabNo))
 
-    ' Satir 1: Zemin Kotu
     tx = yerX + perpX * satirar
     ty = yerY + perpY * satirar
-    .AddObject (.MakeText (.MakeCoord(tx, ty, 0), "ZK:" & KotFormat(pZK), yaziAci, 0, yaziboy, 0, "L", tabNo))
+    o.p1.x = tx : o.p1.y = ty : o.p1.z = 0
+    .AddObject (.MakeText(o.p1, "ZK:" & KotFormat(pZK), yaziAci, 0, yaziboy, 0, "L", tabNo))
 
-    ' Satir 2: Akar Kotu
     tx = yerX + perpX * satirar * 2
     ty = yerY + perpY * satirar * 2
-    .AddObject (.MakeText (.MakeCoord(tx, ty, 0), "AK:" & KotFormat(pAK), yaziAci, 0, yaziboy, 0, "L", tabNo))
+    o.p1.x = tx : o.p1.y = ty : o.p1.z = 0
+    .AddObject (.MakeText(o.p1, "AK:" & KotFormat(pAK), yaziAci, 0, yaziboy, 0, "L", tabNo))
 
-    ' Satir 3: Yatay Mesafe
     tx = yerX + perpX * satirar * 3
     ty = yerY + perpY * satirar * 3
-    .AddObject (.MakeText (.MakeCoord(tx, ty, 0), "YL=" & KotFormat(hatYatayMesafe) & "m", yaziAci, 0, yaziboy, 0, "L", tabNo))
+    o.p1.x = tx : o.p1.y = ty : o.p1.z = 0
+    .AddObject (.MakeText(o.p1, "YL=" & KotFormat(hatYatayMesafe) & "m", yaziAci, 0, yaziboy, 0, "L", tabNo))
 
-    ' Satir 4: Egik Mesafe
     tx = yerX + perpX * satirar * 4
     ty = yerY + perpY * satirar * 4
-    .AddObject (.MakeText (.MakeCoord(tx, ty, 0), "EL=" & KotFormat(hatEgikMesafe) & "m", yaziAci, 0, yaziboy, 0, "L", tabNo))
+    o.p1.x = tx : o.p1.y = ty : o.p1.z = 0
+    .AddObject (.MakeText(o.p1, "EL=" & KotFormat(hatEgikMesafe) & "m", yaziAci, 0, yaziboy, 0, "L", tabNo))
 
-    ' Satir 5: Hat Capi
     tx = yerX + perpX * satirar * 5
     ty = yerY + perpY * satirar * 5
-    .AddObject (.MakeText (.MakeCoord(tx, ty, 0), hatcapi, yaziAci, 0, yaziboy, 0, "L", tabNo))
+    o.p1.x = tx : o.p1.y = ty : o.p1.z = 0
+    .AddObject (.MakeText(o.p1, hatcapi, yaziAci, 0, yaziboy, 0, "L", tabNo))
 
     ' ---------------------------------------------------------
     ' 5. C BAGLANTI TEXT GRUBUNU YERLESTIR (3 satir)
@@ -213,23 +220,23 @@ With netcad
     End If
 
     j = selYer.GetSelectedObject(0, oYer)
-    yerX = oYer.x
-    yerY = oYer.y
+    yerX = oYer.p1.x
+    yerY = oYer.p1.y
 
-    ' Satir 0: C Nokta Adi
     tx = yerX
     ty = yerY
-    .AddObject (.MakeText (.MakeCoord(tx, ty, 0), cNoktaAdi, yaziAci, 0, yaziboy, 0, "L", tabNo))
+    o.p1.x = tx : o.p1.y = ty : o.p1.z = 0
+    .AddObject (.MakeText(o.p1, cNoktaAdi, yaziAci, 0, yaziboy, 0, "L", tabNo))
 
-    ' Satir 1: C Zemin Kotu
     tx = yerX + perpX * satirar
     ty = yerY + perpY * satirar
-    .AddObject (.MakeText (.MakeCoord(tx, ty, 0), "ZK:" & KotFormat(cZK), yaziAci, 0, yaziboy, 0, "L", tabNo))
+    o.p1.x = tx : o.p1.y = ty : o.p1.z = 0
+    .AddObject (.MakeText(o.p1, "ZK:" & KotFormat(cZK), yaziAci, 0, yaziboy, 0, "L", tabNo))
 
-    ' Satir 2: C Akar Kotu
     tx = yerX + perpX * satirar * 2
     ty = yerY + perpY * satirar * 2
-    .AddObject (.MakeText (.MakeCoord(tx, ty, 0), "AK:" & KotFormat(cAK), yaziAci, 0, yaziboy, 0, "L", tabNo))
+    o.p1.x = tx : o.p1.y = ty : o.p1.z = 0
+    .AddObject (.MakeText(o.p1, "AK:" & KotFormat(cAK), yaziAci, 0, yaziboy, 0, "L", tabNo))
 
     ' ---------------------------------------------------------
     .setparam endblock, true
@@ -249,7 +256,6 @@ With netcad
     set selHat = Nothing
     set selNokta = Nothing
     set selYer = Nothing
-    set o = Nothing
 
   Loop
 
