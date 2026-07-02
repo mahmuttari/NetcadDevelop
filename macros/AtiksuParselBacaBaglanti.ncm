@@ -11,7 +11,7 @@ DIM j, k, bd, pExt, cr, cr2
 DIM cNoktaAdi, parselBacaAdi
 DIM cZK, cAK, pZK, pAK
 DIM hatYatayMesafe, hatEgikMesafe
-DIM yaziboy, satirar, hatcapi, tabParsel, tabC
+DIM yaziboyParsel, yaziboyC, satirar, hatcapi, tabParsel, tabC
 DIM yerX, yerY
 DIM dirX, dirY, sdx, sdy, sMesafe, yaziAci, screenAci
 DIM devamMi, sayac
@@ -25,20 +25,22 @@ sayac = 0
 With netcad
 
   set bd = Netcad.NewBDialog("Atiksu Parsel Baca Baglanti Ayarlari")
-  bd.Getfloat "yaziboy", "Yazi Yuksekligi:", 0.35, 2
-  bd.Getfloat "satirar", "Satir Araligi:", 0.55, 2
+  bd.Getfloat "yaziboyParsel", "Parsel Yazi Yuksekligi:", 1, 2
+  bd.Getfloat "yaziboyC", "C Yazi Yuksekligi:", 0.75, 2
+  bd.Getfloat "satirar", "Satir Araligi:", 1.5, 2
   bd.Getstring "hatcapi", "Hat Capi Metni:", "O200BB", 20
 
   If Not bd.showmodal Then
     Exit Sub
   End If
 
-  yaziboy = bd.ValueByName("yaziboy")
+  yaziboyParsel = bd.ValueByName("yaziboyParsel")
+  yaziboyC = bd.ValueByName("yaziboyC")
   satirar = bd.ValueByName("satirar")
   hatcapi = bd.ValueByName("hatcapi")
 
-  tabParsel = .CreateLayer("PARSEL_BILGI", 6)
-  tabC = .CreateLayer("C_BILGI", 3)
+  tabParsel = .CreateLayer("PARSEL_BILGI", 0)
+  tabC = .CreateLayer("C_BILGI", 0)
 
   devamMi = True
 
@@ -162,22 +164,22 @@ With netcad
     If yaziAci < -myPI / 2 Then yaziAci = yaziAci + myPI
 
     o.p1.x = yerX : o.p1.y = yerY : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, parselBacaAdi, 0, 0, yaziboy, yaziAci, "L", tabParsel))
+    .AddObject (.MakeText(o.p1, parselBacaAdi, 0, 0, yaziboyParsel, yaziAci, "L", tabParsel))
 
     o.p1.x = yerX + dirX * satirar : o.p1.y = yerY + dirY * satirar : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, "ZK:" & KotFormat(pZK), 0, 0, yaziboy, yaziAci, "L", tabParsel))
+    .AddObject (.MakeText(o.p1, "ZK:" & KotFormat(pZK), 0, 0, yaziboyParsel, yaziAci, "L", tabParsel))
 
     o.p1.x = yerX + dirX * satirar * 2 : o.p1.y = yerY + dirY * satirar * 2 : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, "AK:" & KotFormat(pAK), 0, 0, yaziboy, yaziAci, "L", tabParsel))
+    .AddObject (.MakeText(o.p1, "AK:" & KotFormat(pAK), 0, 0, yaziboyParsel, yaziAci, "L", tabParsel))
 
     o.p1.x = yerX + dirX * satirar * 3 : o.p1.y = yerY + dirY * satirar * 3 : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, "YL=" & KotFormat(hatYatayMesafe) & "m", 0, 0, yaziboy, yaziAci, "L", tabParsel))
+    .AddObject (.MakeText(o.p1, "YL=" & KotFormat(hatYatayMesafe) & "m", 0, 0, yaziboyParsel, yaziAci, "L", tabParsel))
 
     o.p1.x = yerX + dirX * satirar * 4 : o.p1.y = yerY + dirY * satirar * 4 : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, "EL=" & KotFormat(hatEgikMesafe) & "m", 0, 0, yaziboy, yaziAci, "L", tabParsel))
+    .AddObject (.MakeText(o.p1, "EL=" & KotFormat(hatEgikMesafe) & "m", 0, 0, yaziboyParsel, yaziAci, "L", tabParsel))
 
     o.p1.x = yerX + dirX * satirar * 5 : o.p1.y = yerY + dirY * satirar * 5 : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, hatcapi, 0, 0, yaziboy, yaziAci, "L", tabParsel))
+    .AddObject (.MakeText(o.p1, hatcapi, 0, 0, yaziboyParsel, yaziAci, "L", tabParsel))
 
     ' 8. C BAGLANTI TEXT GRUBU - baslangic noktasi
     set cr = .newc(0, 0, 0)
@@ -211,13 +213,13 @@ With netcad
     If yaziAci < -myPI / 2 Then yaziAci = yaziAci + myPI
 
     o.p1.x = yerX : o.p1.y = yerY : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, cNoktaAdi, 0, 0, yaziboy, yaziAci, "L", tabC))
+    .AddObject (.MakeText(o.p1, cNoktaAdi, 0, 0, yaziboyC, yaziAci, "L", tabC))
 
     o.p1.x = yerX + dirX * satirar : o.p1.y = yerY + dirY * satirar : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, "ZK:" & KotFormat(cZK), 0, 0, yaziboy, yaziAci, "L", tabC))
+    .AddObject (.MakeText(o.p1, "ZK:" & KotFormat(cZK), 0, 0, yaziboyC, yaziAci, "L", tabC))
 
     o.p1.x = yerX + dirX * satirar * 2 : o.p1.y = yerY + dirY * satirar * 2 : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, "AK:" & KotFormat(cAK), 0, 0, yaziboy, yaziAci, "L", tabC))
+    .AddObject (.MakeText(o.p1, "AK:" & KotFormat(cAK), 0, 0, yaziboyC, yaziAci, "L", tabC))
 
     .setparam endblock, true
 
