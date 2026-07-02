@@ -11,7 +11,7 @@ DIM j, k, bd, pExt, cr
 DIM cNoktaAdi, parselBacaAdi
 DIM cZK, cAK, pZK, pAK
 DIM hatYatayMesafe, hatEgikMesafe
-DIM yaziboy, satirar, hatcapi, tabNo
+DIM yaziboy, satirar, hatcapi, tabParsel, tabC
 DIM yerX, yerY
 DIM devamMi, sayac
 DIM deltaZ, dx, dy, dz
@@ -34,7 +34,8 @@ With netcad
   satirar = bd.ValueByName("satirar")
   hatcapi = bd.ValueByName("hatcapi")
 
-  tabNo = .CreateLayer("PARSEL_BACA_BILGI", 6)
+  tabParsel = .CreateLayer("PARSEL_BILGI", 6)
+  tabC = .CreateLayer("C_BILGI", 3)
 
   devamMi = True
 
@@ -137,22 +138,22 @@ With netcad
     yerY = cr.y
 
     o.p1.x = yerX : o.p1.y = yerY : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, parselBacaAdi, 0, 0, yaziboy, 0, "L", tabNo))
+    .AddObject (.MakeText(o.p1, parselBacaAdi, 0, 0, yaziboy, 0, "L", tabParsel))
 
     o.p1.x = yerX - satirar : o.p1.y = yerY : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, "ZK:" & KotFormat(pZK), 0, 0, yaziboy, 0, "L", tabNo))
+    .AddObject (.MakeText(o.p1, "ZK:" & KotFormat(pZK), 0, 0, yaziboy, 0, "L", tabParsel))
 
     o.p1.x = yerX - satirar * 2 : o.p1.y = yerY : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, "AK:" & KotFormat(pAK), 0, 0, yaziboy, 0, "L", tabNo))
+    .AddObject (.MakeText(o.p1, "AK:" & KotFormat(pAK), 0, 0, yaziboy, 0, "L", tabParsel))
 
     o.p1.x = yerX - satirar * 3 : o.p1.y = yerY : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, "YL=" & KotFormat(hatYatayMesafe) & "m", 0, 0, yaziboy, 0, "L", tabNo))
+    .AddObject (.MakeText(o.p1, "YL=" & KotFormat(hatYatayMesafe) & "m", 0, 0, yaziboy, 0, "L", tabParsel))
 
     o.p1.x = yerX - satirar * 4 : o.p1.y = yerY : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, "EL=" & KotFormat(hatEgikMesafe) & "m", 0, 0, yaziboy, 0, "L", tabNo))
+    .AddObject (.MakeText(o.p1, "EL=" & KotFormat(hatEgikMesafe) & "m", 0, 0, yaziboy, 0, "L", tabParsel))
 
     o.p1.x = yerX - satirar * 5 : o.p1.y = yerY : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, hatcapi, 0, 0, yaziboy, 0, "L", tabNo))
+    .AddObject (.MakeText(o.p1, hatcapi, 0, 0, yaziboy, 0, "L", tabParsel))
 
     ' 7. C BAGLANTI TEXT GRUBU - ekrandan serbest tikla
     set cr = .newc(0, 0, 0)
@@ -165,13 +166,13 @@ With netcad
     yerY = cr.y
 
     o.p1.x = yerX : o.p1.y = yerY : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, cNoktaAdi, 0, 0, yaziboy, 0, "L", tabNo))
+    .AddObject (.MakeText(o.p1, cNoktaAdi, 0, 0, yaziboy, 0, "L", tabC))
 
     o.p1.x = yerX - satirar : o.p1.y = yerY : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, "ZK:" & KotFormat(cZK), 0, 0, yaziboy, 0, "L", tabNo))
+    .AddObject (.MakeText(o.p1, "ZK:" & KotFormat(cZK), 0, 0, yaziboy, 0, "L", tabC))
 
     o.p1.x = yerX - satirar * 2 : o.p1.y = yerY : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, "AK:" & KotFormat(cAK), 0, 0, yaziboy, 0, "L", tabNo))
+    .AddObject (.MakeText(o.p1, "AK:" & KotFormat(cAK), 0, 0, yaziboy, 0, "L", tabC))
 
     .setparam endblock, true
 
