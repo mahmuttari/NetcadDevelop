@@ -7,12 +7,12 @@ SUB Main
 
 DIM selHat, selNokta
 DIM oHat, oC, oCAK, oBaca, oBacaAK
-DIM j, k, bd, pExt, cr, yaz, lay
+DIM j, k, bd, pExt, cr
 DIM cNoktaAdi, parselBacaAdi
 DIM cZK, cAK, pZK, pAK
 DIM hatYatayMesafe, hatEgikMesafe
 DIM yaziboy, satirar, hatcapi
-DIM yerX, yerY
+DIM yerX, yerY, yerX2, yerY2
 DIM devamMi, sayac
 DIM deltaZ, dx, dy, dz
 DIM sorgu, mesaj
@@ -34,15 +34,11 @@ With netcad
   satirar = bd.ValueByName("satirar")
   hatcapi = bd.ValueByName("hatcapi")
 
-  MsgBox "DEBUG: Yaziboy=" & yaziboy & "  Satirar=" & satirar, 64, "Debug"
-
   devamMi = True
 
   Do While devamMi
 
     sayac = sayac + 1
-
-    .setparam beginblock, true
 
     ' 1. HAT CIZGISINI SEC
     set selHat = .NewSelectionSet
@@ -135,23 +131,6 @@ With netcad
     yerX = cr.x
     yerY = cr.y
 
-    lay = .CreateLayer("PARSEL_BACA_BILGI", 6)
-
-    set yaz = .MakeText(.newc(yerX, yerY, 0), parselBacaAdi, 0, 0, yaziboy, 0, "M", lay)
-    .AddObject yaz
-    set yaz = .MakeText(.newc(yerX, yerY - satirar, 0), "ZK:" & KotFormat(pZK), 0, 0, yaziboy, 0, "M", lay)
-    .AddObject yaz
-    set yaz = .MakeText(.newc(yerX, yerY - satirar * 2, 0), "AK:" & KotFormat(pAK), 0, 0, yaziboy, 0, "M", lay)
-    .AddObject yaz
-    set yaz = .MakeText(.newc(yerX, yerY - satirar * 3, 0), "YL=" & KotFormat(hatYatayMesafe) & "m", 0, 0, yaziboy, 0, "M", lay)
-    .AddObject yaz
-    set yaz = .MakeText(.newc(yerX, yerY - satirar * 4, 0), "EL=" & KotFormat(hatEgikMesafe) & "m", 0, 0, yaziboy, 0, "M", lay)
-    .AddObject yaz
-    set yaz = .MakeText(.newc(yerX, yerY - satirar * 5, 0), hatcapi, 0, 0, yaziboy, 0, "M", lay)
-    .AddObject yaz
-
-    .NetcadCommand "REDRAW"
-
     ' 7. C BAGLANTI TEXT GRUBU - ekrandan serbest tikla
     set cr = .newc(0, 0, 0)
     If Not .SelectPoint("7/7 - C BAGLANTI textleri icin ekrana tiklayin", cr, -1) Then
@@ -159,19 +138,26 @@ With netcad
       Exit Sub
     End If
 
-    yerX = cr.x
-    yerY = cr.y
+    yerX2 = cr.x
+    yerY2 = cr.y
 
-    set yaz = .MakeText(.newc(yerX, yerY, 0), cNoktaAdi, 0, 0, yaziboy, 0, "M", lay)
-    .AddObject yaz
-    set yaz = .MakeText(.newc(yerX, yerY - satirar, 0), "ZK:" & KotFormat(cZK), 0, 0, yaziboy, 0, "M", lay)
-    .AddObject yaz
-    set yaz = .MakeText(.newc(yerX, yerY - satirar * 2, 0), "AK:" & KotFormat(cAK), 0, 0, yaziboy, 0, "M", lay)
-    .AddObject yaz
+    ' YAZILARI EKLE
+    .setparam beginblock, true
 
-    .NetcadCommand "REDRAW"
+    .AddObject (.MakeText (.newc(yerX, yerY, 0), parselBacaAdi, 0, 0, yaziboy, 0, "M", .CreateLayer("PARSEL_BACA_BILGI", 6)))
+    .AddObject (.MakeText (.newc(yerX, yerY - satirar, 0), "ZK:" & KotFormat(pZK), 0, 0, yaziboy, 0, "M", .CreateLayer("PARSEL_BACA_BILGI", 6)))
+    .AddObject (.MakeText (.newc(yerX, yerY - satirar * 2, 0), "AK:" & KotFormat(pAK), 0, 0, yaziboy, 0, "M", .CreateLayer("PARSEL_BACA_BILGI", 6)))
+    .AddObject (.MakeText (.newc(yerX, yerY - satirar * 3, 0), "YL=" & KotFormat(hatYatayMesafe) & "m", 0, 0, yaziboy, 0, "M", .CreateLayer("PARSEL_BACA_BILGI", 6)))
+    .AddObject (.MakeText (.newc(yerX, yerY - satirar * 4, 0), "EL=" & KotFormat(hatEgikMesafe) & "m", 0, 0, yaziboy, 0, "M", .CreateLayer("PARSEL_BACA_BILGI", 6)))
+    .AddObject (.MakeText (.newc(yerX, yerY - satirar * 5, 0), hatcapi, 0, 0, yaziboy, 0, "M", .CreateLayer("PARSEL_BACA_BILGI", 6)))
+
+    .AddObject (.MakeText (.newc(yerX2, yerY2, 0), cNoktaAdi, 0, 0, yaziboy, 0, "M", .CreateLayer("PARSEL_BACA_BILGI", 6)))
+    .AddObject (.MakeText (.newc(yerX2, yerY2 - satirar, 0), "ZK:" & KotFormat(cZK), 0, 0, yaziboy, 0, "M", .CreateLayer("PARSEL_BACA_BILGI", 6)))
+    .AddObject (.MakeText (.newc(yerX2, yerY2 - satirar * 2, 0), "AK:" & KotFormat(cAK), 0, 0, yaziboy, 0, "M", .CreateLayer("PARSEL_BACA_BILGI", 6)))
 
     .setparam endblock, true
+
+    .netcadcommand("REGEN")
 
     ' DEVAM KONTROLU
     mesaj = "Baglanti #" & sayac & " tamamlandi." & Chr(13) & Chr(13)
