@@ -120,7 +120,13 @@ With netcad
     cNoktaAdi = oC.pname
     cZK = oC.p1.z
 
-    cAK = CDbl(InputBox("C noktasi (" & cNoktaAdi & ") Akar Kotu (AK) girin:", "AK Girisi", "0.00"))
+    cAK = 0
+    On Error Resume Next
+    cAK = CDbl(oC.pcode)
+    On Error GoTo 0
+    If cAK = 0 Then
+      cAK = CDbl(InputBox("C noktasi (" & cNoktaAdi & ") AK noktadan okunamadi. AK girin:", "AK Girisi", "0.00"))
+    End If
 
     ' ---------------------------------------------------------
     ' 3. PARSEL BACA ZEMIN NOKTASINI SEC
@@ -135,7 +141,13 @@ With netcad
     parselBacaAdi = oBaca.pname
     pZK = oBaca.p1.z
 
-    pAK = CDbl(InputBox("Parsel bacasi (" & parselBacaAdi & ") Akar Kotu (AK) girin:", "AK Girisi", "0.00"))
+    pAK = 0
+    On Error Resume Next
+    pAK = CDbl(oBaca.pcode)
+    On Error GoTo 0
+    If pAK = 0 Then
+      pAK = CDbl(InputBox("Parsel bacasi (" & parselBacaAdi & ") AK noktadan okunamadi. AK girin:", "AK Girisi", "0.00"))
+    End If
 
     ' ---------------------------------------------------------
     ' HESAPLAMALAR
