@@ -1,332 +1,287 @@
 '===========================================================================
 ' ATIKSU PARSEL BACA BAGLANTI BILGILERI YAZMA MAKROSU
-' NetCAD NCM Macro
+' NetCAD VBScript Macro
 '
 ' Islem Sirasi:
-'   1. C baglanti noktasi secilir
-'   2. Parsel baca noktasi secilir
-'   3. Hat cizgisi secilir
-'   4. C zemin noktasi secilir (ad, ZK, AK okunur)
-'   5. Parsel baca zemin noktasi secilir (ad, ZK, AK okunur)
-'   6. Parsel Baca Text Grubu yerlestirilecek nokta secilir
-'   7. C Baglanti Text Grubu yerlestirilecek nokta secilir
-'   8. Devam/Cik secenegi
+'   1. Hat cizgisi secilir (yatay ve egik mesafe okunur)
+'   2. C zemin noktasi secilir (ad, ZK, AK okunur)
+'   3. Parsel baca zemin noktasi secilir (ad, ZK, AK okunur)
+'   4. Parsel Baca text grubu icin yerlestirme noktasi secilir
+'   5. C Baglanti text grubu icin yerlestirme noktasi secilir
+'   6. Devam/Cik
 '
 ' Text Gruplari:
 '   PARSEL BACA (6 satir): Ad, ZK, AK, YL, EL, Cap
 '   C BAGLANTI  (3 satir): Ad, ZK, AK
 '===========================================================================
 
-Sub Main()
+SUB Main
 
-    Dim cBagX
-    Dim cBagY
-    Dim cBagZ
-    Dim parselX
-    Dim parselY
-    Dim parselZ
-    Dim cNoktaAdi
-    Dim parselBacaAdi
-    Dim cZK
-    Dim cAK
-    Dim pZK
-    Dim pAK
-    Dim hatYatayMesafe
-    Dim hatEgikMesafe
-    Dim hatAci
-    Dim hatAciDerece
-    Dim deltaZ
-    Dim dx
-    Dim dy
-    Dim entId
-    Dim entType
-    Dim sonuc
-    Dim perpX
-    Dim perpY
-    Dim yaziAci
-    Dim tx
-    Dim ty
-    Dim metin
-    Dim devamMi
-    Dim yaziYukseklik
-    Dim satirAraligi
-    Dim yaziRenk
-    Dim hatCapiMetin
-    Dim katmanAdi
-    Dim tempVal
-    Dim sayac
-    Dim yerX
-    Dim yerY
-    Dim yerZ
+DIM selHat, selNokta, selYer
+DIM o, oHat, oC, oBaca, oYer
+DIM i, j, bd
+DIM cNoktaAdi, parselBacaAdi
+DIM cZK, cAK, pZK, pAK
+DIM hatYatayMesafe, hatEgikMesafe
+DIM yaziboy, satirar, hatcapi
+DIM hatAci, yaziAci, perpX, perpY
+DIM yerX, yerY, tx, ty
+DIM tabNo, devamMi, sayac
+DIM deltaZ, dx, dy, myPI
 
-    ' Yapilandirma
-    yaziYukseklik = 0.35
-    satirAraligi = 0.55
-    yaziRenk = 6
-    hatCapiMetin = "Ø200BB"
-    katmanAdi = "PARSEL_BACA_BILGI"
-    sayac = 0
+myPI = 3.14159265358979
+sayac = 0
 
-    ' Kullanicidan yapilandirma
-    tempVal = InputBox("Yazi yuksekligi (varsayilan 0.35):", "Ayarlar", "0.35")
-    If tempVal <> "" Then
-        yaziYukseklik = CDbl(tempVal)
+With netcad
+
+  ' -----------------------------------------------------------
+  ' AYAR DIYALOGU
+  ' -----------------------------------------------------------
+  set bd = Netcad.NewBDialog("Atiksu Parsel Baca Baglanti Ayarlari")
+  bd.Getfloat "yaziboy", "Yazi Yuksekligi:", 0.35, 2
+  bd.Getfloat "satirar", "Satir Araligi:", 0.55, 2
+  bd.Getstring "hatcapi", "Hat Capi Metni:", "Ø200BB", 20
+
+  If Not bd.showmodal Then
+    Exit Sub
+  End If
+
+  yaziboy = bd.ValueByName("yaziboy")
+  satirar = bd.ValueByName("satirar")
+  hatcapi = bd.ValueByName("hatcapi")
+
+  tabNo = .CreateLayer("PARSEL_BACA_BILGI", 6)
+
+  ' ===========================================================
+  ' ANA DONGU
+  ' ===========================================================
+  devamMi = True
+
+  Do While devamMi
+
+    sayac = sayac + 1
+
+    set selHat = .NewSelectionSet
+    set selNokta = .NewSelectionSet
+    set selYer = .NewSelectionSet
+    set o = .NewObject
+    set oHat = .NewObject
+    set oC = .NewObject
+    set oBaca = .NewObject
+    set oYer = .NewObject
+
+    .setparam beginblock, true
+
+    ' ---------------------------------------------------------
+    ' 1. HAT CIZGISINI SEC
+    ' ---------------------------------------------------------
+    If Not selHat.SELECT("1/5 - Hat cizgisini secin", array(opline)) Then
+      MsgBox "Islem iptal edildi."
+      Exit Sub
     End If
 
-    tempVal = InputBox("Satir araligi (varsayilan 0.55):", "Ayarlar", "0.55")
-    If tempVal <> "" Then
-        satirAraligi = CDbl(tempVal)
+    j = selHat.GetSelectedObject(0, oHat)
+    hatYatayMesafe = oHat.length
+    hatEgikMesafe = oHat.length3d
+
+    ' ---------------------------------------------------------
+    ' 2. C ZEMIN NOKTASINI SEC
+    ' ---------------------------------------------------------
+    If Not selNokta.SELECT("2/5 - C noktasinin zemin noktasini secin", array(oppoint)) Then
+      MsgBox "Islem iptal edildi."
+      Exit Sub
     End If
 
-    tempVal = InputBox("Hat capi metni (varsayilan Ø200BB):", "Ayarlar", "Ø200BB")
-    If tempVal <> "" Then
-        hatCapiMetin = tempVal
+    j = selNokta.GetSelectedObject(0, oC)
+    cNoktaAdi = oC.pname
+    cZK = oC.z
+
+    ' AK degerini oku
+    cAK = 0
+    On Error Resume Next
+    cAK = oC.pcode
+    On Error GoTo 0
+    If cAK = 0 Or cAK = "" Then
+      cAK = CDbl(InputBox("C noktasi (" & cNoktaAdi & ") Akar Kotu (AK) girin:", "AK Girisi", "0.00"))
     End If
 
-    ' ===============================================================
-    ' ANA DONGU
-    ' ===============================================================
-    devamMi = True
+    ' ---------------------------------------------------------
+    ' 3. PARSEL BACA ZEMIN NOKTASINI SEC
+    ' ---------------------------------------------------------
+    set selNokta = .NewSelectionSet
+    If Not selNokta.SELECT("3/5 - Parsel bacasi zemin noktasini secin", array(oppoint)) Then
+      MsgBox "Islem iptal edildi."
+      Exit Sub
+    End If
 
-    Do While devamMi
+    j = selNokta.GetSelectedObject(0, oBaca)
+    parselBacaAdi = oBaca.pname
+    pZK = oBaca.z
 
-        sayac = sayac + 1
+    ' AK degerini oku
+    pAK = 0
+    On Error Resume Next
+    pAK = oBaca.pcode
+    On Error GoTo 0
+    If pAK = 0 Or pAK = "" Then
+      pAK = CDbl(InputBox("Parsel bacasi (" & parselBacaAdi & ") Akar Kotu (AK) girin:", "AK Girisi", "0.00"))
+    End If
 
-        ' -----------------------------------------------------------
-        ' 1. C Baglanti Noktasini Sec
-        ' -----------------------------------------------------------
-        sonuc = NCInputPoint("1/5 - C baglanti noktasini secin:", cBagX, cBagY, cBagZ)
-        If Not sonuc Then
-            MsgBox "Islem iptal edildi."
-            Exit Sub
-        End If
+    ' ---------------------------------------------------------
+    ' HESAPLAMALAR
+    ' ---------------------------------------------------------
+    dx = oBaca.x - oC.x
+    dy = oBaca.y - oC.y
 
-        ' -----------------------------------------------------------
-        ' 2. Parsel Baca Noktasini Sec
-        ' -----------------------------------------------------------
-        sonuc = NCInputPoint("2/5 - Parsel baca noktasini secin:", parselX, parselY, parselZ)
-        If Not sonuc Then
-            MsgBox "Islem iptal edildi."
-            Exit Sub
-        End If
+    If dx = 0 And dy = 0 Then
+      hatAci = 0
+    ElseIf dx = 0 Then
+      If dy > 0 Then hatAci = myPI / 2 Else hatAci = -myPI / 2
+    Else
+      hatAci = Atn(dy / dx)
+      If dx < 0 Then hatAci = hatAci + myPI
+    End If
 
-        ' -----------------------------------------------------------
-        ' 3. Hat Cizgisini Sec
-        ' -----------------------------------------------------------
-        sonuc = NCInputEntity("3/5 - Hat cizgisini secin:", entType, entId)
-        If Not sonuc Then
-            MsgBox "Islem iptal edildi."
-            Exit Sub
-        End If
+    ' Egik mesafe kontrolu
+    If hatEgikMesafe <= 0 Or hatEgikMesafe = hatYatayMesafe Then
+      deltaZ = Abs(pZK - cZK)
+      If deltaZ > 0 Then
+        hatEgikMesafe = Sqr(hatYatayMesafe * hatYatayMesafe + deltaZ * deltaZ)
+      End If
+    End If
 
-        hatYatayMesafe = NCGetLineLength2D(entId)
-        hatEgikMesafe = NCGetLineLength3D(entId)
+    ' Yazi acisi (okunaklilik icin -90/+90)
+    yaziAci = hatAci * 57.2957795130823
+    If yaziAci > 90 Then yaziAci = yaziAci - 180
+    If yaziAci < -90 Then yaziAci = yaziAci + 180
 
-        ' -----------------------------------------------------------
-        ' 4. C Zemin Noktasini Sec
-        ' -----------------------------------------------------------
-        sonuc = NCInputEntity("4/5 - C noktasinin zemin noktasini secin:", entType, entId)
-        If Not sonuc Then
-            MsgBox "Islem iptal edildi."
-            Exit Sub
-        End If
+    ' Dik yon (satir offseti icin)
+    perpX = -Sin(hatAci)
+    perpY = Cos(hatAci)
 
-        cNoktaAdi = NCGetEntityName(entId)
-        cZK = NCGetEntityZ(entId)
-        cAK = 0
-        On Error Resume Next
-        cAK = NCGetProperty(entId, "AK")
-        On Error GoTo 0
-        If cAK = 0 Then
-            tempVal = InputBox("C noktasi (" & cNoktaAdi & ") AK degeri:" & Chr(13) & "Akar Kotu girin:", "AK Girisi", "0.00")
-            If tempVal <> "" Then
-                cAK = CDbl(tempVal)
-            End If
-        End If
+    ' ---------------------------------------------------------
+    ' 4. PARSEL BACA TEXT GRUBUNU YERLESTIR (6 satir)
+    '    Kullanici bir nokta objesi secer, text oraya yazilir
+    ' ---------------------------------------------------------
+    set selYer = .NewSelectionSet
+    If Not selYer.SELECT("4/5 - PARSEL BACA text grubunu koyacaginiz NOKTAYI secin", array(oppoint)) Then
+      MsgBox "Islem iptal edildi."
+      Exit Sub
+    End If
 
-        ' -----------------------------------------------------------
-        ' 5. Parsel Baca Zemin Noktasini Sec
-        ' -----------------------------------------------------------
-        sonuc = NCInputEntity("5/5 - Parsel bacasi zemin noktasini secin:", entType, entId)
-        If Not sonuc Then
-            MsgBox "Islem iptal edildi."
-            Exit Sub
-        End If
+    j = selYer.GetSelectedObject(0, oYer)
+    yerX = oYer.x
+    yerY = oYer.y
 
-        parselBacaAdi = NCGetEntityName(entId)
-        pZK = NCGetEntityZ(entId)
-        pAK = 0
-        On Error Resume Next
-        pAK = NCGetProperty(entId, "AK")
-        On Error GoTo 0
-        If pAK = 0 Then
-            tempVal = InputBox("Parsel bacasi (" & parselBacaAdi & ") AK degeri:" & Chr(13) & "Akar Kotu girin:", "AK Girisi", "0.00")
-            If tempVal <> "" Then
-                pAK = CDbl(tempVal)
-            End If
-        End If
+    ' Satir 0: Baca Adi
+    tx = yerX
+    ty = yerY
+    .AddObject (.MakeText (.MakeCoord(tx, ty, 0), parselBacaAdi, yaziAci, 0, yaziboy, 0, "L", tabNo))
 
-        ' -----------------------------------------------------------
-        ' Hesaplamalar
-        ' -----------------------------------------------------------
-        dx = parselX - cBagX
-        dy = parselY - cBagY
-        hatAci = HesaplaAtn2(dy, dx)
-        hatAciDerece = hatAci * 57.2957795130823
+    ' Satir 1: Zemin Kotu
+    tx = yerX + perpX * satirar
+    ty = yerY + perpY * satirar
+    .AddObject (.MakeText (.MakeCoord(tx, ty, 0), "ZK:" & KotFormat(pZK), yaziAci, 0, yaziboy, 0, "L", tabNo))
 
-        If hatEgikMesafe <= 0 Then
-            deltaZ = Abs(pZK - cZK)
-            hatEgikMesafe = Sqr(hatYatayMesafe * hatYatayMesafe + deltaZ * deltaZ)
-        End If
+    ' Satir 2: Akar Kotu
+    tx = yerX + perpX * satirar * 2
+    ty = yerY + perpY * satirar * 2
+    .AddObject (.MakeText (.MakeCoord(tx, ty, 0), "AK:" & KotFormat(pAK), yaziAci, 0, yaziboy, 0, "L", tabNo))
 
-        ' Yazi acisi (okunaklilik icin -90 / +90 arasi)
-        yaziAci = hatAciDerece
-        If yaziAci > 90 Then
-            yaziAci = yaziAci - 180
-        End If
-        If yaziAci < -90 Then
-            yaziAci = yaziAci + 180
-        End If
+    ' Satir 3: Yatay Mesafe
+    tx = yerX + perpX * satirar * 3
+    ty = yerY + perpY * satirar * 3
+    .AddObject (.MakeText (.MakeCoord(tx, ty, 0), "YL=" & KotFormat(hatYatayMesafe) & "m", yaziAci, 0, yaziboy, 0, "L", tabNo))
 
-        ' Dik yon
-        perpX = -Sin(hatAci)
-        perpY = Cos(hatAci)
+    ' Satir 4: Egik Mesafe
+    tx = yerX + perpX * satirar * 4
+    ty = yerY + perpY * satirar * 4
+    .AddObject (.MakeText (.MakeCoord(tx, ty, 0), "EL=" & KotFormat(hatEgikMesafe) & "m", yaziAci, 0, yaziboy, 0, "L", tabNo))
 
-        NCSetColor yaziRenk
+    ' Satir 5: Hat Capi
+    tx = yerX + perpX * satirar * 5
+    ty = yerY + perpY * satirar * 5
+    .AddObject (.MakeText (.MakeCoord(tx, ty, 0), hatcapi, yaziAci, 0, yaziboy, 0, "L", tabNo))
 
-        ' ===========================================================
-        ' PARSEL BACA TEXT GRUBUNU YERLESTIR (6 satir)
-        ' Kullanici fare ile yerlestirme noktasini secer
-        ' ===========================================================
-        sonuc = NCInputPoint("PARSEL BACA text grubunu yerlestirecek noktayi secin:", yerX, yerY, yerZ)
-        If Not sonuc Then
-            MsgBox "Islem iptal edildi."
-            Exit Sub
-        End If
+    ' ---------------------------------------------------------
+    ' 5. C BAGLANTI TEXT GRUBUNU YERLESTIR (3 satir)
+    ' ---------------------------------------------------------
+    set selYer = .NewSelectionSet
+    If Not selYer.SELECT("5/5 - C BAGLANTI text grubunu koyacaginiz NOKTAYI secin", array(oppoint)) Then
+      MsgBox "Islem iptal edildi."
+      Exit Sub
+    End If
 
-        ' Satir 0: Baca Adi
-        tx = yerX
-        ty = yerY
-        NCCreateText parselBacaAdi, tx, ty, yaziYukseklik, yaziAci
+    j = selYer.GetSelectedObject(0, oYer)
+    yerX = oYer.x
+    yerY = oYer.y
 
-        ' Satir 1: Zemin Kotu
-        tx = yerX + perpX * satirAraligi * 1
-        ty = yerY + perpY * satirAraligi * 1
-        metin = "ZK:" & KotFormat(pZK)
-        NCCreateText metin, tx, ty, yaziYukseklik, yaziAci
+    ' Satir 0: C Nokta Adi
+    tx = yerX
+    ty = yerY
+    .AddObject (.MakeText (.MakeCoord(tx, ty, 0), cNoktaAdi, yaziAci, 0, yaziboy, 0, "L", tabNo))
 
-        ' Satir 2: Akar Kotu
-        tx = yerX + perpX * satirAraligi * 2
-        ty = yerY + perpY * satirAraligi * 2
-        metin = "AK:" & KotFormat(pAK)
-        NCCreateText metin, tx, ty, yaziYukseklik, yaziAci
+    ' Satir 1: C Zemin Kotu
+    tx = yerX + perpX * satirar
+    ty = yerY + perpY * satirar
+    .AddObject (.MakeText (.MakeCoord(tx, ty, 0), "ZK:" & KotFormat(cZK), yaziAci, 0, yaziboy, 0, "L", tabNo))
 
-        ' Satir 3: Yatay Mesafe
-        tx = yerX + perpX * satirAraligi * 3
-        ty = yerY + perpY * satirAraligi * 3
-        metin = "YL=" & KotFormat(hatYatayMesafe) & "m"
-        NCCreateText metin, tx, ty, yaziYukseklik, yaziAci
+    ' Satir 2: C Akar Kotu
+    tx = yerX + perpX * satirar * 2
+    ty = yerY + perpY * satirar * 2
+    .AddObject (.MakeText (.MakeCoord(tx, ty, 0), "AK:" & KotFormat(cAK), yaziAci, 0, yaziboy, 0, "L", tabNo))
 
-        ' Satir 4: Egik Mesafe
-        tx = yerX + perpX * satirAraligi * 4
-        ty = yerY + perpY * satirAraligi * 4
-        metin = "EL=" & KotFormat(hatEgikMesafe) & "m"
-        NCCreateText metin, tx, ty, yaziYukseklik, yaziAci
+    ' ---------------------------------------------------------
+    .setparam endblock, true
 
-        ' Satir 5: Hat Capi
-        tx = yerX + perpX * satirAraligi * 5
-        ty = yerY + perpY * satirAraligi * 5
-        NCCreateText hatCapiMetin, tx, ty, yaziYukseklik, yaziAci
+    ' ---------------------------------------------------------
+    ' DEVAM KONTROLU
+    ' ---------------------------------------------------------
+    Dim sorgu
+    sorgu = MsgBox("Baglanti #" & sayac & " tamamlandi." & Chr(13) & Chr(13) & "Baca: " & parselBacaAdi & Chr(13) & "C: " & cNoktaAdi & Chr(13) & Chr(13) & "Devam?", 4, "Parsel Baca Makrosu")
 
-        ' ===========================================================
-        ' C BAGLANTI TEXT GRUBUNU YERLESTIR (3 satir)
-        ' Kullanici fare ile yerlestirme noktasini secer
-        ' ===========================================================
-        sonuc = NCInputPoint("C BAGLANTI text grubunu yerlestirecek noktayi secin:", yerX, yerY, yerZ)
-        If Not sonuc Then
-            MsgBox "Islem iptal edildi."
-            Exit Sub
-        End If
+    If sorgu = 6 Then
+      devamMi = True
+    Else
+      devamMi = False
+    End If
 
-        ' Satir 0: C Nokta Adi
-        tx = yerX
-        ty = yerY
-        NCCreateText cNoktaAdi, tx, ty, yaziYukseklik, yaziAci
+    set selHat = Nothing
+    set selNokta = Nothing
+    set selYer = Nothing
+    set o = Nothing
 
-        ' Satir 1: C Zemin Kotu
-        tx = yerX + perpX * satirAraligi * 1
-        ty = yerY + perpY * satirAraligi * 1
-        metin = "ZK:" & KotFormat(cZK)
-        NCCreateText metin, tx, ty, yaziYukseklik, yaziAci
+  Loop
 
-        ' Satir 2: C Akar Kotu
-        tx = yerX + perpX * satirAraligi * 2
-        ty = yerY + perpY * satirAraligi * 2
-        metin = "AK:" & KotFormat(cAK)
-        NCCreateText metin, tx, ty, yaziYukseklik, yaziAci
+End With
 
-        ' -----------------------------------------------------------
-        ' Devam kontrolu
-        ' -----------------------------------------------------------
-        tempVal = MsgBox("Baglanti #" & sayac & " tamamlandi." & Chr(13) & Chr(13) & "Baca: " & parselBacaAdi & Chr(13) & "C: " & cNoktaAdi & Chr(13) & Chr(13) & "Devam etmek ister misiniz?", 4, "Parsel Baca Makrosu")
+MsgBox "Toplam " & sayac & " baglanti islendi.", 64, "Parsel Baca Makrosu"
 
-        If tempVal = 6 Then
-            devamMi = True
-        Else
-            devamMi = False
-        End If
-
-    Loop
-
-    MsgBox "Makro tamamlandi. Toplam " & sayac & " baglanti islendi."
-
-End Sub
+END SUB
 
 ' ===========================================================================
 Function KotFormat(deger)
-    Dim tamKisim
-    Dim ondalikKisim
-    Dim tempDeger
-    Dim isaret
+  Dim tamKisim, ondalikKisim, tempDeger, isaret
 
-    If deger < 0 Then
-        isaret = "-"
-        tempDeger = -deger
-    Else
-        isaret = ""
-        tempDeger = deger
-    End If
+  If deger < 0 Then
+    isaret = "-"
+    tempDeger = -deger
+  Else
+    isaret = ""
+    tempDeger = CDbl(deger)
+  End If
 
-    tamKisim = Int(tempDeger)
-    ondalikKisim = Int((tempDeger - tamKisim) * 100 + 0.5)
+  tamKisim = Int(tempDeger)
+  ondalikKisim = Int((tempDeger - tamKisim) * 100 + 0.5)
 
-    If ondalikKisim >= 100 Then
-        tamKisim = tamKisim + 1
-        ondalikKisim = 0
-    End If
+  If ondalikKisim >= 100 Then
+    tamKisim = tamKisim + 1
+    ondalikKisim = 0
+  End If
 
-    If ondalikKisim < 10 Then
-        KotFormat = isaret & CStr(tamKisim) & ".0" & CStr(ondalikKisim)
-    Else
-        KotFormat = isaret & CStr(tamKisim) & "." & CStr(ondalikKisim)
-    End If
-End Function
-
-' ===========================================================================
-Function HesaplaAtn2(y, x)
-    Dim myPI
-    myPI = 3.14159265358979
-    If x > 0 Then
-        HesaplaAtn2 = Atn(y / x)
-    ElseIf x < 0 And y >= 0 Then
-        HesaplaAtn2 = Atn(y / x) + myPI
-    ElseIf x < 0 And y < 0 Then
-        HesaplaAtn2 = Atn(y / x) - myPI
-    ElseIf x = 0 And y > 0 Then
-        HesaplaAtn2 = myPI / 2
-    ElseIf x = 0 And y < 0 Then
-        HesaplaAtn2 = -myPI / 2
-    Else
-        HesaplaAtn2 = 0
-    End If
+  If ondalikKisim < 10 Then
+    KotFormat = isaret & CStr(tamKisim) & ".0" & CStr(ondalikKisim)
+  Else
+    KotFormat = isaret & CStr(tamKisim) & "." & CStr(ondalikKisim)
+  End If
 End Function
