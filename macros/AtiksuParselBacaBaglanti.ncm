@@ -133,29 +133,14 @@ With netcad
     yerX = cr.x
     yerY = cr.y
 
-    set cr = .newc(yerX, yerY, 0)
-    set yaz = .MakeText(cr, parselBacaAdi, 0, 0, yaziboy, 0, "M", .CreateLayer("PARSEL_BACA_BILGI", 6))
-    .AddObject yaz
+    .AddObject (.MakeText(.newc(yerX, yerY, 0), parselBacaAdi, 0, 0, yaziboy, 0, "M", .CreateLayer("PARSEL_BACA_BILGI", 6)))
+    .AddObject (.MakeText(.newc(yerX, yerY - satirar, 0), "ZK:" & KotFormat(pZK), 0, 0, yaziboy, 0, "M", .CreateLayer("PARSEL_BACA_BILGI", 6)))
+    .AddObject (.MakeText(.newc(yerX, yerY - satirar * 2, 0), "AK:" & KotFormat(pAK), 0, 0, yaziboy, 0, "M", .CreateLayer("PARSEL_BACA_BILGI", 6)))
+    .AddObject (.MakeText(.newc(yerX, yerY - satirar * 3, 0), "YL=" & KotFormat(hatYatayMesafe) & "m", 0, 0, yaziboy, 0, "M", .CreateLayer("PARSEL_BACA_BILGI", 6)))
+    .AddObject (.MakeText(.newc(yerX, yerY - satirar * 4, 0), "EL=" & KotFormat(hatEgikMesafe) & "m", 0, 0, yaziboy, 0, "M", .CreateLayer("PARSEL_BACA_BILGI", 6)))
+    .AddObject (.MakeText(.newc(yerX, yerY - satirar * 5, 0), hatcapi, 0, 0, yaziboy, 0, "M", .CreateLayer("PARSEL_BACA_BILGI", 6)))
 
-    set cr = .newc(yerX, yerY - satirar, 0)
-    set yaz = .MakeText(cr, "ZK:" & KotFormat(pZK), 0, 0, yaziboy, 0, "M", .CreateLayer("PARSEL_BACA_BILGI", 6))
-    .AddObject yaz
-
-    set cr = .newc(yerX, yerY - satirar * 2, 0)
-    set yaz = .MakeText(cr, "AK:" & KotFormat(pAK), 0, 0, yaziboy, 0, "M", .CreateLayer("PARSEL_BACA_BILGI", 6))
-    .AddObject yaz
-
-    set cr = .newc(yerX, yerY - satirar * 3, 0)
-    set yaz = .MakeText(cr, "YL=" & KotFormat(hatYatayMesafe) & "m", 0, 0, yaziboy, 0, "M", .CreateLayer("PARSEL_BACA_BILGI", 6))
-    .AddObject yaz
-
-    set cr = .newc(yerX, yerY - satirar * 4, 0)
-    set yaz = .MakeText(cr, "EL=" & KotFormat(hatEgikMesafe) & "m", 0, 0, yaziboy, 0, "M", .CreateLayer("PARSEL_BACA_BILGI", 6))
-    .AddObject yaz
-
-    set cr = .newc(yerX, yerY - satirar * 5, 0)
-    set yaz = .MakeText(cr, hatcapi, 0, 0, yaziboy, 0, "M", .CreateLayer("PARSEL_BACA_BILGI", 6))
-    .AddObject yaz
+    .NetcadCommand "REDRAW"
 
     ' 7. C BAGLANTI TEXT GRUBU - ekrandan serbest tikla
     set cr = .newc(0, 0, 0)
@@ -167,17 +152,11 @@ With netcad
     yerX = cr.x
     yerY = cr.y
 
-    set cr = .newc(yerX, yerY, 0)
-    set yaz = .MakeText(cr, cNoktaAdi, 0, 0, yaziboy, 0, "M", .CreateLayer("PARSEL_BACA_BILGI", 6))
-    .AddObject yaz
+    .AddObject (.MakeText(.newc(yerX, yerY, 0), cNoktaAdi, 0, 0, yaziboy, 0, "M", .CreateLayer("PARSEL_BACA_BILGI", 6)))
+    .AddObject (.MakeText(.newc(yerX, yerY - satirar, 0), "ZK:" & KotFormat(cZK), 0, 0, yaziboy, 0, "M", .CreateLayer("PARSEL_BACA_BILGI", 6)))
+    .AddObject (.MakeText(.newc(yerX, yerY - satirar * 2, 0), "AK:" & KotFormat(cAK), 0, 0, yaziboy, 0, "M", .CreateLayer("PARSEL_BACA_BILGI", 6)))
 
-    set cr = .newc(yerX, yerY - satirar, 0)
-    set yaz = .MakeText(cr, "ZK:" & KotFormat(cZK), 0, 0, yaziboy, 0, "M", .CreateLayer("PARSEL_BACA_BILGI", 6))
-    .AddObject yaz
-
-    set cr = .newc(yerX, yerY - satirar * 2, 0)
-    set yaz = .MakeText(cr, "AK:" & KotFormat(cAK), 0, 0, yaziboy, 0, "M", .CreateLayer("PARSEL_BACA_BILGI", 6))
-    .AddObject yaz
+    .NetcadCommand "REDRAW"
 
     .setparam endblock, true
 
