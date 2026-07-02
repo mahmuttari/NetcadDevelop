@@ -4,11 +4,13 @@
 '
 ' Islem Sirasi:
 '   1. Hat cizgisi secilir (yatay ve egik mesafe hesaplanir)
-'   2. C zemin noktasi secilir (ad, ZK, AK okunur)
-'   3. Parsel baca zemin noktasi secilir (ad, ZK, AK okunur)
-'   4. Ekrandan bir yere tiklanarak PARSEL BACA text grubu yerlestirilir
-'   5. Ekrandan bir yere tiklanarak C BAGLANTI text grubu yerlestirilir
-'   6. Devam/Cik
+'   2. C zemin kotu noktasi secilir (ad ve ZK okunur)
+'   3. C akar kotu noktasi secilir (AK okunur)
+'   4. Parsel baca zemin kotu noktasi secilir (ad ve ZK okunur)
+'   5. Parsel baca akar kotu noktasi secilir (AK okunur)
+'   6. Ekrandan tiklanarak PARSEL BACA text grubu yerlestirilir
+'   7. Ekrandan tiklanarak C BAGLANTI text grubu yerlestirilir
+'   8. Devam/Cik
 '
 ' Text Gruplari (dik, alt alta):
 '   PARSEL BACA (6 satir): Ad, ZK, AK, YL, EL, Cap
@@ -17,14 +19,14 @@
 
 SUB Main
 
-DIM selHat, selNokta, selYer
-DIM o, oHat, oC, oBaca, oYer
-DIM i, j, k, bd, pExt
+DIM selHat, selNokta
+DIM oHat, oC, oCAK, oBaca, oBacaAK
+DIM i, j, k, bd, pExt, cr
 DIM cNoktaAdi, parselBacaAdi
 DIM cZK, cAK, pZK, pAK
 DIM hatYatayMesafe, hatEgikMesafe
 DIM yaziboy, satirar, hatcapi
-DIM yerX, yerY, tx, ty
+DIM yerX, yerY
 DIM tabNo, devamMi, sayac
 DIM deltaZ, dx, dy, dz
 
@@ -59,20 +61,15 @@ With netcad
 
     sayac = sayac + 1
 
-    set selHat = .NewSelectionSet
-    set selNokta = .NewSelectionSet
-    set selYer = .NewSelectionSet
-    set oHat = .NewObject
-    set oC = .NewObject
-    set oBaca = .NewObject
-    set oYer = .NewObject
-
     .setparam beginblock, true
 
     ' ---------------------------------------------------------
     ' 1. HAT CIZGISINI SEC
     ' ---------------------------------------------------------
-    If Not selHat.SELECT("1/5 - Hat cizgisini secin", Array(oline, opline)) Then
+    set selHat = .NewSelectionSet
+    set oHat = .NewObject
+
+    If Not selHat.SELECT("1/7 - Hat cizgisini secin", Array(oline, opline)) Then
       MsgBox "Islem iptal edildi."
       Exit Sub
     End If
@@ -100,9 +97,12 @@ With netcad
     End If
 
     ' ---------------------------------------------------------
-    ' 2. C ZEMIN NOKTASINI SEC
+    ' 2. C ZEMIN KOTU NOKTASINI SEC
     ' ---------------------------------------------------------
-    If Not selNokta.SELECT("2/5 - C noktasinin zemin noktasini secin", Array(opoint)) Then
+    set selNokta = .NewSelectionSet
+    set oC = .NewObject
+
+    If Not selNokta.SELECT("2/7 - C noktasinin ZEMIN KOTU noktasini secin", Array(opoint)) Then
       MsgBox "Islem iptal edildi."
       Exit Sub
     End If
@@ -111,19 +111,27 @@ With netcad
     cNoktaAdi = oC.pname
     cZK = oC.p1.z
 
-    cAK = 0
-    On Error Resume Next
-    cAK = CDbl(oC.pcode)
-    On Error GoTo 0
-    If cAK = 0 Then
-      cAK = CDbl(InputBox("C noktasi (" & cNoktaAdi & ") AK noktadan okunamadi. AK girin:", "AK Girisi", "0.00"))
-    End If
-
     ' ---------------------------------------------------------
-    ' 3. PARSEL BACA ZEMIN NOKTASINI SEC
+    ' 3. C AKAR KOTU NOKTASINI SEC
     ' ---------------------------------------------------------
     set selNokta = .NewSelectionSet
-    If Not selNokta.SELECT("3/5 - Parsel bacasi zemin noktasini secin", Array(opoint)) Then
+    set oCAK = .NewObject
+
+    If Not selNokta.SELECT("3/7 - C noktasinin AKAR KOTU noktasini secin", Array(opoint)) Then
+      MsgBox "Islem iptal edildi."
+      Exit Sub
+    End If
+
+    j = selNokta.GetSelectedObject(0, oCAK)
+    cAK = oCAK.p1.z
+
+    ' ---------------------------------------------------------
+    ' 4. PARSEL BACA ZEMIN KOTU NOKTASINI SEC
+    ' ---------------------------------------------------------
+    set selNokta = .NewSelectionSet
+    set oBaca = .NewObject
+
+    If Not selNokta.SELECT("4/7 - Parsel bacasi ZEMIN KOTU noktasini secin", Array(opoint)) Then
       MsgBox "Islem iptal edildi."
       Exit Sub
     End If
@@ -132,14 +140,23 @@ With netcad
     parselBacaAdi = oBaca.pname
     pZK = oBaca.p1.z
 
-    pAK = 0
-    On Error Resume Next
-    pAK = CDbl(oBaca.pcode)
-    On Error GoTo 0
-    If pAK = 0 Then
-      pAK = CDbl(InputBox("Parsel bacasi (" & parselBacaAdi & ") AK noktadan okunamadi. AK girin:", "AK Girisi", "0.00"))
+    ' ---------------------------------------------------------
+    ' 5. PARSEL BACA AKAR KOTU NOKTASINI SEC
+    ' ---------------------------------------------------------
+    set selNokta = .NewSelectionSet
+    set oBacaAK = .NewObject
+
+    If Not selNokta.SELECT("5/7 - Parsel bacasi AKAR KOTU noktasini secin", Array(opoint)) Then
+      MsgBox "Islem iptal edildi."
+      Exit Sub
     End If
 
+    j = selNokta.GetSelectedObject(0, oBacaAK)
+    pAK = oBacaAK.p1.z
+
+    ' ---------------------------------------------------------
+    ' HESAPLAMALAR
+    ' ---------------------------------------------------------
     If hatEgikMesafe <= 0 Or hatEgikMesafe = hatYatayMesafe Then
       deltaZ = Abs(pZK - cZK)
       If deltaZ > 0 Then
@@ -148,59 +165,39 @@ With netcad
     End If
 
     ' ---------------------------------------------------------
-    ' 4. PARSEL BACA TEXT GRUBU - ekrandan yer sec (6 satir, dik)
+    ' 6. PARSEL BACA TEXT GRUBU - ekrandan serbest koordinat sec
     ' ---------------------------------------------------------
-    set selYer = .NewSelectionSet
-    If Not selYer.SELECT("4/5 - PARSEL BACA textleri icin yakin bir obje secin", Array(opoint, oline, opline, otext)) Then
+    set cr = .newc(0, 0, 0)
+    If Not .SelectPoint("6/7 - PARSEL BACA textlerini yerlestirmek icin ekrana tiklayin", cr, -1) Then
       MsgBox "Islem iptal edildi."
       Exit Sub
     End If
 
-    j = selYer.GetSelectedObject(0, oYer)
-    yerX = oYer.p1.x
-    yerY = oYer.p1.y
+    yerX = cr.x
+    yerY = cr.y
 
-    set o = .NewObject
-
-    o.p1.x = yerX : o.p1.y = yerY : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, parselBacaAdi, 0, 0, yaziboy, 0, "", tabNo))
-
-    o.p1.x = yerX : o.p1.y = yerY - satirar : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, "ZK:" & KotFormat(pZK), 0, 0, yaziboy, 0, "", tabNo))
-
-    o.p1.x = yerX : o.p1.y = yerY - satirar * 2 : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, "AK:" & KotFormat(pAK), 0, 0, yaziboy, 0, "", tabNo))
-
-    o.p1.x = yerX : o.p1.y = yerY - satirar * 3 : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, "YL=" & KotFormat(hatYatayMesafe) & "m", 0, 0, yaziboy, 0, "", tabNo))
-
-    o.p1.x = yerX : o.p1.y = yerY - satirar * 4 : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, "EL=" & KotFormat(hatEgikMesafe) & "m", 0, 0, yaziboy, 0, "", tabNo))
-
-    o.p1.x = yerX : o.p1.y = yerY - satirar * 5 : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, hatcapi, 0, 0, yaziboy, 0, "", tabNo))
+    .AddObject (.MakeText(.newc(yerX, yerY, 0), parselBacaAdi, 0, 0, yaziboy, 0, "", tabNo))
+    .AddObject (.MakeText(.newc(yerX, yerY - satirar, 0), "ZK:" & KotFormat(pZK), 0, 0, yaziboy, 0, "", tabNo))
+    .AddObject (.MakeText(.newc(yerX, yerY - satirar * 2, 0), "AK:" & KotFormat(pAK), 0, 0, yaziboy, 0, "", tabNo))
+    .AddObject (.MakeText(.newc(yerX, yerY - satirar * 3, 0), "YL=" & KotFormat(hatYatayMesafe) & "m", 0, 0, yaziboy, 0, "", tabNo))
+    .AddObject (.MakeText(.newc(yerX, yerY - satirar * 4, 0), "EL=" & KotFormat(hatEgikMesafe) & "m", 0, 0, yaziboy, 0, "", tabNo))
+    .AddObject (.MakeText(.newc(yerX, yerY - satirar * 5, 0), hatcapi, 0, 0, yaziboy, 0, "", tabNo))
 
     ' ---------------------------------------------------------
-    ' 5. C BAGLANTI TEXT GRUBU - ekrandan yer sec (3 satir, dik)
+    ' 7. C BAGLANTI TEXT GRUBU - ekrandan serbest koordinat sec
     ' ---------------------------------------------------------
-    set selYer = .NewSelectionSet
-    If Not selYer.SELECT("5/5 - C BAGLANTI textleri icin yakin bir obje secin", Array(opoint, oline, opline, otext)) Then
+    set cr = .newc(0, 0, 0)
+    If Not .SelectPoint("7/7 - C BAGLANTI textlerini yerlestirmek icin ekrana tiklayin", cr, -1) Then
       MsgBox "Islem iptal edildi."
       Exit Sub
     End If
 
-    j = selYer.GetSelectedObject(0, oYer)
-    yerX = oYer.p1.x
-    yerY = oYer.p1.y
+    yerX = cr.x
+    yerY = cr.y
 
-    o.p1.x = yerX : o.p1.y = yerY : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, cNoktaAdi, 0, 0, yaziboy, 0, "", tabNo))
-
-    o.p1.x = yerX : o.p1.y = yerY - satirar : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, "ZK:" & KotFormat(cZK), 0, 0, yaziboy, 0, "", tabNo))
-
-    o.p1.x = yerX : o.p1.y = yerY - satirar * 2 : o.p1.z = 0
-    .AddObject (.MakeText(o.p1, "AK:" & KotFormat(cAK), 0, 0, yaziboy, 0, "", tabNo))
+    .AddObject (.MakeText(.newc(yerX, yerY, 0), cNoktaAdi, 0, 0, yaziboy, 0, "", tabNo))
+    .AddObject (.MakeText(.newc(yerX, yerY - satirar, 0), "ZK:" & KotFormat(cZK), 0, 0, yaziboy, 0, "", tabNo))
+    .AddObject (.MakeText(.newc(yerX, yerY - satirar * 2, 0), "AK:" & KotFormat(cAK), 0, 0, yaziboy, 0, "", tabNo))
 
     ' ---------------------------------------------------------
     .setparam endblock, true
@@ -209,17 +206,17 @@ With netcad
     ' DEVAM KONTROLU
     ' ---------------------------------------------------------
     Dim sorgu
-    sorgu = MsgBox("Baglanti #" & sayac & " tamamlandi." & Chr(13) & Chr(13) & "Baca: " & parselBacaAdi & Chr(13) & "C: " & cNoktaAdi & Chr(13) & Chr(13) & "Devam?", 4, "Parsel Baca Makrosu")
+    sorgu = MsgBox("Baglanti #" & sayac & " tamamlandi." & Chr(13) & Chr(13) & _
+      "Baca: " & parselBacaAdi & " ZK:" & KotFormat(pZK) & " AK:" & KotFormat(pAK) & Chr(13) & _
+      "C: " & cNoktaAdi & " ZK:" & KotFormat(cZK) & " AK:" & KotFormat(cAK) & Chr(13) & _
+      "YL=" & KotFormat(hatYatayMesafe) & "m  EL=" & KotFormat(hatEgikMesafe) & "m" & Chr(13) & Chr(13) & _
+      "Devam?", 4, "Parsel Baca Makrosu")
 
     If sorgu = 6 Then
       devamMi = True
     Else
       devamMi = False
     End If
-
-    set selHat = Nothing
-    set selNokta = Nothing
-    set selYer = Nothing
 
   Loop
 
