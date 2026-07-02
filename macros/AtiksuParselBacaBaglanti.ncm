@@ -176,12 +176,12 @@ With netcad
     yerX = cr.x
     yerY = cr.y
 
-    .AddObject (.MakeText(.newc(yerX, yerY, 0), parselBacaAdi, 0, 0, yaziboy, 0, "", tabNo))
-    .AddObject (.MakeText(.newc(yerX, yerY - satirar, 0), "ZK:" & KotFormat(pZK), 0, 0, yaziboy, 0, "", tabNo))
-    .AddObject (.MakeText(.newc(yerX, yerY - satirar * 2, 0), "AK:" & KotFormat(pAK), 0, 0, yaziboy, 0, "", tabNo))
-    .AddObject (.MakeText(.newc(yerX, yerY - satirar * 3, 0), "YL=" & KotFormat(hatYatayMesafe) & "m", 0, 0, yaziboy, 0, "", tabNo))
-    .AddObject (.MakeText(.newc(yerX, yerY - satirar * 4, 0), "EL=" & KotFormat(hatEgikMesafe) & "m", 0, 0, yaziboy, 0, "", tabNo))
-    .AddObject (.MakeText(.newc(yerX, yerY - satirar * 5, 0), hatcapi, 0, 0, yaziboy, 0, "", tabNo))
+    .AddObject (.MakeText(.newc(yerX, yerY, 0), parselBacaAdi, 0, 0, yaziboy, 0, "1", tabNo))
+    .AddObject (.MakeText(.newc(yerX, yerY - satirar, 0), "ZK:" & KotFormat(pZK), 0, 0, yaziboy, 0, "1", tabNo))
+    .AddObject (.MakeText(.newc(yerX, yerY - satirar * 2, 0), "AK:" & KotFormat(pAK), 0, 0, yaziboy, 0, "1", tabNo))
+    .AddObject (.MakeText(.newc(yerX, yerY - satirar * 3, 0), "YL=" & KotFormat(hatYatayMesafe) & "m", 0, 0, yaziboy, 0, "1", tabNo))
+    .AddObject (.MakeText(.newc(yerX, yerY - satirar * 4, 0), "EL=" & KotFormat(hatEgikMesafe) & "m", 0, 0, yaziboy, 0, "1", tabNo))
+    .AddObject (.MakeText(.newc(yerX, yerY - satirar * 5, 0), hatcapi, 0, 0, yaziboy, 0, "1", tabNo))
 
     ' ---------------------------------------------------------
     ' 7. C BAGLANTI TEXT GRUBU - ekrandan serbest koordinat sec
@@ -195,9 +195,9 @@ With netcad
     yerX = cr.x
     yerY = cr.y
 
-    .AddObject (.MakeText(.newc(yerX, yerY, 0), cNoktaAdi, 0, 0, yaziboy, 0, "", tabNo))
-    .AddObject (.MakeText(.newc(yerX, yerY - satirar, 0), "ZK:" & KotFormat(cZK), 0, 0, yaziboy, 0, "", tabNo))
-    .AddObject (.MakeText(.newc(yerX, yerY - satirar * 2, 0), "AK:" & KotFormat(cAK), 0, 0, yaziboy, 0, "", tabNo))
+    .AddObject (.MakeText(.newc(yerX, yerY, 0), cNoktaAdi, 0, 0, yaziboy, 0, "1", tabNo))
+    .AddObject (.MakeText(.newc(yerX, yerY - satirar, 0), "ZK:" & KotFormat(cZK), 0, 0, yaziboy, 0, "1", tabNo))
+    .AddObject (.MakeText(.newc(yerX, yerY - satirar * 2, 0), "AK:" & KotFormat(cAK), 0, 0, yaziboy, 0, "1", tabNo))
 
     ' ---------------------------------------------------------
     .setparam endblock, true
