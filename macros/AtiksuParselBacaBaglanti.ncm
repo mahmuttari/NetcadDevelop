@@ -223,24 +223,26 @@ With netcad
     o.p1.x = yerX + dirX * satirarC * 2 : o.p1.y = yerY + dirY * satirarC * 2 : o.p1.z = 0
     .AddObject (.MakeText(o.p1, "A:" & KotFormat(cAK), 0, 0, yaziboyC, yaziAci, "L", tabC))
 
-    ' ALTCIZGI - A: textinin altinda, text yonunde 2.27m
-    sdx = yerX + dirX * (satirarC * 2 + yaziboyC * 0.5)
-    sdy = yerY + dirY * (satirarC * 2 + yaziboyC * 0.5)
-    dx = oCAK.p1.x - sdx
-    dy = oCAK.p1.y - sdy
-    If (dx * Sin(yaziAci) + dy * Cos(yaziAci)) >= 0 Then
-      dx = Sin(yaziAci)
-      dy = Cos(yaziAci)
+    ' ALTCIZGI - text okuma yonunde 2.27m
+    If dirX >= 0 Then
+      dx = -dirY
+      dy = dirX
     Else
-      dx = -Sin(yaziAci)
-      dy = -Cos(yaziAci)
+      dx = dirY
+      dy = -dirX
     End If
+    sdx = yerX + dirX * satirarC * 2
+    sdy = yerY + dirY * satirarC * 2
     o.p1.x = sdx : o.p1.y = sdy : o.p1.z = 0
     o.p2.x = sdx + dx * 2.27 : o.p2.y = sdy + dy * 2.27 : o.p2.z = 0
     .AddObject (.MakeLine(o.p1, o.p2, tabC, 0, 0))
 
-    ' BAGLANTI CIZGISI - altcizgi ucundan C akar noktasina
-    o.p1.x = sdx + dx * 2.27 : o.p1.y = sdy + dy * 2.27 : o.p1.z = 0
+    ' BAGLANTI - oCAK'a yakin uctan bagla
+    If ((oCAK.p1.x - sdx) * dx + (oCAK.p1.y - sdy) * dy) >= 0 Then
+      o.p1.x = sdx + dx * 2.27 : o.p1.y = sdy + dy * 2.27 : o.p1.z = 0
+    Else
+      o.p1.x = sdx : o.p1.y = sdy : o.p1.z = 0
+    End If
     o.p2.x = oCAK.p1.x : o.p2.y = oCAK.p1.y : o.p2.z = oCAK.p1.z
     .AddObject (.MakeLine(o.p1, o.p2, tabC, 0, 0))
 
