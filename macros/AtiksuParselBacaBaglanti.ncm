@@ -231,8 +231,9 @@ With netcad
       dx = dirY
       dy = -dirX
     End If
-    sdx = yerX + dirX * satirarC * 2
-    sdy = yerY + dirY * satirarC * 2
+    sMesafe = satirarC * 3 + yaziboyC * Abs(Sin(yaziAci))
+    sdx = yerX + dirX * sMesafe
+    sdy = yerY + dirY * sMesafe
     o.p1.x = sdx : o.p1.y = sdy : o.p1.z = 0
     o.p2.x = sdx + dx * 2.27 : o.p2.y = sdy + dy * 2.27 : o.p2.z = 0
     .AddObject (.MakeLine(o.p1, o.p2, tabC, 0, 0))
