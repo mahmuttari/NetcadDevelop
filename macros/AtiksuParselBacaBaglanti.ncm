@@ -1,0 +1,367 @@
+'===========================================================================
+' ATIKSU PARSEL BACA BAGLANTI BILGILERI YAZMA MAKROSU
+' NetCAD VBScript Macro
+'===========================================================================
+
+SUB Main
+
+DIM selHat, selNokta
+DIM oHat, oC, oCAK, oBaca, oBacaAK, o
+DIM j, k, bd, pExt, cr, cr2
+DIM cNoktaAdi, parselBacaAdi
+DIM cZK, cAK, pZK, pAK
+DIM hatYatayMesafe, hatEgikMesafe
+DIM yaziboyParsel, yaziboyC, satirarParsel, satirarC, hatcapi, tabParsel, tabC
+DIM yerX, yerY
+DIM dirX, dirY, sdx, sdy, sMesafe, yaziAci, screenAci, bagX, bagY, yaziGen
+DIM devamMi, sayac
+DIM deltaZ, dx, dy, dz
+DIM sorgu, mesaj
+DIM myPI
+myPI = 3.14159265358979
+
+sayac = 0
+
+With netcad
+
+  set bd = Netcad.NewBDialog("Atiksu Parsel Baca Baglanti Ayarlari")
+  bd.Getfloat "yaziboyParsel", "Parsel Yazi Yuksekligi:", 1, 2
+  bd.Getfloat "satirarParsel", "Parsel Satir Araligi:", 1.2, 2
+  bd.Getfloat "yaziboyC", "C Yazi Yuksekligi:", 0.75, 2
+  bd.Getfloat "satirarC", "C Satir Araligi:", 1, 2
+  bd.Getstring "hatcapi", "Hat Capi Metni:", "O200BB", 20
+
+  If Not bd.showmodal Then
+    Exit Sub
+  End If
+
+  yaziboyParsel = bd.ValueByName("yaziboyParsel")
+  satirarParsel = bd.ValueByName("satirarParsel")
+  yaziboyC = bd.ValueByName("yaziboyC")
+  satirarC = bd.ValueByName("satirarC")
+  hatcapi = bd.ValueByName("hatcapi")
+
+  tabParsel = .CreateLayer("PARSEL_BİLGİ", 0)
+  tabC = .CreateLayer("C_BİLGİ", 0)
+
+  devamMi = True
+
+  Do While devamMi
+
+    sayac = sayac + 1
+
+    set oHat = .NewObject
+    set oC = .NewObject
+    set oCAK = .NewObject
+    set oBaca = .NewObject
+    set oBacaAK = .NewObject
+    set o = .NewObject
+
+    .setparam beginblock, true
+
+    ' 1. HAT CIZGISINI SEC
+    set selHat = .NewSelectionSet
+    If Not selHat.SELECT("1/9 - Hat cizgisini secin", Array(oline, opline)) Then
+      MsgBox "Islem iptal edildi."
+      Exit Sub
+    End If
+
+    j = selHat.GetSelectedObject(0, oHat)
+
+    hatYatayMesafe = 0
+    hatEgikMesafe = 0
+
+    If oHat.tag = oline Then
+      dx = oHat.p2.x - oHat.p1.x
+      dy = oHat.p2.y - oHat.p1.y
+      dz = oHat.p2.z - oHat.p1.z
+      hatYatayMesafe = Sqr(dx * dx + dy * dy)
+      hatEgikMesafe = Sqr(dx * dx + dy * dy + dz * dz)
+    ElseIf oHat.tag = opline Then
+      set pExt = .GetPlineExt(oHat)
+      For k = 0 To pExt.num - 2
+        dx = pExt.cor(k + 1).x - pExt.cor(k).x
+        dy = pExt.cor(k + 1).y - pExt.cor(k).y
+        dz = pExt.cor(k + 1).z - pExt.cor(k).z
+        hatYatayMesafe = hatYatayMesafe + Sqr(dx * dx + dy * dy)
+        hatEgikMesafe = hatEgikMesafe + Sqr(dx * dx + dy * dy + dz * dz)
+      Next
+    End If
+
+    ' 2. C ZEMIN KOTU NOKTASINI SEC
+    set selNokta = .NewSelectionSet
+    If Not selNokta.SELECT("2/9 - C noktasinin ZEMIN KOTU noktasini secin", Array(opoint)) Then
+      MsgBox "Islem iptal edildi."
+      Exit Sub
+    End If
+    j = selNokta.GetSelectedObject(0, oC)
+    cZK = oC.p1.z
+
+    ' 3. C AKAR KOTU NOKTASINI SEC
+    set selNokta = .NewSelectionSet
+    If Not selNokta.SELECT("3/9 - C noktasinin AKAR KOTU noktasini secin", Array(opoint)) Then
+      MsgBox "Islem iptal edildi."
+      Exit Sub
+    End If
+    j = selNokta.GetSelectedObject(0, oCAK)
+    cNoktaAdi = oCAK.pname
+    cAK = oCAK.p1.z
+
+    ' 4. PARSEL BACA ZEMIN KOTU NOKTASINI SEC
+    set selNokta = .NewSelectionSet
+    If Not selNokta.SELECT("4/9 - Parsel bacasi ZEMIN KOTU noktasini secin", Array(opoint)) Then
+      MsgBox "Islem iptal edildi."
+      Exit Sub
+    End If
+    j = selNokta.GetSelectedObject(0, oBaca)
+    pZK = oBaca.p1.z
+
+    ' 5. PARSEL BACA AKAR KOTU NOKTASINI SEC
+    set selNokta = .NewSelectionSet
+    If Not selNokta.SELECT("5/9 - Parsel bacasi AKAR KOTU noktasini secin", Array(opoint)) Then
+      MsgBox "Islem iptal edildi."
+      Exit Sub
+    End If
+    j = selNokta.GetSelectedObject(0, oBacaAK)
+    parselBacaAdi = oBacaAK.pname
+    pAK = oBacaAK.p1.z
+
+    ' HESAPLAMALAR
+    If hatEgikMesafe <= 0 Or hatEgikMesafe = hatYatayMesafe Then
+      deltaZ = Abs(pZK - cZK)
+      If deltaZ > 0 Then
+        hatEgikMesafe = Sqr(hatYatayMesafe * hatYatayMesafe + deltaZ * deltaZ)
+      End If
+    End If
+
+    ' 6. PARSEL BACA TEXT GRUBU - baslangic noktasi
+    set cr = .newc(0, 0, 0)
+    If Not .SelectPoint("6/9 - PARSEL BACA textleri baslangic noktasini tiklayin", cr, -1) Then
+      MsgBox "Islem iptal edildi."
+      Exit Sub
+    End If
+    yerX = cr.x
+    yerY = cr.y
+
+    ' 7. PARSEL BACA TEXT GRUBU - dizilme yonu
+    set cr2 = .newc(0, 0, 0)
+    If Not .SelectPoint("7/9 - Alt alta dizilme yonunu belirleyin (ikinci nokta)", cr2, -1) Then
+      MsgBox "Islem iptal edildi."
+      Exit Sub
+    End If
+    sdx = cr2.x - yerX
+    sdy = cr2.y - yerY
+    sMesafe = Sqr(sdx * sdx + sdy * sdy)
+    If sMesafe > 0 Then
+      dirX = sdx / sMesafe
+      dirY = sdy / sMesafe
+    Else
+      dirX = -1
+      dirY = 0
+    End If
+
+    screenAci = Atan2(sdx, sdy)
+    yaziAci = screenAci + myPI / 2
+    If yaziAci > myPI / 2 Then yaziAci = yaziAci - myPI
+    If yaziAci < -myPI / 2 Then yaziAci = yaziAci + myPI
+
+    o.p1.x = yerX : o.p1.y = yerY : o.p1.z = 0
+    .AddObject (.MakeText(o.p1, parselBacaAdi, 0, 0, yaziboyParsel, yaziAci, "L", tabParsel))
+
+    o.p1.x = yerX + dirX * satirarParsel : o.p1.y = yerY + dirY * satirarParsel : o.p1.z = 0
+    .AddObject (.MakeText(o.p1, "ZK:" & KotFormat(pZK), 0, 0, yaziboyParsel, yaziAci, "L", tabParsel))
+
+    o.p1.x = yerX + dirX * satirarParsel * 2 : o.p1.y = yerY + dirY * satirarParsel * 2 : o.p1.z = 0
+    .AddObject (.MakeText(o.p1, "AK:" & KotFormat(pAK), 0, 0, yaziboyParsel, yaziAci, "L", tabParsel))
+
+    o.p1.x = yerX + dirX * satirarParsel * 3 : o.p1.y = yerY + dirY * satirarParsel * 3 : o.p1.z = 0
+    .AddObject (.MakeText(o.p1, "YL=" & KotFormat(hatYatayMesafe) & "m", 0, 0, yaziboyParsel, yaziAci, "L", tabParsel))
+
+    o.p1.x = yerX + dirX * satirarParsel * 4 : o.p1.y = yerY + dirY * satirarParsel * 4 : o.p1.z = 0
+    .AddObject (.MakeText(o.p1, "EL=" & KotFormat(hatEgikMesafe) & "m", 0, 0, yaziboyParsel, yaziAci, "L", tabParsel))
+
+    o.p1.x = yerX + dirX * satirarParsel * 5 : o.p1.y = yerY + dirY * satirarParsel * 5 : o.p1.z = 0
+    .AddObject (.MakeText(o.p1, hatcapi, 0, 0, yaziboyParsel, yaziAci, "L", tabParsel))
+
+    ' 8. C BAGLANTI TEXT GRUBU - baslangic noktasi
+    set cr = .newc(0, 0, 0)
+    If Not .SelectPoint("8/9 - C BAGLANTI textleri baslangic noktasini tiklayin", cr, -1) Then
+      MsgBox "Islem iptal edildi."
+      Exit Sub
+    End If
+    yerX = cr.x
+    yerY = cr.y
+
+    ' 9. C BAGLANTI TEXT GRUBU - dizilme yonu
+    set cr2 = .newc(0, 0, 0)
+    If Not .SelectPoint("9/9 - Alt alta dizilme yonunu belirleyin (ikinci nokta)", cr2, -1) Then
+      MsgBox "Islem iptal edildi."
+      Exit Sub
+    End If
+    sdx = cr2.x - yerX
+    sdy = cr2.y - yerY
+    sMesafe = Sqr(sdx * sdx + sdy * sdy)
+    If sMesafe > 0 Then
+      dirX = sdx / sMesafe
+      dirY = sdy / sMesafe
+    Else
+      dirX = -1
+      dirY = 0
+    End If
+
+    screenAci = Atan2(sdx, sdy)
+    yaziAci = screenAci + myPI / 2
+    If yaziAci > myPI / 2 Then yaziAci = yaziAci - myPI
+    If yaziAci < -myPI / 2 Then yaziAci = yaziAci + myPI
+
+    ' Aci bazli kaydirma (girisimi onlemek icin yazilari geri cek)
+    sMesafe = yaziboyC * Abs(Sin(yaziAci))
+    yerX = yerX - dirX * sMesafe
+    yerY = yerY - dirY * sMesafe
+
+    ' Altcizgi yonu (textDir)
+    If dirX >= 0 Then
+      dx = -dirY
+      dy = dirX
+    Else
+      dx = dirY
+      dy = -dirX
+    End If
+
+    ' Yazi genisligi hesapla (karakter sayisi x yaziboyC x 0.6)
+    j = Len(cNoktaAdi)
+    k = Len("Z:" & KotFormat(cZK))
+    If k > j Then j = k
+    k = Len("A:" & KotFormat(cAK))
+    If k > j Then j = k
+    yaziGen = j * yaziboyC * 0.6
+    If yaziGen < 2.27 Then yaziGen = 2.27
+
+    ' Altcizgi konumu
+    sdx = yerX + dirX * (satirarC * 3 - yaziboyC)
+    sdy = yerY + dirY * (satirarC * 3 - yaziboyC)
+
+    ' Baglanti ucunu belirle
+    If ((oCAK.p1.x - sdx) * dx + (oCAK.p1.y - sdy) * dy) >= 0 Then
+      bagX = sdx + dx * yaziGen
+      bagY = sdy + dy * yaziGen
+    Else
+      bagX = sdx
+      bagY = sdy
+    End If
+
+    ' Baglanti cizgisinin text grubuyla kesisim kontrolu
+    dz = (oCAK.p1.x - bagX) * dirX + (oCAK.p1.y - bagY) * dirY
+    If dz < 0 Then
+      deltaZ = satirarC * 3 - yaziboyC
+      sMesafe = ((oCAK.p1.x - bagX) * dx + (oCAK.p1.y - bagY) * dy) * deltaZ / (-dz)
+      If ((oCAK.p1.x - sdx) * dx + (oCAK.p1.y - sdy) * dy) >= 0 Then
+        If sMesafe < 0 Then
+          yerX = yerX + dx * (sMesafe - (satirarC - yaziboyC))
+          yerY = yerY + dy * (sMesafe - (satirarC - yaziboyC))
+        End If
+      Else
+        If sMesafe > 0 Then
+          yerX = yerX + dx * (sMesafe + (satirarC - yaziboyC))
+          yerY = yerY + dy * (sMesafe + (satirarC - yaziboyC))
+        End If
+      End If
+      sdx = yerX + dirX * (satirarC * 3 - yaziboyC)
+      sdy = yerY + dirY * (satirarC * 3 - yaziboyC)
+    End If
+
+    ' Text grubu yerlestir
+    o.p1.x = yerX : o.p1.y = yerY : o.p1.z = 0
+    .AddObject (.MakeText(o.p1, cNoktaAdi, 0, 0, yaziboyC, yaziAci, "L", tabC))
+
+    o.p1.x = yerX + dirX * satirarC : o.p1.y = yerY + dirY * satirarC : o.p1.z = 0
+    .AddObject (.MakeText(o.p1, "Z:" & KotFormat(cZK), 0, 0, yaziboyC, yaziAci, "L", tabC))
+
+    o.p1.x = yerX + dirX * satirarC * 2 : o.p1.y = yerY + dirY * satirarC * 2 : o.p1.z = 0
+    .AddObject (.MakeText(o.p1, "A:" & KotFormat(cAK), 0, 0, yaziboyC, yaziAci, "L", tabC))
+
+    ' ALTCIZGI
+    o.p1.x = sdx : o.p1.y = sdy : o.p1.z = 0
+    o.p2.x = sdx + dx * yaziGen : o.p2.y = sdy + dy * yaziGen : o.p2.z = 0
+    .AddObject (.MakeLine(o.p1, o.p2, tabC, 0, 0))
+
+    ' BAGLANTI - oCAK'a yakin uctan bagla
+    If ((oCAK.p1.x - sdx) * dx + (oCAK.p1.y - sdy) * dy) >= 0 Then
+      o.p1.x = sdx + dx * yaziGen : o.p1.y = sdy + dy * yaziGen : o.p1.z = 0
+    Else
+      o.p1.x = sdx : o.p1.y = sdy : o.p1.z = 0
+    End If
+    o.p2.x = oCAK.p1.x : o.p2.y = oCAK.p1.y : o.p2.z = oCAK.p1.z
+    .AddObject (.MakeLine(o.p1, o.p2, tabC, 0, 0))
+
+    .setparam endblock, true
+
+    ' DEVAM KONTROLU
+    mesaj = "Baglanti #" & sayac & " tamamlandi." & Chr(13) & Chr(13)
+    mesaj = mesaj & "Baca: " & parselBacaAdi & " ZK:" & KotFormat(pZK) & " AK:" & KotFormat(pAK) & Chr(13)
+    mesaj = mesaj & "C: " & cNoktaAdi & " ZK:" & KotFormat(cZK) & " AK:" & KotFormat(cAK) & Chr(13)
+    mesaj = mesaj & "YL=" & KotFormat(hatYatayMesafe) & "m  EL=" & KotFormat(hatEgikMesafe) & "m" & Chr(13) & Chr(13)
+    mesaj = mesaj & "Devam?"
+
+    sorgu = MsgBox(mesaj, 4, "Parsel Baca Makrosu")
+
+    If sorgu = 6 Then
+      devamMi = True
+    Else
+      devamMi = False
+    End If
+
+    set selHat = Nothing
+    set selNokta = Nothing
+
+  Loop
+
+End With
+
+MsgBox "Toplam " & sayac & " baglanti islendi.", 64, "Parsel Baca Makrosu"
+
+END SUB
+
+Function Atan2(y, x)
+  Dim pi
+  pi = 3.14159265358979
+  If x > 0 Then
+    Atan2 = Atn(y / x)
+  ElseIf x < 0 And y >= 0 Then
+    Atan2 = Atn(y / x) + pi
+  ElseIf x < 0 And y < 0 Then
+    Atan2 = Atn(y / x) - pi
+  ElseIf x = 0 And y > 0 Then
+    Atan2 = pi / 2
+  ElseIf x = 0 And y < 0 Then
+    Atan2 = -pi / 2
+  Else
+    Atan2 = 0
+  End If
+End Function
+
+Function KotFormat(deger)
+  Dim tamKisim, ondalikKisim, tempDeger, isaret
+
+  If deger < 0 Then
+    isaret = "-"
+    tempDeger = -deger
+  Else
+    isaret = ""
+    tempDeger = CDbl(deger)
+  End If
+
+  tamKisim = Int(tempDeger)
+  ondalikKisim = Int((tempDeger - tamKisim) * 100 + 0.5)
+
+  If ondalikKisim >= 100 Then
+    tamKisim = tamKisim + 1
+    ondalikKisim = 0
+  End If
+
+  If ondalikKisim < 10 Then
+    KotFormat = isaret & CStr(tamKisim) & ".0" & CStr(ondalikKisim)
+  Else
+    KotFormat = isaret & CStr(tamKisim) & "." & CStr(ondalikKisim)
+  End If
+End Function
