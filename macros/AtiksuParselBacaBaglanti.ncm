@@ -214,6 +214,11 @@ With netcad
     If yaziAci > myPI / 2 Then yaziAci = yaziAci - myPI
     If yaziAci < -myPI / 2 Then yaziAci = yaziAci + myPI
 
+    ' Aci bazli kaydirma (girisimi onlemek icin yazilari geri cek)
+    sMesafe = yaziboyC * Abs(Sin(yaziAci))
+    yerX = yerX - dirX * sMesafe
+    yerY = yerY - dirY * sMesafe
+
     o.p1.x = yerX : o.p1.y = yerY : o.p1.z = 0
     .AddObject (.MakeText(o.p1, cNoktaAdi, 0, 0, yaziboyC, yaziAci, "L", tabC))
 
@@ -231,9 +236,8 @@ With netcad
       dx = dirY
       dy = -dirX
     End If
-    sMesafe = satirarC * 3 + yaziboyC * Abs(Sin(yaziAci))
-    sdx = yerX + dirX * sMesafe
-    sdy = yerY + dirY * sMesafe
+    sdx = yerX + dirX * (satirarC * 3 - yaziboyC)
+    sdy = yerY + dirY * (satirarC * 3 - yaziboyC)
     o.p1.x = sdx : o.p1.y = sdy : o.p1.z = 0
     o.p2.x = sdx + dx * 2.27 : o.p2.y = sdy + dy * 2.27 : o.p2.z = 0
     .AddObject (.MakeLine(o.p1, o.p2, tabC, 0, 0))
