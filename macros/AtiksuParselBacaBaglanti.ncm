@@ -13,7 +13,7 @@ DIM cZK, cAK, pZK, pAK
 DIM hatYatayMesafe, hatEgikMesafe
 DIM yaziboyParsel, yaziboyC, satirarParsel, satirarC, hatcapi, tabParsel, tabC
 DIM yerX, yerY
-DIM dirX, dirY, sdx, sdy, sMesafe, yaziAci, screenAci, bagX, bagY
+DIM dirX, dirY, sdx, sdy, sMesafe, yaziAci, screenAci, bagX, bagY, yaziGen
 DIM devamMi, sayac
 DIM deltaZ, dx, dy, dz
 DIM sorgu, mesaj
@@ -228,14 +228,23 @@ With netcad
       dy = -dirX
     End If
 
+    ' Yazi genisligi hesapla (karakter sayisi x yaziboyC x 0.6)
+    j = Len(cNoktaAdi)
+    k = Len("Z:" & KotFormat(cZK))
+    If k > j Then j = k
+    k = Len("A:" & KotFormat(cAK))
+    If k > j Then j = k
+    yaziGen = j * yaziboyC * 0.6
+    If yaziGen < 2.27 Then yaziGen = 2.27
+
     ' Altcizgi konumu
     sdx = yerX + dirX * (satirarC * 3 - yaziboyC)
     sdy = yerY + dirY * (satirarC * 3 - yaziboyC)
 
     ' Baglanti ucunu belirle
     If ((oCAK.p1.x - sdx) * dx + (oCAK.p1.y - sdy) * dy) >= 0 Then
-      bagX = sdx + dx * 2.27
-      bagY = sdy + dy * 2.27
+      bagX = sdx + dx * yaziGen
+      bagY = sdy + dy * yaziGen
     Else
       bagX = sdx
       bagY = sdy
@@ -273,12 +282,12 @@ With netcad
 
     ' ALTCIZGI
     o.p1.x = sdx : o.p1.y = sdy : o.p1.z = 0
-    o.p2.x = sdx + dx * 2.27 : o.p2.y = sdy + dy * 2.27 : o.p2.z = 0
+    o.p2.x = sdx + dx * yaziGen : o.p2.y = sdy + dy * yaziGen : o.p2.z = 0
     .AddObject (.MakeLine(o.p1, o.p2, tabC, 0, 0))
 
     ' BAGLANTI - oCAK'a yakin uctan bagla
     If ((oCAK.p1.x - sdx) * dx + (oCAK.p1.y - sdy) * dy) >= 0 Then
-      o.p1.x = sdx + dx * 2.27 : o.p1.y = sdy + dy * 2.27 : o.p1.z = 0
+      o.p1.x = sdx + dx * yaziGen : o.p1.y = sdy + dy * yaziGen : o.p1.z = 0
     Else
       o.p1.x = sdx : o.p1.y = sdy : o.p1.z = 0
     End If
