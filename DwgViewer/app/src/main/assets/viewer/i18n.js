@@ -1,0 +1,83 @@
+/* Arayüz dilleri: Türkçe (varsayılan) ve İngilizce. */
+const TR = {
+  open: 'Aç', noFile: 'Dosya seçilmedi', fit: 'Tümünü sığdır', layers: 'Katmanlar', measure: 'Ölçü', more: 'Diğer', search: 'Ara',
+  layersAll: 'Tümü', layersNone: 'Hiçbiri', layerFilter: 'Katman ara…', close: 'Kapat',
+  welcomeTitle: 'DWG Görüntüleyici', welcomeText: 'AutoCAD DWG ve DXF çizimlerini telefonda açar: R13\'ten 2018+ sürümüne kadar. Kaydırma, iki parmakla yakınlaştırma, katmanlar, nesne bilgisi, ölçü, GPS konumu, notlar, PDF.',
+  pickFile: 'DWG / DXF dosyası seç', hint: 'Dosya yöneticisinden, e-postadan veya WhatsApp\'tan bir .dwg dosyasına dokunup "DWG Görüntüleyici" ile de açabilirsiniz.',
+  recent: 'Son dosyalar', server: 'Sunucudan indir', qr: 'QR okut', loading: 'Yükleniyor…',
+  measureHint: 'Noktalara dokunun · yakalama açık', clear: 'Temizle', firstPoint: 'Birinci noktaya dokunun.', secondPoint: 'İkinci noktaya dokunun.',
+  total: 'Toplam', closedPerim: 'Kapalı çevre', areaClosed: 'Alan (kapalı)', lastPoint: 'Son nokta', snapped: 'yakalandı',
+  info: 'Çizim bilgisi', bg: 'Arka plan: koyu / açık', text: 'Yazıları göster / gizle', png: 'Görünümü PNG kaydet', pdf: 'PDF oluştur', about: 'Hakkında',
+  mono: 'Tek renk / renkli', lw: 'Çizgi kalınlıkları', notes: 'Notlar (redline)', gps: 'GPS konumu', basemap: 'Harita altlığı', compare: 'Revizyon karşılaştır',
+  profile: 'Profil / eğim', views: 'Kayıtlı görünümler', settings: 'Ayarlar', layouts: 'Sayfa düzenleri', xrefs: 'Referans dosyaları',
+  layerCount: 'katman', entity: 'varlık', openFirst: 'Önce bir DWG dosyası açın.', textShown: 'Yazılar gösteriliyor', textHidden: 'Yazılar gizlendi',
+  file: 'Dosya', version: 'Sürüm', unit: 'Birim (INSUNITS)', entityCount: 'Varlık sayısı', primCount: 'Çizilen ilkel', layerN: 'Katman', blockN: 'Blok tanımı',
+  xRange: 'X aralığı', yRange: 'Y aralığı', size: 'Genişlik × Yükseklik', types: 'Varlık türleri',
+  layer: 'Katman', color: 'Renk', ltype: 'Çizgi tipi', lweight: 'Kalınlık', length: 'Uzunluk', start: 'Başlangıç', end: 'Bitiş', vertices: 'Köşe sayısı',
+  closed: 'Kapalı', yes: 'Evet', area: 'Alan', width: 'Genişlik', pattern: 'Desen', center: 'Merkez', radius: 'Yarıçap', circumference: 'Çevre', arcLen: 'Yay uzunluğu', angle: 'Açı',
+  textK: 'Metin', height: 'Yükseklik', rotation: 'Dönüş', position: 'Konum', handle: 'Tanıtıcı (handle)', block: 'Blok adı', insPoint: 'Ekleme noktası', scale: 'Ölçek',
+  attrs: 'Öznitelikler', xdata: 'Genişletilmiş veri (XDATA)', measVal: 'Ölçü değeri', measText: 'Ölçü yazısı', dimStyle: 'Ölçü stili', tag: 'Etiket', fromLayer: 'Katmandan', fromBlock: 'Bloktan',
+  copyCoord: 'Koordinatı kopyala', copied: 'Panoya kopyalandı', zoomTo: 'Yakınlaştır', elev: 'Kot',
+  searchPh: 'Yazı, katman, blok, öznitelik, handle…', noResult: 'Sonuç yok', results: 'sonuç',
+  gpsOff: 'GPS kapalı', gpsWait: 'Konum bekleniyor…', gpsNoCrs: 'Önce Ayarlar\'dan koordinat sistemini seçin.', gpsHere: 'Konumuma git', gpsFollow: 'Konumu izle',
+  crs: 'Koordinat sistemi', drawingUnit: 'Çizim birimi', axisSwap: 'Eksenler ters (X = Kuzey)', offset: 'Ek kaydırma', lwScale: 'Kalınlık ölçeği (px/mm)',
+  language: 'Dil', save: 'Kaydet', cancel: 'Vazgeç', delete: 'Sil', undo: 'Geri al',
+  pen: 'Kalem', line: 'Çizgi', arrow: 'Ok', rect: 'Dikdörtgen', circle: 'Daire', noteText: 'Yazı', photo: 'Fotoğraf', select: 'Seç', noteColor: 'Renk',
+  notesSaved: 'Notlar kaydedildi', notePrompt: 'Not metni:', noNotes: 'Bu çizimde not yok.',
+  pdfTitle: 'PDF oluştur', paper: 'Kâğıt', orient: 'Yön', portrait: 'Dikey', landscape: 'Yatay', pdfScale: 'Ölçek 1:', pdfFit: 'Görünümü sığdır', dpi: 'Çözünürlük', title: 'Başlık', create: 'Oluştur',
+  pdfDone: 'PDF hazırlandı', pdfFail: 'PDF oluşturulamadı',
+  compareLoad: 'Karşılaştırılacak dosyayı seçin', compareOff: 'Karşılaştırmayı kapat', onlyA: 'Yalnız bu çizimde (kaldırılmış)', onlyB: 'Yalnız yeni çizimde (eklenen)', both: 'Ortak',
+  profileHint: 'Bacaları / noktaları sırayla dokunun. Kotlar yakalanan noktanın Z\'sinden gelir; yoksa elle girin.', enterElev: 'kotunu girin', slope: 'Eğim',
+  viewSave: 'Görünümü kaydet', viewName: 'Görünüm adı:', noViews: 'Kayıtlı görünüm yok.',
+  serverUrl: 'Pafta listesi adresi (JSON ya da dizin) veya doğrudan .dwg adresi', download: 'İndir', downloaded: 'İndirildi', cached: 'Çevrimdışı kopyalar',
+  xrefMissing: 'Eksik referans dosyası', pickXref: 'Dosyayı seç', imgMissing: 'Eksik resim altlığı',
+  update: 'Yeni sürüm var', errorLog: 'Hata kaydını paylaş', noError: 'Hata kaydı yok.',
+  qrHint: 'QR kodu kameraya gösterin', qrStop: 'Durdur',
+  basemapOpacity: 'Saydamlık', basemapNeedCrs: 'Altlık için önce koordinat sistemini seçin.',
+};
+const EN = {
+  open: 'Open', noFile: 'No file', fit: 'Zoom extents', layers: 'Layers', measure: 'Measure', more: 'More', search: 'Search',
+  layersAll: 'All', layersNone: 'None', layerFilter: 'Filter layers…', close: 'Close',
+  welcomeTitle: 'DWG Viewer', welcomeText: 'Opens AutoCAD DWG and DXF drawings on your phone: R13 to 2018+. Pan, pinch zoom, layers, entity info, measure, GPS, notes, PDF.',
+  pickFile: 'Pick a DWG / DXF file', hint: 'You can also tap a .dwg in a file manager, e-mail or WhatsApp and open it with "DWG Viewer".',
+  recent: 'Recent files', server: 'Download from server', qr: 'Scan QR', loading: 'Loading…',
+  measureHint: 'Tap points · snapping on', clear: 'Clear', firstPoint: 'Tap the first point.', secondPoint: 'Tap the second point.',
+  total: 'Total', closedPerim: 'Closed perimeter', areaClosed: 'Area (closed)', lastPoint: 'Last point', snapped: 'snapped',
+  info: 'Drawing info', bg: 'Background: dark / light', text: 'Show / hide text', png: 'Save view as PNG', pdf: 'Create PDF', about: 'About',
+  mono: 'Monochrome / color', lw: 'Line weights', notes: 'Notes (redline)', gps: 'GPS position', basemap: 'Basemap', compare: 'Compare revisions',
+  profile: 'Profile / slope', views: 'Saved views', settings: 'Settings', layouts: 'Layouts', xrefs: 'Reference files',
+  layerCount: 'layers', entity: 'entities', openFirst: 'Open a DWG file first.', textShown: 'Text shown', textHidden: 'Text hidden',
+  file: 'File', version: 'Version', unit: 'Unit (INSUNITS)', entityCount: 'Entities', primCount: 'Primitives drawn', layerN: 'Layers', blockN: 'Block definitions',
+  xRange: 'X range', yRange: 'Y range', size: 'Width × Height', types: 'Entity types',
+  layer: 'Layer', color: 'Color', ltype: 'Linetype', lweight: 'Lineweight', length: 'Length', start: 'Start', end: 'End', vertices: 'Vertices',
+  closed: 'Closed', yes: 'Yes', area: 'Area', width: 'Width', pattern: 'Pattern', center: 'Center', radius: 'Radius', circumference: 'Circumference', arcLen: 'Arc length', angle: 'Angle',
+  textK: 'Text', height: 'Height', rotation: 'Rotation', position: 'Position', handle: 'Handle', block: 'Block name', insPoint: 'Insertion point', scale: 'Scale',
+  attrs: 'Attributes', xdata: 'Extended data (XDATA)', measVal: 'Measurement', measText: 'Dimension text', dimStyle: 'Dimension style', tag: 'Tag', fromLayer: 'ByLayer', fromBlock: 'ByBlock',
+  copyCoord: 'Copy coordinate', copied: 'Copied to clipboard', zoomTo: 'Zoom to', elev: 'Elevation',
+  searchPh: 'Text, layer, block, attribute, handle…', noResult: 'No results', results: 'results',
+  gpsOff: 'GPS off', gpsWait: 'Waiting for position…', gpsNoCrs: 'Select the coordinate system in Settings first.', gpsHere: 'Go to my position', gpsFollow: 'Follow position',
+  crs: 'Coordinate system', drawingUnit: 'Drawing unit', axisSwap: 'Axes swapped (X = North)', offset: 'Extra offset', lwScale: 'Lineweight scale (px/mm)',
+  language: 'Language', save: 'Save', cancel: 'Cancel', delete: 'Delete', undo: 'Undo',
+  pen: 'Pen', line: 'Line', arrow: 'Arrow', rect: 'Rectangle', circle: 'Circle', noteText: 'Text', photo: 'Photo', select: 'Select', noteColor: 'Color',
+  notesSaved: 'Notes saved', notePrompt: 'Note text:', noNotes: 'No notes in this drawing.',
+  pdfTitle: 'Create PDF', paper: 'Paper', orient: 'Orientation', portrait: 'Portrait', landscape: 'Landscape', pdfScale: 'Scale 1:', pdfFit: 'Fit view', dpi: 'Resolution', title: 'Title', create: 'Create',
+  pdfDone: 'PDF created', pdfFail: 'PDF failed',
+  compareLoad: 'Pick the file to compare', compareOff: 'Stop comparing', onlyA: 'Only in this drawing (removed)', onlyB: 'Only in new drawing (added)', both: 'Common',
+  profileHint: 'Tap manholes / points in order. Elevations come from the snapped point\'s Z; otherwise enter them.', enterElev: 'elevation', slope: 'Slope',
+  viewSave: 'Save view', viewName: 'View name:', noViews: 'No saved views.',
+  serverUrl: 'Sheet index URL (JSON or directory) or a direct .dwg URL', download: 'Download', downloaded: 'Downloaded', cached: 'Offline copies',
+  xrefMissing: 'Missing reference file', pickXref: 'Pick file', imgMissing: 'Missing image underlay',
+  update: 'New version available', errorLog: 'Share error log', noError: 'No error log.',
+  qrHint: 'Show the QR code to the camera', qrStop: 'Stop',
+  basemapOpacity: 'Opacity', basemapNeedCrs: 'Select a coordinate system before using a basemap.',
+};
+let dict = TR, lang = 'tr';
+export function setLang(l) { lang = l === 'en' ? 'en' : 'tr'; dict = lang === 'en' ? EN : TR; }
+export const getLang = () => lang;
+export const t = (k) => dict[k] != null ? dict[k] : (TR[k] != null ? TR[k] : k);
+/** data-i18n="key" (metin), data-i18n-ph="key" (placeholder), data-i18n-title="key" */
+export function applyI18n(root = document) {
+  root.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  root.querySelectorAll('[data-i18n-ph]').forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
+  root.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); });
+}
