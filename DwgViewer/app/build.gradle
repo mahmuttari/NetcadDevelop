@@ -1,0 +1,55 @@
+plugins {
+    id "com.android.application"
+}
+
+android {
+    namespace "com.mahmuttari.dwgviewer"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.mahmuttari.dwgviewer"
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    signingConfigs {
+        release {
+            storeFile rootProject.file(DWG_KEYSTORE)
+            storePassword DWG_KEYSTORE_PASSWORD
+            keyAlias DWG_KEY_ALIAS
+            keyPassword DWG_KEY_PASSWORD
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+            signingConfig signingConfigs.release
+        }
+        debug {
+            applicationIdSuffix ".debug"
+        }
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // .wasm dosyası APK içinde sıkıştırılmış kalır (yaklaşık 10 MB -> 3 MB);
+    // AssetManager açarken kendisi açar.
+    packaging {
+        resources.excludes += ["META-INF/*"]
+    }
+}
+
+dependencies {
+    // Bilerek bağımlılık yok: WebView + LibreDWG (WebAssembly) yeterli.
+}

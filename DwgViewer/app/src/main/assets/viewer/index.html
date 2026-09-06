@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>DWG Görüntüleyici</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <button id="btnOpen" class="btn primary" title="DWG dosyası aç">📂 <span>Aç</span></button>
+    <div id="fileName" class="filename" title="">Dosya seçilmedi</div>
+    <button id="btnExtents" class="btn icon" title="Tümünü sığdır (Zoom Extents)">⤢</button>
+    <button id="btnLayers" class="btn icon" title="Katmanlar">☰</button>
+    <button id="btnMeasure" class="btn icon" title="Ölçü al">📏</button>
+    <button id="btnMore" class="btn icon" title="Diğer">⋮</button>
+  </header>
+
+  <div id="viewport">
+    <canvas id="cv"></canvas>
+    <canvas id="ov"></canvas>
+    <div id="empty" class="empty">
+      <div class="empty-card">
+        <div class="empty-logo">DWG</div>
+        <h1>DWG Görüntüleyici</h1>
+        <p>AutoCAD DWG çizimlerini telefonda açar: R13'ten 2018+ sürümüne kadar.<br>
+           Kaydırma, iki parmakla yakınlaştırma, katman açma-kapama, nesne bilgisi ve ölçü alma.</p>
+        <button id="btnOpen2" class="btn primary big">📂 DWG dosyası seç</button>
+        <input id="fileInput" type="file" accept=".dwg,application/acad,application/x-dwg,application/octet-stream" hidden>
+        <p class="hint">Dosya yöneticisinden, e-postadan veya WhatsApp'tan bir .dwg dosyasına dokunup
+           "DWG Görüntüleyici" ile de açabilirsiniz.</p>
+      </div>
+    </div>
+  </div>
+
+  <footer id="statusbar">
+    <span id="stCoord">X: – &nbsp; Y: –</span>
+    <span id="stScale"></span>
+    <span id="stCount"></span>
+  </footer>
+
+  <!-- Yükleniyor -->
+  <div id="loading" class="modal" hidden>
+    <div class="spinner"></div>
+    <div id="loadingText">Yükleniyor…</div>
+    <div id="loadingSub" class="sub"></div>
+  </div>
+
+  <!-- Katman paneli -->
+  <aside id="layerPanel" class="panel" hidden>
+    <div class="panel-head">
+      <strong>Katmanlar</strong>
+      <span id="layerCount" class="muted"></span>
+      <button class="btn small" id="btnLayersAll">Tümü</button>
+      <button class="btn small" id="btnLayersNone">Hiçbiri</button>
+      <button class="btn icon close" data-close="layerPanel">✕</button>
+    </div>
+    <input id="layerFilter" type="search" placeholder="Katman ara…">
+    <div id="layerList" class="panel-body"></div>
+  </aside>
+
+  <!-- Nesne bilgisi -->
+  <aside id="infoPanel" class="panel bottom" hidden>
+    <div class="panel-head">
+      <strong id="infoTitle">Nesne</strong>
+      <button class="btn icon close" data-close="infoPanel">✕</button>
+    </div>
+    <div id="infoBody" class="panel-body kv"></div>
+  </aside>
+
+  <!-- Ölçü paneli -->
+  <aside id="measurePanel" class="panel bottom" hidden>
+    <div class="panel-head">
+      <strong>Ölçü</strong>
+      <span class="muted">Noktalara dokunun · köşelere yapışır</span>
+      <button class="btn small" id="btnMeasureClear">Temizle</button>
+      <button class="btn icon close" id="btnMeasureClose">✕</button>
+    </div>
+    <div id="measureBody" class="panel-body kv">Birinci noktaya dokunun.</div>
+  </aside>
+
+  <!-- Diğer menüsü -->
+  <div id="moreMenu" class="menu" hidden>
+    <button data-act="info">ℹ️ Çizim bilgisi</button>
+    <button data-act="bg">🌓 Arka plan: koyu / açık</button>
+    <button data-act="text">🔤 Yazıları göster / gizle</button>
+    <button data-act="png">🖼️ Görünümü PNG kaydet</button>
+    <button data-act="about">📄 Hakkında</button>
+  </div>
+
+  <!-- Çizim bilgisi / hakkında -->
+  <aside id="docPanel" class="panel bottom" hidden>
+    <div class="panel-head">
+      <strong id="docTitle">Çizim bilgisi</strong>
+      <button class="btn icon close" data-close="docPanel">✕</button>
+    </div>
+    <div id="docBody" class="panel-body kv"></div>
+  </aside>
+
+  <div id="toast" class="toast" hidden></div>
+</div>
+<script type="module" src="app.js"></script>
+</body>
+</html>

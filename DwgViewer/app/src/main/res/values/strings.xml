@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">DWG Görüntüleyici</string>
+    <string name="pick_file">DWG dosyası seç</string>
+    <string name="saved_to">Kaydedildi: %1$s</string>
+    <string name="save_failed">Görüntü kaydedilemedi</string>
+    <string name="open_failed">Dosya açılamadı</string>
+</resources>
