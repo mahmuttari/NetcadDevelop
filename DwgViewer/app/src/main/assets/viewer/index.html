@@ -22,6 +22,7 @@
   <div id="main">
     <div id="viewport">
       <canvas id="cv"></canvas>
+      <canvas id="cv3d" hidden></canvas>
       <canvas id="ov"></canvas>
       <div id="gpsBtn" class="fab" hidden title="GPS">🧭</div>
       <div id="empty" class="empty">
@@ -42,6 +43,11 @@
           <p class="hint" data-i18n="hint"></p>
         </div>
       </div>
+      <div id="cmdBar" class="cmdbar" hidden>
+    <span id="cmdText"></span>
+    <span class="cmd-in"><input id="cmdInput" type="text" placeholder="x,y | @dx,dy | @L<açı" autocomplete="off" inputmode="text"><button id="cmdEnter">↵</button></span>
+    <span id="cmdBtns"></span>
+  </div>
       <div id="notesBar" class="notesbar" hidden>
         <button data-tool="select" class="active" data-i18n-title="select">👆</button>
         <button data-tool="pen" data-i18n-title="pen">✏️</button>
@@ -60,6 +66,7 @@
     <aside id="side" class="side" hidden></aside>
   </div>
 
+  <nav id="toolbar"></nav>
   <footer id="statusbar">
     <span id="stCoord" title="Kopyalamak için dokunun">X: – &nbsp; Y: –</span>
     <span id="stScale"></span>

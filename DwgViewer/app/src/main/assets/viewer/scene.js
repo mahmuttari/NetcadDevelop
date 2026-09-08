@@ -286,7 +286,7 @@ export class SceneBuilder {
       const s = simScale(m), r = simRot(m);
       out = ops.map(o => {
         if (o[0] === 0 || o[0] === 1) { const p = apply(m, o[1], o[2]); return [o[0], p[0], p[1], o[3]]; }
-        if (o[0] === 2 || o[0] === -2) { const p = apply(m, o[1], o[2]); return [o[0], p[0], p[1], o[3] * s, o[4] + r, o[5] + r]; }
+        if (o[0] === 2 || o[0] === -2) { const p = apply(m, o[1], o[2]); return [o[0], p[0], p[1], o[3] * s, o[4] + r, o[5] + r, o[6]]; }
         const p = apply(m, o[1], o[2]); return [3, p[0], p[1], o[3] * s, o[4] * s, o[5] + r, o[6], o[7]];
       });
     } else {
@@ -330,7 +330,7 @@ export class SceneBuilder {
     }
     const ws = (t.xScale || 1) * (t.xScale ? 1 : (sty ? sty.width : 1));
     const flip = t.generationFlag || 0;
-    this.pushText(x, y, h, rot, lines, hax, vay, ws, e, ctx, { ...opt, font: sty ? sty.font : undefined, obl: t.obliqueAngle || (sty ? sty.oblique : 0), mx: !!(flip & 2), my: !!(flip & 4) });
+    this.pushText(x, y, h, rot, lines, hax, vay, ws, e, ctx, { ...opt, font: sty ? sty.font : undefined, obl: t.obliqueAngle || (sty ? sty.oblique : 0), mx: !!(flip & 2), my: !!(flip & 4), z: t.startPoint ? t.startPoint.z : undefined });
   }
 
   pushText(x, y, h, rot, lines, hax, vay, ws, e, ctx, opt = {}) {
@@ -345,7 +345,7 @@ export class SceneBuilder {
     const wEst = maxLen * h * 0.75 * ws, hEst = h * (1 + 1.667 * (lines.length - 1));
     const R = Math.hypot(wEst, hEst);
     const st = this.style(e, ctx);
-    const p = { k: 1, x, y, h, rot, lines, ha: hax, va: vay, ws, font: opt.font, obl: opt.obl || 0, mx: !!opt.mx, my: !!opt.my,
+    const p = { k: 1, x, y, z: opt.z || 0, h, rot, lines, ha: hax, va: vay, ws, font: opt.font, obl: opt.obl || 0, mx: !!opt.mx, my: !!opt.my,
       col: opt.col != null ? opt.col : st.col, lay: st.lay, lw: st.lw, bb: [x - R, y - R, x + R, y + R], info: ctx.info || this.info(e, st), et: e.type, spacing: opt.spacing || 1 };
     this.prims.push(p);
     this.layerOf(st.lay).count++;
@@ -422,13 +422,13 @@ export class SceneBuilder {
       }
       case 'CIRCLE': {
         const cx = flipX ? -e.center.x : e.center.x;
-        this.addPath([[0, cx + e.radius, e.center.y, e.center.z], [2, cx, e.center.y, e.radius, 0, TAU]], { closed: true }, e, ctx);
+        this.addPath([[0, cx + e.radius, e.center.y, e.center.z], [2, cx, e.center.y, e.radius, 0, TAU, e.center.z]], { closed: true }, e, ctx);
         break;
       }
       case 'ARC': {
         let a0 = e.startAngle, a1 = e.endAngle, cx = e.center.x;
         if (flipX) { cx = -cx; const t = Math.PI - a0; a0 = Math.PI - a1; a1 = t; }
-        this.addPath([[0, cx + e.radius * Math.cos(a0), e.center.y + e.radius * Math.sin(a0), e.center.z], [2, cx, e.center.y, e.radius, a0, a1]], {}, e, ctx);
+        this.addPath([[0, cx + e.radius * Math.cos(a0), e.center.y + e.radius * Math.sin(a0), e.center.z], [2, cx, e.center.y, e.radius, a0, a1, e.center.z]], {}, e, ctx);
         break;
       }
       case 'ELLIPSE': {
@@ -464,7 +464,7 @@ export class SceneBuilder {
         let rot = e.rotation || 0;
         if (e.direction && (Math.abs(e.direction.x) > 1e-9 || Math.abs(e.direction.y) > 1e-9)) rot = Math.atan2(e.direction.y, e.direction.x);
         const sty = this.styles[(e.styleName || 'STANDARD').toUpperCase()];
-        this.pushText(e.insertionPoint.x, e.insertionPoint.y, e.textHeight, rot, lines, hax, vay, 1, e, ctx, { spacing: e.lineSpacing || 1, font: sty ? sty.font : undefined });
+        this.pushText(e.insertionPoint.x, e.insertionPoint.y, e.textHeight, rot, lines, hax, vay, 1, e, ctx, { spacing: e.lineSpacing || 1, font: sty ? sty.font : undefined, z: e.insertionPoint.z });
         break;
       }
       case 'INSERT': this.insert(e, ctx); break;

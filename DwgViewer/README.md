@@ -1,4 +1,4 @@
-# DWG Görüntüleyici (Android) — v2.0
+# DWG Görüntüleyici (Android) — v3.0
 
 AutoCAD **DWG** ve **DXF** çizimlerini telefonda açan, çevrimdışı çalışan
 Android uygulaması. Dosya cihazdan dışarı çıkmaz; çözümleme telefonun
@@ -37,6 +37,12 @@ verisi gönderilmez).
 | Karşılaştırma | iki revizyonu üst üste bindirme: kaldırılan kırmızı, eklenen yeşil, ortak gri; sayılar |
 | Referanslar | eksik **XREF** ve **resim altlığı** listesi; dosya seçilince yerine yerleştirme |
 | Kabuk | Türkçe/İngilizce, tablet düzeni (katman paneli yan sütun), sürüm denetimi, hata kaydı paylaşma |
+| **Araç çubuğu** | alt kısımda sekmeli düğme çubuğu: Görünüm · Ölçü · Çiz · Düzenle · 3B; komut satırı (adım adım yönerge, yazılı koordinat girişi `x,y` / `x,y,z` / `@dx,dy` / `@L<açı`, Bitir / Kapat / Geri / İptal düğmeleri) |
+| **Çizim** | çizgi (zincirleme), polyline (açık/kapalı), dikdörtgen, daire (merkez + yarıçap noktası ya da yazılı yarıçap), yay (3 nokta), nokta, yazı, 3B polyline (kotlu), 3B yüzey; geçerli katman / renk seçimi, yeni katman oluşturma; tüm yakalama kipleri çizimde de geçerli |
+| **Düzenleme** | seç (dokunarak ekle/çıkar, tümünü seç), taşı, kopyala (yineleyerek), döndür (yazılı açı ya da nokta), ölçekle, aynala (orijinali koru / korumama), ofset (mesafe + taraf), sil, kot ata, yazı düzenle, özellikler (katman/renk); sınırsız geri al / yinele; düzenlemeler dosya başına kalıcı (uygulama kapansa da korunur) |
+| **Ölçüm araçları** | mesafe (yatay, ΔX/ΔY/ΔZ, 3B, açı), alan (m², dekar, hektar; çevre), açı (3 nokta), yarıçap/çap/çevre, koordinat (XYZ + enlem/boylam + kopyalama) |
+| **3B görünüm** | WebGL: yörünge (tek parmak döndür, iki parmak kaydır/yakınlaştır), izometrik/üst/ön/sol ön ayarları, perspektif/ortografik, Z abartı çarpanı, ızgara ve eksenler, köşe yakalama; 3B mesafe (yatay, ΔZ, eğim), seçim, 3B taşıma, kot atama, silme, 3B polyline (köşeye dokunarak ya da x,y,z yazarak) |
+| **Kaydetme** | **DXF** (AC1015): tüm çizim (bloklar patlatılmış, katmanlar ve çizgi tipleri korunur) ya da yalnız değişiklikler; paylaşım menüsüyle e-posta/WhatsApp/Drive'a gönderme |
 
 Çizilen varlıklar: LINE, LWPOLYLINE, POLYLINE (2B/3B/çok yüzlü), CIRCLE,
 ARC, ELLIPSE, SPLINE, POINT, TEXT, MTEXT, ATTRIB, INSERT (iç içe, dizili,
@@ -44,8 +50,10 @@ ARC, ELLIPSE, SPLINE, POINT, TEXT, MTEXT, ATTRIB, INSERT (iç içe, dizili,
 MULTILEADER, MLINE, XLINE, RAY, ACAD_TABLE, WIPEOUT, IMAGE, VIEWPORT.
 
 Yapmadıkları: 3B katıları (3DSOLID/REGION) ve ikili DXF'i çizmez, SHX
-yazı tipleri yerine sistem yazı tipini kullanır, dosya kaydetmez/düzenlemez
-(notlar ayrı tutulur). ED50 datum kaydırması ülke ortalaması
+yazı tipleri yerine sistem yazı tipini kullanır. **DWG olarak yazamaz**:
+kullanılan LibreDWG WebAssembly derlemesinde yazma kapalıdır; düzenlemeler
+DXF olarak kaydedilir (AutoCAD ve NetCAD doğrudan açar). Orijinal DWG
+hiçbir zaman değiştirilmez. ED50 datum kaydırması ülke ortalaması
 parametreleriyle yapılır (±2-5 m).
 
 ## Nasıl çalışır
@@ -67,6 +75,15 @@ DWG/DXF baytları ─► worker.js ─► LibreDWG (WASM) / dxf.js ─► scene.
   pano, konum, kamera izni, PNG/PDF kaydetme ve paylaşma (FileProvider),
   indirme deposu, küçük resimler, anahtar/değer deposu ve hata kaydı.
 * **Çözümleme** bir Web Worker'da yapılır; arayüz kilitlenmez.
+* **Düzenleme** (`edit.js`, `tools.js`, `editor.js`): her komut (ekle, sil,
+  dönüştür, kopyala, kot ata, özellik, katman, yazı) bir günlüğe yazılır ve
+  dosya anahtarına göre saklanır; dosya yeniden açıldığında günlük aynı
+  sırayla uygulanır. Nesneler `handle#sıra` anahtarıyla izlenir. Geri al /
+  yinele bellek içi anlık görüntülerle çalışır. DXF yazıcı ilkelleri LINE,
+  LWPOLYLINE (bulge'lı), POLYLINE (3B), CIRCLE, ARC, TEXT/MTEXT, POINT, 3DFACE
+  olarak yazar.
+* **3B görünüm** (`view3d.js`): WebGL çizgi/üçgen tamponları, yörünge
+  kamerası, köşe listesi üzerinden ekran uzayında yakalama.
 * **Uzamsal indeks** (STR paketli R-ağacı) seçim, yakalama ve yakın
   ölçekte çizim için kullanılır; büyük paftalarda hareket sırasında
   önbellek görüntüsü kaydırılır.

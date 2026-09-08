@@ -10,6 +10,7 @@ import { setTileCallback, basemapAttribution } from './tiles.js';
 import { notes, loadNotes, saveNotes, addNote, removeNote, hitNote, drawNotes } from './notes.js';
 import { CRS, GeoRef, BASEMAPS } from './proj.js';
 import { t, setLang, getLang, applyI18n } from './i18n.js';
+import { initEditor, onScene as editorScene, tap as editorTap, back as editorBack, overlay as editorOverlay, onResize as editorResize, onTheme as editorTheme, editor } from './editor.js';
 
 const $ = (id) => document.getElementById(id);
 const A = () => window.Android || null;
@@ -73,6 +74,7 @@ function resize() {
   for (const c of [cv, ov, off]) { c.width = Math.round(S.W * S.dpr); c.height = Math.round(S.H * S.dpr); }
   S.cacheValid = false;
   requestRender();
+  editorResize();
 }
 new ResizeObserver(resize).observe(vp);
 window.addEventListener('resize', resize);
@@ -127,7 +129,9 @@ function drawOverlay() {
   c.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);
   c.clearRect(0, 0, S.W, S.H);
   if (!S.hasDoc) return;
+  if (editor.is3D()) return;
   const acc = '#f5b342', fg = fgColor();
+  editorOverlay(c);
   if (S.selected) {
     const p = S.selected;
     c.save(); worldTransform(c);
@@ -233,7 +237,7 @@ const rel = (ev) => { const r = vp.getBoundingClientRect(); return [ev.clientX -
 
 vp.addEventListener('pointerdown', (ev) => {
   if (!S.hasDoc) return;
-  if (ev.target.closest && ev.target.closest('.notesbar, .fab, .empty')) return; // görüntü alanı içindeki düğmeler
+  if (ev.target.closest && ev.target.closest('.notesbar, .fab, .empty, .cmdbar')) return; // görüntü alanı içindeki düğmeler
   vp.setPointerCapture(ev.pointerId);
   pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
   closeMenu();
@@ -333,6 +337,7 @@ function doSnap(w) {
 function onTap(sx, sy) {
   updateStatus(sx, sy);
   const w = toWorld(sx, sy);
+  if (editorTap(w, sx, sy)) return;
   if (S.notesOn) { noteTap(sx, sy, w); return; }
   if (S.mode === 'measure' || S.mode === 'profile') {
     const sn = doSnap(w);
@@ -567,9 +572,7 @@ function doSearch() {
 // ---- diğer menüsü --------------------------------------------------------------------
 $('btnMore').addEventListener('click', () => { $('moreMenu').hidden = !$('moreMenu').hidden; });
 $('btnExtents').addEventListener('click', () => zoomExtents());
-$('moreMenu').addEventListener('click', (ev) => {
-  const b = ev.target.closest('[data-act]'); if (!b) return;
-  const act = b.dataset.act;
+function menuAction(act) {
   closeMenu();
   const needDoc = ['info', 'layouts', 'notes', 'profile', 'compare', 'xrefs', 'views', 'png', 'pdf'];
   if (needDoc.includes(act) && !S.hasDoc) { toast(t('openFirst')); return; }
@@ -583,7 +586,7 @@ $('moreMenu').addEventListener('click', (ev) => {
     case 'compare': showCompare(); break;
     case 'xrefs': showXrefs(); break;
     case 'views': showViews(); break;
-    case 'bg': S.dark = !S.dark; settings.dark = S.dark; saveSettings(); document.body.classList.toggle('light', !S.dark); S.cacheValid = false; requestRender(); if (!$('layerPanel').hidden) buildLayerList(); break;
+    case 'bg': S.dark = !S.dark; settings.dark = S.dark; saveSettings(); document.body.classList.toggle('light', !S.dark); S.cacheValid = false; requestRender(); if (!$('layerPanel').hidden) buildLayerList(); editorTheme(); break;
     case 'mono': S.mono = !S.mono; S.cacheValid = false; requestRender(); break;
     case 'lw': S.lw = !S.lw; S.cacheValid = false; requestRender(); toast(t('lw') + ': ' + (S.lw ? 'açık' : 'kapalı')); break;
     case 'text': S.showText = !S.showText; S.cacheValid = false; requestRender(); toast(S.showText ? t('textShown') : t('textHidden')); break;
@@ -595,7 +598,8 @@ $('moreMenu').addEventListener('click', (ev) => {
     case 'about': showAbout(); break;
     default: break;
   }
-});
+}
+$('moreMenu').addEventListener('click', (ev) => { const b = ev.target.closest('[data-act]'); if (b) menuAction(b.dataset.act); });
 
 function showDocInfo() {
   const c = S.counts;
@@ -1129,6 +1133,7 @@ function setScene(scene, name, size) {
   loadNotes(S.fileKey);
   for (const n of notes.items) if (n.type === 'photo' && n.photo) loadPhoto(n.photo);
   setLayout(0);
+  editorScene();
   if (!$('layerPanel').hidden) buildLayerList();
   setTimeout(saveThumb, 400);
 }
@@ -1201,6 +1206,7 @@ function onBack() {
   if (!$('moreMenu').hidden) { closeMenu(); return true; }
   const open = openPanels();
   if (open.length) { for (const id of open) hide(id); dockLayers(); if (S.mode !== 'view') setMode('view'); return true; }
+  if (editorBack()) return true;
   if (S.notesOn) { toggleNotes(false); return true; }
   if (S.mode !== 'view') { setMode('view'); return true; }
   if (S.selected) { S.selected = null; drawOverlay(); return true; }
@@ -1224,8 +1230,10 @@ async function checkUpdate(manual) {
 // ---------------------------------------------------------------------------
 // Başlangıç
 // ---------------------------------------------------------------------------
-window.dwgApp = { loadCurrent, onFilePicked, onLocation, onBack, loadBytes, zoomExtents, render, toScreen, toWorld, state: S, notes, setMode, setLayout, refreshRecent: buildRecent,
+window.dwgApp = { loadCurrent, onFilePicked, onLocation, onBack, loadBytes, zoomExtents, render, toScreen, toWorld, state: S, notes, editor, setMode, setLayout, refreshRecent: buildRecent,
   onLocationError: (m) => toast('GPS: ' + m) };
+initEditor({ S, requestRender, drawOverlay, toast, pick: (w) => pick(w, 12 / S.view.scale), snap: doSnap, showInfo, openDoc, hide, show, esc, kv, copyText, buildLayerList, fmt, store, RTree, baseName, zoomExtents, tracePath,
+  action: (a) => { if (a === 'layers') $('btnLayers').click(); else if (a === 'search') $('btnSearch').click(); else if (a === 'more') $('btnMore').click(); else menuAction(a); } });
 applySettings();
 applyGeo();
 resize();

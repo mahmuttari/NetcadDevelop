@@ -102,3 +102,30 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
   .panel.right { position: static; width: 100%; height: 100%; border: 0; border-radius: 0; box-shadow: none; }
   .side.docked { display: block; }
 }
+
+/* --- düzenleyici --- */
+#cv3d { z-index: 3; touch-action: none; }
+#ov { z-index: 4; }
+.cmdbar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 7; display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: rgba(38,49,63,.94); border-top: 1px solid var(--line); font-size: 13px; flex-wrap: wrap; }
+.light .cmdbar { background: rgba(233,237,242,.95); }
+.cmdbar #cmdText { flex: 1 1 100%; color: var(--accent); font-weight: 600; }
+.cmd-in { display: flex; gap: 4px; flex: 1 1 auto; }
+.cmd-in input { flex: 1 1 auto; min-width: 120px; padding: 7px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font-size: 14px; }
+.cmd-in button, #cmdBtns button { border: 0; border-radius: 8px; background: var(--btn); color: var(--fg); padding: 7px 10px; font-size: 13px; }
+#cmdBtns { display: flex; gap: 4px; flex-wrap: wrap; }
+#toolbar { background: var(--bar); border-top: 1px solid var(--line); flex: 0 0 auto; }
+.tb-tabs { display: flex; }
+.tb-tabs button { flex: 1 1 0; border: 0; background: transparent; color: var(--muted); padding: 6px 4px; font-size: 12px; font-weight: 600; border-bottom: 2px solid transparent; }
+.tb-tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tb-row { display: flex; gap: 4px; padding: 6px 6px; overflow-x: auto; scrollbar-width: none; }
+.tb-row::-webkit-scrollbar { display: none; }
+.tb-row button { flex: 0 0 auto; min-width: 58px; border: 0; border-radius: 10px; background: var(--btn); color: var(--fg); padding: 5px 6px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.tb-row button .ic { font-size: 18px; line-height: 1.1; }
+.tb-row button .lb { font-size: 10px; white-space: nowrap; color: var(--muted); }
+.tb-row button.active { outline: 2px solid var(--accent); }
+.tb-row button.active .lb { color: var(--fg); }
+.tb-row button.dirty .ic { color: var(--accent); }
+.tb-row button:disabled { opacity: .4; }
+.swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+.swatches button { width: 32px; height: 32px; border-radius: 6px; border: 1px solid var(--line); color: var(--fg); font-weight: 700; }
+.swatches button.active { outline: 2px solid var(--accent); }
