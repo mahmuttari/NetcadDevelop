@@ -31,7 +31,7 @@ const TR = {
   viewSave: 'Görünümü kaydet', viewName: 'Görünüm adı:', noViews: 'Kayıtlı görünüm yok.',
   serverUrl: 'Pafta listesi adresi (JSON ya da dizin) veya doğrudan .dwg adresi', download: 'İndir', downloaded: 'İndirildi', cached: 'Çevrimdışı kopyalar',
   xrefMissing: 'Eksik referans dosyası', pickXref: 'Dosyayı seç', imgMissing: 'Eksik resim altlığı',
-  update: 'Yeni sürüm var', errorLog: 'Hata kaydını paylaş', solidDiagShare: 'Katı tanılamasını paylaş', noError: 'Hata kaydı yok.',
+  update: 'Yeni sürüm var', errorLog: 'Hata kaydını paylaş', solidDiagShare: 'Katı tanılamasını paylaş', entityTypes: 'Varlık türleri', dwgTypes: 'DWG nesne türleri', noError: 'Hata kaydı yok.',
   qrHint: 'QR kodu kameraya gösterin', qrStop: 'Durdur',
   basemapOpacity: 'Saydamlık', basemapNeedCrs: 'Altlık için önce koordinat sistemini seçin.',
   // v4 kabuk
@@ -89,7 +89,7 @@ const EN = {
   viewSave: 'Save view', viewName: 'View name:', noViews: 'No saved views.',
   serverUrl: 'Sheet index URL (JSON or directory) or a direct .dwg URL', download: 'Download', downloaded: 'Downloaded', cached: 'Offline copies',
   xrefMissing: 'Missing reference file', pickXref: 'Pick file', imgMissing: 'Missing image underlay',
-  update: 'New version available', errorLog: 'Share error log', solidDiagShare: 'Share solid diagnostics', noError: 'No error log.',
+  update: 'New version available', errorLog: 'Share error log', solidDiagShare: 'Share solid diagnostics', entityTypes: 'Entity types', dwgTypes: 'DWG object types', noError: 'No error log.',
   qrHint: 'Show the QR code to the camera', qrStop: 'Stop',
   basemapOpacity: 'Opacity', basemapNeedCrs: 'Select a coordinate system before using a basemap.',
   // v4 shell

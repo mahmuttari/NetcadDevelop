@@ -449,7 +449,7 @@ let mode3Text = null, modeText = null;
 function statusMode(text) { modeText = text || null; renderMode(); }
 function statusMode3D() {
   mode3Text = ed.is3D() && v3 ? v3.hudText() : null;
-  if (mode3Text && /Yüzey yok/.test(mode3Text)) { const d = S && S.scene && S.scene.solidDiag; if (d && d.solids) mode3Text += ` (${d.solids} katı: ${d.errors[0] ? d.errors[0].replace(/^\S+ \S+: /, '') : 'yüzey çözülemedi'})`; else mode3Text += ' (katı/yüzey varlığı yok)'; }
+  if (mode3Text && /Yüzey yok/.test(mode3Text)) { const d = S && S.scene && S.scene.solidDiag; if (d && d.solids) mode3Text += ` (${d.solids} katı: ${d.errors[0] ? d.errors[0].replace(/^\S+ \S+: /, '') : 'yüzey çözülemedi'})`; else { const c = S && S.counts || {}; mode3Text += ` (katı/yüzey varlığı yok; ${Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k, v]) => k + ' ' + v).join(', ')})`; } }
   renderMode();
 }
 function renderMode() {

@@ -100,6 +100,21 @@ for (const f of ['example_2013.dwg', 'example_2018.dwg']) {
   await page.screenshot({ path: `${out}/solid_${f.replace(/\W/g, '_')}.png` });
 }
 
+// ---- 3. AutoCAD yüzey varlıkları (2004, satır içi SAB; ACIS 20800): koni, tor, küre, düzlem, spline ----
+{
+  const fp = path.join(SM, 'Surface_2004.dwg');
+  if (!fs.existsSync(fp)) console.log('SKIP Surface_2004.dwg yok');
+  else {
+    await open(fp);
+    i = await info3d();
+    const d = await page.evaluate(() => { const d = window.dwgApp.state.scene.solidDiag; return d ? { solids: d.solids, faces: d.faces, skipped: d.skipped, approx: d.approx, surfaces: d.surfaces, unknownTags: d.unknownTags, errors: d.errors } : null; });
+    ok('3 Surface_2004: 5 yüzey varlığı okundu', d && d.solids === 5, JSON.stringify(d));
+    ok('3 Surface_2004: bütün yüzler çözüldü (14 yüz, 0 atlandı, bilinmeyen etiket yok)', d && d.faces === 14 && d.skipped === 0 && d.unknownTags.length === 0 && d.errors.length === 0, d && `faces=${d.faces} skipped=${d.skipped} ${JSON.stringify(d.surfaces)} ${d.errors.join(';')}`);
+    ok('3 Surface_2004: 3B üçgenler var, HUD "Yüzey yok" demiyor', i && i.tris > 100 && !/Yüzey yok/.test(i.hud), i && `tris=${i.tris} ${i.hud}`);
+    await page.screenshot({ path: `${out}/surface_2004.png` });
+  }
+}
+
 console.log(`\nSONUÇ: ${pass} geçti, ${fail} kaldı; sayfa hataları: ${errors.length}`);
 for (const e of errors) console.log('  hata:', e.slice(0, 200));
 await browser.close(); srv.kill();

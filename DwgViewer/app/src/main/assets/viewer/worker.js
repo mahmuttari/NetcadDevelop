@@ -6,7 +6,8 @@
  *         { id, cmd:'xref',  bytes, name, inserts:[{m,layer,color}], prefix } → { id, ok, xref:{prims,layers,ltypes,ext} }
  * İlerleme: { id, stage:'lib'|'parse'|'scene' }
  */
-import { LibreDwg, Dwg_File_Type } from './lib/dist/libredwg-web.js';
+import * as LW from './lib/dist/libredwg-web.js';
+const { LibreDwg, Dwg_File_Type } = LW;
 import { SceneBuilder } from './scene.js';
 import { parseDxf, isDxf } from './dxf.js';
 import { readAcDs, mapAsmToHandles, isR2004Family } from './acds.js';
@@ -42,7 +43,7 @@ async function readDb(bytes, id) {
  * kurucu ham 3B veriyi (raw3d) bu tanıtıcılarla bulabilsin.
  */
 function synthesizeDropped(lib, db, byType, ownerOf, hex) {
-  const names = { 37: 'REGION', 39: 'BODY', 663: 'MESH', 633: 'EXTRUDEDSURFACE', 660: 'LOFTEDSURFACE', 675: 'NURBSURFACE', 682: 'PLANESURFACE', 702: 'REVOLVEDSURFACE', 720: 'SWEPTSURFACE' };
+  const names = { 37: 'REGION', 39: 'BODY', 663: 'MESH', 633: 'EXTRUDEDSURFACE', 660: 'LOFTEDSURFACE', 675: 'NURBSURFACE', 682: 'PLANESURFACE', 702: 'REVOLVEDSURFACE', 720: 'SWEPTSURFACE', 498: 'ACAD_PROXY_ENTITY', 65534: 'ACAD_PROXY_ENTITY' };
   let layerByHandle = null;
   const layerName = (ent) => {
     try {
@@ -55,7 +56,7 @@ function synthesizeDropped(lib, db, byType, ownerOf, hex) {
   const recByHandle = new Map(); for (const r of records) recByHandle.set(String(r.handle || '').toUpperCase(), r);
   const seen = new Set(); const walk = (list) => { for (const e of list || []) if (e && e.handle) seen.add(e.handle); };
   walk(db.entities); for (const r of records) walk(r.entities);
-  for (const t of [37, 39, 663, 633, 660, 675, 682, 702, 720]) {
+  for (const t of [37, 39, 663, 633, 660, 675, 682, 702, 720, 498, 65534]) {
     for (const o of byType[t] || []) {
       try {
         const h = hex(o); if (!h || seen.has(h)) continue;
@@ -65,6 +66,11 @@ function synthesizeDropped(lib, db, byType, ownerOf, hex) {
         let isVisible = true; try { isVisible = !lib.dwg_object_entity_get_invisible(ent); } catch (_) { /* geç */ }
         const root = ownerOf.get(o), ownerH = root ? hex(root) : null;
         const e = { type: names[t], handle: h, layer: layerName(ent), colorIndex, color, lineType: '', isVisible, ownerBlockRecordSoftId: ownerH };
+        if (t === 498 || t === 65534) {                     // proxy / LibreDWG'nin çözemediği sınıf: önizleme grafiği (proxy graphics)
+          let g = null; try { g = lib.dwg_entity_get_preview(o); } catch (_) { /* yok */ }
+          if (!g || !g.length) continue;
+          e.graphics = g instanceof Uint8Array ? new Uint8Array(g) : new Uint8Array(Array.from(g)); e.unknownClass = t === 65534;
+        }
         const rec = ownerH ? recByHandle.get(ownerH) : null;
         if (rec) { if (!rec.entities) rec.entities = []; rec.entities.push(e); if (/^\*MODEL_SPACE$/i.test(rec.name || '') && Array.isArray(db.entities) && db.entities !== rec.entities) db.entities.push(e); }
         else if (Array.isArray(db.entities)) db.entities.push(e);
@@ -133,16 +139,17 @@ function collectRaw3D(lib, dwg, db) {
   try { const o = lib.dwg_paper_space_object(dwg); if (o) roots.push(o); } catch (_) { /* yok */ }
   try { const a = lib.dwg_getall_BLOCK_HEADER(dwg); const arr = Array.isArray(a) ? a : (a && a.size ? Array.from({ length: a.size() }, (_, i) => a.get(i)) : []); for (const o of arr) if (o && !roots.includes(o)) roots.push(o); } catch (_) { /* yok */ }
   // REGION 37, 3DSOLID 38, BODY 39, MESH 663; AcDbSurface türevleri (ACIS taşır): EXTRUDED 633, LOFTED 660, NURB 675, PLANE 682, REVOLVED 702, SWEPT 720
-  const byType = { 37: [], 38: [], 39: [], 663: [], 633: [], 660: [], 675: [], 682: [], 702: [], 720: [] }, ownerOf = new Map();
+  const byType = { 37: [], 38: [], 39: [], 663: [], 633: [], 660: [], 675: [], 682: [], 702: [], 720: [], 498: [], 65534: [] }, ownerOf = new Map();
+  const census = {}; const typeName = (ft) => { try { const E = LW.Dwg_Object_Type; const n = E && E[ft]; return n ? String(n).replace(/^DWG_TYPE_/, '') : String(ft); } catch (_) { return String(ft); } };
   for (const root of roots) {
     let next = null, guard = 0;
     try { next = lib.get_first_owned_entity(root); } catch (_) { continue; }
     while (next && guard++ < 2000000) {
-      try { const ft = lib.dwg_object_get_fixedtype(next); if (byType[ft]) { byType[ft].push(next); ownerOf.set(next, root); } } catch (_) { /* atla */ }
+      try { const ft = lib.dwg_object_get_fixedtype(next); const nm = typeName(ft); census[nm] = (census[nm] || 0) + 1; if (byType[ft]) { byType[ft].push(next); ownerOf.set(next, root); } } catch (_) { /* atla */ }
       try { next = lib.get_next_owned_entity(root, next); } catch (_) { break; }
     }
   }
-  if (db) synthesizeDropped(lib, db, byType, ownerOf, hex);
+  if (db) { db.census = census; synthesizeDropped(lib, db, byType, ownerOf, hex); }
   const objs = (t) => byType[t] || [];
   for (const t of [37, 38, 39, 633, 660, 675, 682, 702, 720]) {   // REGION, 3DSOLID, BODY ve yüzey varlıkları (aynı ACIS alanları)
     for (const o of objs(t)) {
@@ -192,6 +199,7 @@ self.onmessage = async (ev) => {
       const scene = new SceneBuilder(db).build();
       scene.version = db.header.ACADVER || '';
       if (scene.solidDiag) { scene.solidDiag.acds = db.acdsInfo || null; scene.solidDiag.samples = rawSamples(db.raw3d); }
+      scene.census = db.census || null;
       postMessage({ id, ok: true, scene });
     } else if (cmd === 'xref') {
       const db = await readDb(ev.data.bytes, id);

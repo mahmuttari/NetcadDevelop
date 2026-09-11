@@ -64,7 +64,7 @@ function tokenizeSab(u8) {
   const version = i32(); i32(); i32(); i32();          // sürüm, kayıt sayısı, gövde sayısı, bayraklar
   // ürün / sürüm / tarih dizgileri ve birim/toleranslar jeton olarak gelir; ilk kayıt başlığına (0x0d/0x0e) kadar atlanır
   const records = [], unknown = [];
-  let cur = null;
+  let cur = null, depth = 0;
   let guard = 0;
   while (p < u8.length && guard++ < 50_000_000) {
     const tag = u8[p++];
@@ -80,19 +80,19 @@ function tokenizeSab(u8) {
       case 0x0a: cur && cur.tok.push({ t: 'e', v: 'true' }); break;
       case 0x0b: cur && cur.tok.push({ t: 'e', v: 'false' }); break;
       case 0x0c: { const v = i32(); if (cur) cur.tok.push({ t: 'p', v }); break; }               // işaretçi (kayıt dizini)
-      case 0x0d: { const s = str8(); if (cur && cur.pending) { cur.type += '-' + s; cur.pending = false; } else { cur = { type: s, tok: [] }; records.push(cur); } break; }   // varlık türü (ana ad)
-      case 0x0e: { const s = str8(); if (cur && cur.pending) cur.type += '-' + s; else { cur = { type: s, tok: [], pending: true }; records.push(cur); } break; }   // tür öneki ("plane" → "plane-surface")
-      case 0x0f: cur && cur.tok.push({ t: 'e', v: '{' }); break;                                // alt tür başı
-      case 0x10: cur && cur.tok.push({ t: 'e', v: '}' }); break;                                // alt tür sonu
-      case 0x11: cur = null; break;                                                             // kayıt sonu
+      case 0x0d: { const s = str8(); if (depth > 0) { cur && cur.tok.push({ t: 'e', v: s }); break; } if (cur && cur.pending) { cur.type += '-' + s; cur.pending = false; } else { cur = { type: s, tok: [] }; records.push(cur); } break; }   // varlık türü (ana ad); alt tür bloğu içinde yalnız ad jetonu
+      case 0x0e: { const s = str8(); if (depth > 0) { cur && cur.tok.push({ t: 'e', v: s }); break; } if (cur && cur.pending) cur.type += '-' + s; else { cur = { type: s, tok: [], pending: true }; records.push(cur); } break; }   // tür öneki ("plane" → "plane-surface")
+      case 0x0f: depth++; cur && cur.tok.push({ t: 'e', v: '{' }); break;                       // alt tür başı
+      case 0x10: depth = Math.max(0, depth - 1); cur && cur.tok.push({ t: 'e', v: '}' }); break;  // alt tür sonu
+      case 0x11: cur = null; depth = 0; break;                                                  // kayıt sonu
       case 0x12: { const s = str32(); if (cur) cur.tok.push({ t: 's', v: s }); break; }
       case 0x13: case 0x14: { const x = f64(), y = f64(), z = f64(); if (cur) cur.tok.push({ t: 'n', v: x }, { t: 'n', v: y }, { t: 'n', v: z }); break; }  // konum / yön vektörü
-      case 0x15: { const s = str8(); if (cur) cur.tok.push({ t: 'e', v: s }); break; }           // sayım (enum)
+      case 0x15: { const v = i32(); if (cur) cur.tok.push({ t: 'e', v: String(v) }); break; }   // sayım (enum): 4 baytlık tamsayı (dizgi değil)
       case 0x16: { const x = f64(), y = f64(); if (cur) cur.tok.push({ t: 'n', v: x }, { t: 'n', v: y }); break; } // 2B vektör
-      case 0x17: { const s = str8(); if (cur) cur.tok.push({ t: 'e', v: s }); break; }
+      case 0x17: { const lo = dv.getUint32(p, true), hi = dv.getInt32(p + 4, true); p += 8; if (cur) cur.tok.push({ t: 'n', v: hi * 4294967296 + lo }); break; }   // 64 bit tamsayı
       default: {
         // bilinmeyen etiket (daha yeni ASM sürümü): bu kayıt atılır, bir sonraki kayıt başına (0x11 + 0x0d/0x0e) kadar ilerlenir
-        unknown.push(tag);
+        unknown.push(tag + '@' + (p - 1) + ':' + (cur ? cur.type : '-') + ':' + Array.from(u8.subarray(Math.max(0, p - 9), Math.min(u8.length, p + 15))).map(b => b.toString(16).padStart(2, '0')).join(''));
         if (cur) { records.pop(); cur = null; }
         while (p < u8.length && !(u8[p] === 0x11 && (u8[p + 1] === 0x0d || u8[p + 1] === 0x0e))) p++;
         p++;
@@ -100,7 +100,7 @@ function tokenizeSab(u8) {
       }
     }
   }
-  if (unknown.length) records.unknownTags = [...new Set(unknown)].map(t => '0x' + t.toString(16));
+  if (unknown.length) records.unknownTags = [...new Set(unknown)].slice(0, 6);
   // tür adlarındaki "-" bileşimi SAT ile aynı sıraya getirilir: SAB'da alt türler "plane" "surface" → "plane-surface"
   return { version, records };
 }
@@ -157,7 +157,7 @@ const len = (a) => Math.hypot(a[0], a[1], a[2]);
 const norm = (a) => { const L = len(a) || 1; return [a[0] / L, a[1] / L, a[2] / L]; };
 const TAU = Math.PI * 2;
 /** Newell normali (uzunluğu ≈ 2·alan): kapalı 3B çokgenin en uygun düzlem normali */
-function newell(pts) { const n = [0, 0, 0]; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const a = pts[j], b = pts[i]; n[0] += (a[1] - b[1]) * (a[2] + b[2]); n[1] += (a[2] - b[2]) * (a[0] + b[0]); n[2] += (a[0] - b[0]) * (a[1] + b[1]); } return n; }
+export function newell(pts) { const n = [0, 0, 0]; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const a = pts[j], b = pts[i]; n[0] += (a[1] - b[1]) * (a[2] + b[2]); n[1] += (a[2] - b[2]) * (a[0] + b[0]); n[2] += (a[0] - b[0]) * (a[1] + b[1]); } return n; }
 /** dik düzlem tabanı */
 function basis(n) { n = norm(n); const a = Math.abs(n[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0]; const u = norm(cross(a, n)); const v = cross(n, u); return [u, v]; }
 

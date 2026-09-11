@@ -19,7 +19,7 @@
  *   k=4 blok ekleme noktası (çizilmez, yakalanır): x,y,z
  * Ortak: col (RGB; -1 = ön plan), lay, lt (ad), lts (çizgi tipi ölçeği), lw (1/100 mm), bb, info
  */
-import { parseAcis, tessellate } from './acis.js';
+import { parseAcis, tessellate, triangulate, newell } from './acis.js';
 import { TAU, IDENT, mul, apply, isIdent, isSim, simScale, simRot, det, insertMatrix, arcPts, ellipsePts, bulgeArc, bsplinePts, catmullPts, opsBBox } from './geom.js';
 
 export const FG = -1;
@@ -406,6 +406,7 @@ export class SceneBuilder {
     const ocs = ocsOf(e);
     if (ocs && this.entityOcs(e, ctx, ocs)) return;
     switch (e.type) {
+      case 'ACAD_PROXY_ENTITY': case 'PROXY_ENTITY': this.proxy(e, ctx); break;
       case '3DSOLID': case 'REGION': case 'BODY': case 'MESH': case 'SURFACE': case 'PLANESURFACE': case 'EXTRUDEDSURFACE': case 'LOFTEDSURFACE': case 'NURBSURFACE': case 'REVOLVEDSURFACE': case 'SWEPTSURFACE': this.solid(e, ctx); break;
       case 'LINE': {
         const a = e.startPoint, b = e.endPoint;
@@ -707,6 +708,146 @@ export class SceneBuilder {
   }
 
   /** 3DSOLID / REGION / BODY (ACIS) ve MESH: kenarlar çizgi, yüzeyler üçgen (tri:true → 2B'de çizilmez) */
+  /**
+   * Proxy varlık grafikleri (ODA belirtimi bölüm 29): eklenti nesneleri (Advance Steel, Civil 3D, Plant 3D,
+   * NetCAD vb.) ve LibreDWG'nin çözemediği sınıflar için AutoCAD'in dosyaya kaydettiği çizim önbelleği.
+   * Çizgi, çokgen, daire/yay, ağ (MESH), kabuk (SHELL) yüzeyleri, yazı; renk, dolgu ve dönüşüm yığını.
+   */
+  proxy(e, ctx) {
+    let g = e.graphics;
+    if (!g && e.graphicsData) { const hx = e.graphicsData; const n = hx.length >> 1; g = new Uint8Array(n); for (let i = 0; i < n; i++) g[i] = parseInt(hx.substr(i * 2, 2), 16); }
+    if (!g || g.length < 8) return;
+    const st = this.style(e, ctx), info = ctx.info || this.info(e, st);
+    const c2 = { ...ctx, info };
+    const dv = new DataView(g.buffer, g.byteOffset, g.byteLength), N = g.length;
+    let p = 0;
+    const rl = () => { const v = dv.getInt32(p, true); p += 4; return v; };
+    const rd = () => { const v = dv.getFloat64(p, true); p += 8; return v; };
+    const pt = () => [rd(), rd(), rd()];
+    const align4 = () => { p = (p + 3) & ~3; };
+    const ps = () => { let s2 = ''; while (p < N && g[p] !== 0) s2 += String.fromCharCode(g[p++]); p++; align4(); return s2; };
+    const pus = () => { let s2 = ''; while (p + 1 < N && (g[p] | (g[p + 1] << 8)) !== 0) { s2 += String.fromCharCode(g[p] | (g[p + 1] << 8)); p += 2; } p += 2; align4(); return s2; };
+    const xf = [];
+    const X = (q) => { let r = q; for (let i = xf.length - 1; i >= 0; i--) { const m = xf[i]; r = [m[0] * r[0] + m[1] * r[1] + m[2] * r[2] + m[3], m[4] * r[0] + m[5] * r[1] + m[6] * r[2] + m[7], m[8] * r[0] + m[9] * r[1] + m[10] * r[2] + m[11]]; } return r; };
+    const m = ctx.m, id = isIdent(m);
+    const P = (q) => { const w3 = X(q); const z = zW(w3[2] || 0, ctx); if (id) return [w3[0], w3[1], z]; const w = apply(m, w3[0], w3[1]); return [w[0], w[1], z]; };
+    let col = null, fillOn = false;
+    const colNow = () => (col != null ? col : st.col);
+    const lay = st.lay;
+    const pushPath = (pts, closed, face) => {
+      if (pts.length < 2) return;
+      const ops = pts.map((q, i) => { const w = P(q); return [i ? 1 : 0, w[0], w[1], w[2]]; });
+      const pr = { k: 0, ops, closed: !!closed, fill: !!(face && fillOn), face: !!face, alpha: 1, w: 0, col: colNow(), lay, lt: st.lt, lts: st.lts, lw: st.lw, bb: opsBBox(ops), info, et: 'ACAD_PROXY_ENTITY' };
+      this.prims.push(pr); this.layerOf(lay).count++;
+    };
+    const pushTri = (a, b, c) => {
+      const A = P(a), B = P(b), C = P(c);
+      const ops = [[0, A[0], A[1], A[2]], [1, B[0], B[1], B[2]], [1, C[0], C[1], C[2]]];
+      this.prims.push({ k: 0, ops, closed: true, face: true, tri: true, fill: false, alpha: 1, w: 0, col: colNow(), lay, lt: null, lts: 1, lw: 0, bb: opsBBox(ops), info, et: 'ACAD_PROXY_ENTITY' });
+    };
+    /** 3B çokgen (delikli olabilir) → üçgenler: Newell düzlemine izdüşüm + kulak kesme */
+    const faceTris = (loops) => {
+      if (!loops.length) return;
+      const outer = loops[0];
+      if (outer.length === 3 && loops.length === 1) { pushTri(outer[0], outer[1], outer[2]); return; }
+      if (outer.length === 4 && loops.length === 1) { pushTri(outer[0], outer[1], outer[2]); pushTri(outer[0], outer[2], outer[3]); return; }
+      const nrm = newell(outer); const L = Math.hypot(nrm[0], nrm[1], nrm[2]); if (!(L > 0)) return;
+      const n = [nrm[0] / L, nrm[1] / L, nrm[2] / L];
+      const ax = Math.abs(n[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+      let u = [ax[1] * n[2] - ax[2] * n[1], ax[2] * n[0] - ax[0] * n[2], ax[0] * n[1] - ax[1] * n[0]]; const ul = Math.hypot(u[0], u[1], u[2]) || 1; u = [u[0] / ul, u[1] / ul, u[2] / ul];
+      const v = [n[1] * u[2] - n[2] * u[1], n[2] * u[0] - n[0] * u[2], n[0] * u[1] - n[1] * u[0]];
+      const to2 = (q) => [q[0] * u[0] + q[1] * u[1] + q[2] * u[2], q[0] * v[0] + q[1] * v[1] + q[2] * v[2]];
+      const rings = loops.map(l => l.map(to2)); const map3 = new Map(); const key = (q) => q[0] + ',' + q[1];
+      loops.forEach((l, li) => l.forEach((q, qi) => map3.set(key(rings[li][qi]), q)));
+      try { const { ring, tris } = triangulate(rings[0], rings.slice(1)); for (const t of tris) { const a = map3.get(key(ring[t[0]])), b = map3.get(key(ring[t[1]])), c = map3.get(key(ring[t[2]])); if (a && b && c) pushTri(a, b, c); } } catch (_) { for (let i = 1; i < outer.length - 1; i++) pushTri(outer[0], outer[i], outer[i + 1]); }
+    };
+    const circlePts = (c, r, nrm, u0, a0, sweep, segs) => {
+      const L = Math.hypot(nrm[0], nrm[1], nrm[2]) || 1; const n = [nrm[0] / L, nrm[1] / L, nrm[2] / L];
+      let u = u0; if (!u) { const ax = Math.abs(n[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0]; u = [ax[1] * n[2] - ax[2] * n[1], ax[2] * n[0] - ax[0] * n[2], ax[0] * n[1] - ax[1] * n[0]]; }
+      const ul = Math.hypot(u[0], u[1], u[2]) || 1; u = [u[0] / ul, u[1] / ul, u[2] / ul];
+      const v = [n[1] * u[2] - n[2] * u[1], n[2] * u[0] - n[0] * u[2], n[0] * u[1] - n[1] * u[0]];
+      const k = Math.max(4, Math.ceil(Math.abs(sweep) / TAU * segs)); const out = [];
+      for (let i = 0; i <= k; i++) { const a = a0 + sweep * i / k; out.push([c[0] + r * (Math.cos(a) * u[0] + Math.sin(a) * v[0]), c[1] + r * (Math.cos(a) * u[1] + Math.sin(a) * v[1]), c[2] + r * (Math.cos(a) * u[2] + Math.sin(a) * v[2])]); }
+      return out;
+    };
+    /** üç noktadan çember: merkez, yarıçap, normal */
+    const circum = (a, b, c) => {
+      const ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], ac = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+      const n = [ab[1] * ac[2] - ab[2] * ac[1], ab[2] * ac[0] - ab[0] * ac[2], ab[0] * ac[1] - ab[1] * ac[0]];
+      const nn = n[0] * n[0] + n[1] * n[1] + n[2] * n[2]; if (!(nn > 1e-30)) return null;
+      const ab2 = ab[0] * ab[0] + ab[1] * ab[1] + ab[2] * ab[2], ac2 = ac[0] * ac[0] + ac[1] * ac[1] + ac[2] * ac[2];
+      const t1 = [n[1] * ab[2] - n[2] * ab[1], n[2] * ab[0] - n[0] * ab[2], n[0] * ab[1] - n[1] * ab[0]];   // n × ab
+      const t2 = [ac[1] * n[2] - ac[2] * n[1], ac[2] * n[0] - ac[0] * n[2], ac[0] * n[1] - ac[1] * n[0]];   // ac × n
+      const o = [(t1[0] * ac2 + t2[0] * ab2) / (2 * nn), (t1[1] * ac2 + t2[1] * ab2) / (2 * nn), (t1[2] * ac2 + t2[2] * ab2) / (2 * nn)];
+      const cen = [a[0] + o[0], a[1] + o[1], a[2] + o[2]];
+      return { c: cen, r: Math.hypot(o[0], o[1], o[2]), n };
+    };
+    const arc3 = (a, b, c, closed) => {
+      const cc = circum(a, b, c); if (!cc) { pushPath([a, b, c], false, false); return; }
+      if (closed) { pushPath(circlePts(cc.c, cc.r, cc.n, null, 0, TAU, 48), true, fillOn); return; }
+      const u = [(a[0] - cc.c[0]) / cc.r, (a[1] - cc.c[1]) / cc.r, (a[2] - cc.c[2]) / cc.r];
+      const L = Math.hypot(cc.n[0], cc.n[1], cc.n[2]) || 1; const n = [cc.n[0] / L, cc.n[1] / L, cc.n[2] / L];
+      const v = [n[1] * u[2] - n[2] * u[1], n[2] * u[0] - n[0] * u[2], n[0] * u[1] - n[1] * u[0]];
+      const ang = (q) => { const d = [q[0] - cc.c[0], q[1] - cc.c[1], q[2] - cc.c[2]]; return Math.atan2(d[0] * v[0] + d[1] * v[1] + d[2] * v[2], d[0] * u[0] + d[1] * u[1] + d[2] * u[2]); };
+      let am = ang(b), ae = ang(c); if (am < 0) am += TAU; if (ae < 0) ae += TAU;
+      let sweep = ae; if (am > ae) sweep = ae - TAU;               // orta nokta yayın üstünde olmalı
+      pushPath(circlePts(cc.c, cc.r, n, u, 0, sweep, 48), false, false);
+    };
+    let guard = 0;
+    while (p + 8 <= N && guard++ < 5000000) {
+      const start = p, size = rl(), type = rl();
+      const end = size >= 8 ? start + size : start + 8 + size;
+      if (size <= 0 || end > N) break;
+      try {
+        switch (type) {
+          case 2: { const c = pt(), r = rd(), n = pt(); pushPath(circlePts(c, r, n, null, 0, TAU, 48), true, fillOn); break; }
+          case 3: { const a = pt(), b = pt(), c = pt(); arc3(a, b, c, true); break; }
+          case 4: { const c = pt(), r = rd(), n = pt(), sv = pt(), sw = rd(); const at = rl(); const pts = circlePts(c, r, n, sv, 0, sw, 48); if (at === 1) { pts.push(c); pushPath(pts, true, fillOn); } else if (at === 2) pushPath(pts, true, fillOn); else pushPath(pts, false, false); break; }
+          case 5: { const a = pt(), b = pt(), c = pt(); arc3(a, b, c, false); break; }
+          case 6: case 32: { const n = rl(); if (n < 0 || n > 4000000) break; const pts = []; for (let i = 0; i < n; i++) pts.push(pt()); pushPath(pts, false, false); break; }
+          case 7: { const n = rl(); if (n < 0 || n > 4000000) break; const pts = []; for (let i = 0; i < n; i++) pts.push(pt()); if (pts.length >= 3) { pushPath(pts, true, false); if (fillOn || pts.length <= 4 || true) faceTris([pts]); } break; }
+          case 8: {                                               // ağ: satır × sütun köşe ızgarası
+            const rows = rl(), cols = rl(); if (rows < 2 || cols < 2 || rows * cols > 4000000) break;
+            const V = []; for (let i = 0; i < rows; i++) { const row = []; for (let j = 0; j < cols; j++) row.push(pt()); V.push(row); }
+            for (let i = 0; i < rows; i++) pushPath(V[i], false, false);
+            for (let j = 0; j < cols; j++) pushPath(V.map(r => r[j]), false, false);
+            for (let i = 0; i + 1 < rows; i++) for (let j = 0; j + 1 < cols; j++) { pushTri(V[i][j], V[i][j + 1], V[i + 1][j + 1]); pushTri(V[i][j], V[i + 1][j + 1], V[i + 1][j]); }
+            break;
+          }
+          case 9: {                                               // kabuk: köşeler + yüz listesi (+ kenar/yüz öznitelikleri)
+            const nv = rl(); if (nv < 0 || nv > 4000000) break; const V = []; for (let i = 0; i < nv; i++) V.push(pt());
+            const nf = rl(); if (nf < 0 || nf > 8000000) break; const F = []; for (let i = 0; i < nf; i++) F.push(rl());
+            // yüzler: sayaç + indeksler; pozitif sayaç yeni yüz, önceki döngü pozitifse negatif sayaç delik (iki yazım geleneği de)
+            const faces = []; let i = 0, prevNeg = true;
+            while (i < F.length) { const c = F[i++]; const k = Math.abs(c); if (!k || i + k > F.length) break; const loop = []; for (let q = 0; q < k; q++) { const ix = F[i++]; if (ix >= 0 && ix < nv) loop.push(V[ix]); } if (c < 0 && !prevNeg && faces.length) faces[faces.length - 1].push(loop); else faces.push([loop]); prevNeg = c < 0; }
+            // kenar öznitelikleri (görünürlük) ve yüz renkleri
+            let edgeVis = null, faceCol = null;
+            let nEdges = 0; for (const f of faces) for (const l of f) nEdges += l.length;
+            if (p + 4 <= end) { const ef = rl(); if (ef & 0xffff) { if (ef & 1) p += 4 * nEdges; if (ef & 2) p += 4 * nEdges; if (ef & 4) p += 4 * nEdges; if (ef & 0x20) p += 4 * nEdges; if (ef & 0x40) { edgeVis = []; for (let q = 0; q < nEdges && p + 4 <= end; q++) edgeVis.push(rl()); } } }
+            if (p + 4 <= end) { const ff = rl(); if (ff & 0xffff) { if (ff & 1) { faceCol = []; for (let q = 0; q < faces.length && p + 4 <= end; q++) faceCol.push(rl()); } } }
+            let ei = 0; const saveCol = col;
+            faces.forEach((f, fi) => {
+              if (faceCol && faceCol[fi] != null) { const cv = faceCol[fi]; col = (cv > 0 && cv < 256) ? ACI[cv] : (cv > 256 ? (cv & 0xffffff) : saveCol); }
+              faceTris(f);
+              for (const l of f) { for (let q = 0; q < l.length; q++) { const vis = edgeVis ? edgeVis[ei] : 1; ei++; if (vis === 0) continue; pushPath([l[q], l[(q + 1) % l.length]], false, false); } }
+            });
+            col = saveCol;
+            break;
+          }
+          case 10: case 36: { const sp = pt(); pt(); const dir = pt(); const h = rd(); rd(); rd(); const txt = type === 36 ? pus() : ps(); if (txt && h > 0) { const w = P(sp); this.pushText(w[0], w[1], h, Math.atan2(dir[1], dir[0]), mtextLines(txt), 0, 0, 1, e, c2, { z: w[2], col: colNow() }); } break; }
+          case 11: case 38: { const sp = pt(); pt(); const dir = pt(); const txt = type === 38 ? pus() : ps(); rl(); rl(); const h = rd(); if (txt && h > 0) { const w = P(sp); this.pushText(w[0], w[1], h, Math.atan2(dir[1], dir[0]), mtextLines(txt), 0, 0, 1, e, c2, { z: w[2], col: colNow() }); } break; }
+          case 14: { const c = rl(); col = c === 256 ? null : (c > 0 && c < 256) ? ACI[c] : (c === 0 ? null : (c & 0xffffff)); break; }
+          case 20: fillOn = rl() === 1; break;
+          case 22: { const r = g[p], gg = g[p + 1], b = g[p + 2]; col = (r << 16) | (gg << 8) | b; break; }
+          case 29: case 30: { const mtx = []; for (let i = 0; i < 16; i++) mtx.push(rd()); xf.push(mtx); break; }
+          case 31: xf.pop(); break;
+          default: break;                                         // extents, layer, ltype, marker, clip, lwpolyline, material, mapper: atlanır
+        }
+      } catch (_) { /* bozuk kayıt: sonrakine geç */ }
+      p = end;
+    }
+    this.count('ACAD_PROXY_ENTITY_GRAFIK');
+  }
   /** katı tanılaması: dosya bilgisinde gösterilir (yüzey türleri, atlanan yüzler, bilinmeyen SAB etiketleri, hatalar) */
   solidDiag(e, t, err) {
     const d = this.solidDiagData || (this.solidDiagData = { solids: 0, faces: 0, skipped: 0, approx: 0, surfaces: {}, versions: new Set(), unknownTags: new Set(), errors: [] });
