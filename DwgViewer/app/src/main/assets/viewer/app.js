@@ -32,6 +32,17 @@ const VERSION_URL = 'https://raw.githubusercontent.com/mahmuttari/NetcadDevelop/
 // Ayarlar
 // ---------------------------------------------------------------------------
 const settings = Object.assign({ lang: 'tr', dark: true, lwScale: 3, crs: 'NONE', unit: 'auto', swap: false, dx: 0, dy: 0, basemap: 'none', basemapUrl: '', wms: '', opacity: 0.8, snap: ['end', 'mid', 'cen', 'int', 'ins', 'node'] }, store.json('settings', {}));
+/** katı tanılama metni: sürümler, AcDs özeti, katı başına ham veri boyutu ve ilk katıların base64 örneği */
+function solidDiagText() {
+  const d = S.scene && S.scene.solidDiag; if (!d) return '';
+  const L = [`DWG Görüntüleyici ${A() && A().versionCode ? 'v' + A().versionCode() : ''} — katı tanılaması`, `Dosya: ${S.fileName}  Sürüm: ${S.version}`,
+    `Katı: ${d.solids}  Yüzey: ${d.faces} (yaklaşık ${d.approx})  Atlanan: ${d.skipped}`, `Yüzey türleri: ${JSON.stringify(d.surfaces)}`, `ACIS sürümleri: ${d.versions.join(', ') || '-'}`,
+    `Bilinmeyen SAB etiketleri: ${d.unknownTags.join(' ') || '-'}`, `AcDs: ${JSON.stringify(d.acds)}`, 'Hatalar:', ...d.errors.map(e => '  ' + e), 'Katılar:'];
+  for (const s2 of d.samples || []) L.push(`  ${s2.handle}: acis ${s2.acisType || '-'} ${s2.acisBytes} B, tel ${s2.wires}, mesh ${s2.mesh}`);
+  for (const s2 of d.samples || []) if (s2.b64) L.push('', `--- ${s2.handle} ${s2.acisType} ilk ${Math.min(49152, s2.acisBytes)} bayt (base64) ---`, s2.b64);
+  return L.join('\n');
+}
+
 function saveSettings() { store.set('settings', JSON.stringify(settings)); }
 let displayApplied = false;
 function applySettings() {
@@ -990,8 +1001,9 @@ function showAbout() {
     ['Desteklenmeyen', '3B katılar (3DSOLID/REGION), OLE, ikili DXF, SHX yazı tipleri (sistem yazı tipi kullanılır)'],
     ['Kullanım', 'Tek parmak: kaydır · İki parmak: yakınlaştır · Çift dokunma: 2× · Dokunma: nesne bilgisi'],
     ['Lisans', 'Uygulama kaynak kodu GNU GPL v3 ile dağıtılır (LibreDWG gereği).'],
-    [`<div class="full btns"><button class="btn small" id="btnErrLog">${t('errorLog')}</button><button class="btn small" id="btnUpdate">${t('update')}?</button></div>`]];
+    [`<div class="full btns"><button class="btn small" id="btnErrLog">${t('errorLog')}</button>${S.scene && S.scene.solidDiag ? `<button class="btn small" id="btnSolidDiag">${t('solidDiagShare')}</button>` : ''}<button class="btn small" id="btnUpdate">${t('update')}?</button></div>`]];
   openDoc(t('about'), kv(rows));
+  { const b = $('btnSolidDiag'); if (b) b.onclick = () => { const txt = solidDiagText(); if (A() && A().shareText) A().shareText('DWG Görüntüleyici katı tanılaması', txt); else copyText(txt); }; }
   $('btnErrLog').onclick = () => { const log = A() && A().getErrorLog ? A().getErrorLog() : (store.get('errlog') || ''); if (!log) { toast(t('noError')); return; } if (A() && A().shareText) A().shareText('DWG Görüntüleyici hata kaydı', log); else copyText(log); };
   $('btnUpdate').onclick = () => checkUpdate(true);
 }
@@ -1539,6 +1551,7 @@ function setScene(scene, name, size) {
   S.scene = scene; S.fileName = name; S.fileKey = (name + '_' + size).replace(/[^\w.-]+/g, '_');
   S.layers = new Map(scene.layers.map(l => [l.name, l]));
   S.ltypes = scene.ltypes; S.styles = scene.styles; S.counts = scene.counts; S.entityCount = scene.entityCount; S.blockCount = scene.blockCount;
+  { const d = scene.solidDiag; if (d && d.solids > 0 && !d.faces) setTimeout(() => toast(`${d.solids} katı modelin yüzeyleri çözülemedi (${(d.errors[0] || '').slice(0, 80)}). Dosya bilgisi › Katı tanılamasını paylaş`, { type: 'warn', ms: 9000 }), 800); }
   S.version = ({ AC1012: 'R13', AC1014: 'R14', AC1015: 'AutoCAD 2000', AC1018: 'AutoCAD 2004', AC1021: 'AutoCAD 2007', AC1024: 'AutoCAD 2010', AC1027: 'AutoCAD 2013', AC1032: 'AutoCAD 2018' })[scene.version] || scene.version || '';
   if (/\.dxf$/i.test(name)) S.version = 'DXF ' + S.version;
   const iu = scene.header.INSUNITS;

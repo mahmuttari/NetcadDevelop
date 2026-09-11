@@ -80,10 +80,13 @@ function synthesizeDropped(lib, db, byType, ownerOf, hex) {
  * çözülemezse ve verisiz katı sayısı bulunan blok sayısına eşitse tanıtıcı sırasıyla bağlanır.
  */
 function attachAcDs(u8, db) {
+  const info = db.acdsInfo = { family: isR2004Family(u8), bytes: 0, records: 0, matched: 0, blobs: 0, error: null };
   try {
-    if (!isR2004Family(u8)) return;
+    if (!info.family) return;
     const ds = readAcDs(u8); if (!ds) return;
+    info.bytes = ds.length;
     const m = mapAsmToHandles(ds);
+    info.records = m.records.length; info.blobs = m.blobs.length; info.matched = Object.keys(m.byHandle).length;
     const raw = db.raw3d || (db.raw3d = {});
     let n = 0;
     // tanıtıcıyla eşleşen blok her zaman yeğlenir: LibreDWG blokları sırayla bağlar ve bölge/katı karışabilir
@@ -95,7 +98,24 @@ function attachAcDs(u8, db) {
       const uniq = [...new Set(empty)].sort((a, b) => parseInt(a, 16) - parseInt(b, 16));
       if (uniq.length === m.blobs.length) for (let i = 0; i < uniq.length; i++) { const rec = raw[uniq[i]] || (raw[uniq[i]] = {}); rec.acis = m.blobs[i].data; }
     }
-  } catch (e) { /* AcDs okunamadı: katılar tel kafes olarak kalır */ }
+  } catch (e) { info.error = (e && e.message) || String(e); /* AcDs okunamadı: katılar tel kafes olarak kalır */ }
+}
+
+/** tanılama paylaşımı için ham katı verisinden küçük örnekler (en çok 2 katı, katı başına 48 KB, base64) */
+function rawSamples(raw) {
+  const out = [];
+  try {
+    for (const [h, rec] of Object.entries(raw || {})) {
+      const item = { handle: h, acisBytes: rec.acis ? rec.acis.length : 0, acisType: rec.acis ? (typeof rec.acis === 'string' ? 'SAT' : 'SAB') : null, wires: rec.wires ? rec.wires.length : 0, mesh: !!rec.mesh };
+      if (rec.acis && out.filter(o => o.b64).length < 2) {
+        const u = typeof rec.acis === 'string' ? new TextEncoder().encode(rec.acis) : rec.acis;
+        const part = u.subarray(0, 49152); let bin = ''; for (let i = 0; i < part.length; i++) bin += String.fromCharCode(part[i]);
+        item.b64 = btoa(bin);
+      }
+      out.push(item); if (out.length >= 40) break;
+    }
+  } catch (_) { /* örnek alınamadı */ }
+  return out;
 }
 
 /**
@@ -170,6 +190,7 @@ self.onmessage = async (ev) => {
       postMessage({ id, stage: 'scene' });
       const scene = new SceneBuilder(db).build();
       scene.version = db.header.ACADVER || '';
+      if (scene.solidDiag) { scene.solidDiag.acds = db.acdsInfo || null; scene.solidDiag.samples = rawSamples(db.raw3d); }
       postMessage({ id, ok: true, scene });
     } else if (cmd === 'xref') {
       const db = await readDb(ev.data.bytes, id);
