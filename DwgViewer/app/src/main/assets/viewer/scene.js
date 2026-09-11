@@ -406,7 +406,7 @@ export class SceneBuilder {
     const ocs = ocsOf(e);
     if (ocs && this.entityOcs(e, ctx, ocs)) return;
     switch (e.type) {
-      case '3DSOLID': case 'REGION': case 'BODY': case 'MESH': this.solid(e, ctx); break;
+      case '3DSOLID': case 'REGION': case 'BODY': case 'MESH': case 'SURFACE': case 'PLANESURFACE': case 'EXTRUDEDSURFACE': case 'LOFTEDSURFACE': case 'NURBSURFACE': case 'REVOLVEDSURFACE': case 'SWEPTSURFACE': this.solid(e, ctx); break;
       case 'LINE': {
         const a = e.startPoint, b = e.endPoint;
         this.addPath([[0, a.x, a.y, a.z], [1, b.x, b.y, b.z]], {}, e, ctx);

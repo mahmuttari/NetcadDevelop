@@ -42,7 +42,7 @@ async function readDb(bytes, id) {
  * kurucu ham 3B veriyi (raw3d) bu tanıtıcılarla bulabilsin.
  */
 function synthesizeDropped(lib, db, byType, ownerOf, hex) {
-  const names = { 37: 'REGION', 39: 'BODY', 663: 'MESH' };
+  const names = { 37: 'REGION', 39: 'BODY', 663: 'MESH', 633: 'EXTRUDEDSURFACE', 660: 'LOFTEDSURFACE', 675: 'NURBSURFACE', 682: 'PLANESURFACE', 702: 'REVOLVEDSURFACE', 720: 'SWEPTSURFACE' };
   let layerByHandle = null;
   const layerName = (ent) => {
     try {
@@ -55,7 +55,7 @@ function synthesizeDropped(lib, db, byType, ownerOf, hex) {
   const recByHandle = new Map(); for (const r of records) recByHandle.set(String(r.handle || '').toUpperCase(), r);
   const seen = new Set(); const walk = (list) => { for (const e of list || []) if (e && e.handle) seen.add(e.handle); };
   walk(db.entities); for (const r of records) walk(r.entities);
-  for (const t of [37, 39, 663]) {
+  for (const t of [37, 39, 663, 633, 660, 675, 682, 702, 720]) {
     for (const o of byType[t] || []) {
       try {
         const h = hex(o); if (!h || seen.has(h)) continue;
@@ -93,7 +93,7 @@ function attachAcDs(u8, db) {
     for (const [h, data] of Object.entries(m.byHandle)) { const rec = raw[h] || (raw[h] = {}); rec.acis = data; n++; }
     if (!n && m.blobs.length && Array.isArray(db.entities)) {
       const empty = [];
-      const walk = (list) => { for (const e of list || []) { if ((e.type === '3DSOLID' || e.type === 'REGION' || e.type === 'BODY') && e.handle && !(raw[e.handle] && raw[e.handle].acis)) empty.push(e.handle); } };
+      const walk = (list) => { for (const e of list || []) { if (/^(3DSOLID|REGION|BODY|[A-Z]*SURFACE)$/.test(e.type) && e.handle && !(raw[e.handle] && raw[e.handle].acis)) empty.push(e.handle); } };
       walk(db.entities); for (const b of Object.values(db.blocks || {})) walk(b.entities);
       const uniq = [...new Set(empty)].sort((a, b) => parseInt(a, 16) - parseInt(b, 16));
       if (uniq.length === m.blobs.length) for (let i = 0; i < uniq.length; i++) { const rec = raw[uniq[i]] || (raw[uniq[i]] = {}); rec.acis = m.blobs[i].data; }
@@ -132,7 +132,8 @@ function collectRaw3D(lib, dwg, db) {
   try { const o = lib.dwg_model_space_object(dwg); if (o) roots.push(o); } catch (_) { /* yok */ }
   try { const o = lib.dwg_paper_space_object(dwg); if (o) roots.push(o); } catch (_) { /* yok */ }
   try { const a = lib.dwg_getall_BLOCK_HEADER(dwg); const arr = Array.isArray(a) ? a : (a && a.size ? Array.from({ length: a.size() }, (_, i) => a.get(i)) : []); for (const o of arr) if (o && !roots.includes(o)) roots.push(o); } catch (_) { /* yok */ }
-  const byType = { 37: [], 38: [], 39: [], 663: [] }, ownerOf = new Map();
+  // REGION 37, 3DSOLID 38, BODY 39, MESH 663; AcDbSurface türevleri (ACIS taşır): EXTRUDED 633, LOFTED 660, NURB 675, PLANE 682, REVOLVED 702, SWEPT 720
+  const byType = { 37: [], 38: [], 39: [], 663: [], 633: [], 660: [], 675: [], 682: [], 702: [], 720: [] }, ownerOf = new Map();
   for (const root of roots) {
     let next = null, guard = 0;
     try { next = lib.get_first_owned_entity(root); } catch (_) { continue; }
@@ -143,7 +144,7 @@ function collectRaw3D(lib, dwg, db) {
   }
   if (db) synthesizeDropped(lib, db, byType, ownerOf, hex);
   const objs = (t) => byType[t] || [];
-  for (const t of [37, 38, 39]) {                              // REGION, 3DSOLID, BODY
+  for (const t of [37, 38, 39, 633, 660, 675, 682, 702, 720]) {   // REGION, 3DSOLID, BODY ve yüzey varlıkları (aynı ACIS alanları)
     for (const o of objs(t)) {
       try {
         const tio = lib.dwg_object_to_entity_tio(o); const h = hex(o); if (!tio || !h) continue;
