@@ -76,7 +76,7 @@ const T = (act, icon, tr, en, htr, hen) => ({ act, icon, tr, en, htr: htr || '',
 const TABS = [
   { id: 'view', i18n: 'tabView', icon: 'i-eye', groups: [
     { cap: 'grpNav', items: [T('extents', 'i-fit', 'Sığdır', 'Fit', 'Çizimin tamamını ekrana sığdırır', 'Zoom to the drawing extents'), T('zoomwin', 'i-zoom-window', 'Pencere', 'Window', 'Sürüklenen dikdörtgene yakınlaştırır', 'Zoom into a dragged rectangle'), T('prevview', 'i-prev', 'Önceki', 'Previous', 'Önceki görünüme döner', 'Previous view'), T('nextview', 'i-next', 'Sonraki', 'Next', 'Sonraki görünüme geçer', 'Next view'), T('goto', 'i-goto', 'Koordinat', 'Go to', 'X,Y ya da enlem/boylam girerek gider', 'Go to X,Y or lat/lon'), T('home', 'i-home', 'Ana görünüm', 'Home', 'Kaydedilmiş ana görünüme döner', 'Saved home view')] },
-    { cap: 'grpPanels', items: [T('layers', 'i-layers', 'Katmanlar', 'Layers', 'Katman görünürlüğü, izolasyon, soldurma', 'Layer visibility, isolate, fade'), T('search', 'i-search', 'Ara', 'Search', 'Yazı, katman, blok, öznitelik ara', 'Find text, layers, blocks'), T('info', 'i-info', 'Bilgi', 'Info', 'Çizim bilgisi', 'Drawing info'), T('views', 'i-bookmark', 'Görünümler', 'Views', 'Kayıtlı görünümler ve yer imleri', 'Saved views'), T('layouts', 'i-layout', 'Sayfalar', 'Layouts', 'Model / kâğıt sayfa düzenleri', 'Model / paper layouts'), T('notes', 'i-pen', 'Notlar', 'Notes', 'Kırmızı kalem notları', 'Redline notes'), T('gps', 'i-gps', 'GPS', 'GPS', 'Konumu çizimde gösterir', 'Show position on the drawing'), T('basemap', 'i-map', 'Altlık', 'Basemap', 'Harita altlığı', 'Map basemap'), T('compare', 'i-compare', 'Karşılaştır', 'Compare', 'İki revizyonu karşılaştırır', 'Compare two revisions'), T('display', 'i-sliders', 'Ekran ayarları', 'Display options', 'Tema, ön ayarlar, süzgeçler, çizgiler, ızgara…', 'Theme, presets, filters, lines, grid…')] },
+    { cap: 'grpPanels', items: [T('layers', 'i-layers', 'Katmanlar', 'Layers', 'Katman görünürlüğü, izolasyon, soldurma', 'Layer visibility, isolate, fade'), T('search', 'i-search', 'Ara', 'Search', 'Yazı, katman, blok, öznitelik ara', 'Find text, layers, blocks'), T('info', 'i-info', 'Bilgi', 'Info', 'Çizim bilgisi', 'Drawing info'), T('views', 'i-bookmark', 'Görünümler', 'Views', 'Kayıtlı görünümler ve yer imleri', 'Saved views'), T('layouts', 'i-layout', 'Sayfalar', 'Layouts', 'Model / kâğıt sayfa düzenleri', 'Model / paper layouts'), T('notes', 'i-pen', 'Notlar', 'Notes', 'Kırmızı kalem notları', 'Redline notes'), T('gps', 'i-gps', 'GPS', 'GPS', 'Konumu çizimde gösterir', 'Show position on the drawing'), T('basemap', 'i-map', 'Altlık', 'Basemap', 'Harita altlığı', 'Map basemap'), T('compare', 'i-compare', 'Karşılaştır', 'Compare', 'İki revizyonu karşılaştırır', 'Compare two revisions'), T('drive', 'i-map', 'Drive', 'Drive', 'Google Drive: dosya aç, yükle', 'Google Drive: open and upload files'), T('display', 'i-sliders', 'Ekran ayarları', 'Display options', 'Tema, ön ayarlar, süzgeçler, çizgiler, ızgara…', 'Theme, presets, filters, lines, grid…')] },
     { cap: 'grpOut', items: [T('pdf', 'i-pdf', 'PDF', 'PDF', 'Ölçekli PDF oluşturur', 'Create a scaled PDF'), T('png', 'i-image', 'PNG', 'PNG', 'Görünümü resim olarak kaydeder', 'Save the view as an image'), T('savedxf', 'i-save', 'DXF kaydet', 'Save DXF', 'Düzenlenmiş çizimi DXF olarak kaydeder', 'Save the edited drawing as DXF'), T('savedelta', 'i-export', 'Değişiklikler', 'Changes', 'Yalnız değişen nesneleri DXF olarak kaydeder', 'Save only changed objects')] },
     { cap: 'grpHist', items: [T('undo', 'i-undo', 'Geri al', 'Undo'), T('redo', 'i-redo', 'Yinele', 'Redo'), T('more', 'i-more', 'Diğer', 'More', 'Diğer işlevler menüsü', 'More functions')] } ] },
   { id: 'display', i18n: 'tabDisplay', icon: 'i-sliders', groups: [] },   // satır içeriği 2B/3B'ye göre üretilir
@@ -107,7 +107,7 @@ const DISPLAY_2D = [
 ];
 const DISPLAY_3D = [
   { cap: 'grpStyle3', items: [T('style3', 'i-cube', 'Stil', 'Style'), T('color3', 'i-palette', 'Renk', 'Color'), T('light3', 'i-light', 'Işık', 'Light', 'Gölgeli stilde aydınlatma', 'Lighting in shaded styles'), T('display', 'i-sliders', 'Ekran ayarları', 'Display options')] },
-  { cap: 'grpHelpers', items: [T('grid3', 'i-grid', 'Izgara', 'Grid'), T('axes3', 'i-axes', 'Eksenler', 'Axes'), T('cube3', 'i-3d', 'Küp', 'Cube', 'Görünüm küpü', 'View cube'), T('hud3', 'i-info', 'Bilgi', 'HUD', 'Kamera bilgisi', 'Camera info')] },
+  { cap: 'grpHelpers', items: [T('grid3', 'i-grid', 'Izgara', 'Grid'), T('axes3', 'i-axes', 'Eksenler', 'Axes'), T('cube3', 'i-3d', 'Küp', 'Cube', 'Görünüm küpü', 'View cube'), T('hud3', 'i-info', 'Bilgi', 'HUD', 'Kamera bilgisi', 'Camera info'), T('shadow3', 'i-sun', 'Gölge', 'Shadow', 'Zemin gölgesi', 'Ground shadow'), T('sil3', 'i-cube', 'Siluet', 'Silhouette', 'Siluet kenarları', 'Silhouette edges')] },
   { cap: 'grpCam3', items: [T('zscale', 'i-zscale', 'Z abartı', 'Z scale'), T('clip3', 'i-clip', 'Kesit', 'Clip'), T('turn3', 'i-turn', 'Döner tabla', 'Turntable'), T('persp', 'i-eye', 'Perspektif', 'Perspective')] },
 ];
 const TILE = {};
@@ -285,7 +285,7 @@ function refreshTiles() {
     on.lw = !!S.lw; on.mono = S.colorMode === 'mono'; on.ltype = S.show.ltype; on.grid = S.grid.on; on.crosshair = S.crosshair !== 'off'; on.rulers = !!S.rulers; on.fade = S.fade.on;
     on.osnap = S.snapModes && S.snapModes.size > 0; on['3d'] = ed.is3D();
   }
-  if (v3) { const o = v3.opts; on.grid3 = o.grid; on.axes3 = o.axes; on.cube3 = o.cube; on.hud3 = o.hud; on.light3 = o.light; on.turn3 = o.turntable; on.persp = v3.cam.persp; on.clip3 = !!o.clip; }
+  if (v3) { const o = v3.opts; on.grid3 = o.grid; on.axes3 = o.axes; on.cube3 = o.cube; on.hud3 = o.hud; on.light3 = o.light; on.turn3 = o.turntable; on.persp = v3.cam.persp; on.clip3 = !!o.clip; on.shadow3 = o.shadow; on.sil3 = o.silhouette; }
   document.querySelectorAll('#toolbar [data-act]').forEach(b => { const k = b.dataset.act; if (k in on) { b.classList.toggle('on', !!on[k]); b.setAttribute('aria-pressed', String(!!on[k])); } });
   const vh = api && api.viewHistory;
   document.querySelectorAll('#toolbar [data-act="prevview"]').forEach(b => { b.disabled = !(vh && vh.canBack && vh.canBack()); });
@@ -370,7 +370,7 @@ function act(name, btn) {
     case 'nextview': if (api.viewHistory) api.viewHistory.forward(); break;
     case 'goto': call(api.gotoCoord); break;
     case 'home': if (!D.gotoHome()) { api.zoomExtents(); api.toast(tt('noHome', 'Ana görünüm kaydedilmemiş; Görünümler › Ana görünüm yap'), 2500); } break;
-    case 'layers': case 'search': case 'notes': case 'gps': case 'pdf': case 'png': case 'more': case 'profile': case 'info': case 'views': case 'layouts': case 'basemap': case 'compare': api.action(name); break;
+    case 'layers': case 'search': case 'notes': case 'gps': case 'pdf': case 'png': case 'more': case 'profile': case 'info': case 'views': case 'layouts': case 'basemap': case 'compare': case 'drive': api.action(name); break;
     case 'osnap': toggleOsnap(); break;
     case 'display': call(api.openDisplayOptions, { seg: ed.is3D() ? '3d' : '2d' }); break;
     case 'undo': if (doc && doc.undo()) { refreshUndo(); api.requestRender(); if (ed.is3D()) { refresh3D(); v3.render(); } api.toast('Geri alındı'); } break;
@@ -392,6 +392,8 @@ function act(name, btn) {
     case 'cube3': if (v3) { v3.set('cube', !v3.opts.cube); syncCube(); } break;
     case 'hud3': if (v3) { v3.set('hud', !v3.opts.hud); syncCube(); overlay3D(); } break;
     case 'turn3': if (v3) v3.set('turntable', !v3.opts.turntable); break;
+    case 'shadow3': if (v3) v3.set('shadow', !v3.opts.shadow); break;
+    case 'sil3': if (v3) v3.set('silhouette', !v3.opts.silhouette); break;
     case 'cam3': showBookmarks(); break;
     case 'fit3': if (v3) { v3.fit({ animate: !ui.reduceMotion }); overlay3D(); } break;
     default: break;
@@ -516,9 +518,19 @@ function saveDxf(onlyEdited) {
   const bytes = new TextEncoder().encode(text);
   let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
   const b64 = btoa(bin);
-  if (window.Android && window.Android.saveFile) { const r = window.Android.saveFile(b64, name, 'application/dxf', true); api.toast(r ? 'DXF kaydedildi: ' + r : 'DXF kaydedilemedi'); }
-  else { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/dxf' })); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000); }
+  const drv = window.dwgApp && window.dwgApp.drive;
+  const driveAct = drv && drv.signedIn && drv.signedIn() ? { label: tt('driveUpload', "Drive'a yükle"), fn: () => drv.uploadWithPicker({ b64, name, mime: 'application/dxf' }) } : undefined;
+  if (window.Android && window.Android.saveFile) { const r = window.Android.saveFile(b64, name, 'application/dxf', true); api.toast(r ? 'DXF kaydedildi: ' + r : 'DXF kaydedilemedi', { type: r ? 'ok' : 'error', ms: 6000, action: r ? driveAct : undefined }); }
+  else { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/dxf' })); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000); if (driveAct) api.toast('DXF', { type: 'ok', action: driveAct }); }
 }
+/** DXF metnini base64 olarak verir (Drive yüklemesi için); {b64, name} */
+ed.dxfBase64 = (onlyEdited) => {
+  if (!S.hasDoc) return null;
+  const text = writeDxf(S.scene.layouts[0].prims, S.layers, { onlyEdited: !!onlyEdited, ltypes: S.ltypes, units: UNIT_CODE[S.units] || 0 });
+  const bytes = new TextEncoder().encode(text);
+  let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return { b64: btoa(bin), name: api.baseName() + (onlyEdited ? '_degisiklikler' : '_duzenlenmis') + '.dxf' };
+};
 
 // ---------------------------------------------------------------------------------
 // Dokunma, geri ve kaplama (2B)
@@ -602,13 +614,15 @@ function refresh3D() {
 function render3D() { if (v3 && ed.is3D()) { v3.render(); overlay3D(); } }
 export function onResize() { if (ed.is3D()) { resize3D(); v3.render(); overlay3D(); } }
 export function onTheme() { if (ed.is3D()) { refresh3D(); v3.render(); overlay3D(); } }
-const p3 = { pointers: new Map(), last: null, d0: 0, mid0: null, moved: false, snap: null, pts: [] };
+const p3 = { pointers: new Map(), last: null, d0: 0, mid0: null, ang0: 0, moved: false, snap: null, pts: [], lastTap: 0, lastTapAt: null };
+/** 3B dokunma: 1 parmak döndür/kaydır · 2 parmak yakınlaştır + kaydır (ya da döndür) · 3 parmak kaydır/döndür · çift dokunuş sığdır/yakınlaştır · tekerlek yakınlaştır */
 function bind3D(cv) {
+  const geom = () => { const a = [...p3.pointers.values()]; const n = a.length; let mx = 0, my = 0; for (const p of a) { mx += p[0]; my += p[1]; } mx /= n; my /= n; const d = n >= 2 ? Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]) : 0; const ang = n >= 2 ? Math.atan2(a[1][1] - a[0][1], a[1][0] - a[0][0]) : 0; return { n, mid: [mx, my], d, ang }; };
+  const touch = () => v3.opts.touch;
   cv.addEventListener('pointerdown', (ev) => {
     ev.stopPropagation(); cv.setPointerCapture(ev.pointerId);
-    p3.pointers.set(ev.pointerId, [ev.clientX, ev.clientY]); p3.moved = false;
-    const arr = [...p3.pointers.values()];
-    if (arr.length === 2) { p3.d0 = Math.hypot(arr[0][0] - arr[1][0], arr[0][1] - arr[1][1]); p3.mid0 = [(arr[0][0] + arr[1][0]) / 2, (arr[0][1] + arr[1][1]) / 2]; }
+    p3.pointers.set(ev.pointerId, [ev.clientX, ev.clientY]); if (p3.pointers.size === 1) p3.moved = false;
+    const g = geom(); p3.d0 = g.d; p3.mid0 = g.mid; p3.ang0 = g.ang;
     p3.last = [ev.clientX, ev.clientY];
     closePop();
   });
@@ -616,28 +630,41 @@ function bind3D(cv) {
     ev.stopPropagation();
     if (!p3.pointers.has(ev.pointerId)) return;
     p3.pointers.set(ev.pointerId, [ev.clientX, ev.clientY]);
-    const arr = [...p3.pointers.values()];
-    if (arr.length === 1) {
+    const g = geom(), t = touch();
+    if (g.n === 1) {
       const dx = ev.clientX - p3.last[0], dy = ev.clientY - p3.last[1];
       if (Math.hypot(dx, dy) > 2) p3.moved = true;
-      if (p3.moved) { const sens = v3.opts.touch.sensitivity || 1, iy = v3.opts.touch.invertY ? -1 : 1; if (v3.opts.touch.oneFinger === 'pan') v3.pan(dx, dy); else v3.orbit(dx * sens, dy * sens * iy); }
+      if (p3.moved) { const sens = t.sensitivity || 1, iy = t.invertY ? -1 : 1; if (t.oneFinger === 'pan') v3.pan(dx, dy); else v3.orbit(dx * sens, dy * sens * iy); }
       p3.last = [ev.clientX, ev.clientY];
-    } else if (arr.length >= 2) {
+    } else if (g.n === 2) {
       p3.moved = true;
-      const d = Math.hypot(arr[0][0] - arr[1][0], arr[0][1] - arr[1][1]);
-      const mid = [(arr[0][0] + arr[1][0]) / 2, (arr[0][1] + arr[1][1]) / 2];
-      if (p3.d0 > 0) v3.zoom(d / p3.d0);
-      v3.pan(mid[0] - p3.mid0[0], mid[1] - p3.mid0[1]);
-      p3.d0 = d; p3.mid0 = mid;
+      if (p3.d0 > 0) v3.zoom(g.d / p3.d0);
+      if (t.twoFinger === 'zoomrotate') { let da = g.ang - p3.ang0; if (da > Math.PI) da -= 2 * Math.PI; if (da < -Math.PI) da += 2 * Math.PI; v3.cam.yaw += da; }
+      v3.pan(g.mid[0] - p3.mid0[0], g.mid[1] - p3.mid0[1]);
+      p3.d0 = g.d; p3.mid0 = g.mid; p3.ang0 = g.ang;
+    } else if (g.n >= 3) {
+      p3.moved = true;
+      const dx = g.mid[0] - p3.mid0[0], dy = g.mid[1] - p3.mid0[1];
+      if (t.threeFinger === 'orbit') v3.orbit(dx * (t.sensitivity || 1), dy * (t.sensitivity || 1) * (t.invertY ? -1 : 1)); else if (t.threeFinger === 'pan') v3.pan(dx, dy);
+      p3.mid0 = g.mid;
     }
     v3.render(); overlay3D(); if (cube) cube.update(); statusMode3D();
   });
   const up = (ev) => {
     ev.stopPropagation();
     const had = p3.pointers.delete(ev.pointerId);
-    if (had && !p3.moved && p3.pointers.size === 0 && ev.type === 'pointerup') { const r = cv.getBoundingClientRect(); tap3D(ev.clientX - r.left, ev.clientY - r.top); }
+    if (had && !p3.moved && p3.pointers.size === 0 && ev.type === 'pointerup') {
+      const r = cv.getBoundingClientRect(), sx = ev.clientX - r.left, sy = ev.clientY - r.top, now = performance.now();
+      if (p3.lastTapAt && now - p3.lastTap < 320 && Math.hypot(p3.lastTapAt[0] - sx, p3.lastTapAt[1] - sy) < 30) {
+        const dt = touch().doubleTap; p3.lastTap = 0; p3.lastTapAt = null;
+        if (dt === 'fit') { v3.fit({ animate: !ui.reduceMotion }); haptic('step'); } else if (dt === 'zoom') { v3.zoom(2); v3.render(); v3.pushHistory(); haptic('step'); }
+        overlay3D(); refreshTiles(); return;
+      }
+      p3.lastTap = now; p3.lastTapAt = [sx, sy];
+      tap3D(sx, sy);
+    }
     if (had && p3.moved && p3.pointers.size === 0) { v3.pushHistory(); refreshTiles(); }
-    if (p3.pointers.size === 1) { const p = [...p3.pointers.values()][0]; p3.last = p; p3.moved = true; }
+    if (p3.pointers.size >= 1) { const g = geom(); p3.last = [...p3.pointers.values()][0]; p3.d0 = g.d; p3.mid0 = g.mid; p3.ang0 = g.ang; p3.moved = true; }
   };
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
   cv.addEventListener('wheel', (ev) => { ev.preventDefault(); ev.stopPropagation(); v3.zoom(ev.deltaY < 0 ? 1.15 : 1 / 1.15); v3.render(); overlay3D(); statusMode3D(); }, { passive: false });

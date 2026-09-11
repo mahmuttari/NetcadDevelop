@@ -1,4 +1,4 @@
-# DWG Görüntüleyici (Android) — v4.0
+# DWG Görüntüleyici (Android) — v5.0
 
 AutoCAD **DWG** ve **DXF** çizimlerini telefonda açan, çevrimdışı çalışan
 Android uygulaması. Dosya cihazdan dışarı çıkmaz; çözümleme telefonun
@@ -39,7 +39,9 @@ verisi gönderilmez).
 | Kabuk | Türkçe/İngilizce, tablet düzeni (katman paneli yan sütun), sürüm denetimi, hata kaydı paylaşma |
 | **Arayüz (v4)** | şerit araç çubuğu: sekmeler › gruplar › SVG simgeli karolar (Görünüm · Ekran · Ölçü · Çiz · Düzenle · 3B); karoya **uzun basınca** açıklama ve **Sık kullanılanlara ekle** (Favoriler sekmesi en başta); etkin sekmeye ikinci dokunuşla şerit **katlanır**; yatayda şerit sağda dikey ray (sol el düzeninde solda); tablette grup başlıkları ve yan sütun (Katmanlar / Ekran); alt sayfalarda tutamak (aşağı sürükle → kapat, yukarı → büyüt); durum çubuğunda hızlı düğmeler (ızgara, kalınlık, yazı, nesne yakalama), ölçek seçici, kip çipi; gezinti düğmeleri (+ / − / sığdır / önceki görünüm / GPS), yön tuşları; erişilebilirlik: yazı boyutu, eldiven modu (büyük hedefler, geniş yakalama), sol el, yüksek kontrast, hareket azaltma, titreşim; ilk açılışta tanıtım turu |
 | **Ekran seçenekleri (2B)** | tema (koyu, açık, blueprint, sepya, yüksek kontrast, sisteme uy), **güneş modu**, ön ayarlar (saha / ofis / baskı önizleme), özel arka plan rengi, görünürlük süzgeçleri (yazı, tarama, ölçülendirme, nokta, resim, öznitelik, blok, çizgi tipi), çizgi kalınlığı ölçeği ve en az kalınlık, renk modu (nesne / katman paleti / tek renk), ızgara (adım, çizgi/nokta), cetveller, artı imleç, ölçek çubuğu, kuzey oku, katman izolasyonu ve soldurma, seçim vurgusu rengi/kalınlığı, nokta biçimi, yazı eşiği, tarama saydamlığı, altlık saydamlığı; görünüm geçmişi (önceki/sonraki), pencereyle yakınlaştırma, koordinata git, ana görünüm |
-| **Ekran seçenekleri (3B)** | stil (tel kafes, gizli çizgi, gölgeli, gölgeli+kenar, röntgen), renk (nesne / katman / **kot** / tek renk) ve kot lejantı, aydınlatma (yön, yoğunluk, ortam), zemin ızgarası (adım, kot), eksenler ve etiketler, pusula, **görünüm küpü** (yüz / köşe / kenar dokunuşu, sürükleyerek yörünge, çift dokunuşla sığdır), perspektif / ortografik ve görüş açısı, **düşey abartı** (kaydırıcı, ×1/×2/×5/×10), **kesit** (Z aralığı ve kesit kutusu), döner tabla, dokunma davranışı (tek parmak döndür/kaydır, dikey ters, hassasiyet), kot etiketleri, HUD, nokta boyu, çizgi kalınlığı, derinlik solması, seçileni öne çıkarma; 11 görünüm ön ayarı (üst, alt, ön, arka, sol, sağ, izometrik KD/KB/GD/GB); kamera **yer imleri** (küçük resimli, dosya başına); kamera geçmişi; 3B ekran görüntüsü |
+| **Belgeler (v5)** | **PDF** (Android PdfRenderer ile sayfa sayfa çizim; sayfa gezinme, yakınlaştırma, iki parmakla büyütme), **Word .docx** (paragraf, başlık, liste, tablo, resim, köprü; OOXML → HTML), **Excel .xlsx** (sayfa sekmeleri, birleştirilmiş hücreler, CSV), **ZIP** (yerleşik okuyucu; iç içe arşiv, klasör gezintisi, arama) ve **RAR** (junrar; RAR 2/3/4), resim ve metin dosyaları; arşivden çıkan DWG/DXF doğrudan çizim olarak açılır ("Arşive dön"); .doc/.xls/.ppt gibi biçimler Google Drive ile PDF'e çevrilerek açılır; belgeler "Başka uygulamayla aç", "Paylaş", "Çevrimdışı sakla" ve "Drive'a yükle" eylemleriyle gelir; dosya yöneticisinden .pdf/.docx/.zip/.rar "Birlikte aç" listesinde görünür |
+| **Google Drive (v5)** | Google ile giriş (OAuth 2.0 + PKCE, tarayıcı üzerinden; Play Services gerekmez), Drive gezgini (Drive'ım / Paylaşılanlar / Son / Yıldızlı, klasör kırıntıları, arama, sayfalama), dosya açma (Google Dokümanlar PDF olarak dışa aktarılır), çevrimdışı saklama, silme, Drive'da açma; yükleme: geçerli dosya, düzenlenmiş DXF, PNG görünüm, cihazdan seçilen dosya; PNG/PDF/DXF kaydetme uyarılarında "Drive'a yükle" kısayolu; ofis belgelerini Drive ile PDF'e dönüştürme |
+| **Ekran seçenekleri (3B)** | görsel stiller (AutoCAD'e benzer): 2B tel kafes, tel kafes, gizli çizgi, gölgeli, gölgeli+kenar, **gerçekçi** (yumuşak aydınlatma + parlama), **kavramsal** (Gooch soğuk-sıcak + siluet), **gri tonlar**, **eskiz** (titreme + çizgi uzatma), röntgen; yüz ayarları (aydınlatma kalitesi yüzeyli/yumuşak, parlama, yüz saydamlığı), kenar ayarları (kenar kipi, kenar rengi, siluet kenarları ve kalınlığı, çizgi uzatma, titreme), ortam (zemin gölgesi, derinlik solması); dokunma: tek parmak döndür/kaydır, iki parmak yakınlaştır+kaydır ya da yakınlaştır+döndür, üç parmak kaydır/döndür, çift dokunuş sığdır/yakınlaştır, dikey ters, hassasiyet; varsayılan izdüşüm **paralel** (AutoCAD gibi), tuval her karede CSS boyutuyla eşitlenir (en-boy oranı korunur); renk (nesne / katman / **kot** / tek renk) ve kot lejantı, aydınlatma (yön, yoğunluk, ortam), zemin ızgarası (adım, kot), eksenler ve etiketler, pusula, **görünüm küpü** (yüz / köşe / kenar dokunuşu, sürükleyerek yörünge, çift dokunuşla sığdır), perspektif / ortografik ve görüş açısı, **düşey abartı** (kaydırıcı, ×1/×2/×5/×10), **kesit** (Z aralığı ve kesit kutusu), döner tabla, dokunma davranışı (tek parmak döndür/kaydır, dikey ters, hassasiyet), kot etiketleri, HUD, nokta boyu, çizgi kalınlığı, derinlik solması, seçileni öne çıkarma; 11 görünüm ön ayarı (üst, alt, ön, arka, sol, sağ, izometrik KD/KB/GD/GB); kamera **yer imleri** (küçük resimli, dosya başına); kamera geçmişi; 3B ekran görüntüsü |
 | **Araç çubuğu** | alt kısımda sekmeli düğme çubuğu: (Favoriler) · Görünüm · Ekran · Ölçü · Çiz · Düzenle · 3B; komut satırı (adım adım yönerge, yazılı koordinat girişi `x,y` / `x,y,z` / `@dx,dy` / `@L<açı`, Bitir / Kapat / Geri / İptal düğmeleri) |
 | **Çizim** | çizgi (zincirleme), polyline (açık/kapalı), dikdörtgen, daire (merkez + yarıçap noktası ya da yazılı yarıçap), yay (3 nokta), nokta, yazı, 3B polyline (kotlu), 3B yüzey; geçerli katman / renk seçimi, yeni katman oluşturma; tüm yakalama kipleri çizimde de geçerli |
 | **Düzenleme** | seç (dokunarak ekle/çıkar, tümünü seç), taşı, kopyala (yineleyerek), döndür (yazılı açı ya da nokta), ölçekle, aynala (orijinali koru / korumama), ofset (mesafe + taraf), sil, kot ata, yazı düzenle, özellikler (katman/renk); sınırsız geri al / yinele; düzenlemeler dosya başına kalıcı (uygulama kapansa da korunur) |
@@ -91,6 +93,28 @@ DWG/DXF baytları ─► worker.js ─► LibreDWG (WASM) / dxf.js ─► scene.
   ölçekte çizim için kullanılır; büyük paftalarda hareket sırasında
   önbellek görüntüsü kaydırılır.
 
+## Google ile giriş / Drive kurulumu
+
+Uygulama Play Services kullanmaz; giriş tarayıcıda yapılır ve geri dönüş
+`com.googleusercontent.apps.<istemci-no>:/oauth2redirect` şemasıyla
+uygulamaya gelir. Bunun için bir kez Google Cloud Console'da:
+
+1. Proje oluşturun, **Google Drive API**'yi etkinleştirin.
+2. **OAuth consent screen**: External, uygulama adı "DWG Görüntüleyici";
+   kapsamlar `openid`, `email`, `profile`, `https://www.googleapis.com/auth/drive`;
+   yayın durumu "Testing" ise **Test users** listesine kendi hesabınızı ekleyin.
+3. **Credentials → Create credentials → OAuth client ID → Android**:
+   paket adı `com.mahmuttari.dwgviewer`, SHA-1 imza parmak izi
+   `24:D2:D3:A7:ED:FB:FB:93:16:5F:75:D0:E7:D8:93:B6:FD:54:D5:A7`
+   (`keystore/dwgviewer.jks`).
+4. Oluşan istemci kimliğini `gradle.properties` içindeki
+   `GOOGLE_CLIENT_ID=` satırına yazın ve APK'yı yeniden derleyin.
+   Kimlik boşsa uygulama "Google istemci kimliği bu sürüme henüz işlenmedi"
+   uyarısı verir; belge görüntüleme dâhil diğer her şey çalışır.
+
+Belirteçler cihazda uygulama-özel depoda tutulur; "Çıkış" belirteci Google
+tarafında da iptal eder.
+
 ## Derleme
 
 ```
@@ -114,6 +138,10 @@ Aynı anahtarla imzalanmayan bir sürüm kurulu sürümün üzerine yüklenemez.
 node tools/serve.mjs 8765          # http://localhost:8765/ — dosya seçiciyle aynı sayfa
 PLAYWRIGHT_PKG=<playwright kurulu dizin> node tools/screenshot.mjs <çıktı> a.dwg b.dxf
 ```
+
+Sınama betikleri: `tools/test_editor.mjs`, `test_3d.mjs`, `test_features.mjs`,
+`test_display2d.mjs`, `test_shell.mjs`, `test_docs.mjs` (ZIP/DOCX/XLSX/PDF, Drive
+köprü taklidi, 3B stiller ve parmak hareketleri).
 
 Çekirdek LibreDWG'nin `test/test-data/example_*.dwg` dosyaları ve
 Türkçe kod sayfalı bir DXF ile sınanmıştır (sahne kurma, R-ağacı,

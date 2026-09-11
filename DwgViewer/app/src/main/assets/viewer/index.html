@@ -125,10 +125,11 @@
           <h1 data-i18n="welcomeTitle">DWG Görüntüleyici</h1>
           <p data-i18n="welcomeText"></p>
           <button id="btnOpen2" class="btn primary big" data-i18n="pickFile" type="button">📂 DWG / DXF dosyası seç</button>
-          <input id="fileInput" type="file" accept=".dwg,.dxf,application/acad,application/x-dwg,application/dxf,application/octet-stream" hidden>
+          <input id="fileInput" type="file" accept=".dwg,.dxf,.pdf,.docx,.doc,.xlsx,.zip,.rar,.png,.jpg,.jpeg,.txt,.csv,application/acad,application/x-dwg,application/dxf,application/pdf,application/zip,application/octet-stream" hidden>
           <div class="row">
             <button id="btnServer" class="btn small" data-i18n="server" type="button">Sunucudan indir</button>
             <button id="btnQr" class="btn small" data-i18n="qr" type="button">QR okut</button>
+            <button id="btnDrive" class="btn small" type="button"><svg class="ic" aria-hidden="true"><use href="#i-map"/></svg><span data-i18n="drive">Google Drive</span></button>
           </div>
           <div id="recentWrap" hidden>
             <h3 data-i18n="recent">Son dosyalar</h3>
@@ -141,6 +142,16 @@
         <span id="cmdText"></span>
         <span class="cmd-in"><input id="cmdInput" type="text" placeholder="x,y | @dx,dy | @L<açı" autocomplete="off" inputmode="text"><button id="cmdEnter" type="button" aria-label="Gir">↵</button></span>
         <span id="cmdBtns"></span>
+      </div>
+      <div id="docView" class="docview" hidden>
+        <div class="doc-head">
+          <button type="button" class="btn icon" data-doc="back" hidden aria-label="Geri"><svg class="ic" aria-hidden="true"><use href="#i-arrow-left"/></svg></button>
+          <div class="doc-title"><strong id="docName"></strong><small id="docMeta"></small></div>
+          <div class="doc-acts" id="docActs"></div>
+          <button type="button" class="btn icon" data-doc="close" aria-label="Kapat"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
+        </div>
+        <div class="doc-tools" id="docTools"></div>
+        <div class="doc-body" id="docContent"></div>
       </div>
       <div id="notesBar" class="notesbar" hidden>
         <button data-tool="select" class="active" data-i18n-title="select" type="button">👆</button>
@@ -280,9 +291,25 @@
     <div id="displayBody" class="panel-body"></div>
   </aside>
 
+  <!-- Google Drive -->
+  <aside id="drivePanel" class="panel bottom" hidden role="dialog">
+    <div class="panel-head">
+      <strong><svg class="ic" aria-hidden="true"><use href="#i-map"/></svg> Google Drive</strong>
+      <div id="driveAccount" class="drive-account"></div>
+      <button type="button" class="btn icon" data-drive="upload" data-i18n-title="driveUpload" aria-label="Drive'a yükle"><svg class="ic" aria-hidden="true"><use href="#i-export"/></svg></button>
+      <button type="button" class="btn icon" data-drive="mkdir" data-i18n-title="newFolder" aria-label="Yeni klasör"><svg class="ic" aria-hidden="true"><use href="#i-open"/></svg></button>
+      <button type="button" class="btn icon" data-drive="refresh" data-i18n-title="refresh" aria-label="Yenile"><svg class="ic" aria-hidden="true"><use href="#i-turn"/></svg></button>
+      <button type="button" class="btn icon close" data-close="drivePanel" aria-label="Kapat"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
+    </div>
+    <div class="drive-tools"><input id="driveSearch" type="search" data-i18n-ph="driveSearchPh" placeholder="Drive'da ara…"></div>
+    <div id="driveCrumbs" class="drive-crumbs"></div>
+    <div id="driveList" class="panel-body"></div>
+  </aside>
+
   <!-- Diğer menüsü -->
   <div id="moreMenu" class="menu" hidden>
     <button data-act="info" type="button"><svg class="ic" aria-hidden="true"><use href="#i-info"/></svg><span data-i18n="info">Çizim bilgisi</span></button>
+    <button data-act="drive" type="button"><svg class="ic" aria-hidden="true"><use href="#i-map"/></svg><span data-i18n="drive">Google Drive</span></button>
     <button data-act="layouts" type="button"><svg class="ic" aria-hidden="true"><use href="#i-layout"/></svg><span data-i18n="layouts">Sayfa düzenleri</span></button>
     <button data-act="notes" type="button"><svg class="ic" aria-hidden="true"><use href="#i-pen"/></svg><span data-i18n="notes">Notlar (redline)</span></button>
     <button data-act="profile" type="button"><svg class="ic" aria-hidden="true"><use href="#i-profile"/></svg><span data-i18n="profile">Profil / eğim</span></button>

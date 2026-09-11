@@ -2,8 +2,8 @@
 const TR = {
   open: 'Aç', noFile: 'Dosya seçilmedi', fit: 'Tümünü sığdır', layers: 'Katmanlar', measure: 'Ölçü', more: 'Diğer', search: 'Ara',
   layersAll: 'Tümü', layersNone: 'Hiçbiri', layerFilter: 'Katman ara…', close: 'Kapat',
-  welcomeTitle: 'DWG Görüntüleyici', welcomeText: 'AutoCAD DWG ve DXF çizimlerini telefonda açar: R13\'ten 2018+ sürümüne kadar. Kaydırma, iki parmakla yakınlaştırma, katmanlar, nesne bilgisi, ölçü, GPS konumu, notlar, PDF.',
-  pickFile: 'DWG / DXF dosyası seç', hint: 'Dosya yöneticisinden, e-postadan veya WhatsApp\'tan bir .dwg dosyasına dokunup "DWG Görüntüleyici" ile de açabilirsiniz.',
+  welcomeTitle: 'DWG Görüntüleyici', welcomeText: 'AutoCAD DWG ve DXF çizimlerini telefonda açar (R13 – 2018+), düzenler ve DXF kaydeder; PDF, Word, Excel, ZIP ve RAR dosyalarını görüntüler; Google Drive ile dosya açıp yükler. Ölçü, GPS konumu, notlar, 3B görünüm, PDF çıktısı.',
+  pickFile: 'Dosya seç (DWG · DXF · PDF · Word · ZIP · RAR)', hint: 'Dosya yöneticisinden, e-postadan veya WhatsApp\'tan bir .dwg, .pdf, .docx, .zip ya da .rar dosyasına dokunup "DWG Görüntüleyici" ile de açabilirsiniz.',
   recent: 'Son dosyalar', server: 'Sunucudan indir', qr: 'QR okut', loading: 'Yükleniyor…',
   measureHint: 'Noktalara dokunun · yakalama açık', clear: 'Temizle', firstPoint: 'Birinci noktaya dokunun.', secondPoint: 'İkinci noktaya dokunun.',
   total: 'Toplam', closedPerim: 'Kapalı çevre', areaClosed: 'Alan (kapalı)', lastPoint: 'Son nokta', snapped: 'yakalandı',
@@ -45,12 +45,23 @@ const TR = {
   stQuickGrid: 'Izgara', stQuickLw: 'Çizgi kalınlığı', stQuickText: 'Yazı', stQuickOsnap: 'Nesne yakalama', osnapOn: 'Nesne yakalama açık', osnapOff: 'Nesne yakalama kapalı',
   mode3d: '3B', zscaleTitle: 'Düşey abartı', styleTitle: 'Stil', clipTitle: 'Kesit', cam3Title: '3B yer imleri', sideLayers: 'Katmanlar', sideDisplay: 'Ekran', layersInvert: 'Ters çevir', layersUniso: 'İzolasyonu kaldır', sortName: 'Ada göre', sortCount: 'Sayıya göre', onlyVis: 'Yalnız görünenler',
   themeToggle: 'Koyu / açık', tlBack: 'Geri', noSel: 'Önce nesne seçin.', sel3dHint: '3B: köşelere dokunun',
+  // belgeler ve Drive
+  drive: 'Google Drive', driveUpload: "Drive'a yükle", newFolder: 'Yeni klasör', refresh: 'Yenile', driveSearchPh: "Drive'da ara…", signIn: 'Google ile giriş yap', signOut: 'Çıkış', signedIn: 'Giriş yapıldı', signedOut: 'Oturum kapatıldı', signInFail: 'Giriş başarısız',
+  driveAndroidOnly: 'Google Drive yalnız Android uygulamasında kullanılabilir.', driveNotConfigured: 'Google istemci kimliği bu sürüme henüz işlenmedi.', driveIntro: "Drive'daki DWG, DXF, PDF, Word ve arşiv dosyalarını açmak, çizimlerinizi ve çıktılarınızı Drive'a yüklemek için Google hesabınızla giriş yapın.",
+  driveError: 'Drive hatası', myDrive: "Drive'ım", sharedWithMe: 'Paylaşılanlar', recentDrive: 'Son', starred: 'Yıldızlı', loadMore: 'Daha fazla', downloading: 'İndiriliyor', uploading: 'Yükleniyor', uploaded: "Drive'a yüklendi", uploadFail: 'Yükleme başarısız', openInDrive: "Drive'da aç",
+  uploadCurrent: 'Geçerli dosyayı yükle', uploadDxf: 'Düzenlenmiş DXF olarak yükle', uploadPng: 'Görünümü PNG olarak yükle', uploadPick: 'Cihazdan dosya seç ve yükle', uploadTarget: 'Hedef', uploadHere: 'Buraya yükle', pickFolderHere: 'Bu klasöre yükle', pickFolderFor: 'Yükleme hedefi', folderName: 'Klasör adı:', folderCreated: 'Klasör oluşturuldu', driveFile: 'Drive dosyası', confirmDelete: 'Silinsin mi?', deleted: 'Silindi', shortcut: 'Kısayol', shortcutNo: 'Kısayollar açılamıyor; hedef dosyayı seçin.', shared: 'paylaşılan',
+  converting: "PDF'e dönüştürülüyor", convertFail: 'Dönüştürülemedi', drivePdf: "Drive ile PDF'e çevir",
+  docFail: 'Belge açılamadı', docOffice: 'Ofis belgesi', docImage: 'Resim', docText: 'Metin', docOpenWith: 'Başka uygulamayla aç', share: 'Paylaş', docKeep: 'Çevrimdışı sakla', docKept: 'Çevrimdışı kopya alındı (Sunucudan indir › Çevrimdışı kopyalar)', docKeepFail: 'Kopyalanamadı', docEmpty: 'Belge boş', docUnknown: 'Bu dosya türü tanınmıyor.',
+  docOfficeMsg: "Bu biçim doğrudan görüntülenemiyor. Google Drive ile giriş yaptıysanız belge PDF'e dönüştürülerek açılabilir; ya da başka bir uygulamaya gönderin.", prevPage: 'Önceki sayfa', nextPage: 'Sonraki sayfa', fitWidth: 'Sığdır', files: 'dosya', extracting: 'Çıkarılıyor', wrap: 'Satır kaydır', lines: 'satır', backToArchive: 'Arşive dön',
+  v3Wire2d: '2B tel kafes', v3Realistic: 'Gerçekçi', v3Conceptual: 'Kavramsal', v3Gray: 'Gri tonlar', v3Sketchy: 'Eskiz', v3Face: 'Yüz ayarları', lightQuality: 'Aydınlatma kalitesi', lqFaceted: 'Yüzeyli', lqSmooth: 'Yumuşak', specular: 'Parlama (specular)', faceOpacity: 'Yüz saydamlığı',
+  v3Edges: 'Kenar ayarları', edgeMode: 'Kenar kipi', edgesFacet: 'Yüzey kenarları', edgesNone: 'Yok', edgeColor: 'Kenar rengi', black: 'Siyah', white: 'Beyaz', silhouette: 'Siluet kenarları', silhouetteWidth: 'Siluet kalınlığı', overhang: 'Çizgi uzatma (taşma)', jitter: 'Titreme (eskiz)', v3Env: 'Ortam', groundShadow: 'Zemin gölgesi',
+  twoFinger: 'İki parmak', threeFinger: 'Üç parmak', doubleTap: 'Çift dokunuş', touchZoomPan: 'Yakınlaştır + kaydır', touchZoomRotate: 'Yakınlaştır + döndür', zoomIn: 'Yakınlaştır', zoomOut: 'Uzaklaştır', off: 'Kapalı', on: 'Açık', auto: 'Otomatik',
 };
 const EN = {
   open: 'Open', noFile: 'No file', fit: 'Zoom extents', layers: 'Layers', measure: 'Measure', more: 'More', search: 'Search',
   layersAll: 'All', layersNone: 'None', layerFilter: 'Filter layers…', close: 'Close',
   welcomeTitle: 'DWG Viewer', welcomeText: 'Opens AutoCAD DWG and DXF drawings on your phone: R13 to 2018+. Pan, pinch zoom, layers, entity info, measure, GPS, notes, PDF.',
-  pickFile: 'Pick a DWG / DXF file', hint: 'You can also tap a .dwg in a file manager, e-mail or WhatsApp and open it with "DWG Viewer".',
+  pickFile: 'Pick a file (DWG · DXF · PDF · Word · ZIP · RAR)', hint: 'You can also tap a .dwg in a file manager, e-mail or WhatsApp and open it with "DWG Viewer".',
   recent: 'Recent files', server: 'Download from server', qr: 'Scan QR', loading: 'Loading…',
   measureHint: 'Tap points · snapping on', clear: 'Clear', firstPoint: 'Tap the first point.', secondPoint: 'Tap the second point.',
   total: 'Total', closedPerim: 'Closed perimeter', areaClosed: 'Area (closed)', lastPoint: 'Last point', snapped: 'snapped',
@@ -92,6 +103,17 @@ const EN = {
   stQuickGrid: 'Grid', stQuickLw: 'Lineweight', stQuickText: 'Text', stQuickOsnap: 'Object snap', osnapOn: 'Object snap on', osnapOff: 'Object snap off',
   mode3d: '3D', zscaleTitle: 'Vertical exaggeration', styleTitle: 'Style', clipTitle: 'Clip', cam3Title: '3D bookmarks', sideLayers: 'Layers', sideDisplay: 'Display', layersInvert: 'Invert', layersUniso: 'Unisolate', sortName: 'By name', sortCount: 'By count', onlyVis: 'Visible only',
   themeToggle: 'Dark / light', tlBack: 'Back', noSel: 'Select objects first.', sel3dHint: '3D: tap vertices',
+  // documents and Drive
+  drive: 'Google Drive', driveUpload: 'Upload to Drive', newFolder: 'New folder', refresh: 'Refresh', driveSearchPh: 'Search Drive…', signIn: 'Sign in with Google', signOut: 'Sign out', signedIn: 'Signed in', signedOut: 'Signed out', signInFail: 'Sign-in failed',
+  driveAndroidOnly: 'Google Drive is available only in the Android app.', driveNotConfigured: 'The Google client ID is not configured in this build yet.', driveIntro: 'Sign in with your Google account to open DWG, DXF, PDF, Word and archive files from Drive and to upload drawings and exports.',
+  driveError: 'Drive error', myDrive: 'My Drive', sharedWithMe: 'Shared with me', recentDrive: 'Recent', starred: 'Starred', loadMore: 'Load more', downloading: 'Downloading', uploading: 'Uploading', uploaded: 'Uploaded to Drive', uploadFail: 'Upload failed', openInDrive: 'Open in Drive',
+  uploadCurrent: 'Upload current file', uploadDxf: 'Upload edited DXF', uploadPng: 'Upload view as PNG', uploadPick: 'Pick a device file and upload', uploadTarget: 'Target', uploadHere: 'Upload here', pickFolderHere: 'Upload into this folder', pickFolderFor: 'Upload target', folderName: 'Folder name:', folderCreated: 'Folder created', driveFile: 'Drive file', confirmDelete: 'Delete?', deleted: 'Deleted', shortcut: 'Shortcut', shortcutNo: 'Shortcuts cannot be opened; pick the target file.', shared: 'shared',
+  converting: 'Converting to PDF', convertFail: 'Conversion failed', drivePdf: 'Convert to PDF via Drive',
+  docFail: 'Document could not be opened', docOffice: 'Office document', docImage: 'Image', docText: 'Text', docOpenWith: 'Open with another app', share: 'Share', docKeep: 'Keep offline', docKept: 'Offline copy saved (Download from server › Offline copies)', docKeepFail: 'Could not copy', docEmpty: 'Empty document', docUnknown: 'Unknown file type.',
+  docOfficeMsg: 'This format cannot be displayed directly. If you are signed in to Google Drive it can be converted to PDF; otherwise send it to another app.', prevPage: 'Previous page', nextPage: 'Next page', fitWidth: 'Fit', files: 'files', extracting: 'Extracting', wrap: 'Wrap lines', lines: 'lines', backToArchive: 'Back to archive',
+  v3Wire2d: '2D wireframe', v3Realistic: 'Realistic', v3Conceptual: 'Conceptual', v3Gray: 'Shades of gray', v3Sketchy: 'Sketchy', v3Face: 'Face settings', lightQuality: 'Lighting quality', lqFaceted: 'Faceted', lqSmooth: 'Smooth', specular: 'Specular highlights', faceOpacity: 'Face opacity',
+  v3Edges: 'Edge settings', edgeMode: 'Edge mode', edgesFacet: 'Facet edges', edgesNone: 'None', edgeColor: 'Edge color', black: 'Black', white: 'White', silhouette: 'Silhouette edges', silhouetteWidth: 'Silhouette width', overhang: 'Line extensions (overhang)', jitter: 'Jitter (sketchy)', v3Env: 'Environment', groundShadow: 'Ground shadow',
+  twoFinger: 'Two fingers', threeFinger: 'Three fingers', doubleTap: 'Double tap', touchZoomPan: 'Zoom + pan', touchZoomRotate: 'Zoom + rotate', zoomIn: 'Zoom in', zoomOut: 'Zoom out', off: 'Off', on: 'On', auto: 'Auto',
 };
 let dict = TR, lang = 'tr';
 export function setLang(l) { lang = l === 'en' ? 'en' : 'tr'; dict = lang === 'en' ? EN : TR; }

@@ -119,7 +119,7 @@ function bindWidgets(root, v3, host, hooks = {}) {
 // ---------------------------------------------------------------------------------
 // tek bölüm renderer'ları (popover için)
 // ---------------------------------------------------------------------------------
-const STYLE_OPTS = () => [['wireframe', tt('v3Wire', 'Tel kafes')], ['hidden', tt('v3Hidden', 'Gizli çizgi')], ['shaded', tt('v3Shaded', 'Gölgeli')], ['shadedEdges', tt('v3ShadedEdges', 'Gölgeli+kenar')], ['xray', tt('v3Xray', 'Röntgen')]];
+const STYLE_OPTS = () => [['wireframe2d', tt('v3Wire2d', '2B tel kafes')], ['wireframe', tt('v3Wire', 'Tel kafes')], ['hidden', tt('v3Hidden', 'Gizli çizgi')], ['shaded', tt('v3Shaded', 'Gölgeli')], ['shadedEdges', tt('v3ShadedEdges', 'Gölgeli+kenar')], ['realistic', tt('v3Realistic', 'Gerçekçi')], ['conceptual', tt('v3Conceptual', 'Kavramsal')], ['gray', tt('v3Gray', 'Gri tonlar')], ['sketchy', tt('v3Sketchy', 'Eskiz')], ['xray', tt('v3Xray', 'Röntgen')]];
 const COLOR_OPTS = () => [['entity', tt('colorEntity', 'Nesne')], ['layer', tt('colorLayer', 'Katman')], ['elevation', tt('v3Elev', 'Kot')], ['mono', tt('colorMono', 'Tek renk')]];
 const noFaces = (v3) => !v3.counts.tris;
 
@@ -202,6 +202,23 @@ export function openView3DOptions(v3, bodyEl, host = {}) {
     W.slider('lightIntensity', 0, 1.5, 0.05, o.lightIntensity, '', tt('lightIntensity', 'Yoğunluk')) +
     W.slider('ambient', 0, 1, 0.05, o.ambient, '', tt('ambient', 'Ortam ışığı')) +
     (noFaces(v3) ? W.note(tt('v3NoFaces', 'Bu çizimde yüzey yok (3DFACE/dolgu) — tel kafes gösteriliyor')) : '')));
+  // Yüz ayarları (AutoCAD görsel stil yöneticisi › Yüz)
+  parts.push(W.sec('face', tt('v3Face', 'Yüz ayarları'),
+    W.seg('lightQuality', [['faceted', tt('lqFaceted', 'Yüzeyli')], ['smooth', tt('lqSmooth', 'Yumuşak')]], o.lightQuality, tt('lightQuality', 'Aydınlatma kalitesi')) +
+    W.sw('specular', o.specular, tt('specular', 'Parlama (specular)')) +
+    W.slider('faceOpacity', 0.1, 1, 0.05, o.faceOpacity, '', tt('faceOpacity', 'Yüz saydamlığı'))));
+  // Kenar ayarları
+  parts.push(W.sec('edge', tt('v3Edges', 'Kenar ayarları'),
+    W.seg('edges', [['facet', tt('edgesFacet', 'Yüzey kenarları')], ['none', tt('edgesNone', 'Yok')]], o.edges, tt('edgeMode', 'Kenar kipi')) +
+    W.seg('edgeColor', [['auto', tt('auto', 'Otomatik')], ['black', tt('black', 'Siyah')], ['white', tt('white', 'Beyaz')], ['fg', tt('toneFg', 'Ön plan')]], o.edgeColor, tt('edgeColor', 'Kenar rengi')) +
+    W.sw('silhouette', o.silhouette, tt('silhouette', 'Siluet kenarları')) +
+    W.slider('silhouetteWidth', 1, 6, 0.5, o.silhouetteWidth, '', tt('silhouetteWidth', 'Siluet kalınlığı')) +
+    W.slider('overhang', 0, 6, 0.5, o.overhang, '', tt('overhang', 'Çizgi uzatma (taşma)')) +
+    W.slider('jitter', 0, 4, 0.5, o.jitter, '', tt('jitter', 'Titreme (eskiz)'))));
+  // Ortam
+  parts.push(W.sec('env', tt('v3Env', 'Ortam'),
+    W.sw('shadow', o.shadow, tt('groundShadow', 'Zemin gölgesi')) +
+    W.sw('depthFade', o.depthFade, tt('depthFade', 'Derinlik solması'))));
   // Zemin
   const stepOpts = [['auto', tt('gridAuto', 'Otomatik')], ...[1, 5, 10, 50, 100, 1000].map(v => [String(v), String(v)])];
   parts.push(W.sec('ground', tt('v3Ground', 'Zemin'),
@@ -222,6 +239,9 @@ export function openView3DOptions(v3, bodyEl, host = {}) {
     W.sw('turntable', o.turntable, tt('v3Turntable', 'Döner tabla')) +
     W.slider('turnSpeed', 5, 60, 1, o.turnSpeed, '°/s', tt('turnSpeed', 'Dönüş hızı')) +
     W.seg('touch.oneFinger', [['orbit', tt('touchOrbit', 'Döndür')], ['pan', tt('touchPan', 'Kaydır')]], o.touch.oneFinger, tt('v3Touch', 'Tek parmak')) +
+    W.seg('touch.twoFinger', [['zoompan', tt('touchZoomPan', 'Yakınlaştır + kaydır')], ['zoomrotate', tt('touchZoomRotate', 'Yakınlaştır + döndür')]], o.touch.twoFinger, tt('twoFinger', 'İki parmak')) +
+    W.seg('touch.threeFinger', [['pan', tt('touchPan', 'Kaydır')], ['orbit', tt('touchOrbit', 'Döndür')], ['none', tt('off', 'Kapalı')]], o.touch.threeFinger, tt('threeFinger', 'Üç parmak')) +
+    W.seg('touch.doubleTap', [['fit', tt('fit', 'Sığdır')], ['zoom', tt('zoomIn', 'Yakınlaştır')], ['none', tt('off', 'Kapalı')]], o.touch.doubleTap, tt('doubleTap', 'Çift dokunuş')) +
     W.sw('touch.invertY', o.touch.invertY, tt('invertY', 'Dikey ters')) +
     W.slider('touch.sensitivity', 0.5, 2, 0.1, o.touch.sensitivity, '×', tt('sensitivity', 'Hassasiyet'))));
   const mid = document.createElement('div'); mid.innerHTML = parts.join(''); root.appendChild(mid);
@@ -238,8 +258,7 @@ export function openView3DOptions(v3, bodyEl, host = {}) {
     W.slider('pointSize', 2, 14, 1, o.pointSize, 'px', tt('v3PointSize', 'Nokta boyu')) +
     W.sw('textPoints', o.textPoints, tt('textPoints', 'Yazı noktaları')) +
     W.seg('lineWidth', [['thin', tt('lwThin', 'İnce')], ['normal', tt('lwNormal', 'Normal')], ['thick', tt('lwThick', 'Kalın')]], o.lineWidth, tt('lineWidth3', 'Çizgi kalınlığı')) +
-    W.sw('dimOthers', o.dimOthers, tt('dimOthers', 'Seçileni öne çıkar')) +
-    W.sw('depthFade', o.depthFade, tt('depthFade', 'Derinlik solması')));
+    W.sw('dimOthers', o.dimOthers, tt('dimOthers', 'Seçileni öne çıkar')));
   root.appendChild(tail);
   // Yer imleri
   const elB = mk('bookmarks'); root.appendChild(elB);
@@ -332,7 +351,7 @@ export function buildViewCube(container, v3, host = {}) {
     const c = v3.cam;
     if (c.yaw === last.yaw && c.pitch === last.pitch && c.persp === last.persp) return;
     last = { yaw: c.yaw, pitch: c.pitch, persp: c.persp };
-    bPersp.textContent = c.persp ? tt('perspShort', 'Persp') : tt('orthoShort', 'Orto');
+    bPersp.textContent = c.persp ? tt('perspShort', 'Persp') : tt('orthoShort', 'Paralel');
     // çizim açıları: yüzler kenardan görünmesin diye sınırlanır (her zaman 3 yüz tıklanabilir)
     let p = c.pitch, y = c.yaw;
     const amin = 22 * Math.PI / 180, amax = 68 * Math.PI / 180;

@@ -14,6 +14,8 @@ import { notes, loadNotes, saveNotes, addNote, removeNote, hitNote, drawNotes } 
 import { CRS, GeoRef, BASEMAPS } from './proj.js';
 import { t, setLang, getLang, applyI18n } from './i18n.js';
 import { initEditor, onScene as editorScene, tap as editorTap, back as editorBack, overlay as editorOverlay, onResize as editorResize, onTheme as editorTheme, editor } from './editor.js';
+import * as Docs from './docs.js';
+import * as Drive from './drive.js';
 
 const $ = (id) => document.getElementById(id);
 const A = () => window.Android || null;
@@ -416,7 +418,7 @@ const clearLong = () => { if (longTimer) { clearTimeout(longTimer); longTimer = 
 
 vp.addEventListener('pointerdown', (ev) => {
   if (!S.hasDoc) return;
-  if (ev.target.closest && ev.target.closest('.notesbar, .fab, .empty, .cmdbar, .hud')) return; // görüntü alanı içindeki düğmeler
+  if (ev.target.closest && ev.target.closest('.notesbar, .fab, .empty, .cmdbar, .hud, .docview')) return; // görüntü alanı içindeki düğmeler
   vp.setPointerCapture(ev.pointerId);
   pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
   if (pointers.size === 1) gestureView0 = { ...S.view, li: S.layoutIndex };
@@ -632,7 +634,7 @@ function onTap(sx, sy) {
 // ---------------------------------------------------------------------------
 function show(id) { const el = $(id); if (el) el.hidden = false; }
 function hide(id) { const el = $(id); if (!el) return; if (id === 'displayPanel') closeDisplayOptions(); else el.hidden = true; }
-const PANELS = ['layerPanel', 'infoPanel', 'measurePanel', 'docPanel', 'searchPanel', 'displayPanel'];
+const PANELS = ['layerPanel', 'infoPanel', 'measurePanel', 'docPanel', 'searchPanel', 'displayPanel', 'drivePanel'];
 function openPanels() { return PANELS.filter(id => { const el = $(id); return el && !el.hidden; }); }
 function closeMenu() { hide('moreMenu'); }
 document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => hide(b.dataset.close)));
@@ -949,6 +951,7 @@ function menuAction(act) {
     case 'lw': toggleDisplay('lw'); break;
     case 'text': toggleDisplay('showText'); break;
     case 'display': openDisplayOptions(); break;
+    case 'drive': Drive.open(); break;
     case 'goto': gotoCoord(); break;
     case 'zoomwin': zoomWindow(); break;
     case 'prevview': viewHistory.back(); break;
@@ -1391,8 +1394,10 @@ function savePng(dataUrl, name) {
   }
   if (A() && A().savePng) A().savePng(data.split(',')[1], name);
   else { const a = document.createElement('a'); a.href = data; a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 1000); }
-  toast(tt('pngSaved', 'PNG kaydedildi'), { type: 'ok' });
+  lastPng = { b64: data.split(',')[1], name };
+  toast(tt('pngSaved', 'PNG kaydedildi'), { type: 'ok', action: Drive.signedIn() ? { label: tt('driveUpload', "Drive'a yükle"), fn: () => Drive.uploadWithPicker({ b64: lastPng.b64, name: lastPng.name, mime: 'image/png' }) } : undefined });
 }
+let lastPng = null;
 const baseName = () => (S.fileName || 'cizim').replace(/\.(dwg|dxf)$/i, '');
 const stamp = () => new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '');
 const PAPERS = { A4: [210, 297], A3: [297, 420], A2: [420, 594], A1: [594, 841], A0: [841, 1189] };
@@ -1454,8 +1459,9 @@ async function makePdf(title, paper, orient, scaleN, dpi) {
     const jpeg = page.toDataURL('image/jpeg', 0.92).split(',')[1];
     const pdf = buildPdf(jpeg, W, H, wmm, hmm, title || baseName());
     const name = baseName() + '_' + stamp() + '.pdf';
-    if (A() && A().saveFile) { const r = A().saveFile(pdf, name, 'application/pdf', true); toast(r ? t('pdfDone') + ': ' + r : t('pdfFail')); }
-    else { const a = document.createElement('a'); a.href = 'data:application/pdf;base64,' + pdf; a.download = name; a.click(); }
+    const driveAct = Drive.signedIn() ? { label: tt('driveUpload', "Drive'a yükle"), fn: () => Drive.uploadWithPicker({ b64: pdf, name, mime: 'application/pdf' }) } : undefined;
+    if (A() && A().saveFile) { const r = A().saveFile(pdf, name, 'application/pdf', true); toast(r ? t('pdfDone') + ': ' + r : t('pdfFail'), { type: r ? 'ok' : 'error', ms: 6000, action: r ? driveAct : undefined }); }
+    else { const a = document.createElement('a'); a.href = 'data:application/pdf;base64,' + pdf; a.download = name; a.click(); toast(t('pdfDone'), { type: 'ok', action: driveAct }); }
     hide('docPanel');
   } catch (e) { fail(e); }
   setLoading(null);
@@ -1536,6 +1542,7 @@ function setScene(scene, name, size) {
   S.images = new Map(); S.compare = null; S.selected = null; S.cacheValid = false;
   S.modelTree = new RTree(scene.layouts[0].prims, p => p.bb);
   S.hasDoc = true;
+  Docs.suspend();
   if (S.mode !== 'view') setMode('view');
   if (S.notesOn) toggleNotes(false);
   hide('empty'); hide('infoPanel'); hide('docPanel'); hide('searchPanel');
@@ -1569,12 +1576,16 @@ async function fetchFile(id) {
   return r.arrayBuffer();
 }
 async function loadCurrent(name, size) {
-  try { setLoading(t('loading'), name); await loadBytes(await fetchFile('current'), name, size); } catch (e) { fail(e); }
+  try {
+    if (!Docs.isCad(name) && Docs.kindOf(name) !== 'other') { setLoading(t('loading'), name); const ok = await Docs.openCurrent(name, size); setLoading(null); if (ok) return; }
+    setLoading(t('loading'), name); await loadBytes(await fetchFile('current'), name, size);
+  } catch (e) { fail(e); }
 }
 /** Android dosya seçici sonucu */
 async function onFilePicked(purpose, id, name, size) {
   try {
     if (purpose === 'open') { await loadCurrent(name, size); return; }
+    if (purpose.startsWith('upload:')) { const info = JSON.parse(A().docOpen(id) || '{}'); if (info.error) throw new Error(info.error); Drive.upload({ fileId: info.id, name, mime: Docs.kindOf(name) === 'cad' ? 'application/acad' : 'application/octet-stream', folder: purpose.slice(7) }); return; }
     if (purpose === 'compare') { await setCompare(await fetchFile(id), name); return; }
     if (purpose.startsWith('xref:')) { await loadXref(Number(purpose.slice(5)), await fetchFile(id), name); return; }
     if (purpose.startsWith('img:')) { loadImageFile(purpose.slice(4), '/file/' + id); return; }
@@ -1590,7 +1601,7 @@ function pickFile(purpose, mime) {
   const inp = document.createElement('input'); inp.type = 'file'; if (mime && mime !== '*/*') inp.accept = mime;
   inp.onchange = async () => {
     const f = inp.files && inp.files[0]; if (!f) return;
-    if (purpose === 'open') await loadBytes(await f.arrayBuffer(), f.name, f.size);
+    if (purpose === 'open') { if (Docs.isCad(f.name)) await loadBytes(await f.arrayBuffer(), f.name, f.size); else await Docs.openBlob(f); }
     else if (purpose === 'compare') await setCompare(await f.arrayBuffer(), f.name);
     else if (purpose.startsWith('xref:')) await loadXref(Number(purpose.slice(5)), await f.arrayBuffer(), f.name);
     else if (purpose.startsWith('img:')) loadImageFile(purpose.slice(4), URL.createObjectURL(f));
@@ -1606,7 +1617,7 @@ function pickFile(purpose, mime) {
 function openPicker() { if (A() && A().pickFile) A().pickFile('open', '*/*'); else $('fileInput').click(); }
 $('btnOpen').addEventListener('click', openPicker);
 $('btnOpen2').addEventListener('click', openPicker);
-$('fileInput').addEventListener('change', async (ev) => { const f = ev.target.files && ev.target.files[0]; if (!f) return; await loadBytes(await f.arrayBuffer(), f.name, f.size); ev.target.value = ''; });
+$('fileInput').addEventListener('change', async (ev) => { const f = ev.target.files && ev.target.files[0]; if (!f) return; try { if (Docs.isCad(f.name) || Docs.kindOf(f.name) === 'other') await loadBytes(await f.arrayBuffer(), f.name, f.size); else await Docs.openBlob(f); } catch (e) { fail(e); } ev.target.value = ''; });
 
 // ---- son dosyalar --------------------------------------------------------------------------
 function buildRecent() {
@@ -1623,6 +1634,8 @@ function onBack() {
   if (!$('qrPanel').hidden) { stopQr(); return true; }
   if (!$('moreMenu').hidden) { closeMenu(); return true; }
   if (zoomWin) { cancelZoomWindow(); return true; }
+  if (!$('drivePanel').hidden) { Drive.close(); return true; }
+  if (Docs.isOpen()) { const open0 = openPanels(); if (open0.length) { for (const id of open0) hide(id); return true; } Docs.back(); return true; }
   if (S.gotoMarker) { S.gotoMarker = null; drawOverlay(); return true; }
   const open = openPanels();
   if (open.length) { for (const id of open) hide(id); dockLayers(); if (S.mode !== 'view') setMode('view'); return true; }
@@ -1652,7 +1665,8 @@ async function checkUpdate(manual) {
 // ---------------------------------------------------------------------------
 window.dwgApp = { loadCurrent, onFilePicked, onLocation, onBack, loadBytes, zoomExtents, render, toScreen, toWorld, state: S, notes, editor, setMode, setLayout, refreshRecent: buildRecent,
   onLocationError: (m) => toast('GPS: ' + m),
-  display: D, toast, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, savePng, getSettings: () => settings, requestRender, openDisplayOptions };
+  display: D, toast, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, savePng, getSettings: () => settings, requestRender, openDisplayOptions,
+  docs: Docs, drive: Drive, onGoogle: (ok, json) => Drive.onGoogle(ok, json), onDrive: (id, ok, json) => Drive.onDrive(id, ok, json), onDriveProgress: (id, d, tot) => Drive.onProgress(id, d, tot), openDrive: () => Drive.open() };
 ensureStatusChips();
 D.initDisplay({ requestRender, drawOverlay, toast, openDoc, show, hide, buildLayerList, settings, saveSettings, editorTheme, zoomExtents, zoomBy, fitPrims, viewHistory, setLayout, editor, ui: uiPrefs(), basemaps: BASEMAPS, haptic });
 mountNavFabs(vp);
@@ -1660,6 +1674,14 @@ initEditor({ S, requestRender, drawOverlay, toast, pick: (w) => pick(w, TOL.pick
   action: (a) => { if (a === 'layers') $('btnLayers').click(); else if (a === 'search') $('btnSearch').click(); else if (a === 'more') $('btnMore').click(); else menuAction(a); },
   savePng, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, isolateLayers, unisolate, settings, stamp, haptic, openDisplayOptions, setDisplay, getDisplay, toggleDisplay, display: D });
 $('stScale').addEventListener('click', showScalePicker);
+// belgeler (PDF / Word / ZIP / RAR) ve Google Drive
+Docs.initDocs({ toast, loadBytes, openDoc, hide, show, esc, kv, driveAvailable: () => Drive.signedIn(), driveUpload: (d) => { if (d && d.id) Drive.uploadWithPicker({ fileId: d.id, name: d.name, mime: 'application/octet-stream' }); }, driveConvert: (d) => Drive.convertToPdf(d),
+  onOpen: () => { closeMenu(); if (S.notesOn) toggleNotes(false); if (S.mode !== 'view') setMode('view'); hide('infoPanel'); }, onClose: () => { requestRender(); },
+  onCadFromArchive: () => { toast(tt('backToArchive', 'Arşive dön') + '?', { ms: 6000, action: { label: tt('backToArchive', 'Arşive dön'), fn: () => Docs.reopenLast() } }); } });
+Drive.initDrive({ toast, openDoc, hide, show, esc, kv, hideToast: () => { $('toast').hidden = true; }, openRegistered: (info) => Docs.openRegistered(info), openConverted: (info) => Docs.openConverted(info),
+  dxfBytes: () => (editor.dxfBase64 ? editor.dxfBase64(false) : null), pngBytes: () => { savePng(); return lastPng; },
+  pickForUpload: (folder) => pickFile('upload:' + folder, '*/*') });
+$('btnDrive').addEventListener('click', () => Drive.open());
 // klavye (odak bir giriş alanında değilken): önce düzenleyici, sonra gezinti
 window.addEventListener('keydown', (ev) => {
   const tg = ev.target; if (tg && (tg.tagName === 'INPUT' || tg.tagName === 'TEXTAREA' || tg.tagName === 'SELECT' || tg.isContentEditable)) return;

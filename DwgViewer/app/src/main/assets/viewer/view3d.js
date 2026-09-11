@@ -22,7 +22,8 @@ attribute vec3 aPos; attribute vec4 aCol; attribute vec3 aNrm;
 uniform mat4 uMVP; uniform float uZ; uniform float uPointSize; uniform vec2 uOff;
 uniform int uColorMode; uniform vec3 uFg; uniform float uZmin; uniform float uZmax;
 uniform vec3 uClipMin; uniform vec3 uClipInv; uniform vec3 uEye; uniform vec2 uFadeRange;
-varying vec4 vCol; varying vec3 vNrm; varying vec3 vClip; varying float vFade;
+uniform float uJitter; uniform float uSeed; uniform float uHull; uniform int uFlat; uniform float uFlatZ;
+varying vec4 vCol; varying vec3 vNrm; varying vec3 vClip; varying float vFade; varying vec3 vPos;
 vec3 ramp(float t) {
   vec3 c0 = vec3(0.16, 0.36, 0.95), c1 = vec3(0.2, 0.8, 0.9), c2 = vec3(0.25, 0.82, 0.3), c3 = vec3(0.98, 0.85, 0.2), c4 = vec3(0.95, 0.25, 0.2);
   float s = t * 4.0;
@@ -33,10 +34,20 @@ vec3 ramp(float t) {
 }
 void main() {
   vec3 p3 = vec3(aPos.x, aPos.y, aPos.z * uZ);
+  if (uFlat == 1) p3.z = uFlatZ;                       // zemin gölgesi: yüzeyler zemine yatırılır
+  if (uHull > 0.0) {                                   // siluet: kameradan uzak yöne şişirilmiş kabuk
+    vec3 n = normalize(aNrm); if (dot(n, uEye - p3) > 0.0) n = -n;
+    p3 += n * uHull;
+  }
   vec4 p = uMVP * vec4(p3, 1.0);
   p.xy += uOff * p.w;
+  if (uJitter > 0.0) {                                 // eskiz: konuma bağlı sözde rastgele titreme
+    float h1 = fract(sin(dot(aPos.xy + uSeed, vec2(12.9898, 78.233))) * 43758.5453);
+    float h2 = fract(sin(dot(aPos.yz + uSeed, vec2(39.3468, 11.135))) * 43758.5453);
+    p.xy += (vec2(h1, h2) - 0.5) * uJitter * p.w;
+  }
   gl_Position = p; gl_PointSize = uPointSize;
-  vNrm = aNrm;
+  vNrm = aNrm; vPos = p3;
   vClip = (aPos - uClipMin) * uClipInv;
   vFade = clamp((distance(p3, uEye) - uFadeRange.x) / max(uFadeRange.y - uFadeRange.x, 1e-6), 0.0, 1.0);
   vec3 rgb = aCol.rgb;
@@ -46,14 +57,25 @@ void main() {
 }`;
 const FS = `
 precision mediump float;
-varying vec4 vCol; varying vec3 vNrm; varying vec3 vClip; varying float vFade;
+varying vec4 vCol; varying vec3 vNrm; varying vec3 vClip; varying float vFade; varying vec3 vPos;
 uniform float uAlpha; uniform vec4 uOverride; uniform bool uClip;
 uniform bool uLit; uniform vec3 uLightDir; uniform float uAmbient; uniform float uIntensity;
-uniform float uFade; uniform vec3 uBg;
+uniform float uFade; uniform vec3 uBg; uniform int uShade; uniform float uGray; uniform highp vec3 uEye;
 void main() {
   if (uClip && (vClip.x < 0.0 || vClip.y < 0.0 || vClip.z < 0.0 || vClip.x > 1.0 || vClip.y > 1.0 || vClip.z > 1.0)) discard;
   vec3 rgb = uOverride.a > 0.0 ? uOverride.rgb : vCol.rgb;
-  if (uLit) { float d = abs(dot(normalize(vNrm), uLightDir)); rgb *= uAmbient + (1.0 - uAmbient) * d * uIntensity; }
+  if (uLit) {
+    vec3 n = normalize(vNrm); float d = abs(dot(n, uLightDir));
+    if (uShade == 1) {                                  // kavramsal: Gooch soğuk-sıcak
+      float t = dot(n, uLightDir) * 0.5 + 0.5;
+      vec3 cool = vec3(0.16, 0.22, 0.5) + 0.3 * rgb, warm = vec3(0.6, 0.5, 0.25) + 0.55 * rgb;
+      rgb = mix(cool, warm, t) * (uAmbient + (1.0 - uAmbient) * uIntensity);
+    } else {
+      rgb *= uAmbient + (1.0 - uAmbient) * d * uIntensity;
+      if (uShade == 2) { vec3 v = normalize(uEye - vPos); vec3 h = normalize(uLightDir + v); float sp = pow(max(abs(dot(n, h)), 0.0), 36.0); rgb += vec3(0.28) * sp * uIntensity; }   // gerçekçi: parlama
+    }
+  }
+  if (uGray > 0.0) { float l = dot(rgb, vec3(0.299, 0.587, 0.114)); rgb = mix(rgb, vec3(l), uGray); }
   if (uFade > 0.0) rgb = mix(rgb, uBg, uFade * vFade);
   gl_FragColor = vec4(rgb, vCol.a * uAlpha);
 }`;
@@ -121,8 +143,10 @@ const PRESET_ANGLES = {
   isoSW: { yaw: 3 * Math.PI / 4, pitch: 35.264 * Math.PI / 180 },
 };
 const PERSIST_SKIP = new Set(['clip', 'clipBox', 'turntable', 'zScale']);
+const TOUCH_ENUM = { oneFinger: ['orbit', 'pan'], twoFinger: ['zoompan', 'zoomrotate'], threeFinger: ['pan', 'orbit', 'none'], doubleTap: ['fit', 'zoom', 'none'] };
 const ENUMS = {
-  style: ['wireframe', 'hidden', 'shaded', 'shadedEdges', 'xray'], colorMode: ['entity', 'layer', 'elevation', 'mono'], lightMode: ['camera', 'fixed'],
+  style: ['wireframe', 'wireframe2d', 'hidden', 'shaded', 'shadedEdges', 'realistic', 'conceptual', 'gray', 'sketchy', 'xray'], colorMode: ['entity', 'layer', 'elevation', 'mono'], lightMode: ['camera', 'fixed'],
+  lightQuality: ['faceted', 'smooth'], edges: ['facet', 'none'], edgeColor: ['auto', 'black', 'white', 'fg'],
   gridZ: ['min', 'zero', 'custom'], bg: ['theme', 'gradient', 'black', 'white', 'custom'], lineWidth: ['thin', 'normal', 'thick'],
   elevLabels: ['off', 'sel', 'visible'], hudPos: ['tl', 'bl'],
 };
@@ -138,7 +162,18 @@ export class View3D {
     pointSize: 6, textPoints: true, lineWidth: 'normal',
     clip: null, clipBox: false, turntable: false, turnSpeed: 15, depthFade: false, dimOthers: false,
     elevLabels: 'off', hud: true, hudPos: 'tl',
-    touch: Object.freeze({ oneFinger: 'orbit', invertY: false, sensitivity: 1 }),
+    // görsel stil ayrıntıları (AutoCAD görsel stil yöneticisine benzer): yüz, kenar, ortam
+    lightQuality: 'faceted', specular: false, faceOpacity: 1,
+    edges: 'facet', edgeColor: 'auto', silhouette: false, silhouetteWidth: 2, overhang: 0, jitter: 0,
+    shadow: false,
+    touch: Object.freeze({ oneFinger: 'orbit', invertY: false, sensitivity: 1, twoFinger: 'zoompan', threeFinger: 'pan', doubleTap: 'fit' }),
+  });
+  /** stil ön ayarları: seçenek geçersiz kılmaları (kullanıcı ayarı sıfır/yanlış ise stilinki geçerli) */
+  static STYLES = Object.freeze({
+    wireframe: { faces: 'none', edges: true, depth: true }, wireframe2d: { faces: 'none', edges: true, depth: false },
+    hidden: { faces: 'bg', edges: true }, shaded: { faces: 'lit', edges: false }, shadedEdges: { faces: 'lit', edges: true },
+    realistic: { faces: 'lit', edges: true, shade: 2, quality: 'smooth', specular: true }, conceptual: { faces: 'lit', edges: true, shade: 1, silhouette: true },
+    gray: { faces: 'lit', edges: true, gray: 1 }, sketchy: { faces: 'lit', edges: true, jitter: 2, overhang: 2 }, xray: { faces: 'xray', edges: true },
   });
   static PRESETS = [
     { id: 'top', tr: 'Üst', en: 'Top' }, { id: 'bottom', tr: 'Alt', en: 'Bottom' }, { id: 'front', tr: 'Ön', en: 'Front' }, { id: 'back', tr: 'Arka', en: 'Back' },
@@ -158,14 +193,14 @@ export class View3D {
     this.prog = prog; gl.useProgram(prog);
     this.aPos = gl.getAttribLocation(prog, 'aPos'); this.aCol = gl.getAttribLocation(prog, 'aCol'); this.aNrm = gl.getAttribLocation(prog, 'aNrm');
     this.u = {};
-    for (const n of ['uMVP', 'uZ', 'uPointSize', 'uOff', 'uColorMode', 'uFg', 'uZmin', 'uZmax', 'uClipMin', 'uClipInv', 'uEye', 'uFadeRange', 'uAlpha', 'uOverride', 'uClip', 'uLit', 'uLightDir', 'uAmbient', 'uIntensity', 'uFade', 'uBg']) this.u[n] = gl.getUniformLocation(prog, n);
+    for (const n of ['uMVP', 'uZ', 'uPointSize', 'uOff', 'uColorMode', 'uFg', 'uZmin', 'uZmax', 'uClipMin', 'uClipInv', 'uEye', 'uFadeRange', 'uAlpha', 'uOverride', 'uClip', 'uLit', 'uLightDir', 'uAmbient', 'uIntensity', 'uFade', 'uBg', 'uJitter', 'uSeed', 'uHull', 'uFlat', 'uFlatZ', 'uShade', 'uGray']) this.u[n] = gl.getUniformLocation(prog, n);
     // tamponlar: her ad için konum (pos) + renk (col) (+ normal) ayrı
     this.bufs = {};
     this._n = { lines: 0, edges: 0, tris: 0, pts: 0, txt: 0, grid: 0, axes: 0, sel: 0, clipBox: 0, bgq: 0 };
     this.counts = { lines: 0, tris: 0, pts: 0, grid: 0, axes: 0, sel: 0 };
     this.src = {};            // yeniden renklendirme kaynakları
     this.layerNames = []; this.layerRGB = new Float32Array(0); this.layerIdx = new Map();
-    this.cam = { yaw: -Math.PI / 4, pitch: 0.6, dist: 100, target: [0, 0, 0], persp: true };
+    this.cam = { yaw: -Math.PI / 4, pitch: 0.6, dist: 100, target: [0, 0, 0], persp: false };   // AutoCAD gibi varsayılan paralel izdüşüm
     this.zScale = 1;
     this.center = [0, 0, 0]; this.radius = 1; this.origin = [0, 0, 0];
     this.bb = null; this.zrange = [0, 1];
@@ -191,10 +226,11 @@ export class View3D {
   _loadOpts() {
     const st = store.json('view3d', null);
     if (!st || typeof st !== 'object') return;
+    if (typeof st.persp === 'boolean') this.cam.persp = st.persp;
     for (const k of Object.keys(View3D.DEFAULTS)) {
       if (PERSIST_SKIP.has(k) || !(k in st)) continue;
       const v = st[k], def = View3D.DEFAULTS[k];
-      if (k === 'touch') { if (v && typeof v === 'object') { if (v.oneFinger === 'orbit' || v.oneFinger === 'pan') this.opts.touch.oneFinger = v.oneFinger; if (typeof v.invertY === 'boolean') this.opts.touch.invertY = v.invertY; if (isFinite(v.sensitivity) && v.sensitivity > 0) this.opts.touch.sensitivity = clamp(+v.sensitivity, 0.25, 4); } continue; }
+      if (k === 'touch') { if (v && typeof v === 'object') { for (const tk of Object.keys(TOUCH_ENUM)) if (TOUCH_ENUM[tk].includes(v[tk])) this.opts.touch[tk] = v[tk]; if (typeof v.invertY === 'boolean') this.opts.touch.invertY = v.invertY; if (isFinite(v.sensitivity) && v.sensitivity > 0) this.opts.touch.sensitivity = clamp(+v.sensitivity, 0.25, 4); } continue; }
       if (ENUMS[k]) { if (ENUMS[k].includes(v)) this.opts[k] = v; continue; }
       if (k === 'gridStep') { if (v === 'auto' || (isFinite(v) && v > 0)) this.opts[k] = v; continue; }
       if (typeof def === 'boolean') { if (typeof v === 'boolean') this.opts[k] = v; continue; }
@@ -207,6 +243,7 @@ export class View3D {
     this._persistT = setTimeout(() => {
       const o = {};
       for (const k of Object.keys(View3D.DEFAULTS)) if (!PERSIST_SKIP.has(k)) o[k] = this.opts[k];
+      o.persp = this.cam.persp;
       store.set('view3d', JSON.stringify(o));
     }, 300);
   }
@@ -218,15 +255,15 @@ export class View3D {
   set(key, value) {
     const o = this.opts;
     if (key === 'zScale') { const f = +value; if (!(f > 0) || !isFinite(f)) return; this.zScale = f; this.render(); this._emit('zScale', f); return; }
-    if (key === 'persp') { this.cam.persp = !!value; this.render(); this._emit('persp', this.cam.persp); return; }
+    if (key === 'persp') { this.cam.persp = !!value; this._persist(); this.render(); this._emit('persp', this.cam.persp); return; }
     if (key === 'touch') { Object.assign(o.touch, value || {}); this._persist(); this._emit('touch', { ...o.touch }); return; }
-    if (key.startsWith('touch.')) { const k = key.slice(6); if (!(k in o.touch)) return; o.touch[k] = k === 'sensitivity' ? clamp(+value || 1, 0.25, 4) : k === 'invertY' ? !!value : (value === 'pan' ? 'pan' : 'orbit'); this._persist(); this._emit(key, o.touch[k]); return; }
+    if (key.startsWith('touch.')) { const k = key.slice(6); if (!(k in o.touch)) return; if (k === 'sensitivity') o.touch[k] = clamp(+value || 1, 0.25, 4); else if (k === 'invertY') o.touch[k] = !!value; else { if (!TOUCH_ENUM[k] || !TOUCH_ENUM[k].includes(value)) return; o.touch[k] = value; } this._persist(); this._emit(key, o.touch[k]); return; }
     if (!(key in View3D.DEFAULTS)) return;
     if (ENUMS[key] && !ENUMS[key].includes(value)) return;
     if (key === 'gridStep') { value = value === 'auto' ? 'auto' : +value; if (value !== 'auto' && !(value > 0)) return; }
     else if (key === 'clip') { value = View3D.validClip(value); }
     else if (typeof View3D.DEFAULTS[key] === 'boolean') value = !!value;
-    else if (typeof View3D.DEFAULTS[key] === 'number') { value = +value; if (!isFinite(value)) return; if (key === 'fov') value = clamp(value, 10, 120); if (key === 'pointSize') value = clamp(value, 1, 32); if (key === 'ambient') value = clamp(value, 0, 1); if (key === 'lightIntensity') value = clamp(value, 0, 2); if (key === 'turnSpeed') value = clamp(value, 1, 180); }
+    else if (typeof View3D.DEFAULTS[key] === 'number') { value = +value; if (!isFinite(value)) return; if (key === 'fov') value = clamp(value, 10, 120); if (key === 'pointSize') value = clamp(value, 1, 32); if (key === 'ambient') value = clamp(value, 0, 1); if (key === 'lightIntensity') value = clamp(value, 0, 2); if (key === 'turnSpeed') value = clamp(value, 1, 180); if (key === 'faceOpacity') value = clamp(value, 0.05, 1); if (key === 'silhouetteWidth') value = clamp(value, 1, 6); if (key === 'overhang') value = clamp(value, 0, 6); if (key === 'jitter') value = clamp(value, 0, 4); }
     const prev = o[key];
     o[key] = value;
     switch (key) {
@@ -234,6 +271,7 @@ export class View3D {
       case 'clip': case 'clipBox': this.buildClipBox(); break;
       case 'colorMode': if (value === 'layer' || prev === 'layer') this.recolor(); break;
       case 'turntable': this.setTurntable(value, true); value = o.turntable; break;
+      case 'overhang': case 'style': this._applyOverhang(); break;
       default: break;
     }
     if (!PERSIST_SKIP.has(key)) this._persist();
@@ -335,10 +373,12 @@ export class View3D {
     for (const n of ['lines', 'edges', 'tris', 'pts', 'txt']) {
       const b = B[n], pos = b.pos.out(), o = this.origin;
       for (let i = 0; i < pos.length; i += 3) { pos[i] -= o[0]; pos[i + 1] -= o[1]; pos[i + 2] -= o[2]; }
-      this.src[n] = { rgb: b.rgb.out(), lay: b.lay.out(), alpha: n === 'txt' ? 0.6 : 1 };
+      this.src[n] = { rgb: b.rgb.out(), lay: b.lay.out(), alpha: n === 'txt' ? 0.6 : 1, pos: (n === 'edges' || n === 'tris') ? pos : null, nrm: b.nrm ? b.nrm.out() : null, smooth: null };
       this.uploadPos(n, pos); if (b.nrm) this.uploadNrm(n, b.nrm.out());
       this._n[n] = pos.length / 3;
     }
+    this._smoothReady = false;
+    this._applyOverhang();
     this.recolor();
     this.counts.lines = this._n.lines + this._n.edges; this.counts.tris = this._n.tris; this.counts.pts = this._n.pts + this._n.txt;
     this.buildGrid(); this.buildAxes(); this.buildClipBox();
@@ -359,6 +399,38 @@ export class View3D {
       }
       this.uploadCol(n, out);
     }
+  }
+  /** etkin stil bayrakları (stil ön ayarı + kullanıcı geçersiz kılmaları) */
+  _styleFx() {
+    const o = this.opts, st = View3D.STYLES[o.style] || View3D.STYLES.wireframe;
+    return {
+      faces: this._n.tris ? st.faces : (st.faces === 'xray' ? 'xray' : 'none'), edges: o.edges !== 'none' && st.edges !== false, depth: st.depth !== false,
+      shade: st.shade || 0, gray: st.gray || 0, quality: o.lightQuality === 'smooth' || st.quality === 'smooth' ? 'smooth' : 'faceted',
+      specular: o.specular || !!st.specular, silhouette: o.silhouette || !!st.silhouette, jitter: Math.max(o.jitter, st.jitter || 0), overhang: Math.max(o.overhang, st.overhang || 0), shadow: o.shadow,
+    };
+  }
+  /** kenar uzatma (overhang): kenar çizgileri iki uçtan da uzatılarak yeniden yüklenir */
+  _applyOverhang() {
+    const s = this.src.edges; if (!s || !s.pos) return;
+    const k = this._styleFx().overhang;
+    if (!k) { this.uploadPos('edges', s.pos); return; }
+    const e = this.radius * 0.004 * k, src = s.pos, out = new Float32Array(src.length);
+    for (let i = 0; i + 5 < src.length; i += 6) {
+      const dx = src[i + 3] - src[i], dy = src[i + 4] - src[i + 1], dz = src[i + 5] - src[i + 2], L = Math.hypot(dx, dy, dz) || 1, ex = dx / L * e, ey = dy / L * e, ez = dz / L * e;
+      out[i] = src[i] - ex; out[i + 1] = src[i + 1] - ey; out[i + 2] = src[i + 2] - ez; out[i + 3] = src[i + 3] + ex; out[i + 4] = src[i + 4] + ey; out[i + 5] = src[i + 5] + ez;
+    }
+    this.uploadPos('edges', out);
+  }
+  /** yumuşak normaller: aynı konumu paylaşan üçgen normallerinin ortalaması (gerçekçi stil / yumuşak aydınlatma) */
+  _ensureSmooth() {
+    const s = this.src.tris; if (!s || !s.pos || !s.nrm || this._smoothReady) return;
+    const pos = s.pos, nrm = s.nrm, n = pos.length / 3, acc = new Map(), keys = new Array(n);
+    const eps = Math.max(1e-9, this.radius * 1e-6);
+    for (let i = 0; i < n; i++) { const k = Math.round(pos[i * 3] / eps) + ',' + Math.round(pos[i * 3 + 1] / eps) + ',' + Math.round(pos[i * 3 + 2] / eps); keys[i] = k; let a = acc.get(k); if (!a) { a = [0, 0, 0]; acc.set(k, a); } const ref = a; const sgn = (ref[0] * nrm[i * 3] + ref[1] * nrm[i * 3 + 1] + ref[2] * nrm[i * 3 + 2]) < 0 ? -1 : 1; a[0] += sgn * nrm[i * 3]; a[1] += sgn * nrm[i * 3 + 1]; a[2] += sgn * nrm[i * 3 + 2]; }
+    const out = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) { const a = acc.get(keys[i]); const L = Math.hypot(a[0], a[1], a[2]) || 1; const sgn = (a[0] * nrm[i * 3] + a[1] * nrm[i * 3 + 1] + a[2] * nrm[i * 3 + 2]) < 0 ? -1 : 1; out[i * 3] = sgn * a[0] / L; out[i * 3 + 1] = sgn * a[1] / L; out[i * 3 + 2] = sgn * a[2] / L; }
+    const gl = this.gl; gl.bindBuffer(gl.ARRAY_BUFFER, this._buf('tris', 'nrm2')); gl.bufferData(gl.ARRAY_BUFFER, out, gl.STATIC_DRAW);
+    this._smoothReady = true;
   }
   _buf(name, kind) { const k = name + ':' + kind; if (!this.bufs[k]) this.bufs[k] = this.gl.createBuffer(); return this.bufs[k]; }
   uploadPos(name, arr) { const gl = this.gl; gl.bindBuffer(gl.ARRAY_BUFFER, this._buf(name, 'pos')); gl.bufferData(gl.ARRAY_BUFFER, arr, gl.STATIC_DRAW); }
@@ -574,6 +646,8 @@ export class View3D {
   _fgFor(bg) { return lum(bg) > 0.5 ? [0.07, 0.07, 0.07] : [0.95, 0.96, 0.97]; }
   render() {
     const gl = this.gl, cv = this.cv, o = this.opts;
+    // tuval boyutu CSS boyutuyla uyuşmuyorsa (döndürme, panel, klavye) düzelt — en-boy oranı bozulmasın
+    { const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1)); const w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr); if (w > 0 && h > 0 && (cv.width !== w || cv.height !== h)) { cv.width = w; cv.height = h; } }
     if (!cv.width || !cv.height) return;
     gl.viewport(0, 0, cv.width, cv.height);
     const bg = this._bgColor();
@@ -618,6 +692,8 @@ export class View3D {
     gl.uniform1f(u.uAmbient, o.light ? o.ambient : 1); gl.uniform1f(u.uIntensity, o.light ? o.lightIntensity : 0);
     gl.uniform1i(u.uLit, 0); gl.uniform4f(u.uOverride, 0, 0, 0, 0);
     gl.uniform1f(u.uPointSize, 1);
+    gl.uniform1f(u.uJitter, 0); gl.uniform1f(u.uSeed, 0); gl.uniform1f(u.uHull, 0); gl.uniform1i(u.uFlat, 0); gl.uniform1f(u.uFlatZ, 0); gl.uniform1i(u.uShade, 0); gl.uniform1f(u.uGray, 0);
+    const fx = this._styleFx();
     const dpr = window.devicePixelRatio || 1;
     // ızgara ve eksenler: renk özniteliğinden, kesitsiz
     gl.uniform1i(u.uColorMode, 0); gl.uniform1i(u.uClip, 0);
@@ -628,36 +704,65 @@ export class View3D {
     const cm = o.colorMode === 'elevation' ? 1 : o.colorMode === 'mono' ? 2 : 0;
     gl.uniform1i(u.uColorMode, cm);
     const dim = o.dimOthers && this._selCount > 0 ? 0.3 : 1;
-    const style = this._n.tris ? o.style : (o.style === 'xray' ? 'xray' : 'wireframe');
-    const lit = o.light && (style === 'shaded' || style === 'shadedEdges');
-    if (style === 'hidden') {
+    const lit = o.light && fx.faces === 'lit';
+    const px = 2 / cv.width, py = 2 / cv.height;
+    const darkEdge = lum(bg) > 0.5 ? [0.1, 0.1, 0.1] : [0.05, 0.05, 0.05];
+    // zemin gölgesi: yüzeyler ızgara kotuna yatırılır
+    if (fx.shadow && this._n.tris) {
+      const gz = (o.gridZ === 'zero' ? 0 : o.gridZ === 'custom' ? (+o.gridZValue || 0) : this.bb[2]) - this.origin[2];
+      gl.uniform1i(u.uFlat, 1); gl.uniform1f(u.uFlatZ, gz * this.zScale - this.radius * 1e-4);
+      gl.uniform4f(u.uOverride, lum(bg) > 0.5 ? 0.35 : 0.02, lum(bg) > 0.5 ? 0.35 : 0.02, lum(bg) > 0.5 ? 0.38 : 0.04, 1);
+      gl.depthMask(false); this._draw('tris', gl.TRIANGLES, 0.45, true); gl.depthMask(true);
+      gl.uniform1i(u.uFlat, 0); gl.uniform4f(u.uOverride, 0, 0, 0, 0);
+    }
+    // siluet: kameradan uzağa şişirilmiş koyu kabuk (yüzeyler üstüne çizilince yalnız çevre kalır)
+    if (fx.silhouette && this._n.tris && fx.faces !== 'none' && fx.faces !== 'xray') {
+      this._ensureSmooth();
+      gl.uniform1f(u.uHull, this.radius * 0.004 * o.silhouetteWidth);
+      gl.uniform4f(u.uOverride, darkEdge[0], darkEdge[1], darkEdge[2], 1);
+      this._draw('tris', gl.TRIANGLES, 1, true, true);
+      gl.uniform1f(u.uHull, 0); gl.uniform4f(u.uOverride, 0, 0, 0, 0);
+    }
+    if (fx.faces === 'bg') {
       gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(1, 1);
       gl.uniform4f(u.uOverride, bg[0], bg[1], bg[2], 1);
       this._draw('tris', gl.TRIANGLES, 1, true);
       gl.uniform4f(u.uOverride, 0, 0, 0, 0);
       gl.disable(gl.POLYGON_OFFSET_FILL);
-    } else if (style === 'shaded' || style === 'shadedEdges') {
+    } else if (fx.faces === 'lit') {
       gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(1, 1);
-      gl.uniform1i(u.uLit, lit ? 1 : 0);
-      this._draw('tris', gl.TRIANGLES, dim, true);
-      gl.uniform1i(u.uLit, 0);
+      gl.uniform1i(u.uLit, lit ? 1 : 0); gl.uniform1i(u.uShade, lit ? (fx.shade === 1 ? 1 : (fx.specular ? 2 : 0)) : 0); gl.uniform1f(u.uGray, fx.gray);
+      if (fx.quality === 'smooth') this._ensureSmooth();
+      if (o.faceOpacity < 1) gl.depthMask(false);
+      this._draw('tris', gl.TRIANGLES, dim * o.faceOpacity, true, fx.quality === 'smooth');
+      gl.depthMask(true);
+      gl.uniform1i(u.uLit, 0); gl.uniform1i(u.uShade, 0); gl.uniform1f(u.uGray, 0);
       gl.disable(gl.POLYGON_OFFSET_FILL);
-    } else if (style === 'xray') {
+    } else if (fx.faces === 'xray') {
       gl.depthMask(false);
       this._draw('tris', gl.TRIANGLES, 0.25 * dim, true);
       gl.depthMask(true);
       gl.disable(gl.DEPTH_TEST);
     }
-    // çizgiler (kalınlık: NDC ofsetli tekrar)
+    if (!fx.depth) gl.disable(gl.DEPTH_TEST);
+    if (fx.gray) gl.uniform1f(u.uGray, fx.gray);
+    // çizgiler (kalınlık: NDC ofsetli tekrar); kenarlar: renk geçersiz kılma, eskiz titremesi
     const segs = (this._n.lines + this._n.edges) / 2;
     const lw = segs > 300000 ? 'thin' : o.lineWidth;
     const offs = lw === 'thick' ? THICK_OFFS : lw === 'normal' ? NORMAL_OFFS : THIN_OFFS;
-    const px = 2 / cv.width, py = 2 / cv.height;
+    const edgeCol = o.edgeColor === 'black' ? [0, 0, 0] : o.edgeColor === 'white' ? [1, 1, 1] : o.edgeColor === 'fg' ? fgEff : (fx.shade || fx.gray || fx.faces === 'lit' && o.style !== 'shadedEdges' ? darkEdge : null);
+    const jitterAmt = fx.jitter ? fx.jitter * 1.6 * px : 0;
     for (let i = 0; i < offs.length; i++) {
       gl.uniform2f(u.uOff, offs[i][0] * px, offs[i][1] * py);
       this._draw('lines', gl.LINES, dim);
-      if (style !== 'shaded') this._draw('edges', gl.LINES, dim);
+      if (fx.edges) {
+        if (edgeCol) gl.uniform4f(u.uOverride, edgeCol[0], edgeCol[1], edgeCol[2], 1);
+        if (jitterAmt) { for (let j = 0; j < 3; j++) { gl.uniform1f(u.uJitter, jitterAmt); gl.uniform1f(u.uSeed, j * 7.13); this._draw('edges', gl.LINES, dim * 0.8); } gl.uniform1f(u.uJitter, 0); }
+        else this._draw('edges', gl.LINES, dim);
+        if (edgeCol) gl.uniform4f(u.uOverride, 0, 0, 0, 0);
+      }
     }
+    gl.uniform1f(u.uGray, 0);
     gl.uniform2f(u.uOff, 0, 0);
     gl.uniform1f(u.uPointSize, o.pointSize * dpr);
     this._draw('pts', gl.POINTS, dim);
@@ -671,7 +776,7 @@ export class View3D {
     gl.enable(gl.DEPTH_TEST);
     this.lastMvp = m;
   }
-  _draw(name, mode, alpha, withNrm = false) {
+  _draw(name, mode, alpha, withNrm = false, smooth = false) {
     const n = this._n[name]; if (!n) return;
     const gl = this.gl;
     gl.bindBuffer(gl.ARRAY_BUFFER, this.bufs[name + ':pos']);
@@ -679,7 +784,8 @@ export class View3D {
     gl.bindBuffer(gl.ARRAY_BUFFER, this.bufs[name + ':col']);
     gl.enableVertexAttribArray(this.aCol); gl.vertexAttribPointer(this.aCol, 4, gl.FLOAT, false, 0, 0);
     if (this.aNrm >= 0) {
-      if (withNrm && this.bufs[name + ':nrm']) { gl.bindBuffer(gl.ARRAY_BUFFER, this.bufs[name + ':nrm']); gl.enableVertexAttribArray(this.aNrm); gl.vertexAttribPointer(this.aNrm, 3, gl.FLOAT, false, 0, 0); }
+      const nb = smooth && this.bufs[name + ':nrm2'] ? this.bufs[name + ':nrm2'] : this.bufs[name + ':nrm'];
+      if (withNrm && nb) { gl.bindBuffer(gl.ARRAY_BUFFER, nb); gl.enableVertexAttribArray(this.aNrm); gl.vertexAttribPointer(this.aNrm, 3, gl.FLOAT, false, 0, 0); }
       else { gl.disableVertexAttribArray(this.aNrm); gl.vertexAttrib3f(this.aNrm, 0, 0, 1); }
     }
     gl.uniform1f(this.u.uAlpha, alpha);
@@ -777,7 +883,7 @@ export class View3D {
   /** durum çubuğu / HUD metni */
   hudText() {
     const c = this.cam, u = this.units ? ' ' + this.units : '';
-    let s = `Yaw ${fmtNum(c.yaw * 180 / Math.PI, 0)}°  Pitch ${fmtNum(c.pitch * 180 / Math.PI, 0)}°  Z×${fmtNum(this.zScale, 2)}  Izgara ${fmtNum(this.gridStep)}${u}  ${c.persp ? 'Persp.' : 'Orto.'}`;
+    let s = `Yaw ${fmtNum(c.yaw * 180 / Math.PI, 0)}°  Pitch ${fmtNum(c.pitch * 180 / Math.PI, 0)}°  Z×${fmtNum(this.zScale, 2)}  Izgara ${fmtNum(this.gridStep)}${u}  ${c.persp ? 'Persp.' : 'Paralel'}`;
     if (!this._n.tris) s += ' · Yüzey yok';
     return s;
   }

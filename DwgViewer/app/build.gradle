@@ -10,8 +10,16 @@ android {
         applicationId "com.mahmuttari.dwgviewer"
         minSdk 26
         targetSdk 34
-        versionCode 4
-        versionName "4.0"
+        versionCode 5
+        versionName "5.0"
+
+        // Google ile giriş: gradle.properties → GOOGLE_CLIENT_ID (Android türü OAuth istemcisi).
+        // Yönlendirme şeması istemci numarasından türetilir: com.googleusercontent.apps.<no>
+        def gcid = (project.findProperty("GOOGLE_CLIENT_ID") ?: "").toString().trim()
+        def gscheme = gcid ? "com.googleusercontent.apps." + gcid.split("\\.")[0] : "com.mahmuttari.dwgviewer.oauth"
+        buildConfigField "String", "GOOGLE_CLIENT_ID", "\"" + gcid + "\""
+        buildConfigField "String", "GOOGLE_REDIRECT_SCHEME", "\"" + gscheme + "\""
+        manifestPlaceholders = [googleRedirectScheme: gscheme]
     }
 
     signingConfigs {
@@ -53,4 +61,6 @@ android {
 dependencies {
     // Yalnız FileProvider için (PDF/PNG paylaşımı, Android 8-9'da dosya URI'si)
     implementation "androidx.core:core:1.13.1"
+    // RAR arşivleri (RAR 2/3/4; RAR5 desteklenmez) — MIT lisanslı
+    implementation "com.github.junrar:junrar:7.5.5"
 }

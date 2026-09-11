@@ -74,6 +74,10 @@ public class MainActivity extends Activity {
         MIME.put("css", "text/css"); MIME.put("json", "application/json"); MIME.put("wasm", "application/wasm");
         MIME.put("png", "image/png"); MIME.put("jpg", "image/jpeg"); MIME.put("jpeg", "image/jpeg"); MIME.put("svg", "image/svg+xml");
         MIME.put("woff2", "font/woff2"); MIME.put("md", "text/plain"); MIME.put("pdf", "application/pdf");
+        MIME.put("docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"); MIME.put("doc", "application/msword");
+        MIME.put("xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"); MIME.put("pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation");
+        MIME.put("zip", "application/zip"); MIME.put("rar", "application/vnd.rar"); MIME.put("txt", "text/plain"); MIME.put("csv", "text/csv"); MIME.put("xml", "text/xml");
+        MIME.put("gif", "image/gif"); MIME.put("webp", "image/webp"); MIME.put("bmp", "image/bmp"); MIME.put("dxf", "application/dxf"); MIME.put("dwg", "application/acad");
     }
 
     private WebView webView;
@@ -94,10 +98,18 @@ public class MainActivity extends Activity {
     private LocationListener locationListener;
     private PermissionRequest pendingCameraRequest;
 
+    // belgeler (PDF / Word / ZIP / RAR) ve Google Drive
+    private Docs docs;
+    private GoogleDrive google;
+    private final java.util.concurrent.ExecutorService bg = java.util.concurrent.Executors.newSingleThreadExecutor();
+
     // ---------------------------------------------------------------------------------------
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        docs = new Docs(this);
+        google = new GoogleDrive(this);
+        bg.execute(() -> docs.sweep());
         webView = new WebView(this);
         webView.setBackgroundColor(0xFF161C25);
         setContentView(webView);
@@ -170,7 +182,11 @@ public class MainActivity extends Activity {
         if (intent == null) return;
         Uri uri = null;
         String action = intent.getAction();
-        if (Intent.ACTION_VIEW.equals(action)) uri = intent.getData();
+        if (Intent.ACTION_VIEW.equals(action)) {
+            uri = intent.getData();
+            // Google ile giriş yönlendirmesi
+            if (uri != null && google.handleRedirect(uri, (ok, json) -> js("window.dwgApp && window.dwgApp.onGoogle(" + ok + "," + json + ")"))) return;
+        }
         else if (Intent.ACTION_SEND.equals(action)) uri = intent.getParcelableExtra(Intent.EXTRA_STREAM);
         if (uri != null) setCurrent(uri);
     }
@@ -271,6 +287,18 @@ public class MainActivity extends Activity {
                     File f = new File(dir("downloads"), safe(id.substring(3)));
                     return f.exists() ? ok("application/octet-stream", new FileInputStream(f), f.length()) : notFound();
                 }
+                if (id.startsWith("f_")) {
+                    File f = docs.file(id);
+                    return f != null && f.exists() ? ok(mimeOf(docs.name(id)), new FileInputStream(f), f.length()) : notFound();
+                }
+                if (id.startsWith("pdfpage_")) {
+                    // pdfpage_<f_n>_<sayfa>_<genişlik>
+                    String[] parts = id.split("_");
+                    if (parts.length >= 5) {
+                        byte[] png = docs.pdfPage(parts[1] + "_" + parts[2], Integer.parseInt(parts[3]), Integer.parseInt(parts[4]));
+                        return ok(png.length > 8 && png[0] == (byte) 0x89 ? "image/png" : "image/jpeg", new ByteArrayInputStream(png), png.length);
+                    }
+                }
             }
         } catch (Exception e) {
             Log.w(TAG, "sunulamadı: " + path, e);
@@ -321,6 +349,8 @@ public class MainActivity extends Activity {
             i.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{
                     "application/acad", "application/x-acad", "application/autocad_dwg", "application/dwg", "application/x-dwg",
                     "application/x-autocad", "image/vnd.dwg", "image/x-dwg", "drawing/dwg", "application/dxf", "image/vnd.dxf",
+                    "application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "application/zip", "application/x-zip-compressed", "application/vnd.rar", "application/x-rar-compressed", "image/*", "text/*",
                     "application/octet-stream", "*/*"});
         }
         try {
@@ -658,6 +688,110 @@ public class MainActivity extends Activity {
             }
         }
 
+        // ---- belgeler: PDF / Word / ZIP / RAR ---------------------------------------------
+        /** Geçerli dosyayı (ya da slot/dl kimliğini) belge olarak kaydeder → {id,name,size,ext} */
+        @JavascriptInterface
+        public String docOpen(String what) {
+            try {
+                if ("current".equals(what)) {
+                    if (currentFile != null) return docs.info(docs.register(currentFile, currentName)).toString();
+                    if (currentUri != null) try (InputStream in = getContentResolver().openInputStream(currentUri)) { return docs.importStream(in, currentName).toString(); }
+                    return "{\"error\":\"dosya yok\"}";
+                }
+                if (what.startsWith("slot_")) { Uri u = slots.get(what); if (u == null) return "{\"error\":\"yuva yok\"}"; try (InputStream in = getContentResolver().openInputStream(u)) { return docs.importStream(in, queryName(u)).toString(); } }
+                if (what.startsWith("dl_")) { File f = new File(dir("downloads"), safe(what.substring(3))); return docs.info(docs.register(f, f.getName().replaceFirst("^\\d+_", ""))).toString(); }
+                if (what.startsWith("f_")) return docs.info(what).toString();
+                return "{\"error\":\"bilinmeyen\"}";
+            } catch (Exception e) { Log.w(TAG, "docOpen", e); return "{\"error\":" + JSONObject.quote(String.valueOf(e.getMessage())) + "}"; }
+        }
+        /** Kayıtlı belgeyi (ör. arşivden çıkan DWG) geçerli dosya yapar ve JS'e bildirir */
+        @JavascriptInterface
+        public void docOpenAsCurrent(String id) {
+            File f = docs.file(id); if (f == null) return;
+            final String name = docs.name(id);
+            runOnUiThread(() -> { currentFile = f; currentUri = null; currentName = name; currentSize = f.length(); pushCurrentFile(); });
+        }
+        @JavascriptInterface public String pdfInfo(String id) { return docs.pdfInfo(id); }
+        @JavascriptInterface public void pdfClose() { docs.closePdf(); }
+        @JavascriptInterface public String arcList(String id) { return docs.arcList(id); }
+        @JavascriptInterface public String arcExtract(String id, String entry) { return docs.arcExtract(id, entry); }
+        /** Belgeyi sistem görüntüleyicisine gönderir (başka uygulamayla aç) */
+        @JavascriptInterface
+        public void docShare(String id, boolean view) {
+            File f = docs.file(id); if (f == null) return;
+            runOnUiThread(() -> {
+                try {
+                    Uri u = FileProvider.getUriForFile(MainActivity.this, getPackageName() + ".files", f);
+                    String mime = mimeOf(docs.name(id));
+                    Intent i = new Intent(view ? Intent.ACTION_VIEW : Intent.ACTION_SEND);
+                    if (view) i.setDataAndType(u, mime); else { i.setType(mime); i.putExtra(Intent.EXTRA_STREAM, u); }
+                    i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    startActivity(Intent.createChooser(i, docs.name(id)));
+                } catch (Exception e) { Toast.makeText(MainActivity.this, R.string.open_failed, Toast.LENGTH_SHORT).show(); }
+            });
+        }
+        /** Belgeyi indirme deposuna (çevrimdışı) kopyalar */
+        @JavascriptInterface
+        public String docKeep(String id) {
+            File f = docs.file(id); if (f == null) return "";
+            try {
+                String fn = System.currentTimeMillis() + "_" + safe(docs.name(id));
+                try (InputStream in = new FileInputStream(f); OutputStream out = new FileOutputStream(new File(dir("downloads"), fn))) { MainActivity.copy(in, out); }
+                return "dl_" + fn;
+            } catch (Exception e) { return ""; }
+        }
+
+        // ---- Google ile giriş / Drive -----------------------------------------------------
+        @JavascriptInterface public boolean gConfigured() { return GoogleDrive.configured(); }
+        @JavascriptInterface public String gRedirect() { return GoogleDrive.redirectUri(); }
+        @JavascriptInterface public String gSignIn() { runOnUiThread(() -> { String r = google.signIn(); if (!r.isEmpty()) Toast.makeText(MainActivity.this, r, Toast.LENGTH_LONG).show(); }); return ""; }
+        @JavascriptInterface public void gSignOut() { google.signOut(); }
+        @JavascriptInterface public String gAccount() { return google.signedIn() ? google.user() : ""; }
+        /** Asenkron Drive işlemi; sonuç dwgApp.onDrive(reqId, ok, json) ile döner */
+        @JavascriptInterface
+        public void gDrive(String reqId, String op, String argsJson) {
+            bg.execute(() -> {
+                String out; boolean ok = true;
+                try {
+                    JSONObject a = argsJson == null || argsJson.isEmpty() ? new JSONObject() : new JSONObject(argsJson);
+                    switch (op) {
+                        case "list": out = google.list(a.optString("folder", "root"), a.optString("q", ""), a.optString("pageToken", "")); break;
+                        case "meta": out = google.meta(a.getString("id")); break;
+                        case "about": out = google.about(); break;
+                        case "mkdir": out = google.createFolder(a.getString("name"), a.optString("parent", "root")); break;
+                        case "delete": google.delete(a.getString("id")); out = "{}"; break;
+                        case "download": {
+                            File f = google.download(a.getString("id"), a.optString("name", "dosya"), a.optString("mime", ""), docs.cacheDir("drive"),
+                                    (done, total) -> js("window.dwgApp && window.dwgApp.onDriveProgress(" + JSONObject.quote(reqId) + "," + done + "," + total + ")"));
+                            String name = f.getName().replaceFirst("^[^_]*_", "");
+                            JSONObject info = docs.info(docs.register(f, name));
+                            if (a.optBoolean("open", false)) { final File ff = f; final String nm = name; runOnUiThread(() -> { currentFile = ff; currentUri = null; currentName = nm; currentSize = ff.length(); }); }
+                            out = info.toString(); break;
+                        }
+                        case "upload": {
+                            byte[] bytes;
+                            if (a.has("fileId")) { File f = docs.file(a.getString("fileId")); if (f == null) throw new IOException("dosya yok"); try (InputStream in = new FileInputStream(f)) { java.io.ByteArrayOutputStream o = new java.io.ByteArrayOutputStream(); MainActivity.copy(in, o); bytes = o.toByteArray(); } }
+                            else if ("current".equals(a.optString("src"))) { try (InputStream in = currentFile != null ? new FileInputStream(currentFile) : getContentResolver().openInputStream(currentUri)) { java.io.ByteArrayOutputStream o = new java.io.ByteArrayOutputStream(); MainActivity.copy(in, o); bytes = o.toByteArray(); } }
+                            else bytes = Base64.decode(a.getString("b64"), Base64.DEFAULT);
+                            out = google.upload(bytes, a.getString("name"), a.optString("mime", "application/octet-stream"), a.optString("folder", ""), a.has("convertTo") ? a.getString("convertTo") : null);
+                            break;
+                        }
+                        case "convertPdf": {
+                            File src = docs.file(a.getString("fileId")); if (src == null) throw new IOException("dosya yok");
+                            String name = docs.name(a.getString("fileId"));
+                            File f = google.convertToPdf(src, name, mimeOf(name), docs.cacheDir("drive"), (done, total) -> js("window.dwgApp && window.dwgApp.onDriveProgress(" + JSONObject.quote(reqId) + "," + done + "," + total + ")"));
+                            out = docs.info(docs.register(f, name.replaceFirst("\\.[^.]+$", "") + ".pdf")).toString(); break;
+                        }
+                        default: throw new IOException("bilinmeyen işlem: " + op);
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "drive " + op, e);
+                    ok = false; out = JSONObject.quote(String.valueOf(e.getMessage()));
+                }
+                js("window.dwgApp && window.dwgApp.onDrive(" + JSONObject.quote(reqId) + "," + ok + "," + out + ")");
+            });
+        }
+
         // hata kaydı
         @JavascriptInterface public void logError(String text) { appendLog(text); }
         @JavascriptInterface public String getErrorLog() { return readFile(new File(dir("log"), "errors.log")); }
@@ -667,6 +801,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         stopLocation();
+        if (docs != null) docs.closePdf();
+        bg.shutdown();
         if (webView != null) { webView.destroy(); webView = null; }
         super.onDestroy();
     }
