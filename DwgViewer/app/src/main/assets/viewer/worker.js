@@ -9,6 +9,7 @@
 import { LibreDwg, Dwg_File_Type } from './lib/dist/libredwg-web.js';
 import { SceneBuilder } from './scene.js';
 import { parseDxf, isDxf } from './dxf.js';
+import { readAcDs, mapAsmToHandles, isR2004Family } from './acds.js';
 
 let lib = null;
 
@@ -28,17 +29,80 @@ async function readDb(bytes, id) {
   try { dwg = lib.dwg_read_data(u8, Dwg_File_Type.DWG); } catch (e) { throw new Error('LibreDWG dosyayı çözemedi: ' + (e.message || e)); }
   if (!dwg) throw new Error('LibreDWG dosyayı çözemedi (bozuk ya da şifreli olabilir).');
   let db;
-  try { db = lib.convert(dwg); db.raw3d = collectRaw3D(lib, dwg); } finally { try { lib.dwg_free(dwg); } catch (_) { /* yoksay */ } }
+  try { db = lib.convert(dwg); db.raw3d = collectRaw3D(lib, dwg, db); } finally { try { lib.dwg_free(dwg); } catch (_) { /* yoksay */ } }
+  if (head >= 'AC1027') attachAcDs(u8, db);
   db.header = db.header || {};
   db.header.ACADVER = head;
   return db;
 }
 
 /**
+ * Dönüştürücü yalnız 3DSOLID'i aktarır; REGION, BODY ve MESH varlıklarını düşürür. Bunlar için tanıtıcı,
+ * katman, renk ve sahip blok bilgisiyle asgari varlık kayıtları üretilip veri tabanına eklenir ki sahne
+ * kurucu ham 3B veriyi (raw3d) bu tanıtıcılarla bulabilsin.
+ */
+function synthesizeDropped(lib, db, byType, ownerOf, hex) {
+  const names = { 37: 'REGION', 39: 'BODY', 663: 'MESH' };
+  let layerByHandle = null;
+  const layerName = (ent) => {
+    try {
+      if (!layerByHandle) { layerByHandle = new Map(); for (const l of ((db.tables && db.tables.LAYER && db.tables.LAYER.entries) || [])) layerByHandle.set(String(l.handle || '').toUpperCase(), l.name); }
+      const ref = lib.dwg_object_entity_get_layer_object_ref(ent); const v = ref && ref.handleref ? ref.handleref.value : (ref && ref.absolute_ref);
+      return (v != null && layerByHandle.get(Number(v).toString(16).toUpperCase())) || '0';
+    } catch (_) { return '0'; }
+  };
+  const records = (db.tables && db.tables.BLOCK_RECORD && db.tables.BLOCK_RECORD.entries) || [];
+  const recByHandle = new Map(); for (const r of records) recByHandle.set(String(r.handle || '').toUpperCase(), r);
+  const seen = new Set(); const walk = (list) => { for (const e of list || []) if (e && e.handle) seen.add(e.handle); };
+  walk(db.entities); for (const r of records) walk(r.entities);
+  for (const t of [37, 39, 663]) {
+    for (const o of byType[t] || []) {
+      try {
+        const h = hex(o); if (!h || seen.has(h)) continue;
+        const ent = lib.dwg_object_to_entity(o); if (!ent) continue;
+        let colorIndex = 256, color;
+        try { const c = lib.dwg_object_entity_get_color_object(ent); if (c) { colorIndex = c.index; if (c.method === 194 || ((c.rgb >>> 24) & 255) === 194) color = c.rgb & 0xffffff; } } catch (_) { /* renk yok */ }
+        let isVisible = true; try { isVisible = !lib.dwg_object_entity_get_invisible(ent); } catch (_) { /* geç */ }
+        const root = ownerOf.get(o), ownerH = root ? hex(root) : null;
+        const e = { type: names[t], handle: h, layer: layerName(ent), colorIndex, color, lineType: '', isVisible, ownerBlockRecordSoftId: ownerH };
+        const rec = ownerH ? recByHandle.get(ownerH) : null;
+        if (rec) { if (!rec.entities) rec.entities = []; rec.entities.push(e); if (/^\*MODEL_SPACE$/i.test(rec.name || '') && Array.isArray(db.entities) && db.entities !== rec.entities) db.entities.push(e); }
+        else if (Array.isArray(db.entities)) db.entities.push(e);
+        seen.add(h);
+      } catch (_) { /* bu nesne atlanır */ }
+    }
+  }
+}
+
+/**
+ * R2013+ dosyalarda katıların ASM verisi AcDs bölümündedir; LibreDWG (özellikle 2018 dosyalarında) bunu
+ * katılara bağlayamayınca bölüm dosya baytlarından okunur ve tanıtıcıya göre eklenir. Tanıtıcı eşlemesi
+ * çözülemezse ve verisiz katı sayısı bulunan blok sayısına eşitse tanıtıcı sırasıyla bağlanır.
+ */
+function attachAcDs(u8, db) {
+  try {
+    if (!isR2004Family(u8)) return;
+    const ds = readAcDs(u8); if (!ds) return;
+    const m = mapAsmToHandles(ds);
+    const raw = db.raw3d || (db.raw3d = {});
+    let n = 0;
+    // tanıtıcıyla eşleşen blok her zaman yeğlenir: LibreDWG blokları sırayla bağlar ve bölge/katı karışabilir
+    for (const [h, data] of Object.entries(m.byHandle)) { const rec = raw[h] || (raw[h] = {}); rec.acis = data; n++; }
+    if (!n && m.blobs.length && Array.isArray(db.entities)) {
+      const empty = [];
+      const walk = (list) => { for (const e of list || []) { if ((e.type === '3DSOLID' || e.type === 'REGION' || e.type === 'BODY') && e.handle && !(raw[e.handle] && raw[e.handle].acis)) empty.push(e.handle); } };
+      walk(db.entities); for (const b of Object.values(db.blocks || {})) walk(b.entities);
+      const uniq = [...new Set(empty)].sort((a, b) => parseInt(a, 16) - parseInt(b, 16));
+      if (uniq.length === m.blobs.length) for (let i = 0; i < uniq.length; i++) { const rec = raw[uniq[i]] || (raw[uniq[i]] = {}); rec.acis = m.blobs[i].data; }
+    }
+  } catch (e) { /* AcDs okunamadı: katılar tel kafes olarak kalır */ }
+}
+
+/**
  * Dönüştürücünün taşımadığı 3B veriler: 3DSOLID / REGION / BODY için ACIS (SAT metni ya da SAB ikilisi)
  * ve önbellek tel kafesi; MESH (AcDbSubDMesh) için köşe ve yüz listesi. Anahtar: onaltılık tanıtıcı.
  */
-function collectRaw3D(lib, dwg) {
+function collectRaw3D(lib, dwg, db) {
   const out = {};
   const W = lib.wasmInstance;
   const hex = (o) => { try { const v = lib.dwg_obj_get_handle_value(o); return Number(v).toString(16).toUpperCase(); } catch (_) { return null; } };
@@ -48,15 +112,16 @@ function collectRaw3D(lib, dwg) {
   try { const o = lib.dwg_model_space_object(dwg); if (o) roots.push(o); } catch (_) { /* yok */ }
   try { const o = lib.dwg_paper_space_object(dwg); if (o) roots.push(o); } catch (_) { /* yok */ }
   try { const a = lib.dwg_getall_BLOCK_HEADER(dwg); const arr = Array.isArray(a) ? a : (a && a.size ? Array.from({ length: a.size() }, (_, i) => a.get(i)) : []); for (const o of arr) if (o && !roots.includes(o)) roots.push(o); } catch (_) { /* yok */ }
-  const byType = { 37: [], 38: [], 39: [], 663: [] };
+  const byType = { 37: [], 38: [], 39: [], 663: [] }, ownerOf = new Map();
   for (const root of roots) {
     let next = null, guard = 0;
     try { next = lib.get_first_owned_entity(root); } catch (_) { continue; }
     while (next && guard++ < 2000000) {
-      try { const ft = lib.dwg_object_get_fixedtype(next); if (byType[ft]) byType[ft].push(next); } catch (_) { /* atla */ }
+      try { const ft = lib.dwg_object_get_fixedtype(next); if (byType[ft]) { byType[ft].push(next); ownerOf.set(next, root); } } catch (_) { /* atla */ }
       try { next = lib.get_next_owned_entity(root, next); } catch (_) { break; }
     }
   }
+  if (db) synthesizeDropped(lib, db, byType, ownerOf, hex);
   const objs = (t) => byType[t] || [];
   for (const t of [37, 38, 39]) {                              // REGION, 3DSOLID, BODY
     for (const o of objs(t)) {

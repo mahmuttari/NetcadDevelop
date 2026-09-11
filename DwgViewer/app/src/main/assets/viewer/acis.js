@@ -50,11 +50,13 @@ function tokenizeSat(text) {
 // ---------------------------------------------------------------------------------
 // SAB (ikili) jetonlama — etiketli jeton akışı
 // ---------------------------------------------------------------------------------
-const SAB_MAGIC = 'ACIS BinaryFile';
-export function isSab(u8) { for (let i = 0; i < SAB_MAGIC.length; i++) if (u8[i] !== SAB_MAGIC.charCodeAt(i)) return false; return true; }
+// SAB başlığı 15 bayttır: "ACIS BinaryFile" (ACIS ≤ 21800) ya da "ASM BinaryFile4" (AutoCAD 2018+, ASM 223)
+const SAB_MAGIC = 'ACIS BinaryFile', ASM_MAGIC = 'ASM BinaryFile';
+const startsWith = (u8, s) => { for (let i = 0; i < s.length; i++) if (u8[i] !== s.charCodeAt(i)) return false; return true; };
+export function isSab(u8) { return !!u8 && u8.length > 16 && (startsWith(u8, SAB_MAGIC) || startsWith(u8, ASM_MAGIC)); }
 function tokenizeSab(u8) {
   const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
-  let p = SAB_MAGIC.length;
+  let p = 15;
   const i32 = () => { const v = dv.getInt32(p, true); p += 4; return v; };
   const f64 = () => { const v = dv.getFloat64(p, true); p += 8; return v; };
   const str8 = () => { const n = u8[p++]; const s = latin(u8, p, n); p += n; return s; };
@@ -138,6 +140,8 @@ const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a
 const len = (a) => Math.hypot(a[0], a[1], a[2]);
 const norm = (a) => { const L = len(a) || 1; return [a[0] / L, a[1] / L, a[2] / L]; };
 const TAU = Math.PI * 2;
+/** Newell normali (uzunluğu ≈ 2·alan): kapalı 3B çokgenin en uygun düzlem normali */
+function newell(pts) { const n = [0, 0, 0]; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const a = pts[j], b = pts[i]; n[0] += (a[1] - b[1]) * (a[2] + b[2]); n[1] += (a[2] - b[2]) * (a[0] + b[0]); n[2] += (a[0] - b[0]) * (a[1] + b[1]); } return n; }
 /** dik düzlem tabanı */
 function basis(n) { n = norm(n); const a = Math.abs(n[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0]; const u = norm(cross(a, n)); const v = cross(n, u); return [u, v]; }
 
@@ -201,7 +205,7 @@ export function tessellate(parsed, opts = {}) {
   const R = A.rec;
   const segs = opts.arcSegs || 24;             // tam çember için parça sayısı
   const edgesOut = [], tris = [];
-  let faceCount = 0, skipped = 0;
+  let faceCount = 0, skipped = 0, approx = 0;
   // gövde dönüşümü
   let xf = null;
   for (const r of R) if (A.kind(r) === 'body') { const ps = A.ptrs(r); const t = A.at(ps[2]); if (t && A.kind(t) === 'transform') { const n = A.nums(t); if (n.length >= 12) xf = n; } }
@@ -314,7 +318,21 @@ export function tessellate(parsed, opts = {}) {
       const at = (a, b) => { const ring = add(mul(u, Math.cos(a)), mul(v, Math.sin(a))); return add(c, add(mul(ring, R0 + r0 * Math.cos(b)), mul(axis, r0 * Math.sin(b)))); };
       for (let i = 0; i < N; i++) for (let j = 0; j < M; j++) { const a0 = i / N * TAU, a1 = (i + 1) / N * TAU, b0 = j / M * TAU, b1 = (j + 1) / M * TAU; pushTri(at(a0, b0), at(a1, b0), at(a1, b1)); pushTri(at(a0, b0), at(a1, b1), at(a0, b1)); }
       faceCount++;
+    } else if (loops.length) {
+      // spline / desteklenmeyen yüzey: sınır döngüleri en uygun düzleme (Newell normali) izdüşürülüp üçgenlenir —
+      // eğri yüzey yaklaşık dolar, delik kalmaz (fillet, kavis, serbest yüzey)
+      let oi = 0, oa = 0; const nrms = loops.map(l => newell(l)); loops.forEach((l, i) => { const a = len(nrms[i]); if (a > oa) { oa = a; oi = i; } });
+      if (!(oa > 0)) { skipped++; continue; }
+      const nrm = norm(nrms[oi]); const [u, v] = basis(nrm);
+      const to2 = (p) => [dot(p, u), dot(p, v)];
+      const rings = loops.map(l => l.map(to2));
+      const outer = rings[oi], holes = rings.filter((_, i) => i !== oi);
+      const map3 = new Map(); const key = (p2) => p2[0] + ',' + p2[1];
+      loops.forEach((l, li) => l.forEach((p3, pi) => map3.set(key(rings[li][pi]), p3)));
+      const { ring, tris: T } = triangulate(outer, holes);
+      for (const t of T) { const a = map3.get(key(ring[t[0]])), b = map3.get(key(ring[t[1]])), c = map3.get(key(ring[t[2]])); if (a && b && c) pushTri(a, b, c); }
+      faceCount++; approx++;
     } else { skipped++; }
   }
-  return { edges: edgesOut, tris, faces: faceCount, skipped };
+  return { edges: edgesOut, tris, faces: faceCount, skipped, approx };
 }

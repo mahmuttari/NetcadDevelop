@@ -98,6 +98,16 @@ function fontOf(file) {
 }
 
 /** OCS (nesne koordinat sistemi) tabanı — Arbitrary Axis Algorithm; extrusion Z eksenine paralelse null */
+/** blok ekleme Z dönüşümü: z_dünya = zo + zs · z_blok (ekleme noktasının kotu ve Z ölçeği) */
+const zW = (z, ctx) => (ctx && (ctx.zs !== 1 || ctx.zo)) ? (ctx.zo || 0) + (ctx.zs || 1) * (z || 0) : (z || 0);
+function zOps(ops, zs, zo) {
+  return ops.map(o => {
+    if (o[0] === 0 || o[0] === 1) return o.length > 3 && o[3] != null ? [o[0], o[1], o[2], zo + zs * o[3]] : (zo ? [o[0], o[1], o[2], zo] : o);
+    if (o[0] === 2 || o[0] === -2) { const r = o.slice(); r[6] = zo + zs * (o[6] || 0); return r; }
+    return o;
+  });
+}
+
 function ocsOf(e) {
   const n = e && e.extrusionDirection; if (!n) return null;
   const L = Math.hypot(n.x || 0, n.y || 0, n.z || 0); if (!(L > 0)) return null;
@@ -261,7 +271,7 @@ export class SceneBuilder {
     this.prims = [];
     this.deferred = [];
     this.viewports = [];
-    const root = { m: IDENT, layer: null, color: null, lt: null, lts: 1, lw: null, depth: 0, top: null, info: null };
+    const root = { m: IDENT, zs: 1, zo: 0, layer: null, color: null, lt: null, lts: 1, lw: null, depth: 0, top: null, info: null };
     for (const e of ents || []) {
       this.entityCount++;
       try { this.entity(e, root); } catch (err) { console.warn('varlık atlandı', e && e.type, err); }
@@ -328,6 +338,7 @@ export class SceneBuilder {
         for (let i = 0; i < pts.length; i++) { const p = apply(m, pts[i][0], pts[i][1]); out.push([out.length ? 1 : 0, p[0], p[1]]); }
       }
     }
+    if (ctx.zs !== 1 || ctx.zo) out = zOps(out, ctx.zs, ctx.zo);
     const st = this.style(e, ctx);
     const scale = isIdent(m) ? 1 : Math.sqrt(Math.abs(det(m))) || 1;
     const p = { k: 0, ops: out, closed: !!opt.closed, fill: !!opt.fill, alpha: opt.alpha == null ? 1 : opt.alpha,
@@ -373,7 +384,7 @@ export class SceneBuilder {
     const wEst = maxLen * h * 0.75 * ws, hEst = h * (1 + 1.667 * (lines.length - 1));
     const R = Math.hypot(wEst, hEst);
     const st = this.style(e, ctx);
-    const p = { k: 1, x, y, z: opt.z || 0, h, rot, lines, ha: hax, va: vay, ws, font: opt.font, obl: opt.obl || 0, mx: !!opt.mx, my: !!opt.my,
+    const p = { k: 1, x, y, z: zW(opt.z || 0, ctx), h, rot, lines, ha: hax, va: vay, ws, font: opt.font, obl: opt.obl || 0, mx: !!opt.mx, my: !!opt.my,
       col: opt.col != null ? opt.col : st.col, lay: st.lay, lw: st.lw, bb: [x - R, y - R, x + R, y + R], info: ctx.info || this.info(e, st), et: e.type, spacing: opt.spacing || 1 };
     this.prims.push(p);
     this.layerOf(st.lay).count++;
@@ -382,7 +393,7 @@ export class SceneBuilder {
   addPoint(x, y, z, e, ctx, k = 2) {
     const p = apply(ctx.m, x, y);
     const st = this.style(e, ctx);
-    this.prims.push({ k, x: p[0], y: p[1], z, col: st.col, lay: st.lay, bb: [p[0], p[1], p[0], p[1]], info: ctx.info || this.info(e, st), et: e.type });
+    this.prims.push({ k, x: p[0], y: p[1], z: zW(z, ctx), col: st.col, lay: st.lay, bb: [p[0], p[1], p[0], p[1]], info: ctx.info || this.info(e, st), et: e.type });
     if (k === 2) this.layerOf(st.lay).count++;
   }
 
@@ -713,7 +724,7 @@ export class SceneBuilder {
     } else if (raw && raw.wires) { for (const w of raw.wires) edges.push(w); }
     if (!edges.length && !tris.length) return;
     const m = ctx.m, id = isIdent(m);
-    const P = (q) => { if (id) return [q[0], q[1], q[2] || 0]; const w = apply(m, q[0], q[1]); return [w[0], w[1], q[2] || 0]; };
+    const P = (q) => { const z = zW(q[2] || 0, ctx); if (id) return [q[0], q[1], z]; const w = apply(m, q[0], q[1]); return [w[0], w[1], z]; };
     for (const pl of edges) {
       if (pl.length < 2) continue;
       const ops = pl.map((q, i) => { const w = P(q); return [i ? 1 : 0, w[0], w[1], w[2]]; });
@@ -745,7 +756,8 @@ export class SceneBuilder {
           this.xrefs.get(key).inserts.push({ m, layer: st.lay, color: st.col });
           continue;
         }
-        const sub = { m, layer: st.lay, color: st.col, lt: e.lineType, lts: (ctx.lts || 1) * (e.lineTypeScale || 1), lw: st.lw, depth: ctx.depth + 1, top: ctx.top, info };
+        const zs = e.zScale || 1, bz = (blk.basePoint && blk.basePoint.z) || 0;
+        const sub = { m, zs: (ctx.zs || 1) * zs, zo: (ctx.zo || 0) + (ctx.zs || 1) * ((ip.z || 0) - zs * bz), layer: st.lay, color: st.col, lt: e.lineType, lts: (ctx.lts || 1) * (e.lineTypeScale || 1), lw: st.lw, depth: ctx.depth + 1, top: ctx.top, info };
         if (blk.entities) this.block(blk, sub);
       }
     }

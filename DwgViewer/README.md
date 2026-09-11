@@ -1,4 +1,4 @@
-# DWG Görüntüleyici (Android) — v5.1
+# DWG Görüntüleyici (Android) — v5.2
 
 AutoCAD **DWG** ve **DXF** çizimlerini telefonda açan, çevrimdışı çalışan
 Android uygulaması. Dosya cihazdan dışarı çıkmaz; çözümleme telefonun
@@ -43,6 +43,7 @@ verisi gönderilmez).
 | **Google Drive (v5)** | Google ile giriş (OAuth 2.0 + PKCE, tarayıcı üzerinden; Play Services gerekmez), Drive gezgini (Drive'ım / Paylaşılanlar / Son / Yıldızlı, klasör kırıntıları, arama, sayfalama), dosya açma (Google Dokümanlar PDF olarak dışa aktarılır), çevrimdışı saklama, silme, Drive'da açma; yükleme: geçerli dosya, düzenlenmiş DXF, PNG görünüm, cihazdan seçilen dosya; PNG/PDF/DXF kaydetme uyarılarında "Drive'a yükle" kısayolu; ofis belgelerini Drive ile PDF'e dönüştürme |
 | **Ekran seçenekleri (3B)** | görsel stiller (AutoCAD'e benzer): 2B tel kafes, tel kafes, gizli çizgi, gölgeli, gölgeli+kenar, **gerçekçi** (yumuşak aydınlatma + parlama), **kavramsal** (Gooch soğuk-sıcak + siluet), **gri tonlar**, **eskiz** (titreme + çizgi uzatma), röntgen; yüz ayarları (aydınlatma kalitesi yüzeyli/yumuşak, parlama, yüz saydamlığı), kenar ayarları (kenar kipi, kenar rengi, siluet kenarları ve kalınlığı, çizgi uzatma, titreme), ortam (zemin gölgesi, derinlik solması); dokunma: tek parmak döndür/kaydır, iki parmak yakınlaştır+kaydır ya da yakınlaştır+döndür, üç parmak kaydır/döndür, çift dokunuş sığdır/yakınlaştır, dikey ters, hassasiyet; varsayılan izdüşüm **paralel** (AutoCAD gibi), tuval her karede CSS boyutuyla eşitlenir (en-boy oranı korunur); renk (nesne / katman / **kot** / tek renk) ve kot lejantı, aydınlatma (yön, yoğunluk, ortam), zemin ızgarası (adım, kot), eksenler ve etiketler, pusula, **görünüm küpü** (yüz / köşe / kenar dokunuşu, sürükleyerek yörünge, çift dokunuşla sığdır), perspektif / ortografik ve görüş açısı, **düşey abartı** (kaydırıcı, ×1/×2/×5/×10), **kesit** (Z aralığı ve kesit kutusu), döner tabla, dokunma davranışı (tek parmak döndür/kaydır, dikey ters, hassasiyet), kot etiketleri, HUD, nokta boyu, çizgi kalınlığı, derinlik solması, seçileni öne çıkarma; 11 görünüm ön ayarı (üst, alt, ön, arka, sol, sağ, izometrik KD/KB/GD/GB); kamera **yer imleri** (küçük resimli, dosya başına); kamera geçmişi; 3B ekran görüntüsü |
 | **3B katılar ve görsel stil düğmesi (v5.1)** | **3DSOLID / REGION / BODY** varlıkları LibreDWG'nin ham ACIS verisinden okunur (SAT metin R14–2000 ve SAB ikili 2010–2013; DXF'te kod 1/3 satırları şifre çözülür) ve yüzeyler üçgenlenir: düzlem, silindir/koni, küre, tor yüzeyleri; kenarlar (doğru, yay/elips) çizilir. **MESH** varlıkları köşe/yüz listesinden alınır. Katılar 3B görünümde gölgeli, gerçekçi, kavramsal vb. bütün görsel stillerle çizilir; "Yüzey yok" uyarısı yalnız gerçekten yüzey bulunmayan çizimde çıkar. 2B görünümde yalnız kenarlar gösterilir. Nesne koordinat sistemi (**OCS**, keyfi eksen algoritması): Z dışında ekstrüzyon yönü olan CIRCLE, ARC, LWPOLYLINE, POLYLINE, SOLID, TRACE, POINT, TEXT, MTEXT, ATTRIB, INSERT ve HATCH varlıkları dünya koordinatına dönüştürülür (yatık/aynalı çizimlerin uzamış görünmesi giderildi). 3B ve Ekran › 3B sekmelerinde **Görsel stil** düğmesi: simgesi etkin stilin küçük önizlemesidir, dokununca 10 stilin önizlemeli ızgarası açılır; "Ekran ayarları › 3B" kısayolu |
+| **AcDs katı verisi (v5.2)** | AutoCAD 2013 ve sonrası (AC1027, AC1032) dosyalarda katıların ASM/ACIS verisi varlığın içinde değil, dosyanın "AcDb:AcDsPrototype_1b" veri deposu bölümündedir; LibreDWG bu bölümü 2018 dosyalarında katılara bağlayamıyor, 2013 dosyalarında ise sırayla bağlayıp bölge/katı verisini karıştırabiliyordu. Uygulama artık R2004 dosya biçimi ailesinin bölüm haritasını ve LZ77 sıkıştırmasını kendisi çözer (`acds.js`), veri kayıtlarını **tanıtıcıya göre** katılara bağlar ve "ASM BinaryFile4" (ASM 223) başlıklı ikili biçimi de okur. Dönüştürücünün düşürdüğü **REGION, BODY ve MESH** varlıkları katman, renk ve sahip bloğuyla yeniden üretilir. Desteklenmeyen (spline vb.) yüzeyler sınır döngülerinden en uygun düzleme yaklaşık olarak doldurulur; delik kalmaz. Blok eklemelerinde **Z ötelemesi ve Z ölçeği** artık uygulanır (iç içe bloklarda da). Sınama: `tools/test_solids.mjs` katıları tanıtıcı tanıtıcı, 3B en-boy oranını ise piksel ölçerek (dikey/yatay, 2,625 DPR, paralel ve perspektif) doğrular |
 | **Araç çubuğu** | alt kısımda sekmeli düğme çubuğu: (Favoriler) · Görünüm · Ekran · Ölçü · Çiz · Düzenle · 3B; komut satırı (adım adım yönerge, yazılı koordinat girişi `x,y` / `x,y,z` / `@dx,dy` / `@L<açı`, Bitir / Kapat / Geri / İptal düğmeleri) |
 | **Çizim** | çizgi (zincirleme), polyline (açık/kapalı), dikdörtgen, daire (merkez + yarıçap noktası ya da yazılı yarıçap), yay (3 nokta), nokta, yazı, 3B polyline (kotlu), 3B yüzey; geçerli katman / renk seçimi, yeni katman oluşturma; tüm yakalama kipleri çizimde de geçerli |
 | **Düzenleme** | seç (dokunarak ekle/çıkar, tümünü seç), taşı, kopyala (yineleyerek), döndür (yazılı açı ya da nokta), ölçekle, aynala (orijinali koru / korumama), ofset (mesafe + taraf), sil, kot ata, yazı düzenle, özellikler (katman/renk); sınırsız geri al / yinele; düzenlemeler dosya başına kalıcı (uygulama kapansa da korunur) |
@@ -56,9 +57,9 @@ ARC, ELLIPSE, SPLINE, POINT, TEXT, MTEXT, ATTRIB, INSERT (iç içe, dizili,
 MULTILEADER, MLINE, XLINE, RAY, ACAD_TABLE, WIPEOUT, IMAGE, VIEWPORT,
 3DSOLID, REGION, BODY (ACIS SAT/SAB), MESH.
 
-Yapmadıkları: ikili DXF'i çizmez; R2018 (AC1032) dosyalarındaki katıların
-ACIS verisi LibreDWG tarafından verilmediğinden yalnız tel kenarları (varsa)
-çizilir; NURBS (spline) yüzeyler üçgenlenmez, yalnız kenarları çizilir; SHX
+Yapmadıkları: ikili DXF'i çizmez; R2007 (AC1021) dosyalarında AcDs bölümü
+okunmaz (o sürümde katı verisi zaten varlığın içindedir); NURBS (spline)
+yüzeyler yalnız sınırlarından yaklaşık doldurulur; SHX
 yazı tipleri yerine sistem yazı tipini kullanır. **DWG olarak yazamaz**:
 kullanılan LibreDWG WebAssembly derlemesinde yazma kapalıdır; düzenlemeler
 DXF olarak kaydedilir (AutoCAD ve NetCAD doğrudan açar). Orijinal DWG
@@ -144,7 +145,7 @@ PLAYWRIGHT_PKG=<playwright kurulu dizin> node tools/screenshot.mjs <çıktı> a.
 ```
 
 Sınama betikleri: `tools/test_editor.mjs`, `test_3d.mjs`, `test_features.mjs`,
-`test_display2d.mjs`, `test_shell.mjs`, `test_docs.mjs` (ZIP/DOCX/XLSX/PDF, Drive
+`test_display2d.mjs`, `test_shell.mjs`, `test_solids.mjs` (AcDs katıları, blok Z, 3B en-boy pikseli), `test_docs.mjs` (ZIP/DOCX/XLSX/PDF, Drive
 köprü taklidi, 3B stiller ve parmak hareketleri).
 
 Çekirdek LibreDWG'nin `test/test-data/example_*.dwg` dosyaları ve
