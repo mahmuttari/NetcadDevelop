@@ -5,7 +5,10 @@
 import { S, toWorld, toScreen, fitView, zoomAtScreen, visibleRect, UNITS, UNIT_TO_M, fmt, fmtUnit, store } from './state.js';
 import { RTree, snapPoint, primDist, flatten, pathLength, polyArea, TAU } from './geom.js';
 import { FG, primSignature } from './scene.js';
-import { drawFrame, rgbCss, bgColor, fgColor, tracePath, renderRegion } from './render.js';
+import { drawFrame, rgbCss, bgColor, fgColor, tracePath, renderRegion, gridState, niceStep } from './render.js';
+import * as D from './display.js';
+import { DISPLAY_DEFAULTS, setDisplay, getDisplay, toggleDisplay, primVisible, isolateLayers, unisolate, isIsolated, setLayerFaded, openDisplayOptions, closeDisplayOptions, mountNavFabs, gridLabel, refreshNav } from './display.js';
+import * as editorMod from './editor.js';
 import { setTileCallback, basemapAttribution } from './tiles.js';
 import { notes, loadNotes, saveNotes, addNote, removeNote, hitNote, drawNotes } from './notes.js';
 import { CRS, GeoRef, BASEMAPS } from './proj.js';
@@ -14,6 +17,13 @@ import { initEditor, onScene as editorScene, tap as editorTap, back as editorBac
 
 const $ = (id) => document.getElementById(id);
 const A = () => window.Android || null;
+/** i18n anahtarı yoksa Türkçe varsayılan */
+const tt = (k, tr) => { const v = t(k); return v === k ? tr : v; };
+/** C'nin (editor.js) isteğe bağlı dışa aktarımları – guard'lı */
+const haptic = (kind) => { try { if (typeof editorMod.haptic === 'function') editorMod.haptic(kind); } catch (_) { /* yok */ } };
+const uiPrefs = () => { try { return editorMod.ui || {}; } catch (_) { return {}; } };
+const glove = () => !!uiPrefs().glove;
+const edCall = (name, ...a) => { try { const f = editor[name]; return typeof f === 'function' ? f.apply(editor, a) : undefined; } catch (e) { console.warn(e); return undefined; } };
 const VERSION_URL = 'https://raw.githubusercontent.com/mahmuttari/NetcadDevelop/main/DwgViewer/release/version.json';
 
 // ---------------------------------------------------------------------------
@@ -21,12 +31,25 @@ const VERSION_URL = 'https://raw.githubusercontent.com/mahmuttari/NetcadDevelop/
 // ---------------------------------------------------------------------------
 const settings = Object.assign({ lang: 'tr', dark: true, lwScale: 3, crs: 'NONE', unit: 'auto', swap: false, dx: 0, dy: 0, basemap: 'none', basemapUrl: '', wms: '', opacity: 0.8, snap: ['end', 'mid', 'cen', 'int', 'ins', 'node'] }, store.json('settings', {}));
 function saveSettings() { store.set('settings', JSON.stringify(settings)); }
+let displayApplied = false;
 function applySettings() {
   setLang(settings.lang); applyI18n();
   if (!S.hasDoc) $('fileName').textContent = t('noFile');
-  S.dark = settings.dark !== false; document.body.classList.toggle('light', !S.dark);
-  S.lwScale = settings.lwScale || 3;
-  S.basemap.id = settings.basemap || 'none'; S.basemap.url = settings.basemapUrl || ''; S.basemap.wms = settings.wms || ''; S.basemap.opacity = settings.opacity == null ? 0.8 : settings.opacity;
+  S.basemap.id = settings.basemap || 'none'; S.basemap.url = settings.basemapUrl || ''; S.basemap.wms = settings.wms || '';
+  if (!displayApplied) {
+    // ekran ayarları göçü (v1 → v2): dark / lwScale / opacity alanları settings.display'e taşınır, eski okuyucular için yansıtılmaya devam eder
+    if (!(settings.version >= 2) || !settings.display) {
+      settings.display = { ...DISPLAY_DEFAULTS, ...(settings.display || {}), theme: settings.dark === false ? 'light' : 'dark', lwScale: settings.lwScale || 3, basemapOpacity: settings.opacity == null ? 0.8 : settings.opacity };
+      settings.version = 2;
+    }
+    D.restore({ ...DISPLAY_DEFAULTS, ...settings.display, basemapOpacity: settings.display.basemapOpacity == null ? (settings.opacity == null ? 0.8 : settings.opacity) : settings.display.basemapOpacity }, { silent: true, persist: false });
+    displayApplied = true;
+  } else {
+    // sonraki çağrılar (Ayarlar / Altlık kaydet): eski alanlardan gelen değerleri ekran durumuna yansıt
+    if (settings.lwScale > 0 && settings.lwScale !== S.lwScale) setDisplay('lwScale', settings.lwScale, { silent: true });
+    if (settings.opacity != null && settings.opacity !== S.basemap.opacity) setDisplay('basemapOpacity', settings.opacity, { silent: true });
+  }
+  settings.dark = S.dark; settings.lwScale = S.lwScale; settings.opacity = S.basemap.opacity; settings.display = { ...(settings.display || {}), ...D.snapshot() };
   S.snapModes = new Set(settings.snap || []);
   document.querySelectorAll('[data-snap]').forEach(cb => { cb.checked = S.snapModes.has(cb.dataset.snap); });
 }
@@ -94,6 +117,7 @@ function requestRender(fast) {
 }
 function render() {
   const t0 = performance.now();
+  S.curLayerName = editor.curLayer || '0';
   drawFrame(ctx, cv);
   S.lastRenderMs = performance.now() - t0;
   if (S.hasDoc && S.lastRenderMs > 40) {
@@ -114,7 +138,79 @@ function presentCache() {
   drawOverlay();
   updateStatus();
 }
-function zoomExtents(bb) { fitView(bb || S.ext); requestRender(); }
+function zoomExtents(bb) { fitView(bb || S.ext); viewHistory.push(); requestRender(); }
+
+// ---- görünüm geçmişi / yakınlaştırma yardımcıları --------------------------------------------
+const sameView = (a, b) => !!a && !!b && Math.abs(a.scale - b.scale) <= 1e-9 * Math.max(a.scale, b.scale) && Math.abs(a.cx - b.cx) <= 1e-9 * (Math.abs(a.cx) + 1) && Math.abs(a.cy - b.cy) <= 1e-9 * (Math.abs(a.cy) + 1) && (a.li == null || b.li == null || a.li === b.li);
+/** görünüm %2'den fazla değişti mi (geçmişe yazma eşiği) */
+function viewChanged(a, b) {
+  if (!a || !b) return true;
+  if (a.li != null && b.li != null && a.li !== b.li) return true;
+  const k = Math.abs(Math.log(a.scale / b.scale));
+  const d = Math.hypot(a.cx - b.cx, a.cy - b.cy) * b.scale / Math.max(1, Math.min(S.W, S.H));
+  return k > 0.02 || d > 0.02;
+}
+let histNav = false;
+const viewHistory = {
+  push() {
+    if (histNav || !S.hasDoc) return;
+    const h = S.viewHist, cur = { ...S.view, li: S.layoutIndex };
+    if (h.i >= 0 && sameView(h.stack[h.i], cur)) return;
+    h.stack.length = h.i + 1; h.stack.push(cur);
+    if (h.stack.length > 50) h.stack.shift();
+    h.i = h.stack.length - 1;
+    viewHistory.emit();
+  },
+  apply(v) {
+    histNav = true;
+    try { if (v.li != null && v.li !== S.layoutIndex && S.scene && S.scene.layouts[v.li]) setLayout(v.li); S.view = { scale: v.scale, cx: v.cx, cy: v.cy }; }
+    finally { histNav = false; }
+    S.gps.follow = false; requestRender(); viewHistory.emit();
+  },
+  back() { const h = S.viewHist; if (h.i <= 0) return false; h.i--; viewHistory.apply(h.stack[h.i]); return true; },
+  forward() { const h = S.viewHist; if (h.i >= h.stack.length - 1) return false; h.i++; viewHistory.apply(h.stack[h.i]); return true; },
+  canBack() { return S.viewHist.i > 0; },
+  canForward() { return S.viewHist.i < S.viewHist.stack.length - 1; },
+  reset() { S.viewHist = { stack: [], i: -1 }; viewHistory.emit(); },
+  emit() { try { window.dispatchEvent(new CustomEvent('dwg:viewhist', { detail: { canBack: viewHistory.canBack(), canForward: viewHistory.canForward() } })); } catch (_) { /* yok */ } },
+};
+/** merkezde (ya da GPS izlenirken konumda / verilen ekran noktasında) f kat yakınlaştırır */
+function zoomBy(f, at) {
+  if (!S.hasDoc || !(f > 0)) return;
+  let sx = S.W / 2, sy = S.H / 2;
+  if (at) { sx = at[0]; sy = at[1]; }
+  else if (S.gps.follow && S.gps.lat != null && S.geo.active) { const d = S.geo.toDrawing(S.gps.lon, S.gps.lat); if (d) [sx, sy] = toScreen(d[0], d[1]); }
+  zoomAtScreen(sx, sy, f);
+  viewHistory.push(); requestRender();
+}
+/** ilkel listesine sığdırır; boşsa false */
+function fitPrims(prims) {
+  const list = prims ? [...prims] : [];
+  const bb = [Infinity, Infinity, -Infinity, -Infinity];
+  for (const p of list) { const b = p && p.bb; if (!b) continue; if (b[0] < bb[0]) bb[0] = b[0]; if (b[1] < bb[1]) bb[1] = b[1]; if (b[2] > bb[2]) bb[2] = b[2]; if (b[3] > bb[3]) bb[3] = b[3]; }
+  if (!isFinite(bb[0])) return false;
+  const m = Math.max(bb[2] - bb[0], bb[3] - bb[1]) * 0.3 || 1;
+  zoomExtents([bb[0] - m, bb[1] - m, bb[2] + m, bb[3] + m]);
+  return true;
+}
+let zoomWin = null; // { pending:true } | { x0,y0,x1,y1 } (ekran px)
+function zoomWindow() {
+  if (!S.hasDoc) { toast(t('openFirst')); return; }
+  if (editor.is3D()) { toast(tt('zoomWin3d', 'Pencere yakınlaştırma 2B görünümde çalışır.')); return; }
+  if (editor.tools && editor.tools.running) { toast(tt('toolBusy', 'Önce çalışan aracı bitirin.')); return; }
+  zoomWin = { pending: true };
+  const bar = $('cmdBar'); bar.hidden = false; $('cmdText').textContent = tt('zoomWinHint', 'Pencere: köşeleri sürükleyin'); $('cmdInput').hidden = true;
+  $('cmdBtns').innerHTML = `<button data-zw="cancel">✕ ${t('cancel')}</button>`;
+  $('cmdBtns').onclick = (ev) => { if (ev.target.closest('[data-zw]')) cancelZoomWindow(); };
+}
+function cancelZoomWindow() {
+  if (!zoomWin) return false;
+  zoomWin = null;
+  const bar = $('cmdBar'); if ($('cmdBtns').onclick) { $('cmdBtns').onclick = null; }
+  if (!(editor.tools && editor.tools.running) && !editor.m3) bar.hidden = true;
+  drawOverlay();
+  return true;
+}
 
 // ---- kaplama -------------------------------------------------------------------
 let noteDraft = null, selectedNote = null;
@@ -130,12 +226,12 @@ function drawOverlay() {
   c.clearRect(0, 0, S.W, S.H);
   if (!S.hasDoc) return;
   if (editor.is3D()) return;
-  const acc = '#f5b342', fg = fgColor();
+  const acc = S.selColor || '#ff9f0a', fg = fgColor();
   editorOverlay(c);
   if (S.selected) {
     const p = S.selected;
     c.save(); worldTransform(c);
-    c.strokeStyle = acc; c.lineWidth = 3 / S.view.scale; c.globalAlpha = 0.9; c.setLineDash([]);
+    c.strokeStyle = acc; c.lineWidth = (S.selWidth || 3) / S.view.scale; c.globalAlpha = 0.9; c.setLineDash([]);
     if (p.k === 0) { c.beginPath(); tracePath(c, p.ops); if (p.closed) c.closePath(); c.stroke(); }
     else c.strokeRect(p.bb[0], p.bb[1], p.bb[2] - p.bb[0], p.bb[3] - p.bb[1]);
     c.restore(); c.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);
@@ -180,8 +276,21 @@ function drawOverlay() {
       c.beginPath(); c.arc(s[0], s[1], 8, 0, TAU); c.fill(); c.stroke();
     }
   }
-  drawScaleBar(c, fg);
-  drawNorth(c, fg);
+  if (S.gotoMarker) {
+    const s = toScreen(S.gotoMarker[0], S.gotoMarker[1]);
+    c.strokeStyle = '#f5b342'; c.fillStyle = '#f5b342'; c.lineWidth = 2.5; c.setLineDash([]);
+    c.beginPath(); c.moveTo(s[0], s[1]); c.lineTo(s[0] - 9, s[1] - 22); c.arc(s[0], s[1] - 24, 9, Math.PI * 0.85, Math.PI * 2.15); c.closePath(); c.fill();
+    c.fillStyle = S.dark ? '#1c2129' : '#fff'; c.beginPath(); c.arc(s[0], s[1] - 24, 3.5, 0, TAU); c.fill();
+  }
+  if (zoomWin && zoomWin.x1 != null) {
+    c.strokeStyle = '#f5b342'; c.lineWidth = 1.5; c.setLineDash([6, 4]); c.fillStyle = 'rgba(245,179,66,.12)';
+    const x = Math.min(zoomWin.x0, zoomWin.x1), y = Math.min(zoomWin.y0, zoomWin.y1), w = Math.abs(zoomWin.x1 - zoomWin.x0), h = Math.abs(zoomWin.y1 - zoomWin.y0);
+    c.fillRect(x, y, w, h); c.strokeRect(x, y, w, h); c.setLineDash([]);
+  }
+  drawCrosshair(c, fg);
+  if (S.ui2d.scaleBar) drawScaleBar(c, fg);
+  if (S.ui2d.north) drawNorth(c, fg);
+  if (S.rulers) drawRulers(c, fg);
   const attr = basemapAttribution();
   if (attr && S.geo.active && S.basemap.id !== 'none') { c.font = '10px sans-serif'; c.fillStyle = fg; c.globalAlpha = 0.7; c.textAlign = 'right'; c.textBaseline = 'bottom'; c.fillText(attr, S.W - 6, S.H - 4); c.globalAlpha = 1; c.textAlign = 'left'; }
 }
@@ -191,7 +300,7 @@ function drawScaleBar(c, fg) {
   const nice = (v) => { const p = 10 ** Math.floor(Math.log10(v)); const m = v / p; return (m >= 5 ? 5 : m >= 2 ? 2 : 1) * p; };
   const len = nice(targetPx / S.view.scale);
   const px = len * S.view.scale;
-  const x0 = 12, y0 = S.H - 14;
+  const x0 = uiPrefs().leftHand ? S.W - 12 - px : 12, y0 = S.H - 14;
   c.fillStyle = S.dark ? 'rgba(20,26,34,.7)' : 'rgba(255,255,255,.75)'; c.fillRect(x0 - 6, y0 - 18, px + 12, 24);
   c.strokeStyle = fg; c.lineWidth = 2; c.beginPath(); c.moveTo(x0, y0); c.lineTo(x0 + px, y0); c.moveTo(x0, y0 - 6); c.lineTo(x0, y0); c.moveTo(x0 + px, y0 - 6); c.lineTo(x0 + px, y0); c.stroke();
   let txt;
@@ -200,13 +309,46 @@ function drawScaleBar(c, fg) {
   c.font = '11px sans-serif'; c.fillStyle = fg; c.textBaseline = 'bottom'; c.textAlign = 'left'; c.fillText(txt, x0 + 4, y0 - 3);
 }
 function drawNorth(c, fg) {
-  c.save(); c.translate(S.W - 26, 30);
+  const big = S.ui2d.northBig ? 44 / 28 : 1;
+  c.save(); c.translate(S.W - 26 * big, 30 * big + (S.rulers ? 18 : 0)); c.scale(big, big);
   if (S.geo.swap) c.rotate(-Math.PI / 2);
   c.fillStyle = S.dark ? 'rgba(20,26,34,.7)' : 'rgba(255,255,255,.75)'; c.beginPath(); c.arc(0, 0, 18, 0, TAU); c.fill();
   c.fillStyle = '#ff453a'; c.beginPath(); c.moveTo(0, -14); c.lineTo(5, 2); c.lineTo(0, -1); c.lineTo(-5, 2); c.closePath(); c.fill();
   c.fillStyle = fg; c.beginPath(); c.moveTo(0, 14); c.lineTo(5, -2); c.lineTo(0, 1); c.lineTo(-5, -2); c.closePath(); c.fill();
   c.font = 'bold 9px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('K', 0, -9);
   c.restore();
+}
+/** 18 px üst/sol cetvel şeritleri (tabular rakam, son dokunma noktasında işaret) */
+function drawRulers(c, fg) {
+  const H = 18, sc = S.view.scale;
+  const r = visibleRect();
+  let step = niceStep((r[2] - r[0]) / 8); while (step * sc < 60) step *= 2;
+  c.fillStyle = S.dark ? 'rgba(20,26,34,.82)' : 'rgba(255,255,255,.85)';
+  c.fillRect(0, 0, S.W, H); c.fillRect(0, 0, H, S.H);
+  c.strokeStyle = fg; c.fillStyle = fg; c.lineWidth = 1; c.globalAlpha = 0.85;
+  c.font = '9px system-ui, sans-serif'; c.textBaseline = 'top'; c.textAlign = 'left';
+  c.beginPath();
+  const ix0 = Math.floor(r[0] / step), ix1 = Math.ceil(r[2] / step);
+  for (let i = ix0; i <= ix1; i++) { const x = Math.round(toScreen(i * step, 0)[0]) + 0.5; if (x < H) continue; c.moveTo(x, H); c.lineTo(x, H - 7); const sub = step / 5 * sc; if (sub > 6) for (let j = 1; j < 5; j++) { c.moveTo(x + j * sub, H); c.lineTo(x + j * sub, H - 3); } c.fillText(fmt(i * step, 0), x + 2, 2); }
+  const iy0 = Math.floor(r[1] / step), iy1 = Math.ceil(r[3] / step);
+  for (let i = iy0; i <= iy1; i++) { const y = Math.round(toScreen(0, i * step)[1]) + 0.5; if (y < H) continue; c.moveTo(H, y); c.lineTo(H - 7, y); const sub = step / 5 * sc; if (sub > 6) for (let j = 1; j < 5; j++) { c.moveTo(H, y - j * sub); c.lineTo(H - 3, y - j * sub); } c.save(); c.translate(2, y - 2); c.rotate(-Math.PI / 2); c.fillText(fmt(i * step, 0), 0, 0); c.restore(); }
+  c.moveTo(0, H + 0.5); c.lineTo(S.W, H + 0.5); c.moveTo(H + 0.5, 0); c.lineTo(H + 0.5, S.H);
+  c.stroke();
+  if (S.lastPoint) { const s = toScreen(S.lastPoint[0], S.lastPoint[1]); c.fillStyle = '#f5b342'; c.fillRect(s[0] - 1, 0, 2, H); c.fillRect(0, s[1] - 1, H, 2); }
+  c.globalAlpha = 1;
+}
+/** Artı imleç: araç ya da ölçü modu çalışırken son dokunma/yakalama noktasında */
+function drawCrosshair(c, fg) {
+  if (S.crosshair === 'off' || !S.lastPoint) return;
+  const running = (editor.tools && editor.tools.running) || S.mode === 'measure' || S.mode === 'profile';
+  if (!running) return;
+  const s = toScreen(S.lastPoint[0], S.lastPoint[1]);
+  c.strokeStyle = fg; c.lineWidth = 1; c.setLineDash([]); c.globalAlpha = 0.5;
+  c.beginPath();
+  if (S.crosshair === 'full') { c.moveTo(0, s[1] + 0.5); c.lineTo(S.W, s[1] + 0.5); c.moveTo(s[0] + 0.5, 0); c.lineTo(s[0] + 0.5, S.H); }
+  else { c.moveTo(s[0] - 12, s[1] + 0.5); c.lineTo(s[0] + 12, s[1] + 0.5); c.moveTo(s[0] + 0.5, s[1] - 12); c.lineTo(s[0] + 0.5, s[1] + 12); }
+  c.stroke(); c.globalAlpha = 1;
+  if (S.crosshair === 'full') { c.font = '11px system-ui, sans-serif'; c.textBaseline = 'bottom'; c.textAlign = 'left'; const txt = fmt(S.lastPoint[0]) + ' ; ' + fmt(S.lastPoint[1]); const w = c.measureText(txt).width + 8; c.fillStyle = S.dark ? 'rgba(20,26,34,.85)' : 'rgba(255,255,255,.85)'; c.fillRect(s[0] + 8, s[1] - 22, w, 18); c.fillStyle = fg; c.fillText(txt, s[0] + 12, s[1] - 6); }
 }
 function label(c, text, x, y) {
   c.font = 'bold 12px sans-serif';
@@ -216,10 +358,14 @@ function label(c, text, x, y) {
   c.textAlign = 'left'; c.textBaseline = 'bottom';
 }
 let lastCoord = null;
+const SCALE_K = 3779.53; // px / m (96 dpi)
+const scaleN = () => S.unitToM > 0 ? SCALE_K * S.unitToM / S.view.scale : 0;
 function updateStatus(sx, sy) {
-  if (!S.hasDoc) { $('stScale').textContent = ''; return; }
-  $('stScale').textContent = '1 px = ' + fmtUnit(1 / S.view.scale);
-  if (sx != null) {
+  const sg = $('stGrid');
+  if (!S.hasDoc) { $('stScale').textContent = ''; if (sg) sg.hidden = true; return; }
+  $('stScale').textContent = S.unitToM > 0 ? '1:' + fmt(scaleN(), 0) : '1 px = ' + fmtUnit(1 / S.view.scale);
+  if (sg) { sg.hidden = !S.grid.on; if (S.grid.on) sg.textContent = gridLabel(gridState.step) || tt('stGrid', 'Izgara'); }
+  if (sx != null && S.ui2d.coordInfo) {
     const w = toWorld(sx, sy);
     lastCoord = w;
     let s = 'X: ' + fmt(w[0]) + '  Y: ' + fmt(w[1]);
@@ -227,20 +373,54 @@ function updateStatus(sx, sy) {
     $('stCoord').textContent = s;
   }
 }
+function ensureStatusChips() {
+  const bar = $('statusbar'); if (!bar) return;
+  const mk = (id, cls) => { let el = $(id); if (!el) { el = document.createElement('span'); el.id = id; el.className = cls; el.hidden = true; const after = $('stScale'); if (after && after.parentElement === bar) after.insertAdjacentElement('afterend', el); else bar.appendChild(el); } return el; };
+  mk('stSnap', 'st-chip'); mk('stGrid', 'st-chip');
+}
+let snapChipTimer = 0;
+function showSnapChip(kind) {
+  const el = $('stSnap'); if (!el) return;
+  if (!kind) { el.hidden = true; return; }
+  el.textContent = kind.toUpperCase(); el.hidden = false;
+  clearTimeout(snapChipTimer); snapChipTimer = setTimeout(() => { el.hidden = true; }, 1500);
+}
+/** Ölçek seçici: 1:100 … 1:25000 + gerçek boyut */
+function showScalePicker() {
+  if (!S.hasDoc) return;
+  if (!(S.unitToM > 0)) { toast(tt('scaleNeedUnit', 'Ölçek için çizim birimi gerekli (Ayarlar › Çizim birimi).')); return; }
+  const list = [100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000, 25000];
+  const cur = Math.round(scaleN());
+  const html = `<div class="full"><div class="chips">${list.map(n => `<button type="button" class="chip ${cur === n ? 'on' : ''}" data-scale="${n}">1:${fmt(n, 0)}</button>`).join('')}<button type="button" class="chip" data-scale="1">${tt('scaleReal', 'Gerçek boyut 1:1')}</button></div></div><div class="full muted">${tt('scaleNow', 'Şu an')}: 1:${fmt(cur, 0)}</div>`;
+  openDoc(tt('scalePick', 'Ölçek'), html);
+  $('docBody').onclick = (ev) => {
+    const b = ev.target.closest('[data-scale]'); if (!b) return;
+    const n = Number(b.dataset.scale); if (!(n > 0)) return;
+    S.view.scale = SCALE_K * S.unitToM / n; viewHistory.push(); requestRender(); hide('docPanel');
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Etkileşim
 // ---------------------------------------------------------------------------
 const pointers = new Map();
-let gesture = null, lastTap = 0, lastTapPos = null;
+let gesture = null, lastTap = 0, lastTapPos = null, longTimer = 0;
 const rel = (ev) => { const r = vp.getBoundingClientRect(); return [ev.clientX - r.left, ev.clientY - r.top]; };
+// eldiven toleransları (ui.glove; dwg:ui olayında yeniden okunur)
+const TOL = { pick: 12, snap: 18, drag: 6, dbl: 320, long: 500 };
+function readTolerances() { const g = glove(); TOL.pick = g ? 20 : 12; TOL.snap = g ? 28 : 18; TOL.drag = g ? 10 : 6; TOL.dbl = g ? 450 : 320; TOL.long = g ? 600 : 500; S.glove = g; }
+window.addEventListener('dwg:ui', () => { readTolerances(); S.cacheValid = false; requestRender(); });
+readTolerances();
+const gestureStart = () => { if (!S.gestureActive) { S.gestureActive = true; } };
+const clearLong = () => { if (longTimer) { clearTimeout(longTimer); longTimer = 0; } };
 
 vp.addEventListener('pointerdown', (ev) => {
   if (!S.hasDoc) return;
-  if (ev.target.closest && ev.target.closest('.notesbar, .fab, .empty, .cmdbar')) return; // görüntü alanı içindeki düğmeler
+  if (ev.target.closest && ev.target.closest('.notesbar, .fab, .empty, .cmdbar, .hud')) return; // görüntü alanı içindeki düğmeler
   vp.setPointerCapture(ev.pointerId);
   pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
-  closeMenu();
+  if (pointers.size === 1) gestureView0 = { ...S.view, li: S.layoutIndex };
+  closeMenu(); clearLong();
   const arr = [...pointers.values()];
   if (arr.length === 1) {
     const [sx, sy] = rel(ev);
@@ -250,12 +430,22 @@ vp.addEventListener('pointerdown', (ev) => {
       gesture = { type: 'note' };
       return;
     }
-    gesture = { type: 'pan', x0: ev.clientX, y0: ev.clientY, view: { ...S.view }, moved: false };
+    if (zoomWin && zoomWin.pending) { zoomWin = { x0: sx, y0: sy, x1: null, y1: null }; gesture = { type: 'zoomwin', x0: sx, y0: sy }; S.gestureActive = true; return; }
+    const now = performance.now();
+    if (lastTapPos && now - lastTap < TOL.dbl && Math.hypot(lastTapPos[0] - sx, lastTapPos[1] - sy) < 30 && !S.notesOn) {
+      // çift-dokun-ve-sürükle: ikinci dokunuş basılı kalırsa dikey sürükleme yakınlaştırır; bırakılırsa 2×
+      gesture = { type: 'dtap', sx, sy, y0: ev.clientY, view: { ...S.view }, moved: false };
+      lastTap = 0;
+    } else {
+      gesture = { type: 'pan', x0: ev.clientX, y0: ev.clientY, view: { ...S.view }, moved: false, t0: now };
+      const canLong = !(editor.tools && editor.tools.running) && S.mode === 'view' && !S.notesOn && !editor.is3D();
+      if (canLong) longTimer = setTimeout(() => { longTimer = 0; if (gesture && gesture.type === 'pan' && !gesture.moved && pointers.size === 1) { gesture.longFired = true; haptic('long'); longPressMenu(sx, sy); } }, TOL.long);
+    }
   } else if (arr.length === 2) {
-    noteDraft = null;
+    noteDraft = null; clearLong();
     const d = Math.hypot(arr[0].x - arr[1].x, arr[0].y - arr[1].y);
     const r = vp.getBoundingClientRect();
-    gesture = { type: 'pinch', d0: d, mid0: [(arr[0].x + arr[1].x) / 2 - r.left, (arr[0].y + arr[1].y) / 2 - r.top], view: { ...S.view }, moved: true };
+    gesture = { type: 'pinch', d0: d, mid0: [(arr[0].x + arr[1].x) / 2 - r.left, (arr[0].y + arr[1].y) / 2 - r.top], view: { ...S.view }, moved: true, t0: performance.now(), start: arr.map(p => ({ x: p.x, y: p.y })), maxMove: 0 };
   }
   S.gestureActive = true;
 });
@@ -268,16 +458,28 @@ vp.addEventListener('pointermove', (ev) => {
     const w = toWorld(sx, sy);
     if (noteDraft.type === 'pen') noteDraft.pts.push(w); else noteDraft.pts[1] = w;
     drawOverlay();
+  } else if (gesture.type === 'zoomwin') {
+    zoomWin.x1 = sx; zoomWin.y1 = sy; drawOverlay();
+  } else if (gesture.type === 'dtap') {
+    const dy = ev.clientY - gesture.y0;
+    if (!gesture.moved && Math.abs(dy) < TOL.drag) return;
+    gesture.moved = true;
+    const f = Math.pow(2, -dy / 100); // yukarı 100 px = 2×, aşağı 100 px = 0,5×
+    S.view.scale = gesture.view.scale; S.view.cx = gesture.view.cx; S.view.cy = gesture.view.cy;
+    zoomAtScreen(gesture.sx, gesture.sy, f);
+    requestRender(true);
   } else if (gesture.type === 'pan') {
     const dx = ev.clientX - gesture.x0, dy = ev.clientY - gesture.y0;
-    if (!gesture.moved && Math.hypot(dx, dy) < 6) return;
-    gesture.moved = true;
+    if (!gesture.moved && Math.hypot(dx, dy) < TOL.drag) return;
+    if (gesture.longFired) return;
+    gesture.moved = true; clearLong();
     S.view.cx = gesture.view.cx - dx / S.view.scale;
     S.view.cy = gesture.view.cy + dy / S.view.scale;
     S.gps.follow = false;
     requestRender(true);
   } else if (gesture.type === 'pinch' && pointers.size >= 2) {
     const arr = [...pointers.values()];
+    if (gesture.start) for (let i = 0; i < 2 && i < arr.length; i++) { const m = Math.hypot(arr[i].x - gesture.start[i].x, arr[i].y - gesture.start[i].y); if (m > gesture.maxMove) gesture.maxMove = m; }
     const r = vp.getBoundingClientRect();
     const d = Math.hypot(arr[0].x - arr[1].x, arr[0].y - arr[1].y);
     const mid = [(arr[0].x + arr[1].x) / 2 - r.left, (arr[0].y + arr[1].y) / 2 - r.top];
@@ -290,34 +492,92 @@ vp.addEventListener('pointermove', (ev) => {
     requestRender(true);
   }
 });
+let gestureView0 = null; // jest başındaki görünüm (geçmiş için)
 function endPointer(ev) {
   const had = pointers.delete(ev.pointerId);
   if (!had) return;
   const [sx, sy] = rel(ev);
+  clearLong();
   if (gesture && gesture.type === 'note') {
     if (noteDraft && ev.type === 'pointerup') {
       const a = toScreen(noteDraft.pts[0][0], noteDraft.pts[0][1]), b = toScreen(noteDraft.pts[noteDraft.pts.length - 1][0], noteDraft.pts[noteDraft.pts.length - 1][1]);
       if (noteDraft.type === 'pen' ? noteDraft.pts.length > 2 : Math.hypot(a[0] - b[0], a[1] - b[1]) > 4) addNote(noteDraft);
     }
-    noteDraft = null; gesture = null; drawOverlay(); return;
+    noteDraft = null; gesture = null; S.gestureActive = false; drawOverlay(); return;
   }
-  if (gesture && gesture.type === 'pan' && !gesture.moved && pointers.size === 0 && ev.type === 'pointerup') {
-    const now = performance.now();
-    if (now - lastTap < 320 && lastTapPos && Math.hypot(lastTapPos[0] - sx, lastTapPos[1] - sy) < 30 && !S.notesOn) { zoomAtScreen(sx, sy, 2); requestRender(); lastTap = 0; }
-    else { lastTap = now; lastTapPos = [sx, sy]; onTap(sx, sy); }
+  if (gesture && gesture.type === 'zoomwin') {
+    const zw = zoomWin; gesture = null; S.gestureActive = false;
+    cancelZoomWindow();
+    if (ev.type === 'pointerup' && zw) {
+      const w = Math.abs(sx - zw.x0), h = Math.abs(sy - zw.y0);
+      if (w > 20 && h > 20) { const a = toWorld(Math.min(sx, zw.x0), Math.max(sy, zw.y0)), b = toWorld(Math.max(sx, zw.x0), Math.min(sy, zw.y0)); fitView([a[0], a[1], b[0], b[1]], 1); }
+      else zoomAtScreen(sx, sy, 2);
+      viewHistory.push(); haptic('step');
+    }
+    requestRender(); return;
   }
-  if (pointers.size === 0) { gesture = null; S.gestureActive = false; clearTimeout(fullTimer); requestRender(); }
-  else if (pointers.size === 1) { const p = [...pointers.values()][0]; gesture = { type: 'pan', x0: p.x, y0: p.y, view: { ...S.view }, moved: true }; }
+  if (gesture && gesture.type === 'dtap' && pointers.size === 0 && ev.type === 'pointerup') {
+    if (!gesture.moved) { zoomAtScreen(gesture.sx, gesture.sy, 2); }
+    lastTap = 0; lastTapPos = null;
+  } else if (gesture && gesture.type === 'pan' && !gesture.moved && !gesture.longFired && pointers.size === 0 && ev.type === 'pointerup') {
+    if (gesture.twoTap && performance.now() - gesture.twoTap.t < 250) { zoomAtScreen(gesture.twoTap.mid[0], gesture.twoTap.mid[1], 0.5); lastTap = 0; }
+    else if (!gesture.fromPinch) { lastTap = performance.now(); lastTapPos = [sx, sy]; onTap(sx, sy); }
+  }
+  if (pointers.size === 0) {
+    gesture = null; S.gestureActive = false; clearTimeout(fullTimer);
+    if (viewChanged(gestureView0, { ...S.view, li: S.layoutIndex })) viewHistory.push();
+    gestureView0 = null;
+    requestRender();
+  } else if (pointers.size === 1) {
+    const p = [...pointers.values()][0];
+    const wasPinchTap = gesture && gesture.type === 'pinch' && gesture.maxMove < 8 && performance.now() - gesture.t0 < 250;
+    gesture = { type: 'pan', x0: p.x, y0: p.y, view: { ...S.view }, moved: false, fromPinch: true, twoTap: wasPinchTap ? { mid: [(p.x + ev.clientX) / 2 - vp.getBoundingClientRect().left, (p.y + ev.clientY) / 2 - vp.getBoundingClientRect().top], t: gesture.t0 } : null };
+  }
 }
 vp.addEventListener('pointerup', endPointer);
 vp.addEventListener('pointercancel', endPointer);
-vp.addEventListener('wheel', (ev) => { if (!S.hasDoc) return; ev.preventDefault(); const [x, y] = rel(ev); zoomAtScreen(x, y, ev.deltaY < 0 ? 1.2 : 1 / 1.2); requestRender(); }, { passive: false });
+vp.addEventListener('wheel', (ev) => {
+  if (!S.hasDoc) return; ev.preventDefault();
+  const [x, y] = rel(ev);
+  if (ev.shiftKey && ev.deltaY) { S.view.cx += (ev.deltaY > 0 ? 1 : -1) * S.W * 0.1 / S.view.scale; requestRender(true); return; }
+  zoomAtScreen(x, y, ev.deltaY < 0 ? 1.2 : 1 / 1.2); requestRender();
+  clearTimeout(wheelTimer); wheelTimer = setTimeout(() => viewHistory.push(), 400);
+}, { passive: false });
+let wheelTimer = 0;
+
+/** Boş tuvale ya da nesneye uzun basış bağlam listesi */
+function longPressMenu(sx, sy) {
+  const w = toWorld(sx, sy);
+  const hit = pick(w, TOL.pick / S.view.scale);
+  S.lastPoint = [w[0], w[1]];
+  const coordTxt = fmt(w[0]) + ';' + fmt(w[1]);
+  const items = hit ? [['info', tt('info', 'Bilgi')], ['zoom', t('zoomTo')], ['select', tt('selectObj', 'Seç')], ['iso', tt('isolate', 'Katmanı izole et')], ['hide', tt('hideLayer', 'Katmanı gizle')], ['copy', t('copyCoord')]]
+    : [['copy', t('copyCoord')], ['measure', tt('measureFrom', 'Buradan ölç')], ['note', tt('noteHere', 'Buraya not')], ['goto', tt('gotoCoord', 'Koordinata git')]];
+  const title = hit ? trType(hit.info ? hit.info.t : hit.et) + ' · ' + hit.lay : 'X ' + fmt(w[0]) + '  Y ' + fmt(w[1]);
+  openDoc(title, `<div class="full list ctx-list">${items.map(i => `<div class="item" data-ctx="${i[0]}">${esc(i[1])}</div>`).join('')}</div>`);
+  $('docBody').onclick = (ev) => {
+    const it = ev.target.closest('[data-ctx]'); if (!it) return;
+    hide('docPanel');
+    switch (it.dataset.ctx) {
+      case 'info': S.selected = hit; drawOverlay(); showInfo(hit); break;
+      case 'zoom': S.selected = hit; fitPrims([hit]); break;
+      case 'select': if (edCall('select', hit) === undefined) { S.selected = hit; drawOverlay(); } break;
+      case 'iso': isolateLayers([hit.lay]); break;
+      case 'hide': { const L = S.layers.get(hit.lay); if (L) { L.visible = false; S.cacheValid = false; buildLayerList(); requestRender(); toast(t('layer') + ' ' + hit.lay + ': ' + tt('hidden', 'gizlendi'), { action: { label: tt('undoAction', 'Geri al'), fn: () => { L.visible = true; S.cacheValid = false; buildLayerList(); requestRender(); } } }); } break; }
+      case 'copy': copyText(coordTxt); break;
+      case 'measure': setMode('measure'); S.measure.push([w[0], w[1], undefined]); updateMeasure(); drawOverlay(); break;
+      case 'note': toggleNotes(true); S.noteTool = 'text'; document.querySelectorAll('#notesBar [data-tool]').forEach(x => x.classList.toggle('active', x.dataset.tool === 'text')); noteTap(sx, sy, w); break;
+      case 'goto': gotoCoord(); break;
+      default: break;
+    }
+  };
+}
 
 function candidates(w, tol) {
   const out = [];
   if (S.tree) S.tree.search(w[0] - tol, w[1] - tol, w[0] + tol, w[1] + tol, i => out.push(S.prims[i]));
   else for (const p of S.prims) if (!(w[0] < p.bb[0] - tol || w[0] > p.bb[2] + tol || w[1] < p.bb[1] - tol || w[1] > p.bb[3] + tol)) out.push(p);
-  return out.filter(p => !p.inf && !(S.layers.get(p.lay) && !S.layers.get(p.lay).visible) && !(p.k === 1 && !S.showText));
+  return out.filter(p => primVisible(p) && !(S.layers.get(p.lay) && S.layers.get(p.lay).locked));
 }
 function pick(w, tol) {
   let best = null, bd = tol;
@@ -329,14 +589,18 @@ function pick(w, tol) {
   return best;
 }
 function doSnap(w) {
-  const tol = 18 / S.view.scale;
+  const tol = TOL.snap / S.view.scale;
   const prev = S.measure.length ? S.measure[S.measure.length - 1] : null;
-  return snapPoint(candidates(w, tol), w, tol, S.snapModes, prev);
+  const sn = snapPoint(candidates(w, tol), w, tol, S.snapModes, prev);
+  if (sn) { S.lastPoint = [sn.p[0], sn.p[1]]; showSnapChip(sn.kind); haptic('snap'); }
+  else S.lastPoint = [w[0], w[1]];
+  return sn;
 }
 
 function onTap(sx, sy) {
   updateStatus(sx, sy);
   const w = toWorld(sx, sy);
+  S.lastPoint = [w[0], w[1]];
   if (editorTap(w, sx, sy)) return;
   if (S.notesOn) { noteTap(sx, sy, w); return; }
   if (S.mode === 'measure' || S.mode === 'profile') {
@@ -357,7 +621,7 @@ function onTap(sx, sy) {
     drawOverlay();
     return;
   }
-  const hit = pick(w, 12 / S.view.scale);
+  const hit = pick(w, TOL.pick / S.view.scale);
   S.selected = hit;
   drawOverlay();
   if (hit) showInfo(hit); else hide('infoPanel');
@@ -366,15 +630,28 @@ function onTap(sx, sy) {
 // ---------------------------------------------------------------------------
 // Paneller
 // ---------------------------------------------------------------------------
-function show(id) { $(id).hidden = false; }
-function hide(id) { $(id).hidden = true; }
-const PANELS = ['layerPanel', 'infoPanel', 'measurePanel', 'docPanel', 'searchPanel'];
-function openPanels() { return PANELS.filter(id => !$(id).hidden); }
+function show(id) { const el = $(id); if (el) el.hidden = false; }
+function hide(id) { const el = $(id); if (!el) return; if (id === 'displayPanel') closeDisplayOptions(); else el.hidden = true; }
+const PANELS = ['layerPanel', 'infoPanel', 'measurePanel', 'docPanel', 'searchPanel', 'displayPanel'];
+function openPanels() { return PANELS.filter(id => { const el = $(id); return el && !el.hidden; }); }
 function closeMenu() { hide('moreMenu'); }
 document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => hide(b.dataset.close)));
 let toastTimer = 0;
-function toast(msg, ms = 2800) {
-  const el = $('toast'); el.textContent = msg; el.hidden = false;
+/** toast(msg, opts): opts sayı ise ms; nesne ise { ms, type:'info'|'ok'|'warn'|'error', action:{label, fn} } */
+function toast(msg, opts) {
+  const el = $('toast');
+  let tx = el.querySelector('.tx'), act = el.querySelector('.act');
+  if (!tx) { el.textContent = ''; tx = document.createElement('span'); tx.className = 'tx'; el.appendChild(tx); }
+  if (!act) { act = document.createElement('button'); act.className = 'act'; act.type = 'button'; act.hidden = true; el.appendChild(act); }
+  el.setAttribute('aria-live', 'polite');
+  const o = typeof opts === 'number' ? { ms: opts } : (opts || {});
+  const type = ['ok', 'warn', 'error'].includes(o.type) ? o.type : '';
+  el.className = 'toast' + (type ? ' ' + type : '');
+  tx.textContent = msg;
+  if (o.action && typeof o.action.fn === 'function') { act.hidden = false; act.textContent = o.action.label || tt('undoAction', 'Geri al'); act.onclick = (ev) => { ev.stopPropagation(); el.hidden = true; clearTimeout(toastTimer); try { o.action.fn(); } catch (e) { console.warn(e); } }; }
+  else { act.hidden = true; act.onclick = null; }
+  el.hidden = false;
+  const ms = o.ms || (type === 'error' ? 6000 : o.action ? 5000 : 2800);
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, ms);
 }
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
@@ -443,7 +720,26 @@ function showInfo(p) {
   if (inf.xd && inf.xd.length) { rows.push(['<strong>' + t('xdata') + '</strong>']); for (const x of inf.xd) rows.push([x[0], x[1]]); }
   rows.push([t('handle'), inf.h]);
   $('infoBody').innerHTML = kv(rows);
+  ensureInfoActions();
   show('infoPanel');
+}
+/** Bilgi paneli eylem çipleri (başlık altı): Buradan ölç · Katmanı izole et · Aynı katmandakileri seç */
+function ensureInfoActions() {
+  const panel = $('infoPanel'); if (!panel || $('infoActions')) return;
+  const row = document.createElement('div'); row.id = 'infoActions'; row.className = 'info-actions';
+  row.innerHTML = `<button type="button" class="chip" data-ia="measure">${tt('measureFrom', 'Buradan ölç')}</button><button type="button" class="chip" data-ia="iso">${tt('isolate', 'Katmanı izole et')}</button><button type="button" class="chip" data-ia="samelayer">${tt('selectSameLayer', 'Aynı katmandakileri seç')}</button>`;
+  const body = $('infoBody'); body.parentElement.insertBefore(row, body);
+  row.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-ia]'); if (!b || !infoPrim) return;
+    const p = infoPrim;
+    if (b.dataset.ia === 'measure') { const pts = p.k === 0 ? flatten(p.ops) : [[p.x, p.y]]; hide('infoPanel'); setMode('measure'); if (pts[0]) { S.measure.push([pts[0][0], pts[0][1], undefined]); updateMeasure(); drawOverlay(); } }
+    else if (b.dataset.ia === 'iso') isolateLayers([p.lay]);
+    else if (b.dataset.ia === 'samelayer') {
+      const same = S.prims.filter(q => q.lay === p.lay && q.k !== 4 && primVisible(q));
+      if (editor.sel) { editor.sel.clear(); for (const q of same) editor.sel.add(q); }
+      drawOverlay(); toast(same.length + ' ' + tt('selectedN', 'nesne seçildi'));
+    }
+  });
 }
 $('infoZoom').addEventListener('click', () => { if (infoPrim) { const b = infoPrim.bb; const m = Math.max(b[2] - b[0], b[3] - b[1]) * 0.3 || 1; zoomExtents([b[0] - m, b[1] - m, b[2] + m, b[3] + m]); } });
 $('infoCopy').addEventListener('click', () => {
@@ -461,6 +757,7 @@ function setMode(m) {
   if (m !== 'view' && S.notesOn) toggleNotes(false);
   S.mode = m;
   $('btnMeasure').classList.toggle('active', m === 'measure' || m === 'profile');
+  edCall('statusMode', m === 'measure' ? tt('measure', 'Ölçü') : m === 'profile' ? t('profile') : null);
   if (m === 'measure' || m === 'profile') {
     S.selected = null; hide('infoPanel'); S.measure = []; S.snap = null;
     $('measureTitle').textContent = m === 'profile' ? t('profile') : t('measure');
@@ -502,6 +799,28 @@ function updateMeasure() {
     if (m.length === 1) rows.push([t('secondPoint')]);
   }
   $('measureBody').innerHTML = kv(rows);
+  updateMeasureBig(rows, total);
+}
+/** Ölçü panelinde kalın okuma satırı ve panoya kopyala */
+function updateMeasureBig(rows, total) {
+  const panel = $('measurePanel'); if (!panel) return;
+  let big = $('measureBig'), acts = $('measureActions');
+  if (!big) {
+    big = document.createElement('div'); big.id = 'measureBig'; big.className = 'meas-big';
+    acts = document.createElement('div'); acts.id = 'measureActions'; acts.className = 'meas-actions';
+    acts.innerHTML = `<button type="button" class="chip" id="measureCopy">${tt('copyClip', 'Panoya kopyala')}</button>`;
+    const body = $('measureBody'); body.parentElement.insertBefore(big, body); body.parentElement.insertBefore(acts, body);
+    $('measureCopy').addEventListener('click', () => { const txt = [...$('measureBody').querySelectorAll('.k, .v, .full')].reduce((a, el, i, arr) => { if (el.classList.contains('k')) a.push(el.textContent + '\t' + (arr[i + 1] ? arr[i + 1].textContent : '')); else if (el.classList.contains('full')) a.push(el.textContent); return a; }, []).join('\n'); copyText(txt); });
+  }
+  const m = S.measure, u = S.units ? ' ' + S.units : '';
+  if (!m.length) { big.hidden = true; acts.hidden = true; return; }
+  big.hidden = false; acts.hidden = false;
+  if (S.mode === 'profile') { big.textContent = rows.length ? rows[rows.length - 1][1] : ''; return; }
+  const last = m.length > 1 ? Math.hypot(m[m.length - 1][0] - m[m.length - 2][0], m[m.length - 1][1] - m[m.length - 2][1]) : 0;
+  let s = m.length > 1 ? fmt(last) + u : fmt(m[0][0]) + ' ; ' + fmt(m[0][1]);
+  if (m.length > 2) s += '   Σ ' + fmt(total) + u + '   A ' + fmt(polyArea(m)) + (u ? u + '²' : '');
+  else if (m.length === 2 && S.unitToM && S.unitToM !== 1) s += '  = ' + fmt(last * S.unitToM, 2) + ' m';
+  big.textContent = s;
 }
 $('btnMeasure').addEventListener('click', () => setMode(S.mode === 'measure' ? 'view' : 'measure'));
 $('btnMeasureClear').addEventListener('click', () => { S.measure = []; S.snap = null; updateMeasure(); drawOverlay(); });
@@ -513,19 +832,58 @@ document.querySelectorAll('[data-snap]').forEach(cb => cb.addEventListener('chan
 }));
 
 // ---- katmanlar -----------------------------------------------------------------------
+const layerUi = { sort: 'name', onlyVis: false };
 function buildLayerList() {
   const q = ($('layerFilter').value || '').toLowerCase();
-  const list = [...S.layers.values()].sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+  const sortSel = $('layerSort'); if (sortSel) layerUi.sort = sortSel.value === 'count' ? 'count' : 'name';
+  const ov = $('layerOnlyVis'); const ovIn = ov && ov.querySelector('input'); if (ovIn) layerUi.onlyVis = ovIn.checked;
+  const list = [...S.layers.values()].sort((a, b) => layerUi.sort === 'count' ? (b.count - a.count) || a.name.localeCompare(b.name, 'tr') : a.name.localeCompare(b.name, 'tr'));
   $('layerCount').textContent = list.length + ' ' + t('layerCount');
-  const fg = fgColor();
-  $('layerList').innerHTML = list.filter(l => !q || l.name.toLowerCase().includes(q)).map(l =>
-    `<label class="layer${l.frozen ? ' frozen' : ''}"><input type="checkbox" data-layer="${esc(l.name)}" ${l.visible ? 'checked' : ''}>
-     <span class="sw" style="background:${rgbCss(l.color, fg)}"></span><span class="nm">${esc(l.name)}</span><span class="ct">${l.count}</span></label>`).join('') || `<div class="muted">${t('noResult')}</div>`;
+  const fg = fgColor(), pal = S.colorMode === 'layer';
+  $('layerList').innerHTML = list.filter(l => (!q || l.name.toLowerCase().includes(q)) && (!layerUi.onlyVis || l.visible)).map(l =>
+    `<div class="layer${l.frozen ? ' frozen' : ''}${l.faded ? ' faded' : ''}${l.locked ? ' locked' : ''}" data-layer-row="${esc(l.name)}"><label><input type="checkbox" data-layer="${esc(l.name)}" ${l.visible ? 'checked' : ''}></label>
+     <span class="sw" style="background:${pal ? D.layerPalette(l.name) : rgbCss(l.color, fg)}"></span><span class="nm">${esc(l.name)}</span><span class="ct">${l.count}</span><button type="button" class="lbtn${l.faded ? ' on' : ''}" data-lfade="${esc(l.name)}" title="${tt('fadeLayer', 'Soldur')}" aria-label="${tt('fadeLayer', 'Soldur')}">◐</button><button type="button" class="lbtn${S.isoBackup && l.visible ? ' on' : ''}" data-liso="${esc(l.name)}" title="${tt('onlyThis', 'Yalnız bu')}" aria-label="${tt('onlyThis', 'Yalnız bu')}">⦿</button></div>`).join('') || `<div class="muted">${t('noResult')}</div>`;
+  const un = $('btnLayersUniso'); if (un) un.hidden = !isIsolated();
 }
 $('layerList').addEventListener('change', (ev) => {
   const cb = ev.target; if (!cb.dataset.layer) return;
   const l = S.layers.get(cb.dataset.layer); if (l) { l.visible = cb.checked; S.cacheValid = false; requestRender(); }
 });
+$('layerList').addEventListener('click', (ev) => {
+  const b = ev.target.closest('button'); if (!b) return;
+  if (b.dataset.lfade != null) { const l = S.layers.get(b.dataset.lfade); if (l) setLayerFaded(l.name, !l.faded); }
+  else if (b.dataset.liso != null) { if (isIsolated() && S.isoBackup && [...S.layers.values()].every(l => l.visible === (l.name === b.dataset.liso))) unisolate(); else isolateLayers([b.dataset.liso]); }
+});
+// katman satırına uzun basış: küçük menü
+let layerLongTimer = 0, layerLongRow = null;
+$('layerList').addEventListener('pointerdown', (ev) => {
+  const row = ev.target.closest('[data-layer-row]'); if (!row || ev.target.closest('button')) return;
+  layerLongRow = row; const x0 = ev.clientX, y0 = ev.clientY;
+  clearTimeout(layerLongTimer);
+  layerLongTimer = setTimeout(() => { layerLongTimer = 0; haptic('long'); layerMenu(row.dataset.layerRow); }, TOL.long);
+  const cancel = (e) => { if (e.type === 'pointermove' && Math.hypot(e.clientX - x0, e.clientY - y0) < 8) return; clearTimeout(layerLongTimer); layerLongTimer = 0; row.removeEventListener('pointermove', cancel); row.removeEventListener('pointerup', cancel); row.removeEventListener('pointercancel', cancel); };
+  row.addEventListener('pointermove', cancel); row.addEventListener('pointerup', cancel); row.addEventListener('pointercancel', cancel);
+});
+$('layerList').addEventListener('contextmenu', (ev) => { const row = ev.target.closest('[data-layer-row]'); if (row) { ev.preventDefault(); layerMenu(row.dataset.layerRow); } });
+function layerMenu(name) {
+  const l = S.layers.get(name); if (!l) return;
+  const items = [['fit', tt('fitLayer', 'Katmana sığdır')], ['cur', tt('makeCurrent', 'Geçerli katman yap')], ['iso', tt('onlyThis', 'Yalnız bu')], ['fade', l.faded ? tt('unfade', 'Soldurmayı kaldır') : tt('fadeLayer', 'Soldur')], ['lock', l.locked ? tt('unlock', 'Kilidi aç') : tt('lock', 'Kilitle')]];
+  openDoc(t('layer') + ': ' + name, `<div class="full list ctx-list">${items.map(i => `<div class="item" data-lm="${i[0]}">${esc(i[1])}</div>`).join('')}</div>`);
+  $('docBody').onclick = (ev) => {
+    const it = ev.target.closest('[data-lm]'); if (!it) return;
+    hide('docPanel');
+    switch (it.dataset.lm) {
+      case 'fit': { const bb = [Infinity, Infinity, -Infinity, -Infinity]; for (const p of S.prims) { if (p.lay !== name || p.k === 4 || p.inf) continue; const b = p.bb; if (b[0] < bb[0]) bb[0] = b[0]; if (b[1] < bb[1]) bb[1] = b[1]; if (b[2] > bb[2]) bb[2] = b[2]; if (b[3] > bb[3]) bb[3] = b[3]; } if (isFinite(bb[0])) { const m = Math.max(bb[2] - bb[0], bb[3] - bb[1]) * 0.1 || 1; zoomExtents([bb[0] - m, bb[1] - m, bb[2] + m, bb[3] + m]); } else toast(tt('layerEmpty', 'Katmanda nesne yok')); break; }
+      case 'cur': if (edCall('setCurLayer', name) === undefined) { editor.curLayer = name; } toast(tt('curLayerSet', 'Geçerli katman') + ': ' + name); S.cacheValid = false; requestRender(); break;
+      case 'iso': isolateLayers([name]); break;
+      case 'fade': setLayerFaded(name, !l.faded); break;
+      case 'lock': l.locked = !l.locked; S.cacheValid = false; buildLayerList(); requestRender(); break;
+      default: break;
+    }
+  };
+}
+for (const [id, fn] of [['btnLayersUniso', () => unisolate()], ['btnLayersInvert', () => { for (const l of S.layers.values()) l.visible = !l.visible; S.cacheValid = false; buildLayerList(); requestRender(); }]]) { const b = $(id); if (b) b.addEventListener('click', fn); }
+{ const ss = $('layerSort'); if (ss) ss.addEventListener('change', buildLayerList); const ov = $('layerOnlyVis'); if (ov) ov.addEventListener('change', buildLayerList); }
 $('layerFilter').addEventListener('input', buildLayerList);
 $('btnLayersAll').addEventListener('click', () => { for (const l of S.layers.values()) l.visible = true; buildLayerList(); requestRender(); });
 $('btnLayersNone').addEventListener('click', () => { for (const l of S.layers.values()) l.visible = false; buildLayerList(); requestRender(); });
@@ -550,7 +908,7 @@ function doSearch() {
   const prims = S.prims;
   for (let i = 0; i < prims.length && res.length < 200; i++) {
     const p = prims[i], inf = p.info || {};
-    if (p.k === 4) continue;
+    if (p.k === 4 || !primVisible(p)) continue;
     let hit = null;
     if (p.k === 1 && p.lines.join(' ').toLowerCase().includes(q)) hit = p.lines.join(' ');
     else if (inf.h && inf.h.toLowerCase() === q) hit = 'handle ' + inf.h;
@@ -586,10 +944,16 @@ function menuAction(act) {
     case 'compare': showCompare(); break;
     case 'xrefs': showXrefs(); break;
     case 'views': showViews(); break;
-    case 'bg': S.dark = !S.dark; settings.dark = S.dark; saveSettings(); document.body.classList.toggle('light', !S.dark); S.cacheValid = false; requestRender(); if (!$('layerPanel').hidden) buildLayerList(); editorTheme(); break;
-    case 'mono': S.mono = !S.mono; S.cacheValid = false; requestRender(); break;
-    case 'lw': S.lw = !S.lw; S.cacheValid = false; requestRender(); toast(t('lw') + ': ' + (S.lw ? 'açık' : 'kapalı')); break;
-    case 'text': S.showText = !S.showText; S.cacheValid = false; requestRender(); toast(S.showText ? t('textShown') : t('textHidden')); break;
+    case 'bg': toggleDisplay('theme'); break;
+    case 'mono': toggleDisplay('colorMode'); break;
+    case 'lw': toggleDisplay('lw'); break;
+    case 'text': toggleDisplay('showText'); break;
+    case 'display': openDisplayOptions(); break;
+    case 'goto': gotoCoord(); break;
+    case 'zoomwin': zoomWindow(); break;
+    case 'prevview': viewHistory.back(); break;
+    case 'nextview': viewHistory.forward(); break;
+    case 'extents': zoomExtents(); break;
     case 'png': savePng(); break;
     case 'pdf': showPdf(); break;
     case 'server': showServer(); break;
@@ -651,13 +1015,14 @@ function showLayouts() {
 function toggleNotes(on) {
   S.notesOn = on;
   $('notesBar').hidden = !on;
+  refreshNav();
   if (on && S.mode !== 'view') setMode('view');
   if (!on) { selectedNote = null; noteDraft = null; }
   drawOverlay();
 }
 $('notesBar').addEventListener('click', (ev) => {
   const b = ev.target.closest('button'); if (!b) return;
-  if (b.dataset.tool) { S.noteTool = b.dataset.tool; document.querySelectorAll('#notesBar [data-tool]').forEach(x => x.classList.toggle('active', x === b)); return; }
+  if (b.dataset.tool) { S.noteTool = b.dataset.tool; document.querySelectorAll('#notesBar [data-tool]').forEach(x => x.classList.toggle('active', x === b)); refreshNav(); return; }
   if (b.id === 'noteUndo') { const last = notes.items[notes.items.length - 1]; if (last) removeNote(last.id); selectedNote = null; drawOverlay(); }
   else if (b.id === 'noteDelete') { if (selectedNote) { removeNote(selectedNote.id); selectedNote = null; drawOverlay(); } }
   else if (b.id === 'noteClose') toggleNotes(false);
@@ -752,10 +1117,14 @@ function showSettings() {
     [t('axisSwap'), `<label class="chk"><input type="checkbox" id="sSwap" ${cur.swap ? 'checked' : ''}> X = Kuzey (sağa değer), Y = Doğu</label>`, 1],
     [t('offset') + ' X', `<input id="sDx" type="number" step="any" value="${cur.dx}">`, 1],
     [t('offset') + ' Y', `<input id="sDy" type="number" step="any" value="${cur.dy}">`, 1],
-    [t('lwScale'), `<input id="sLw" type="number" step="0.5" min="1" max="10" value="${settings.lwScale}">`, 1],
+    [t('lwScale'), `<input id="sLw" type="number" step="0.5" min="1" max="10" value="${S.lwScale}">`, 1],
     [`<div class="full muted">${S.fileKey ? 'Koordinat ayarları bu dosya için ayrıca saklanır; dosya açık değilken girilenler varsayılan olur. ' : ''}ED50 dönüşümü ülke ortalaması parametreleriyle yapılır (±2-5 m).</div>`],
-    [`<div class="full btns"><button class="btn primary small" id="sSave">${t('save')}</button></div>`]]);
-  openDoc(t('settings'), html);
+    [`<div class="full btns"><button class="btn primary small" id="sSave">${t('save')}</button><button class="btn small" id="sDisplay">${tt('dispTitle', 'Ekran ayarları')}</button></div>`]]);
+  let a11y = null;
+  try { if (typeof editorMod.accessibilitySection === 'function') a11y = editorMod.accessibilitySection(); } catch (e) { console.warn(e); a11y = null; }
+  openDoc(t('settings'), html + (a11y && a11y.html ? a11y.html : ''));
+  if (a11y && typeof a11y.bind === 'function') { try { a11y.bind($('docBody')); } catch (e) { console.warn(e); } }
+  $('sDisplay').onclick = () => { hide('docPanel'); openDisplayOptions(); };
   $('sSave').onclick = () => {
     settings.lang = $('sLang').value; settings.lwScale = Number($('sLw').value) || 3;
     const geo = { crs: $('sCrs').value, unit: $('sUnit').value, swap: $('sSwap').checked, dx: Number($('sDx').value) || 0, dy: Number($('sDy').value) || 0 };
@@ -771,7 +1140,7 @@ function showBasemap() {
     [t('basemap'), `<select id="bmSel">${BASEMAPS.map(b => `<option value="${b.id}" ${b.id === S.basemap.id ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select>`, 1],
     ['XYZ', `<input id="bmUrl" placeholder="https://…/{z}/{x}/{y}.png" value="${esc(S.basemap.url)}">`, 1],
     ['WMS', `<input id="bmWms" placeholder="https://sunucu/wms?LAYERS=katman" value="${esc(S.basemap.wms)}">`, 1],
-    [t('basemapOpacity'), `<input id="bmOp" type="range" min="0.1" max="1" step="0.05" value="${S.basemap.opacity}">`, 1],
+    [t('basemapOpacity'), `<input id="bmOp" type="range" min="0.1" max="1" step="0.05" value="${S.basemap.opacity}" oninput="window.dwgApp.display.setDisplay('basemapOpacity', Number(this.value), {fast:true})">`, 1],
     [`<div class="full muted">${S.geo.active ? S.geo.crs.name : t('basemapNeedCrs')}</div>`],
     [`<div class="full btns"><button class="btn primary small" id="bmSave">${t('save')}</button></div>`]]);
   openDoc(t('basemap'), html);
@@ -785,18 +1154,52 @@ function showBasemap() {
 // ---- kayıtlı görünümler ----------------------------------------------------------------------
 function showViews() {
   const views = store.json('views:' + S.fileKey, []);
-  const html = `<div class="full btns"><button class="btn primary small" id="vSave">${t('viewSave')}</button></div><div class="full list">` +
-    (views.length ? views.map((v, i) => `<div class="item" data-i="${i}">${esc(v.name)}<small>${esc(v.layout || 'Model')} · 1 px = ${fmt(1 / v.view.scale)} · <a href="#" data-del="${i}">${t('delete')}</a></small></div>`).join('') : `<div class="muted">${t('noViews')}</div>`) + `</div>`;
+  const home = store.json('home:' + S.fileKey, null);
+  const html = `<div class="full btns"><button class="btn primary small" id="vSave">${t('viewSave')}</button><button class="btn small" id="vHome">${tt('setHome', 'Ana görünüm yap')}</button>${home ? `<button class="btn small" id="vGoHome">${tt('homeView', 'Ana görünüm')}</button>` : ''}</div><div class="full list">` +
+    (views.length ? views.map((v, i) => `<div class="item" data-i="${i}">${esc(v.name)}<small>${esc(v.layout || 'Model')} · 1 px = ${fmt(1 / v.view.scale)} · <a href="#" data-del="${i}">${t('delete')}</a></small></div>`).join('') : `<div class="muted">${t('noViews')}</div>`) + `</div><div class="full" id="vBookmarks3d"></div>`;
   openDoc(t('views'), html);
   $('vSave').onclick = () => { const name = prompt(t('viewName'), 'Görünüm ' + (views.length + 1)); if (!name) return; views.push({ name, view: { ...S.view }, layout: S.scene.layouts[S.layoutIndex].name, li: S.layoutIndex }); store.set('views:' + S.fileKey, JSON.stringify(views)); showViews(); };
+  $('vHome').onclick = () => { D.setHome(); showViews(); };
+  if ($('vGoHome')) $('vGoHome').onclick = () => { D.gotoHome(); hide('docPanel'); };
+  import('./view3d_panel.js').then(m => {
+    const el = $('vBookmarks3d'); if (!el || typeof m.listBookmarks !== 'function') return;
+    const bm = m.listBookmarks(S.fileKey) || [];
+    if (bm.length) el.innerHTML = `<strong>3B</strong><div class="list">${bm.map(b => `<div class="item muted">${esc(b.name)}<small>${esc(b.style || '')} ${b.cam ? '· yaw ' + fmt(b.cam.yaw * 180 / Math.PI, 0) + '°' : ''}</small></div>`).join('')}</div>`;
+  }).catch(() => {});
   $('docBody').onclick = (ev) => {
     const del = ev.target.closest('[data-del]');
     if (del) { ev.preventDefault(); views.splice(Number(del.dataset.del), 1); store.set('views:' + S.fileKey, JSON.stringify(views)); showViews(); return; }
-    const it = ev.target.closest('.item'); if (!it) return;
+    const it = ev.target.closest('.item[data-i]'); if (!it) return;
     const v = views[Number(it.dataset.i)];
     if (v.li != null && v.li !== S.layoutIndex && S.scene.layouts[v.li]) setLayout(v.li);
-    S.view = { ...v.view }; requestRender(); hide('docPanel');
+    S.view = { ...v.view }; viewHistory.push(); requestRender(); hide('docPanel');
   };
+}
+/** Koordinata git (X/Y ya da φ/λ) */
+function gotoCoord() {
+  if (!S.hasDoc) { toast(t('openFirst')); return; }
+  const swap = !!S.geo.swap, lx = swap ? 'Y (Kuzey)' : 'X', ly = swap ? 'X (Doğu)' : 'Y';
+  const rows = [[lx, `<input id="gotoX" type="text" inputmode="decimal" placeholder="412345.67">`, 1], [ly, `<input id="gotoY" type="text" inputmode="decimal" placeholder="4512345.89">`, 1]];
+  if (S.geo.active) rows.push(['φ (enlem)', `<input id="gotoLat" type="text" inputmode="decimal" placeholder="40.7654 ya da 40°45'55.4&quot;">`, 1], ['λ (boylam)', `<input id="gotoLon" type="text" inputmode="decimal" placeholder="29.9408">`, 1]);
+  rows.push([`<div class="full btns"><button class="btn primary small" id="gotoGo">${tt('go', 'Git')}</button><button class="btn small" id="gotoMark">${tt('markPoint', 'İşaretle')}</button><button class="btn small" id="gotoPaste">${tt('paste', 'Yapıştır')}</button></div>`]);
+  openDoc(tt('gotoCoord', 'Koordinata git'), kv(rows));
+  const num = (s) => { s = String(s || '').trim().replace(',', '.'); const m = /^(-?)(\d+(?:\.\d+)?)[°\s]+(\d+(?:\.\d+)?)?['\s]*(\d+(?:\.\d+)?)?"?\s*([NSEWKDGB])?$/i.exec(s); if (m && (m[3] != null || m[4] != null)) { let v = Number(m[2]) + (Number(m[3]) || 0) / 60 + (Number(m[4]) || 0) / 3600; if (m[1] === '-' || /[SWB]/i.test(m[5] || '')) v = -v; return v; } const v = parseFloat(s); return isFinite(v) ? v : NaN; };
+  const target = () => {
+    if (S.geo.active && $('gotoLat').value.trim() && $('gotoLon').value.trim()) { const d = S.geo.toDrawing(num($('gotoLon').value), num($('gotoLat').value)); return d || null; }
+    const x = num($('gotoX').value), y = num($('gotoY').value);
+    return isFinite(x) && isFinite(y) ? [x, y] : null;
+  };
+  const go = (mark) => { const d = target(); if (!d) { toast(tt('badCoord', 'Koordinat okunamadı'), { type: 'warn' }); return; } S.view.cx = d[0]; S.view.cy = d[1]; S.gotoMarker = mark ? [d[0], d[1]] : null; S.gps.follow = false; viewHistory.push(); requestRender(); hide('docPanel'); };
+  $('gotoGo').onclick = () => go(false);
+  $('gotoMark').onclick = () => go(true);
+  $('gotoPaste').onclick = async () => {
+    let txt = '';
+    try { txt = navigator.clipboard ? await navigator.clipboard.readText() : ''; } catch (_) { txt = ''; }
+    if (!txt && A() && A().paste) { try { txt = A().paste() || ''; } catch (_) { txt = ''; } }
+    const parts = txt.split(/[;\s]+|,(?=\s)/).map(x => x.trim()).filter(Boolean);
+    if (parts.length >= 2) { $('gotoX').value = parts[0]; $('gotoY').value = parts[1]; } else toast(tt('badCoord', 'Koordinat okunamadı'), { type: 'warn' });
+  };
+  $('gotoX').focus();
 }
 
 // ---- karşılaştırma ---------------------------------------------------------------------------
@@ -971,14 +1374,24 @@ function overlayForExport(c) {
   c.setTransform(1, 0, 0, 1, 0, 0);
   drawNotes(c, toScreen, S.view.scale, null, null, photos);
 }
-function savePng() {
-  const c = document.createElement('canvas'); c.width = cv.width; c.height = cv.height;
-  const g = c.getContext('2d'); g.drawImage(cv, 0, 0); g.drawImage(ov, 0, 0);
-  const name = baseName() + '_' + stamp() + '.png';
-  let data;
-  try { data = c.toDataURL('image/png'); } catch (e) { toast('PNG alınamadı (harita altlığı CORS engeli). Altlığı kapatıp yeniden deneyin.', 5000); return; }
+function savePng(dataUrl, name) {
+  let data = typeof dataUrl === 'string' && dataUrl.startsWith('data:') ? dataUrl : null;
+  name = name || (baseName() + '_' + stamp() + (editor.is3D() ? '_3d' : '') + '.png');
+  if (!data) {
+    if (editor.is3D()) {
+      const v = editor.view3d();
+      if (v && typeof v.screenshot === 'function') { try { data = v.screenshot({ overlay: ov }); } catch (e) { console.warn(e); data = null; } }
+      if (!data && v) { const c = document.createElement('canvas'); c.width = v.cv.width; c.height = v.cv.height; const g = c.getContext('2d'); g.drawImage(v.cv, 0, 0); g.drawImage(ov, 0, 0, c.width, c.height); data = c.toDataURL('image/png'); }
+    }
+    if (!data) {
+      const c = document.createElement('canvas'); c.width = cv.width; c.height = cv.height;
+      const g = c.getContext('2d'); g.drawImage(cv, 0, 0); g.drawImage(ov, 0, 0);
+      try { data = c.toDataURL('image/png'); } catch (e) { toast('PNG alınamadı (harita altlığı CORS engeli). Altlığı kapatıp yeniden deneyin.', { ms: 5000, type: 'error' }); return; }
+    }
+  }
   if (A() && A().savePng) A().savePng(data.split(',')[1], name);
-  else { const a = document.createElement('a'); a.href = data; a.download = name; a.click(); }
+  else { const a = document.createElement('a'); a.href = data; a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 1000); }
+  toast(tt('pngSaved', 'PNG kaydedildi'), { type: 'ok' });
 }
 const baseName = () => (S.fileName || 'cizim').replace(/\.(dwg|dxf)$/i, '');
 const stamp = () => new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '');
@@ -1128,13 +1541,18 @@ function setScene(scene, name, size) {
   hide('empty'); hide('infoPanel'); hide('docPanel'); hide('searchPanel');
   $('fileName').textContent = name; $('fileName').title = name;
   $('stCount').textContent = S.entityCount + ' ' + t('entity') + ' · ' + S.layers.size + ' ' + t('layerCount');
+  { const sub = $('fileSub'); if (sub) sub.textContent = [S.entityCount + ' ' + t('entity'), S.units || null, S.version || null].filter(Boolean).join(' · '); }
+  document.body.classList.add('hasdoc');
   $('gpsBtn').hidden = false;
+  S.isoBackup = null; S.lastPoint = null; S.gotoMarker = null; S.layerPalette.clear();
+  viewHistory.reset();
   applyGeo();
   loadNotes(S.fileKey);
   for (const n of notes.items) if (n.type === 'photo' && n.photo) loadPhoto(n.photo);
   setLayout(0);
   editorScene();
   if (!$('layerPanel').hidden) buildLayerList();
+  refreshNav();
   setTimeout(saveThumb, 400);
 }
 function saveThumb() {
@@ -1204,6 +1622,8 @@ function buildRecent() {
 function onBack() {
   if (!$('qrPanel').hidden) { stopQr(); return true; }
   if (!$('moreMenu').hidden) { closeMenu(); return true; }
+  if (zoomWin) { cancelZoomWindow(); return true; }
+  if (S.gotoMarker) { S.gotoMarker = null; drawOverlay(); return true; }
   const open = openPanels();
   if (open.length) { for (const id of open) hide(id); dockLayers(); if (S.mode !== 'view') setMode('view'); return true; }
   if (editorBack()) return true;
@@ -1231,9 +1651,31 @@ async function checkUpdate(manual) {
 // Başlangıç
 // ---------------------------------------------------------------------------
 window.dwgApp = { loadCurrent, onFilePicked, onLocation, onBack, loadBytes, zoomExtents, render, toScreen, toWorld, state: S, notes, editor, setMode, setLayout, refreshRecent: buildRecent,
-  onLocationError: (m) => toast('GPS: ' + m) };
-initEditor({ S, requestRender, drawOverlay, toast, pick: (w) => pick(w, 12 / S.view.scale), snap: doSnap, showInfo, openDoc, hide, show, esc, kv, copyText, buildLayerList, fmt, store, RTree, baseName, zoomExtents, tracePath,
-  action: (a) => { if (a === 'layers') $('btnLayers').click(); else if (a === 'search') $('btnSearch').click(); else if (a === 'more') $('btnMore').click(); else menuAction(a); } });
+  onLocationError: (m) => toast('GPS: ' + m),
+  display: D, toast, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, savePng, getSettings: () => settings, requestRender, openDisplayOptions };
+ensureStatusChips();
+D.initDisplay({ requestRender, drawOverlay, toast, openDoc, show, hide, buildLayerList, settings, saveSettings, editorTheme, zoomExtents, zoomBy, fitPrims, viewHistory, setLayout, editor, ui: uiPrefs(), basemaps: BASEMAPS, haptic });
+mountNavFabs(vp);
+initEditor({ S, requestRender, drawOverlay, toast, pick: (w) => pick(w, TOL.pick / S.view.scale), snap: doSnap, showInfo, openDoc, hide, show, esc, kv, copyText, buildLayerList, fmt, store, RTree, baseName, zoomExtents, tracePath,
+  action: (a) => { if (a === 'layers') $('btnLayers').click(); else if (a === 'search') $('btnSearch').click(); else if (a === 'more') $('btnMore').click(); else menuAction(a); },
+  savePng, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, isolateLayers, unisolate, settings, stamp, haptic, openDisplayOptions, setDisplay, getDisplay, toggleDisplay, display: D });
+$('stScale').addEventListener('click', showScalePicker);
+// klavye (odak bir giriş alanında değilken): önce düzenleyici, sonra gezinti
+window.addEventListener('keydown', (ev) => {
+  const tg = ev.target; if (tg && (tg.tagName === 'INPUT' || tg.tagName === 'TEXTAREA' || tg.tagName === 'SELECT' || tg.isContentEditable)) return;
+  if (edCall('key', ev) === true) { ev.preventDefault(); return; }
+  if (!S.hasDoc) return;
+  const k = ev.key; if (typeof k !== 'string') return;
+  let done = true;
+  if (k === '+' || k === '=') zoomBy(1.5); else if (k === '-') zoomBy(1 / 1.5);
+  else if (k === 'f' || k === 'F') zoomExtents(); else if (k === 'Home') { if (!D.gotoHome()) zoomExtents(); }
+  else if (k === 'PageUp') viewHistory.back(); else if (k === 'PageDown') viewHistory.forward();
+  else if (k.startsWith('Arrow')) { const f = ev.shiftKey ? 0.02 : 0.1; if (k === 'ArrowLeft') S.view.cx -= S.W * f / S.view.scale; else if (k === 'ArrowRight') S.view.cx += S.W * f / S.view.scale; else if (k === 'ArrowUp') S.view.cy += S.H * f / S.view.scale; else S.view.cy -= S.H * f / S.view.scale; requestRender(); clearTimeout(wheelTimer); wheelTimer = setTimeout(() => viewHistory.push(), 400); }
+  else if (k === 'z' || k === 'Z') zoomWindow(); else if (k === 'g' || k === 'G') toggleDisplay('grid'); else if (k === 'd' || k === 'D') { const p = $('displayPanel'); if (p && !p.hidden) closeDisplayOptions(); else openDisplayOptions(); }
+  else if (k === 'Escape') { if (!onBack()) done = false; }
+  else done = false;
+  if (done) ev.preventDefault();
+});
 applySettings();
 applyGeo();
 resize();

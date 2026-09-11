@@ -7,15 +7,108 @@
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
+<!-- Simge kütüphanesi: 24×24, çizgi tabanlı; araç çubuğu, FAB'lar ve durum çubuğu buradan <use> ile çeker -->
+<svg hidden xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <defs>
+    <symbol id="i-fit" viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/><rect x="9" y="9" width="6" height="6"/></symbol>
+    <symbol id="i-zoom-in" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21M10.5 7.5v6M7.5 10.5h6"/></symbol>
+    <symbol id="i-zoom-out" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21M7.5 10.5h6"/></symbol>
+    <symbol id="i-zoom-window" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1" stroke-dasharray="3 2"/><circle cx="12" cy="12" r="3"/><path d="M14.2 14.2 17 17"/></symbol>
+    <symbol id="i-prev" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h9a7 7 0 0 1 0 14h-3"/></symbol>
+    <symbol id="i-next" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9h-9a7 7 0 0 0 0 14h3"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h5v-6h4v6h5V10"/></symbol>
+    <symbol id="i-goto" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="8"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/><path d="m3 17 9 5 9-5"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></symbol>
+    <symbol id="i-pen" viewBox="0 0 24 24"><path d="m4 20 4-1L19 8l-3-3L5 16z"/><path d="m14 7 3 3"/></symbol>
+    <symbol id="i-gps" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24"><path d="m3 6 6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></symbol>
+    <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"/></symbol>
+    <symbol id="i-pdf" viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5"/><path d="M8.5 17v-5h2a1.5 1.5 0 0 1 0 3h-2"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="m21 16-5-5-8 8"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M4 4h12l4 4v12H4z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/></symbol>
+    <symbol id="i-export" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M4 14v6h16v-6"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12H9"/></symbol>
+    <symbol id="i-redo" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h5"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/></symbol>
+    <symbol id="i-compare" viewBox="0 0 24 24"><path d="M12 3v18"/><rect x="3" y="6" width="7" height="12" rx="1"/><rect x="14" y="6" width="7" height="12" rx="1" stroke-dasharray="2 2"/></symbol>
+    <symbol id="i-layout" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 9h18M10 9v11"/></symbol>
+    <symbol id="i-profile" viewBox="0 0 24 24"><path d="M3 20h18"/><path d="m3 16 5-7 4 4 4-8 5 6"/></symbol>
+    <symbol id="i-theme" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4v16A8 8 0 0 0 12 4z" fill="currentColor"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></symbol>
+    <symbol id="i-text" viewBox="0 0 24 24"><path d="M5 6h14M12 6v13M9 19h6"/></symbol>
+    <symbol id="i-hatch" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16"/><path d="m4 12 8-8M4 20 20 4M12 20l8-8"/></symbol>
+    <symbol id="i-dim" viewBox="0 0 24 24"><path d="M4 16h16M4 12v8M20 12v8"/><path d="m7 16 3-2v4zM17 16l-3-2v4z" fill="currentColor"/><path d="M9 7h6"/></symbol>
+    <symbol id="i-lw" viewBox="0 0 24 24"><path d="M4 6h16" stroke-width="1"/><path d="M4 11h16" stroke-width="2"/><path d="M4 17.5h16" stroke-width="3.5"/></symbol>
+    <symbol id="i-mono" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/><path d="M8 12h8"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><path d="M4 4h16v16H4zM9 4v16M15 4v16M4 9h16M4 15h16"/></symbol>
+    <symbol id="i-crosshair" viewBox="0 0 24 24"><path d="M12 3v6M12 15v6M3 12h6M15 12h6"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></symbol>
+    <symbol id="i-fade" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16"/><path d="M4 18h16" opacity=".35"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2" fill="var(--bar,#1f2a37)"/><circle cx="15" cy="12" r="2" fill="var(--bar,#1f2a37)"/><circle cx="7" cy="17" r="2" fill="var(--bar,#1f2a37)"/></symbol>
+    <symbol id="i-ruler" viewBox="0 0 24 24"><path d="m3 17 14-14 4 4L7 21z"/><path d="m7 13 2 2M10 10l2 2M13 7l2 2"/></symbol>
+    <symbol id="i-cube" viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></symbol>
+    <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 0 0 18c1.5 0 2-1 1.5-2s0-2 1.5-2h1.5A4.5 4.5 0 0 0 21 12c0-5-4-9-9-9z"/><circle cx="8" cy="10" r="1.2" fill="currentColor"/><circle cx="12" cy="7" r="1.2" fill="currentColor"/><circle cx="16" cy="9" r="1.2" fill="currentColor"/></symbol>
+    <symbol id="i-axes" viewBox="0 0 24 24"><path d="M12 20V6M12 20l8 2M12 20 4 22"/><path d="m9.5 8.5 2.5-3 2.5 3"/></symbol>
+    <symbol id="i-zscale" viewBox="0 0 24 24"><path d="M7 4v16M4 7l3-3 3 3M4 17l3 3 3-3"/><path d="M13 8h7M13 12h7M13 16h7"/></symbol>
+    <symbol id="i-clip" viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z" opacity=".5"/><path d="M4 12h16"/><path d="M4 7.5 12 12l8-4.5"/></symbol>
+    <symbol id="i-turn" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><circle cx="12" cy="13.5" r="3.5"/><path d="M8 7l1.5-3h5L16 7"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-dist" viewBox="0 0 24 24"><path d="M4 18 18 4"/><circle cx="4" cy="18" r="2"/><circle cx="18" cy="4" r="2"/><path d="m8 14 2 2M11 11l2 2"/></symbol>
+    <symbol id="i-area" viewBox="0 0 24 24"><path d="M5 8 12 4l7 4v9l-7 3-7-3z"/><path d="M8 11h8M8 14h8" opacity=".6"/></symbol>
+    <symbol id="i-angle" viewBox="0 0 24 24"><path d="M4 20 18 6M4 20h16"/><path d="M10 20a6 6 0 0 0-1.8-4.2"/></symbol>
+    <symbol id="i-radius" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 12h8"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/></symbol>
+    <symbol id="i-coord" viewBox="0 0 24 24"><path d="M4 20V4M4 20h16"/><circle cx="14" cy="9" r="2"/><path d="M14 11v9M4 9h10" stroke-dasharray="2 2"/></symbol>
+    <symbol id="i-snap" viewBox="0 0 24 24"><rect x="8" y="8" width="8" height="8"/><path d="M12 2v6M12 16v6M2 12h6M16 12h6"/></symbol>
+    <symbol id="i-line" viewBox="0 0 24 24"><path d="M4 20 20 4"/></symbol>
+    <symbol id="i-pline" viewBox="0 0 24 24"><path d="M3 18 8 8l5 8 4-10 4 8"/></symbol>
+    <symbol id="i-rect" viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12"/></symbol>
+    <symbol id="i-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></symbol>
+    <symbol id="i-arc" viewBox="0 0 24 24"><path d="M4 18A9 9 0 0 1 20 18"/><circle cx="4" cy="18" r="1.5" fill="currentColor"/><circle cx="20" cy="18" r="1.5" fill="currentColor"/><circle cx="12" cy="9" r="1.5" fill="currentColor"/></symbol>
+    <symbol id="i-point" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5" fill="currentColor"/><path d="M12 5v3M12 16v3M5 12h3M16 12h3"/></symbol>
+    <symbol id="i-pline3d" viewBox="0 0 24 24"><path d="M3 19 9 9l5 5 6-10"/><path d="M3 19v-4M9 9V5M14 14v-4M20 4v0"/></symbol>
+    <symbol id="i-face" viewBox="0 0 24 24"><path d="M4 16 10 6h10l-6 10z" fill="currentColor" fill-opacity=".25"/><path d="M4 16h10"/></symbol>
+    <symbol id="i-select" viewBox="0 0 24 24"><path d="M6 3l12 10-5 1 3 6-2 1-3-6-4 4z"/></symbol>
+    <symbol id="i-move" viewBox="0 0 24 24"><path d="M12 2v20M2 12h20"/><path d="m9 5 3-3 3 3M9 19l3 3 3-3M5 9 2 12l3 3M19 9l3 3-3 3"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="1"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></symbol>
+    <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 3-6.2"/><path d="M4 4v5h5"/></symbol>
+    <symbol id="i-scale" viewBox="0 0 24 24"><rect x="3" y="11" width="10" height="10"/><path d="M13 11 21 3M21 3h-6M21 3v6"/></symbol>
+    <symbol id="i-mirror" viewBox="0 0 24 24"><path d="M12 3v18" stroke-dasharray="2 2"/><path d="M9 7 4 12l5 5zM15 7l5 5-5 5z"/></symbol>
+    <symbol id="i-offset" viewBox="0 0 24 24"><path d="M4 8h10a4 4 0 0 1 4 4v6"/><path d="M4 13h8a2 2 0 0 1 2 2v3" opacity=".6"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></symbol>
+    <symbol id="i-z" viewBox="0 0 24 24"><path d="M7 6h10L7 18h10"/><path d="M20 4v6M18 6l2-2 2 2" opacity=".7"/></symbol>
+    <symbol id="i-edittext" viewBox="0 0 24 24"><path d="M4 6h10M9 6v12M6 18h6"/><path d="m14 18 1-3 5-5 2 2-5 5z"/></symbol>
+    <symbol id="i-props" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></symbol>
+    <symbol id="i-iso" viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/><path d="M12 12 4 7.5" stroke-width="3" opacity=".4"/></symbol>
+    <symbol id="i-top" viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="m4 7.5 8 4.5 8-4.5-8-4.5z" fill="currentColor" fill-opacity=".35"/><path d="M12 12v9"/></symbol>
+    <symbol id="i-bottom" viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 16.5 12 21l8-4.5" stroke-width="3" opacity=".45"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></symbol>
+    <symbol id="i-front" viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="m4 7.5 8 4.5v9l-8-4.5z" fill="currentColor" fill-opacity=".35"/><path d="m12 12 8-4.5"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/><path d="m12 3 8 4.5" stroke-width="3" opacity=".45"/></symbol>
+    <symbol id="i-left" viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5v9" stroke-width="3" opacity=".45"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></symbol>
+    <symbol id="i-right" viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="m12 12 8-4.5v9L12 21z" fill="currentColor" fill-opacity=".35"/><path d="M4 7.5 12 12"/></symbol>
+    <symbol id="i-arrow-up" viewBox="0 0 24 24"><path d="M12 20V4M5 11l7-7 7 7"/></symbol>
+    <symbol id="i-arrow-down" viewBox="0 0 24 24"><path d="M12 4v16M5 13l7 7 7-7"/></symbol>
+    <symbol id="i-arrow-left" viewBox="0 0 24 24"><path d="M20 12H4M11 5l-7 7 7 7"/></symbol>
+    <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M4 12h16M13 5l7 7-7 7"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="m12 3 2.8 5.8 6.2.9-4.5 4.4 1 6.2-5.5-3-5.5 3 1-6.2L3.6 9.7l6.2-.9z"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-open" viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+    <symbol id="i-3d" viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></symbol>
+    <symbol id="i-light" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.5c.8.8 1 1.5 1 2.5h6c0-1 .2-1.7 1-2.5A6 6 0 0 0 12 3z"/></symbol>
+  </defs>
+</svg>
 <div id="app">
   <header id="topbar">
-    <button id="btnOpen" class="btn primary" data-i18n-title="open">📂 <span data-i18n="open">Aç</span></button>
-    <div id="fileName" class="filename">Dosya seçilmedi</div>
-    <button id="btnSearch" class="btn icon" data-i18n-title="search">🔍</button>
-    <button id="btnExtents" class="btn icon" data-i18n-title="fit">⤢</button>
-    <button id="btnLayers" class="btn icon" data-i18n-title="layers">☰</button>
-    <button id="btnMeasure" class="btn icon" data-i18n-title="measure">📏</button>
-    <button id="btnMore" class="btn icon" data-i18n-title="more">⋮</button>
+    <button id="btnOpen" class="btn primary" data-i18n-title="open" type="button"><svg class="ic" aria-hidden="true"><use href="#i-open"/></svg><span data-i18n="open">Aç</span></button>
+    <div class="filewrap"><div id="fileName" class="filename">Dosya seçilmedi</div><div id="fileSub" class="filesub"></div></div>
+    <button id="btnSearch" class="btn icon" data-i18n-title="search" type="button" aria-label="Ara"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg></button>
+    <button id="btnExtents" class="btn icon" data-i18n-title="fit" type="button" aria-label="Sığdır"><svg class="ic" aria-hidden="true"><use href="#i-fit"/></svg></button>
+    <button id="btnLayers" class="btn icon" data-i18n-title="layers" type="button" aria-label="Katmanlar"><svg class="ic" aria-hidden="true"><use href="#i-layers"/></svg></button>
+    <button id="btnMeasure" class="btn icon" data-i18n-title="measure" type="button" aria-label="Ölçü"><svg class="ic" aria-hidden="true"><use href="#i-dist"/></svg></button>
+    <button id="btnDisplay" class="btn icon" data-i18n-title="dispTitle" type="button" aria-label="Ekran ayarları"><svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg></button>
+    <button id="btnMore" class="btn icon" data-i18n-title="more" type="button" aria-label="Diğer"><svg class="ic" aria-hidden="true"><use href="#i-more"/></svg></button>
   </header>
   <div id="layoutTabs" class="tabs" hidden></div>
 
@@ -24,17 +117,18 @@
       <canvas id="cv"></canvas>
       <canvas id="cv3d" hidden></canvas>
       <canvas id="ov"></canvas>
-      <div id="gpsBtn" class="fab" hidden title="GPS">🧭</div>
+      <div id="gpsBtn" class="fab" hidden title="GPS" role="button" aria-label="GPS"><svg class="ic" aria-hidden="true"><use href="#i-gps"/></svg></div>
+      <div id="cube3d" class="hud cube" hidden></div>
       <div id="empty" class="empty">
         <div class="empty-card">
           <div class="empty-logo">DWG</div>
           <h1 data-i18n="welcomeTitle">DWG Görüntüleyici</h1>
           <p data-i18n="welcomeText"></p>
-          <button id="btnOpen2" class="btn primary big" data-i18n="pickFile">📂 DWG / DXF dosyası seç</button>
+          <button id="btnOpen2" class="btn primary big" data-i18n="pickFile" type="button">📂 DWG / DXF dosyası seç</button>
           <input id="fileInput" type="file" accept=".dwg,.dxf,application/acad,application/x-dwg,application/dxf,application/octet-stream" hidden>
           <div class="row">
-            <button id="btnServer" class="btn small" data-i18n="server">Sunucudan indir</button>
-            <button id="btnQr" class="btn small" data-i18n="qr">QR okut</button>
+            <button id="btnServer" class="btn small" data-i18n="server" type="button">Sunucudan indir</button>
+            <button id="btnQr" class="btn small" data-i18n="qr" type="button">QR okut</button>
           </div>
           <div id="recentWrap" hidden>
             <h3 data-i18n="recent">Son dosyalar</h3>
@@ -44,32 +138,57 @@
         </div>
       </div>
       <div id="cmdBar" class="cmdbar" hidden>
-    <span id="cmdText"></span>
-    <span class="cmd-in"><input id="cmdInput" type="text" placeholder="x,y | @dx,dy | @L<açı" autocomplete="off" inputmode="text"><button id="cmdEnter">↵</button></span>
-    <span id="cmdBtns"></span>
-  </div>
+        <span id="cmdText"></span>
+        <span class="cmd-in"><input id="cmdInput" type="text" placeholder="x,y | @dx,dy | @L<açı" autocomplete="off" inputmode="text"><button id="cmdEnter" type="button" aria-label="Gir">↵</button></span>
+        <span id="cmdBtns"></span>
+      </div>
       <div id="notesBar" class="notesbar" hidden>
-        <button data-tool="select" class="active" data-i18n-title="select">👆</button>
-        <button data-tool="pen" data-i18n-title="pen">✏️</button>
-        <button data-tool="line" data-i18n-title="line">╱</button>
-        <button data-tool="arrow" data-i18n-title="arrow">➜</button>
-        <button data-tool="rect" data-i18n-title="rect">▭</button>
-        <button data-tool="circle" data-i18n-title="circle">◯</button>
-        <button data-tool="text" data-i18n-title="noteText">T</button>
-        <button data-tool="photo" data-i18n-title="photo">📷</button>
+        <button data-tool="select" class="active" data-i18n-title="select" type="button">👆</button>
+        <button data-tool="pen" data-i18n-title="pen" type="button">✏️</button>
+        <button data-tool="line" data-i18n-title="line" type="button">╱</button>
+        <button data-tool="arrow" data-i18n-title="arrow" type="button">➜</button>
+        <button data-tool="rect" data-i18n-title="rect" type="button">▭</button>
+        <button data-tool="circle" data-i18n-title="circle" type="button">◯</button>
+        <button data-tool="text" data-i18n-title="noteText" type="button">T</button>
+        <button data-tool="photo" data-i18n-title="photo" type="button">📷</button>
         <input type="color" id="noteColor" value="#ff3b30" data-i18n-title="noteColor">
-        <button id="noteUndo" data-i18n-title="undo">↶</button>
-        <button id="noteDelete" data-i18n-title="delete">🗑</button>
-        <button id="noteClose" data-i18n-title="close">✕</button>
+        <button id="noteUndo" data-i18n-title="undo" type="button">↶</button>
+        <button id="noteDelete" data-i18n-title="delete" type="button">🗑</button>
+        <button id="noteClose" data-i18n-title="close" type="button">✕</button>
+      </div>
+      <div id="tour" class="hud tour" hidden role="dialog" aria-live="polite">
+        <div class="tour-card">
+          <strong id="tourTitle" data-i18n="tourTitle">Hoş geldiniz</strong>
+          <p id="tourText"></p>
+          <div class="tour-dots" id="tourDots"></div>
+          <div class="row">
+            <button type="button" class="btn small" id="tourSkip" data-i18n="tourSkip">Atla</button>
+            <button type="button" class="btn primary small" id="tourNext" data-i18n="tourNext">İleri</button>
+          </div>
+        </div>
       </div>
     </div>
-    <aside id="side" class="side" hidden></aside>
+    <aside id="side" class="side" hidden>
+      <div class="side-tabs" id="sideTabs">
+        <button type="button" data-side="layers" class="on" data-i18n="sideLayers">Katmanlar</button>
+        <button type="button" data-side="display" data-i18n="sideDisplay">Ekran</button>
+      </div>
+    </aside>
   </div>
 
-  <nav id="toolbar"></nav>
+  <nav id="toolbar" aria-label="Araç çubuğu"></nav>
   <footer id="statusbar">
+    <div id="stQuick" class="st-quick">
+      <button type="button" data-quick="grid" data-i18n-title="stQuickGrid" aria-label="Izgara" aria-pressed="false"><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg></button>
+      <button type="button" data-quick="lw" data-i18n-title="stQuickLw" aria-label="Çizgi kalınlığı" aria-pressed="false"><svg class="ic" aria-hidden="true"><use href="#i-lw"/></svg></button>
+      <button type="button" data-quick="text" data-i18n-title="stQuickText" aria-label="Yazı" aria-pressed="true"><svg class="ic" aria-hidden="true"><use href="#i-text"/></svg></button>
+      <button type="button" data-quick="osnap" data-i18n-title="stQuickOsnap" aria-label="Nesne yakalama" aria-pressed="true"><svg class="ic" aria-hidden="true"><use href="#i-snap"/></svg></button>
+    </div>
     <span id="stCoord" title="Kopyalamak için dokunun">X: – &nbsp; Y: –</span>
-    <span id="stScale"></span>
+    <span id="stSnap" class="st-chip" hidden></span>
+    <span id="stGrid" class="st-chip" hidden></span>
+    <button id="stScale" class="st-chip" type="button"></button>
+    <span id="stMode" class="st-chip st-mode" hidden></span>
     <span id="stGps" hidden>●</span>
     <span id="stCount"></span>
   </footer>
@@ -85,11 +204,17 @@
     <div class="panel-head">
       <strong data-i18n="layers">Katmanlar</strong>
       <span id="layerCount" class="muted"></span>
-      <button class="btn small" id="btnLayersAll" data-i18n="layersAll">Tümü</button>
-      <button class="btn small" id="btnLayersNone" data-i18n="layersNone">Hiçbiri</button>
-      <button class="btn icon close" data-close="layerPanel">✕</button>
+      <button class="btn small" id="btnLayersAll" data-i18n="layersAll" type="button">Tümü</button>
+      <button class="btn small" id="btnLayersNone" data-i18n="layersNone" type="button">Hiçbiri</button>
+      <button class="btn small" id="btnLayersInvert" data-i18n="layersInvert" type="button">Ters çevir</button>
+      <button class="btn small accent" id="btnLayersUniso" data-i18n="layersUniso" type="button" hidden>İzolasyonu kaldır</button>
+      <button class="btn icon close" data-close="layerPanel" type="button" aria-label="Kapat"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
-    <input id="layerFilter" type="search" data-i18n-ph="layerFilter" placeholder="Katman ara…">
+    <div class="layer-tools">
+      <input id="layerFilter" type="search" data-i18n-ph="layerFilter" placeholder="Katman ara…">
+      <select id="layerSort" aria-label="Sıralama"><option value="name" data-i18n="sortName">Ada göre</option><option value="count" data-i18n="sortCount">Sayıya göre</option></select>
+      <label id="layerOnlyVis" class="chk"><input type="checkbox"> <span data-i18n="onlyVis">Yalnız görünenler</span></label>
+    </div>
     <div id="layerList" class="panel-body"></div>
   </aside>
 
@@ -97,9 +222,9 @@
   <aside id="infoPanel" class="panel bottom" hidden>
     <div class="panel-head">
       <strong id="infoTitle">Nesne</strong>
-      <button class="btn small" id="infoZoom" data-i18n="zoomTo">Yakınlaştır</button>
-      <button class="btn small" id="infoCopy" data-i18n="copyCoord">Koordinatı kopyala</button>
-      <button class="btn icon close" data-close="infoPanel">✕</button>
+      <button class="btn small" id="infoZoom" data-i18n="zoomTo" type="button">Yakınlaştır</button>
+      <button class="btn small" id="infoCopy" data-i18n="copyCoord" type="button">Koordinatı kopyala</button>
+      <button class="btn icon close" data-close="infoPanel" type="button" aria-label="Kapat"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
     <div id="infoBody" class="panel-body kv"></div>
   </aside>
@@ -109,9 +234,9 @@
     <div class="panel-head">
       <strong id="measureTitle" data-i18n="measure">Ölçü</strong>
       <span class="muted" id="measureHint" data-i18n="measureHint"></span>
-      <button class="btn small" id="btnMeasureUndo" data-i18n="undo">Geri al</button>
-      <button class="btn small" id="btnMeasureClear" data-i18n="clear">Temizle</button>
-      <button class="btn icon close" id="btnMeasureClose">✕</button>
+      <button class="btn small" id="btnMeasureUndo" data-i18n="undo" type="button">Geri al</button>
+      <button class="btn small" id="btnMeasureClear" data-i18n="clear" type="button">Temizle</button>
+      <button class="btn icon close" id="btnMeasureClose" type="button" aria-label="Kapat"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
     <div id="snapBar" class="snapbar">
       <label><input type="checkbox" data-snap="end" checked>END</label>
@@ -130,7 +255,7 @@
   <aside id="searchPanel" class="panel bottom" hidden>
     <div class="panel-head">
       <input id="searchInput" type="search" data-i18n-ph="searchPh" placeholder="Yazı, katman, blok, öznitelik, handle…">
-      <button class="btn icon close" data-close="searchPanel">✕</button>
+      <button class="btn icon close" data-close="searchPanel" type="button" aria-label="Kapat"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
     <div id="searchBody" class="panel-body list"></div>
   </aside>
@@ -139,42 +264,57 @@
   <aside id="docPanel" class="panel bottom" hidden>
     <div class="panel-head">
       <strong id="docTitle"></strong>
-      <button class="btn icon close" data-close="docPanel">✕</button>
+      <button class="btn icon close" data-close="docPanel" type="button" aria-label="Kapat"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
     <div id="docBody" class="panel-body kv"></div>
   </aside>
 
+  <!-- Ekran ayarları (2B / 3B) -->
+  <aside id="displayPanel" class="panel bottom" hidden role="dialog" aria-labelledby="displayTitle">
+    <div class="panel-head">
+      <div id="displaySeg" class="seg"><button type="button" data-seg="2d" class="on">2B</button><button type="button" data-seg="3d">3B</button></div>
+      <strong id="displayTitle" data-i18n="dispTitle">Ekran ayarları</strong>
+      <button type="button" class="btn small" id="displayReset" data-i18n="dispReset">Sıfırla</button>
+      <button type="button" class="btn icon close" data-close="displayPanel" aria-label="Kapat"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
+    </div>
+    <div id="displayBody" class="panel-body"></div>
+  </aside>
+
   <!-- Diğer menüsü -->
   <div id="moreMenu" class="menu" hidden>
-    <button data-act="info">ℹ️ <span data-i18n="info">Çizim bilgisi</span></button>
-    <button data-act="layouts">📄 <span data-i18n="layouts">Sayfa düzenleri</span></button>
-    <button data-act="notes">✏️ <span data-i18n="notes">Notlar (redline)</span></button>
-    <button data-act="profile">📈 <span data-i18n="profile">Profil / eğim</span></button>
-    <button data-act="gps">🧭 <span data-i18n="gps">GPS konumu</span></button>
-    <button data-act="basemap">🗺️ <span data-i18n="basemap">Harita altlığı</span></button>
-    <button data-act="compare">🔀 <span data-i18n="compare">Revizyon karşılaştır</span></button>
-    <button data-act="xrefs">🔗 <span data-i18n="xrefs">Referans dosyaları</span></button>
-    <button data-act="views">🔖 <span data-i18n="views">Kayıtlı görünümler</span></button>
-    <button data-act="bg">🌓 <span data-i18n="bg">Arka plan: koyu / açık</span></button>
-    <button data-act="mono">🎨 <span data-i18n="mono">Tek renk / renkli</span></button>
-    <button data-act="lw">〰️ <span data-i18n="lw">Çizgi kalınlıkları</span></button>
-    <button data-act="text">🔤 <span data-i18n="text">Yazıları göster / gizle</span></button>
-    <button data-act="png">🖼️ <span data-i18n="png">Görünümü PNG kaydet</span></button>
-    <button data-act="pdf">📑 <span data-i18n="pdf">PDF oluştur</span></button>
-    <button data-act="server">☁️ <span data-i18n="server">Sunucudan indir</span></button>
-    <button data-act="qr">▦ <span data-i18n="qr">QR okut</span></button>
-    <button data-act="settings">⚙️ <span data-i18n="settings">Ayarlar</span></button>
-    <button data-act="about">📄 <span data-i18n="about">Hakkında</span></button>
+    <button data-act="info" type="button"><svg class="ic" aria-hidden="true"><use href="#i-info"/></svg><span data-i18n="info">Çizim bilgisi</span></button>
+    <button data-act="layouts" type="button"><svg class="ic" aria-hidden="true"><use href="#i-layout"/></svg><span data-i18n="layouts">Sayfa düzenleri</span></button>
+    <button data-act="notes" type="button"><svg class="ic" aria-hidden="true"><use href="#i-pen"/></svg><span data-i18n="notes">Notlar (redline)</span></button>
+    <button data-act="profile" type="button"><svg class="ic" aria-hidden="true"><use href="#i-profile"/></svg><span data-i18n="profile">Profil / eğim</span></button>
+    <button data-act="gps" type="button"><svg class="ic" aria-hidden="true"><use href="#i-gps"/></svg><span data-i18n="gps">GPS konumu</span></button>
+    <button data-act="basemap" type="button"><svg class="ic" aria-hidden="true"><use href="#i-map"/></svg><span data-i18n="basemap">Harita altlığı</span></button>
+    <button data-act="compare" type="button"><svg class="ic" aria-hidden="true"><use href="#i-compare"/></svg><span data-i18n="compare">Revizyon karşılaştır</span></button>
+    <button data-act="xrefs" type="button"><svg class="ic" aria-hidden="true"><use href="#i-export"/></svg><span data-i18n="xrefs">Referans dosyaları</span></button>
+    <button data-act="views" type="button"><svg class="ic" aria-hidden="true"><use href="#i-bookmark"/></svg><span data-i18n="views">Kayıtlı görünümler</span></button>
+    <button data-act="display" type="button"><svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg><span data-i18n="dispTitle">Ekran ayarları</span></button>
+    <button data-act="bg" type="button"><svg class="ic" aria-hidden="true"><use href="#i-theme"/></svg><span data-i18n="bg">Arka plan: koyu / açık</span></button>
+    <button data-act="mono" type="button"><svg class="ic" aria-hidden="true"><use href="#i-mono"/></svg><span data-i18n="mono">Tek renk / renkli</span></button>
+    <button data-act="lw" type="button"><svg class="ic" aria-hidden="true"><use href="#i-lw"/></svg><span data-i18n="lw">Çizgi kalınlıkları</span></button>
+    <button data-act="text" type="button"><svg class="ic" aria-hidden="true"><use href="#i-text"/></svg><span data-i18n="text">Yazıları göster / gizle</span></button>
+    <button data-act="png" type="button"><svg class="ic" aria-hidden="true"><use href="#i-image"/></svg><span data-i18n="png">Görünümü PNG kaydet</span></button>
+    <button data-act="pdf" type="button"><svg class="ic" aria-hidden="true"><use href="#i-pdf"/></svg><span data-i18n="pdf">PDF oluştur</span></button>
+    <button data-act="server" type="button"><svg class="ic" aria-hidden="true"><use href="#i-export"/></svg><span data-i18n="server">Sunucudan indir</span></button>
+    <button data-act="qr" type="button"><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg><span data-i18n="qr">QR okut</span></button>
+    <button data-act="settings" type="button"><svg class="ic" aria-hidden="true"><use href="#i-props"/></svg><span data-i18n="settings">Ayarlar</span></button>
+    <button data-act="about" type="button"><svg class="ic" aria-hidden="true"><use href="#i-info"/></svg><span data-i18n="about">Hakkında</span></button>
   </div>
+
+  <!-- Araç çubuğu açılır kutusu (uzun basış ipucu, sık kullanılan, 3B seçenek bölümleri) -->
+  <div id="tbPop" class="tb-pop hud" hidden role="dialog"></div>
 
   <!-- QR tarayıcı -->
   <div id="qrPanel" class="modal" hidden>
     <video id="qrVideo" playsinline autoplay muted></video>
     <div class="sub" data-i18n="qrHint">QR kodu kameraya gösterin</div>
-    <button class="btn" id="qrStop" data-i18n="qrStop">Durdur</button>
+    <button class="btn" id="qrStop" data-i18n="qrStop" type="button">Durdur</button>
   </div>
 
-  <div id="toast" class="toast" hidden></div>
+  <div id="toast" class="toast" hidden aria-live="polite"><span class="tx"></span><button class="act" type="button" hidden></button></div>
 </div>
 <script src="lib/jsQR.js"></script>
 <script type="module" src="app.js"></script>

@@ -9,7 +9,17 @@ export const S = {
   xrefs: [],                    // [{name, inserts, loaded}]
   // görünüm
   view: { scale: 1, cx: 0, cy: 0 }, W: 1, H: 1, dpr: 1,
-  dark: true, showText: true, mono: false, lw: false, lwScale: 3,
+  // ekran (display.js tek gerçek kaynak olarak S alanlarını kullanır; settings.display kalıcı kopyadır)
+  theme: 'dark', bgOverride: null, sun: false, preset: 'custom',
+  show: { text: true, hatch: true, dim: true, point: true, image: true, attrib: true, block: true, ltype: true },
+  colorMode: 'entity', monoColor: 'fg', lw: false, lwScale: 3, minLw: 1,
+  minTextPx: 2.2, hatchAlpha: 1, pointStyle: 'plus', pointPx: 3,
+  grid: { on: false, step: 'auto', style: 'line' }, rulers: false, crosshair: 'small',
+  fade: { on: false, pct: 70 }, isoBackup: null,
+  selColor: '#ff9f0a', selWidth: 3, smooth: true, fastPan: 'auto',
+  ui2d: { scaleBar: true, north: true, northBig: false, navFabs: true, dpad: false, coordInfo: true, vpFrames: true, compareOnlyDiff: false },
+  lastPoint: null, gotoMarker: null, viewHist: { stack: [], i: -1 }, layerPalette: new Map(),
+  curLayerName: '0', glove: false,
   // araçlar
   mode: 'view', measure: [], snap: null, snapModes: new Set(['end', 'mid', 'cen', 'int', 'ins', 'node']), selected: null,
   compare: null,                // { prims, tree, stats }
@@ -18,6 +28,15 @@ export const S = {
   basemap: { id: 'none', url: '', opacity: 0.8, wms: '' },
   lastRenderMs: 0, cacheValid: false, cacheView: null, gestureActive: false,
 };
+
+// Türetilmiş alanlar: eski okuyucular (S.dark / S.showText / S.mono) çalışmaya devam eder, yazmak da mümkündür.
+const THEME_DARK = { dark: true, light: false, blueprint: true, sepia: false, hicontrast: false };
+const sysDark = () => { try { return window.matchMedia('(prefers-color-scheme: dark)').matches; } catch (_) { return true; } };
+Object.defineProperties(S, {
+  dark: { enumerable: true, get() { return S.theme === 'system' ? sysDark() : (THEME_DARK[S.theme] !== false); }, set(v) { S.theme = v ? 'dark' : 'light'; } },
+  showText: { enumerable: true, get() { return S.show.text; }, set(v) { S.show.text = !!v; } },
+  mono: { enumerable: true, get() { return S.colorMode === 'mono'; }, set(v) { S.colorMode = v ? 'mono' : 'entity'; } },
+});
 
 export const toWorld = (sx, sy) => [S.view.cx + (sx - S.W / 2) / S.view.scale, S.view.cy - (sy - S.H / 2) / S.view.scale];
 export const toScreen = (x, y) => [S.W / 2 + (x - S.view.cx) * S.view.scale, S.H / 2 - (y - S.view.cy) * S.view.scale];

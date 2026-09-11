@@ -34,6 +34,17 @@ const TR = {
   update: 'Yeni sürüm var', errorLog: 'Hata kaydını paylaş', noError: 'Hata kaydı yok.',
   qrHint: 'QR kodu kameraya gösterin', qrStop: 'Durdur',
   basemapOpacity: 'Saydamlık', basemapNeedCrs: 'Altlık için önce koordinat sistemini seçin.',
+  // v4 kabuk
+  dispTitle: 'Ekran ayarları', dispReset: 'Sıfırla', undoAction: 'Geri al', tabFav: 'Favoriler', tabView: 'Görünüm', tabDisplay: 'Ekran', tabMeasure: 'Ölçü', tabDraw: 'Çiz', tabEdit: 'Düzenle', tab3d: '3B',
+  grpNav: 'Gezinti', grpPanels: 'Paneller', grpOut: 'Dışa aktar', grpHist: 'Geçmiş', grpTheme: 'Tema', grpVis: 'Görünürlük', grpLines: 'Çizgiler', grpHelpers: 'Yardımcılar', grpMeasure: 'Ölçüm', grpDraw2: '2B çizim', grpDraw3: '3B çizim', grpCur: 'Geçerli',
+  grpSel: 'Seçim', grpXform: 'Dönüştür', grpModify: 'Değiştir', grpView3: 'Görünüm', grpCam3: 'Kamera', grpStyle3: 'Stil', grpTools3: '3B araçlar', grpFav: 'Sık kullanılanlar',
+  favAdd: 'Sık kullanılanlara ekle', favRemove: 'Sık kullanılanlardan çıkar', favEmpty: 'Bir karoya uzun basarak buraya ekleyin.', collapsed: 'Araç çubuğu katlandı', expanded: 'Araç çubuğu açıldı',
+  a11yTitle: 'Erişilebilirlik ve kullanım', fontScale: 'Yazı boyutu', glove: 'Eldiven modu (büyük hedefler)', leftHand: 'Sol el düzeni', contrast: 'Yüksek kontrast arayüz', reduceMotion: 'Hareketi azalt', haptics: 'Titreşim', dpad: 'Yön tuşları', compactStatus: 'Sıkışık durum çubuğu', hintsReset: 'İpuçlarını sıfırla', hintsResetDone: 'İpuçları sıfırlandı',
+  tourTitle: 'Hoş geldiniz', tourSkip: 'Atla', tourNext: 'İleri', tourDone: 'Tamam',
+  tour1: 'Alt şeritteki sekmeler: Görünüm, Ekran, Ölçü, Çiz, Düzenle ve 3B. Etkin sekmeye ikinci kez dokunursanız şerit katlanır.', tour2: 'Bir karoya uzun basınca açıklaması ve "Sık kullanılanlara ekle" seçeneği çıkar. Sık kullanılanlar en başta ayrı sekme olur.', tour3: 'Ekran sekmesi tema, güneş modu, ızgara ve görünürlük süzgeçlerini; 3B sekmesi stil, kesit ve düşey abartıyı yönetir. Sağ alttaki düğmelerle yakınlaştırın.',
+  stQuickGrid: 'Izgara', stQuickLw: 'Çizgi kalınlığı', stQuickText: 'Yazı', stQuickOsnap: 'Nesne yakalama', osnapOn: 'Nesne yakalama açık', osnapOff: 'Nesne yakalama kapalı',
+  mode3d: '3B', zscaleTitle: 'Düşey abartı', styleTitle: 'Stil', clipTitle: 'Kesit', cam3Title: '3B yer imleri', sideLayers: 'Katmanlar', sideDisplay: 'Ekran', layersInvert: 'Ters çevir', layersUniso: 'İzolasyonu kaldır', sortName: 'Ada göre', sortCount: 'Sayıya göre', onlyVis: 'Yalnız görünenler',
+  themeToggle: 'Koyu / açık', tlBack: 'Geri', noSel: 'Önce nesne seçin.', sel3dHint: '3B: köşelere dokunun',
 };
 const EN = {
   open: 'Open', noFile: 'No file', fit: 'Zoom extents', layers: 'Layers', measure: 'Measure', more: 'More', search: 'Search',
@@ -70,11 +81,24 @@ const EN = {
   update: 'New version available', errorLog: 'Share error log', noError: 'No error log.',
   qrHint: 'Show the QR code to the camera', qrStop: 'Stop',
   basemapOpacity: 'Opacity', basemapNeedCrs: 'Select a coordinate system before using a basemap.',
+  // v4 shell
+  dispTitle: 'Display options', dispReset: 'Reset', undoAction: 'Undo', tabFav: 'Favorites', tabView: 'View', tabDisplay: 'Display', tabMeasure: 'Measure', tabDraw: 'Draw', tabEdit: 'Edit', tab3d: '3D',
+  grpNav: 'Navigate', grpPanels: 'Panels', grpOut: 'Export', grpHist: 'History', grpTheme: 'Theme', grpVis: 'Visibility', grpLines: 'Lines', grpHelpers: 'Helpers', grpMeasure: 'Measure', grpDraw2: '2D draw', grpDraw3: '3D draw', grpCur: 'Current',
+  grpSel: 'Selection', grpXform: 'Transform', grpModify: 'Modify', grpView3: 'View', grpCam3: 'Camera', grpStyle3: 'Style', grpTools3: '3D tools', grpFav: 'Favorites',
+  favAdd: 'Add to favorites', favRemove: 'Remove from favorites', favEmpty: 'Long-press a tile to add it here.', collapsed: 'Toolbar collapsed', expanded: 'Toolbar expanded',
+  a11yTitle: 'Accessibility & usability', fontScale: 'Font size', glove: 'Glove mode (large targets)', leftHand: 'Left-hand layout', contrast: 'High-contrast UI', reduceMotion: 'Reduce motion', haptics: 'Vibration', dpad: 'D-pad', compactStatus: 'Compact status bar', hintsReset: 'Reset hints', hintsResetDone: 'Hints reset',
+  tourTitle: 'Welcome', tourSkip: 'Skip', tourNext: 'Next', tourDone: 'Done',
+  tour1: 'Tabs on the bottom ribbon: View, Display, Measure, Draw, Edit and 3D. Tap the active tab again to collapse the ribbon.', tour2: 'Long-press a tile for its description and "Add to favorites". Favorites become the first tab.', tour3: 'The Display tab controls theme, sun mode, grid and visibility filters; the 3D tab controls style, clipping and vertical exaggeration. Zoom with the buttons at the bottom right.',
+  stQuickGrid: 'Grid', stQuickLw: 'Lineweight', stQuickText: 'Text', stQuickOsnap: 'Object snap', osnapOn: 'Object snap on', osnapOff: 'Object snap off',
+  mode3d: '3D', zscaleTitle: 'Vertical exaggeration', styleTitle: 'Style', clipTitle: 'Clip', cam3Title: '3D bookmarks', sideLayers: 'Layers', sideDisplay: 'Display', layersInvert: 'Invert', layersUniso: 'Unisolate', sortName: 'By name', sortCount: 'By count', onlyVis: 'Visible only',
+  themeToggle: 'Dark / light', tlBack: 'Back', noSel: 'Select objects first.', sel3dHint: '3D: tap vertices',
 };
 let dict = TR, lang = 'tr';
 export function setLang(l) { lang = l === 'en' ? 'en' : 'tr'; dict = lang === 'en' ? EN : TR; }
 export const getLang = () => lang;
 export const t = (k) => dict[k] != null ? dict[k] : (TR[k] != null ? TR[k] : k);
+/** Modüllerin kendi metinlerini kaydetmesi (ör. araç çubuğu karo adları): addStrings({key: 'tr'}, {key: 'en'}) */
+export function addStrings(tr, en) { if (tr) Object.assign(TR, tr); if (en) Object.assign(EN, en); }
 /** data-i18n="key" (metin), data-i18n-ph="key" (placeholder), data-i18n-title="key" */
 export function applyI18n(root = document) {
   root.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
