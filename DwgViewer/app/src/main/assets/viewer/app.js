@@ -974,6 +974,10 @@ function showDocInfo() {
     [t('layerN'), S.layers.size], [t('blockN'), S.blockCount], [t('layouts'), S.scene.layouts.map(l => l.name).join(', ')],
     [t('xRange'), S.ext ? fmt(S.ext[0]) + ' … ' + fmt(S.ext[2]) : ''], [t('yRange'), S.ext ? fmt(S.ext[1]) + ' … ' + fmt(S.ext[3]) : ''],
     [t('size'), S.ext ? fmt(S.ext[2] - S.ext[0]) + ' × ' + fmt(S.ext[3] - S.ext[1]) + (S.units ? ' ' + S.units : '') : '']];
+  { const d = S.scene && S.scene.solidDiag; if (d) {
+    const surf = Object.entries(d.surfaces || {}).map(([k, v]) => k + ' ' + v).join(', ');
+    rows.push([t('solidDiag'), `${d.solids} katı · ${d.faces} yüzey${d.approx ? ' (' + d.approx + ' yaklaşık)' : ''} · ${d.skipped} atlandı` + (surf ? ' · ' + surf : '') + (d.versions.length ? ' · ACIS ' + d.versions.join('/') : '') + (d.unknownTags.length ? ' · bilinmeyen etiket ' + d.unknownTags.join(' ') : '') + (d.errors.length ? ' · ' + d.errors.join('; ') : '')]);
+  } }
   if (S.geo.active && S.ext) { const ll = S.geo.toLonLat((S.ext[0] + S.ext[2]) / 2, (S.ext[1] + S.ext[3]) / 2); if (ll) rows.push([t('crs'), S.geo.crs.name + ` (merkez φ ${ll[1].toFixed(5)}, λ ${ll[0].toFixed(5)})`]); }
   rows.push(['<strong>' + t('types') + '</strong>']);
   for (const k of Object.keys(c).sort((a, b) => c[b] - c[a])) rows.push([trType(k), c[k]]);

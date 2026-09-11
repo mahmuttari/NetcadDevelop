@@ -256,6 +256,7 @@ export class SceneBuilder {
       xrefs: [...this.xrefs.values()],
       images: [...this.images.values()],
       counts: this.counts,
+      solidDiag: this.solidDiagData ? { ...this.solidDiagData, versions: [...this.solidDiagData.versions], unknownTags: [...this.solidDiagData.unknownTags], errors: this.solidDiagData.errors.slice(0, 12) } : null,
       entityCount: this.entityCount,
       blockCount: this.blocksByName.size,
       header: this.headerInfo(),
@@ -706,6 +707,18 @@ export class SceneBuilder {
   }
 
   /** 3DSOLID / REGION / BODY (ACIS) ve MESH: kenarlar çizgi, yüzeyler üçgen (tri:true → 2B'de çizilmez) */
+  /** katı tanılaması: dosya bilgisinde gösterilir (yüzey türleri, atlanan yüzler, bilinmeyen SAB etiketleri, hatalar) */
+  solidDiag(e, t, err) {
+    const d = this.solidDiagData || (this.solidDiagData = { solids: 0, faces: 0, skipped: 0, approx: 0, surfaces: {}, versions: new Set(), unknownTags: new Set(), errors: [] });
+    d.solids++;
+    if (t) {
+      d.faces += t.faces || 0; d.skipped += t.skipped || 0; d.approx += t.approx || 0;
+      for (const [k, v] of Object.entries(t.surfaces || {})) d.surfaces[k] = (d.surfaces[k] || 0) + v;
+      if (t.version) d.versions.add(t.version);
+      for (const u of t.unknownTags || []) d.unknownTags.add(u);
+      if (!t.faces && !(t.tris && t.tris.length)) d.errors.push((e.type || '') + ' ' + (e.handle || '') + ': yüzey yok (' + (t.records || 0) + ' kayıt)');
+    } else if (err) d.errors.push((e.type || '') + ' ' + (e.handle || '') + ': ' + (err.message || err));
+  }
   solid(e, ctx) {
     const raw = (this.db.raw3d && this.db.raw3d[e.handle]) || (e.acisText ? { acis: e.acisText } : null);
     const st = this.style(e, ctx), info = ctx.info || this.info(e, st);
@@ -717,11 +730,13 @@ export class SceneBuilder {
       try {
         const key = e.handle; let t = this._acisCache && this._acisCache.get(key);
         if (!t) { t = tessellate(parseAcis(raw.acis), { arcSegs: 32 }); (this._acisCache || (this._acisCache = new Map())).set(key, t); }
+        this.solidDiag(e, t, null);
         for (const pl of t.edges) edges.push(pl);
         for (let i = 0; i + 8 < t.tris.length; i += 9) tris.push([t.tris[i], t.tris[i + 1], t.tris[i + 2]], [t.tris[i + 3], t.tris[i + 4], t.tris[i + 5]], [t.tris[i + 6], t.tris[i + 7], t.tris[i + 8]]);
         if (!t.faces && raw.wires) for (const w of raw.wires) edges.push(w);
-      } catch (err) { if (raw.wires) for (const w of raw.wires) edges.push(w); }
-    } else if (raw && raw.wires) { for (const w of raw.wires) edges.push(w); }
+      } catch (err) { this.solidDiag(e, null, err); if (raw.wires) for (const w of raw.wires) edges.push(w); }
+    } else if (raw && raw.wires) { this.solidDiag(e, null, new Error('ACIS verisi yok (yalnız tel kafes önbelleği)')); for (const w of raw.wires) edges.push(w); }
+    else this.solidDiag(e, null, new Error('ACIS verisi yok'));
     if (!edges.length && !tris.length) return;
     const m = ctx.m, id = isIdent(m);
     const P = (q) => { const z = zW(q[2] || 0, ctx); if (id) return [q[0], q[1], z]; const w = apply(m, q[0], q[1]); return [w[0], w[1], z]; };

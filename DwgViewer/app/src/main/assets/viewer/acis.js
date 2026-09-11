@@ -63,7 +63,7 @@ function tokenizeSab(u8) {
   const str32 = () => { const n = dv.getUint32(p, true); p += 4; const s = latin(u8, p, n); p += n; return s; };
   const version = i32(); i32(); i32(); i32();          // sürüm, kayıt sayısı, gövde sayısı, bayraklar
   // ürün / sürüm / tarih dizgileri ve birim/toleranslar jeton olarak gelir; ilk kayıt başlığına (0x0d/0x0e) kadar atlanır
-  const records = [];
+  const records = [], unknown = [];
   let cur = null;
   let guard = 0;
   while (p < u8.length && guard++ < 50_000_000) {
@@ -90,9 +90,17 @@ function tokenizeSab(u8) {
       case 0x15: { const s = str8(); if (cur) cur.tok.push({ t: 'e', v: s }); break; }           // sayım (enum)
       case 0x16: { const x = f64(), y = f64(); if (cur) cur.tok.push({ t: 'n', v: x }, { t: 'n', v: y }); break; } // 2B vektör
       case 0x17: { const s = str8(); if (cur) cur.tok.push({ t: 'e', v: s }); break; }
-      default: throw new Error('SAB: bilinmeyen etiket 0x' + tag.toString(16) + ' @' + (p - 1));
+      default: {
+        // bilinmeyen etiket (daha yeni ASM sürümü): bu kayıt atılır, bir sonraki kayıt başına (0x11 + 0x0d/0x0e) kadar ilerlenir
+        unknown.push(tag);
+        if (cur) { records.pop(); cur = null; }
+        while (p < u8.length && !(u8[p] === 0x11 && (u8[p + 1] === 0x0d || u8[p + 1] === 0x0e))) p++;
+        p++;
+        break;
+      }
     }
   }
+  if (unknown.length) records.unknownTags = [...new Set(unknown)].map(t => '0x' + t.toString(16));
   // tür adlarındaki "-" bileşimi SAT ile aynı sıraya getirilir: SAB'da alt türler "plane" "surface" → "plane-surface"
   return { version, records };
 }
@@ -107,6 +115,8 @@ export function parseAcis(src) {
 // ---------------------------------------------------------------------------------
 // Kayıt erişimi
 // ---------------------------------------------------------------------------------
+const SURFACES = new Set(['plane', 'cone', 'sphere', 'torus', 'spline', 'meshsurf', 'sweep', 'blend', 'offset', 'net', 'skin', 'rot', 'ref', 'sum', 'tube', 'comp', 'exact', 'compcurv']);
+const CURVES = new Set(['straight', 'ellipse', 'intcurve', 'helix', 'undefc', 'degenerate', 'compcurv', 'pcurve']);
 class Acis {
   constructor(parsed) {
     this.v = parsed.version; this.rec = parsed.records;
@@ -120,6 +130,12 @@ class Acis {
   /** sayı listesi (sürüm ≥ 700 dizin "-1" hariç) */
   nums(r) { let ts = r.tok; if (this.hist) { const i = ts.findIndex(t => t.t === 'n'); if (i >= 0 && ts[i].v === -1 && ts[i + 1] && ts[i + 1].t === 'p') ts = ts.slice(0, i).concat(ts.slice(i + 1)); } return ts.filter(t => t.t === 'n').map(t => t.v); }
   enums(r) { return r.tok.filter(t => t.t === 'e').map(t => t.v); }
+  /** işaretçilerden türü verilen ilk kayıt (ASM sürümleri arasında işaretçi sırası değiştiği için sıraya güvenilmez) */
+  ref(r, kind) { for (const i of this.ptrs(r)) { const t = this.at(i); if (t && this.kind(t) === kind) return t; } return null; }
+  refs(r, kind) { const out = []; for (const i of this.ptrs(r)) { const t = this.at(i); if (t && this.kind(t) === kind) out.push(t); } return out; }
+  /** yüz kaydının yüzeyi: tür adı "…-surface" olan ya da bilinen yüzey türlerinden ilk işaretçi */
+  surfaceOf(r) { for (const i of this.ptrs(r)) { const t = this.at(i); if (t && (SURFACES.has(this.kind(t)) || /surface/.test(t.type))) return t; } return null; }
+  curveOf(r) { for (const i of this.ptrs(r)) { const t = this.at(i); if (t && (CURVES.has(this.kind(t)) || /curve/.test(t.type))) return t; } return null; }
   /** yön: SAT "forward"/"reversed", SAB false=forward / true=reversed, eski SAT 0=forward / 1=reversed */
   sense(r, which = 0) {
     const e = this.enums(r).filter(s => s === 'forward' || s === 'reversed' || s === 'true' || s === 'false');
@@ -205,21 +221,21 @@ export function tessellate(parsed, opts = {}) {
   const R = A.rec;
   const segs = opts.arcSegs || 24;             // tam çember için parça sayısı
   const edgesOut = [], tris = [];
-  let faceCount = 0, skipped = 0, approx = 0;
+  let faceCount = 0, skipped = 0, approx = 0; const surfKinds = {};
   // gövde dönüşümü
   let xf = null;
-  for (const r of R) if (A.kind(r) === 'body') { const ps = A.ptrs(r); const t = A.at(ps[2]); if (t && A.kind(t) === 'transform') { const n = A.nums(t); if (n.length >= 12) xf = n; } }
+  for (const r of R) if (A.kind(r) === 'body') { const t = A.ref(r, 'transform'); if (t) { const n = A.nums(t); if (n.length >= 12) xf = n; } }
   const X = (p) => xf ? [n_(xf, 0, p) + xf[9], n_(xf, 3, p) + xf[10], n_(xf, 6, p) + xf[11]] : p;
   function n_(m, o, p) { return m[o] * p[0] + m[o + 1] * p[1] + m[o + 2] * p[2]; }
   // nokta / köşe
-  const pointOf = (vr) => { if (!vr) return null; const pr = A.at(A.ptrs(vr)[1]); if (!pr || A.kind(pr) !== 'point') return null; const n = A.nums(pr); return n.length >= 3 ? [n[0], n[1], n[2]] : null; };
+  const pointOf = (vr) => { if (!vr) return null; const pr = A.ref(vr, 'point'); if (!pr) return null; const n = A.nums(pr); return n.length >= 3 ? [n[0], n[1], n[2]] : null; };
   // kenar örnekleme (dünya koordinatı, dönüşümsüz)
   const edgeCache = new Map();
   function edgePts(er) {
     if (edgeCache.has(er)) return edgeCache.get(er);
-    const ps = A.ptrs(er);
-    const p0 = pointOf(A.at(ps[0])), p1 = pointOf(A.at(ps[1]));
-    const cr = A.at(ps[3]);
+    const vs = A.refs(er, 'vertex');
+    const p0 = pointOf(vs[0]), p1 = pointOf(vs[1] || vs[0]);
+    const cr = A.curveOf(er);
     const nums = A.nums(er);
     let pts = null;
     if (cr && A.kind(cr) === 'ellipse') {
@@ -247,18 +263,46 @@ export function tessellate(parsed, opts = {}) {
     return pts;
   }
   // döngü → nokta dizisi
+  // döngü → coedge listesi (yedek yol: coedge'lerin kendi 'loop' işaretçisinden)
+  let coedgesOfLoop = null;
+  function loopCoedges(lr) {
+    if (!coedgesOfLoop) { coedgesOfLoop = new Map(); for (const r of R) if (A.kind(r) === 'coedge') { const l = A.ref(r, 'loop'); if (l) { if (!coedgesOfLoop.has(l)) coedgesOfLoop.set(l, []); coedgesOfLoop.get(l).push(r); } } }
+    return coedgesOfLoop.get(lr) || [];
+  }
+  /** kenar parçalarını uç noktalarından zincirler (sonraki işaretçisi çözülemeyen döngüler için) */
+  function chainPts(segs) {
+    if (!segs.length) return [];
+    const rest = segs.slice(); const out = rest.shift().slice();
+    const near = (a, b) => len(sub(a, b)) < 1e-6 * (1 + len(a));
+    let guard = 0;
+    while (rest.length && guard++ < 100000) {
+      const tail = out[out.length - 1]; let found = -1, rev = false;
+      for (let i = 0; i < rest.length; i++) { const s2 = rest[i]; if (near(s2[0], tail)) { found = i; break; } if (near(s2[s2.length - 1], tail)) { found = i; rev = true; break; } }
+      if (found < 0) break;
+      const s2 = rest.splice(found, 1)[0]; const pts = rev ? s2.slice().reverse() : s2;
+      for (let i = 1; i < pts.length; i++) out.push(pts[i]);
+    }
+    if (out.length > 1 && near(out[0], out[out.length - 1])) out.pop();
+    return out;
+  }
   function loopPts(lr) {
-    const out = []; const first = A.ptrs(lr)[1]; let cr = A.at(first); let guard = 0; const seen = new Set();
+    const out = loopPtsChain(lr);
+    if (out.length >= 3) return out;
+    const segs = loopCoedges(lr).map(cr => { const er = A.ref(cr, 'edge'); if (!er) return null; const pts = edgePts(er).slice(); if (!A.sense(cr)) pts.reverse(); return pts.length > 1 ? pts : null; }).filter(Boolean);
+    return chainPts(segs);
+  }
+  function loopPtsChain(lr) {
+    const out = []; const first = A.ref(lr, 'coedge'); let cr = first; let guard = 0; const seen = new Set();
     while (cr && A.kind(cr) === 'coedge' && guard++ < 100000 && !seen.has(cr)) {
       seen.add(cr);
-      const ps = A.ptrs(cr); const er = A.at(ps[3]);
-      if (er && A.kind(er) === 'edge') {
+      const er = A.ref(cr, 'edge');
+      if (er) {
         let pts = edgePts(er).slice();
         if (!A.sense(cr)) pts.reverse();
         for (let i = 0; i < pts.length - 1; i++) out.push(pts[i]);
         if (pts.length === 1) out.push(pts[0]);
       }
-      cr = A.at(ps[0]); if (cr === A.at(first)) break;
+      cr = A.refs(cr, 'coedge')[0] || null; if (cr === first) break;   // ilk coedge işaretçisi: sonraki
     }
     return out;
   }
@@ -268,12 +312,13 @@ export function tessellate(parsed, opts = {}) {
   // yüzler
   for (const fr of R) {
     if (A.kind(fr) !== 'face') continue;
-    const ps = A.ptrs(fr);
-    const sr = A.at(ps[4]); if (!sr) { skipped++; continue; }
-    const sk = A.kind(sr);
-    // döngüler
-    const loops = []; let lr = A.at(ps[1]); let g = 0;
-    while (lr && A.kind(lr) === 'loop' && g++ < 10000) { const pts = loopPts(lr); if (pts.length >= 3) loops.push(pts); lr = A.at(A.ptrs(lr)[0]); }
+    const sr = A.surfaceOf(fr);
+    const sk = sr ? A.kind(sr) : 'none';
+    surfKinds[sk] = (surfKinds[sk] || 0) + 1;
+    // döngüler: yüz → ilk döngü; döngü → sonraki döngü (tür 'loop' olan ilk işaretçi)
+    const loops = []; let lr = A.ref(fr, 'loop'); let g = 0; const seenL = new Set();
+    while (lr && A.kind(lr) === 'loop' && g++ < 10000 && !seenL.has(lr)) { seenL.add(lr); const pts = loopPts(lr); if (pts.length >= 3) loops.push(pts); lr = A.ref(lr, 'loop'); }
+    if (!sr) { if (!loops.length) { skipped++; continue; } }
     if (sk === 'plane') {
       if (!loops.length) { skipped++; continue; }
       const n = A.nums(sr); const nrm = norm([n[3], n[4], n[5]]); const [u, v] = basis(nrm);
@@ -334,5 +379,5 @@ export function tessellate(parsed, opts = {}) {
       faceCount++; approx++;
     } else { skipped++; }
   }
-  return { edges: edgesOut, tris, faces: faceCount, skipped, approx };
+  return { edges: edgesOut, tris, faces: faceCount, skipped, approx, surfaces: surfKinds, records: R.length, version: A.v, unknownTags: R.unknownTags || null };
 }
