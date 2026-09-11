@@ -124,6 +124,7 @@ const isHatch = (p) => p.et === 'HATCH' || (p.fill && p.et === 'SOLID');
 const isDim = (p) => DIM_TYPES[p.et] === 1 || (p.info != null && p.info.t === 'DIMENSION');
 /** Görünürlük süzgeçleri (katman hariç): display.primVisible bunun üstüne katmanı ekler */
 export function passFilters(p) {
+  if (p.tri) return false;                       // katı model üçgenleri yalnız 3B'de
   const sh = S.show;
   switch (p.k) {
     case 1: if (!sh.text) return false; if (!sh.attrib && (p.et === 'ATTRIB' || p.et === 'ATTDEF')) return false; break;

@@ -19,6 +19,7 @@
  *   k=4 blok ekleme noktası (çizilmez, yakalanır): x,y,z
  * Ortak: col (RGB; -1 = ön plan), lay, lt (ad), lts (çizgi tipi ölçeği), lw (1/100 mm), bb, info
  */
+import { parseAcis, tessellate } from './acis.js';
 import { TAU, IDENT, mul, apply, isIdent, isSim, simScale, simRot, det, insertMatrix, arcPts, ellipsePts, bulgeArc, bsplinePts, catmullPts, opsBBox } from './geom.js';
 
 export const FG = -1;
@@ -94,6 +95,33 @@ function fontOf(file) {
   if (/^roman[tdc]|^script|^gothic|^italic/.test(base)) return 'serif';
   if (/^mono|^isocp|^iso/.test(base)) return '"Roboto Mono", monospace';
   return 'sans-serif';
+}
+
+/** OCS (nesne koordinat sistemi) tabanı — Arbitrary Axis Algorithm; extrusion Z eksenine paralelse null */
+function ocsOf(e) {
+  const n = e && e.extrusionDirection; if (!n) return null;
+  const L = Math.hypot(n.x || 0, n.y || 0, n.z || 0); if (!(L > 0)) return null;
+  const nx = n.x / L, ny = n.y / L, nz = n.z / L;
+  if (Math.abs(nx) < 1e-9 && Math.abs(ny) < 1e-9) return null;           // (0,0,±1): 2B yol (flipX) yeter
+  const ref = (Math.abs(nx) < 1 / 64 && Math.abs(ny) < 1 / 64) ? [0, 1, 0] : [0, 0, 1];
+  let ax = [ref[1] * nz - ref[2] * ny, ref[2] * nx - ref[0] * nz, ref[0] * ny - ref[1] * nx];
+  const al = Math.hypot(ax[0], ax[1], ax[2]) || 1; ax = [ax[0] / al, ax[1] / al, ax[2] / al];
+  const ay = [ny * ax[2] - nz * ax[1], nz * ax[0] - nx * ax[2], nx * ax[1] - ny * ax[0]];
+  return { ax, ay, n: [nx, ny, nz], to: (x, y, z) => [x * ax[0] + y * ay[0] + (z || 0) * nx, x * ax[1] + y * ay[1] + (z || 0) * ny, x * ax[2] + y * ay[2] + (z || 0) * nz] };
+}
+/** 2B ops (yay/elips dâhil) → OCS'ten dünyaya örneklenmiş 3B çizgi ops */
+function opsToWcs(ops, z, ocs) {
+  const out = [];
+  const put = (x, y, zz) => { const w = ocs.to(x, y, zz == null ? z : zz); out.push([out.length ? 1 : 0, w[0], w[1], w[2]]); };
+  for (const o of ops) {
+    if (o[0] === 0 || o[0] === 1) { put(o[1], o[2], o[3]); continue; }
+    const pts = [];
+    if (o[0] === 2) arcPts(o[1], o[2], o[3], o[4], o[5], pts);
+    else if (o[0] === -2) { arcPts(o[1], o[2], o[3], o[5], o[4], pts); pts.reverse(); }
+    else ellipsePts(o[1], o[2], o[3], o[4], o[5], o[6], o[7], pts);
+    for (const q of pts) put(q[0], q[1], o[0] === 3 ? z : o[6]);
+  }
+  return out;
 }
 
 export class SceneBuilder {
@@ -363,7 +391,10 @@ export class SceneBuilder {
     if (!e || e.isVisible === false) return;
     if (ctx.depth === 0) { this.count(e.type); ctx = { ...ctx, top: e, info: null }; }
     const flipX = !!(e.extrusionDirection && e.extrusionDirection.z < -0.5);
+    const ocs = ocsOf(e);
+    if (ocs && this.entityOcs(e, ctx, ocs)) return;
     switch (e.type) {
+      case '3DSOLID': case 'REGION': case 'BODY': case 'MESH': this.solid(e, ctx); break;
       case 'LINE': {
         const a = e.startPoint, b = e.endPoint;
         this.addPath([[0, a.x, a.y, a.z], [1, b.x, b.y, b.z]], {}, e, ctx);
@@ -623,6 +654,77 @@ export class SceneBuilder {
       if (cur.length) out.push(cur);
     }
     return out;
+  }
+
+  /**
+   * Keyfi OCS'li varlıklar (düşey düzlemde çizilmiş daire, polyline, yazı…): OCS koordinatları dünyaya
+   * çevrilir; eğriler 3B çizgiye örneklenir. true → varlık işlendi.
+   */
+  entityOcs(e, ctx, ocs) {
+    const T = e.type;
+    if (T === 'CIRCLE' || T === 'ARC') {
+      const a0 = T === 'ARC' ? e.startAngle : 0, a1 = T === 'ARC' ? e.endAngle : TAU;
+      const ops = [[0, e.center.x + e.radius * Math.cos(a0), e.center.y + e.radius * Math.sin(a0), e.center.z], [2, e.center.x, e.center.y, e.radius, a0, a1, e.center.z]];
+      this.addPath(opsToWcs(ops, e.center.z || 0, ocs), { closed: T === 'CIRCLE' }, e, ctx); return true;
+    }
+    if (T === 'LWPOLYLINE' || T === 'POLYLINE2D') {
+      let vs = e.vertices || []; if (T === 'POLYLINE2D') { const hasSpline = vs.some(v => v.flag & 8); vs = vs.filter(v => hasSpline ? (v.flag & 8) : !(v.flag & 16)); }
+      if (vs.length < 1) return true;
+      const closed = !!(e.flag & 1), z = e.elevation || 0, ops = [[0, vs[0].x, vs[0].y, z]];
+      for (let i = 0; i < vs.length - 1; i++) { const b = vs[i].bulge || 0; if (b) bulgeArc(vs[i].x, vs[i].y, vs[i + 1].x, vs[i + 1].y, b, ops, z); else ops.push([1, vs[i + 1].x, vs[i + 1].y, z]); }
+      if (closed && vs.length > 1) { const l = vs[vs.length - 1], b = l.bulge || 0; if (b) bulgeArc(l.x, l.y, vs[0].x, vs[0].y, b, ops, z); else ops.push([1, vs[0].x, vs[0].y, z]); }
+      this.addPath(opsToWcs(ops, z, ocs), { closed }, e, ctx); return true;
+    }
+    if (T === 'SOLID' || T === 'TRACE') {
+      const c = [e.corner1, e.corner2, e.corner4 || e.corner3, e.corner3].filter(Boolean); if (c.length < 3) return true;
+      const ops = c.map((q, i) => [i ? 1 : 0, q.x, q.y, q.z || 0]);
+      this.addPath(opsToWcs(ops, 0, ocs), { closed: true, fill: true, alpha: 0.9 }, e, ctx); return true;
+    }
+    if (T === 'POINT') { const w = ocs.to(e.position.x, e.position.y, e.position.z); this.addPoint(w[0], w[1], w[2], e, ctx); return true; }
+    if (T === 'TEXT' || T === 'ATTRIB' || T === 'ATTDEF') {
+      const t = T === 'TEXT' ? e : e.text; if (!t || !t.startPoint) return false;
+      const w = ocs.to(t.startPoint.x, t.startPoint.y, t.startPoint.z);
+      const e2 = { ...t, startPoint: { x: w[0], y: w[1], z: w[2] }, endPoint: t.endPoint ? (() => { const q = ocs.to(t.endPoint.x, t.endPoint.y, t.endPoint.z); return { x: q[0], y: q[1], z: q[2] }; })() : t.endPoint };
+      if (T === 'TEXT') this.addText(e2, e, ctx); else if (!(e.flags & 1)) this.addText(e2, e, ctx);
+      return true;
+    }
+    if (T === 'MTEXT' && e.insertionPoint) { const w = ocs.to(e.insertionPoint.x, e.insertionPoint.y, e.insertionPoint.z); const e2 = { ...e, insertionPoint: { x: w[0], y: w[1], z: w[2] }, extrusionDirection: null }; this.entity(e2, ctx); return true; }
+    if (T === 'INSERT' && e.insertionPoint) { const w = ocs.to(e.insertionPoint.x, e.insertionPoint.y, e.insertionPoint.z); const e2 = { ...e, insertionPoint: { x: w[0], y: w[1], z: w[2] }, extrusionDirection: null }; this.insert(e2, ctx); return true; }
+    if (T === 'HATCH') { const e2 = { ...e, extrusionDirection: null }; const before = this.prims.length; this.hatch(e2, ctx); for (let i = before; i < this.prims.length; i++) { const p = this.prims[i]; if (p.k === 0) { p.ops = opsToWcs(p.ops, e.elevation || 0, ocs); p.bb = opsBBox(p.ops); } } return true; }
+    return false;
+  }
+
+  /** 3DSOLID / REGION / BODY (ACIS) ve MESH: kenarlar çizgi, yüzeyler üçgen (tri:true → 2B'de çizilmez) */
+  solid(e, ctx) {
+    const raw = (this.db.raw3d && this.db.raw3d[e.handle]) || (e.acisText ? { acis: e.acisText } : null);
+    const st = this.style(e, ctx), info = ctx.info || this.info(e, st);
+    const edges = [], tris = [];
+    if (raw && raw.mesh) {
+      const V = raw.mesh.verts, F = raw.mesh.faces;
+      for (let i = 0; i < F.length;) { const n = F[i++]; if (n < 2 || i + n > F.length) break; const idx = F.slice(i, i + n); i += n; const pts = idx.map(j => V[j]).filter(Boolean); if (pts.length < 2) continue; edges.push(pts.concat([pts[0]])); for (let k = 1; k < pts.length - 1; k++) tris.push(pts[0], pts[k], pts[k + 1]); }
+    } else if (raw && raw.acis) {
+      try {
+        const key = e.handle; let t = this._acisCache && this._acisCache.get(key);
+        if (!t) { t = tessellate(parseAcis(raw.acis), { arcSegs: 32 }); (this._acisCache || (this._acisCache = new Map())).set(key, t); }
+        for (const pl of t.edges) edges.push(pl);
+        for (let i = 0; i + 8 < t.tris.length; i += 9) tris.push([t.tris[i], t.tris[i + 1], t.tris[i + 2]], [t.tris[i + 3], t.tris[i + 4], t.tris[i + 5]], [t.tris[i + 6], t.tris[i + 7], t.tris[i + 8]]);
+        if (!t.faces && raw.wires) for (const w of raw.wires) edges.push(w);
+      } catch (err) { if (raw.wires) for (const w of raw.wires) edges.push(w); }
+    } else if (raw && raw.wires) { for (const w of raw.wires) edges.push(w); }
+    if (!edges.length && !tris.length) return;
+    const m = ctx.m, id = isIdent(m);
+    const P = (q) => { if (id) return [q[0], q[1], q[2] || 0]; const w = apply(m, q[0], q[1]); return [w[0], w[1], q[2] || 0]; };
+    for (const pl of edges) {
+      if (pl.length < 2) continue;
+      const ops = pl.map((q, i) => { const w = P(q); return [i ? 1 : 0, w[0], w[1], w[2]]; });
+      this.prims.push({ k: 0, ops, closed: false, fill: false, alpha: 1, w: 0, col: st.col, lay: st.lay, lt: st.lt, lts: st.lts, lw: st.lw, bb: opsBBox(ops), info, et: e.type });
+      this.layerOf(st.lay).count++;
+    }
+    for (let i = 0; i + 2 < tris.length; i += 3) {
+      const a = P(tris[i]), b = P(tris[i + 1]), c = P(tris[i + 2]);
+      const ops = [[0, a[0], a[1], a[2]], [1, b[0], b[1], b[2]], [1, c[0], c[1], c[2]]];
+      this.prims.push({ k: 0, ops, closed: true, face: true, tri: true, fill: false, alpha: 1, w: 0, col: st.col, lay: st.lay, lt: null, lts: 1, lw: 0, bb: opsBBox(ops), info, et: e.type });
+    }
   }
 
   insert(e, ctx) {

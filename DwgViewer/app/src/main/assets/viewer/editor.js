@@ -96,7 +96,7 @@ const TABS = [
   { id: '3d', i18n: 'tab3d', icon: 'i-cube', groups: [
     { cap: 'grpView3', items: [T('3d', 'i-3d', '3B aç/kapat', '3D on/off', 'Tek parmak döndürür, iki parmak kaydırır / yakınlaştırır', 'One finger orbits, two fingers pan / zoom'), T('fit3', 'i-fit', 'Sığdır', 'Fit'), T('v:iso', 'i-iso', 'İzometrik', 'Isometric'), T('v:top', 'i-top', 'Üst', 'Top'), T('v:front', 'i-front', 'Ön', 'Front'), T('v:left', 'i-left', 'Sol', 'Left'), T('v:right', 'i-right', 'Sağ', 'Right'), T('v:back', 'i-back', 'Arka', 'Back'), T('v:bottom', 'i-bottom', 'Alt', 'Bottom')] },
     { cap: 'grpCam3', items: [T('persp', 'i-eye', 'Perspektif', 'Perspective', 'Perspektif / ortografik', 'Perspective / orthographic'), T('zscale', 'i-zscale', 'Z abartı', 'Z scale', 'Düşey abartı çarpanı', 'Vertical exaggeration'), T('cam3', 'i-camera', 'Yer imleri', 'Bookmarks', 'Kamera konumlarını kaydeder', 'Save camera positions'), T('turn3', 'i-turn', 'Döner tabla', 'Turntable')] },
-    { cap: 'grpStyle3', items: [T('style3', 'i-cube', 'Stil', 'Style', 'Tel kafes, gizli çizgi, gölgeli, röntgen', 'Wireframe, hidden line, shaded, x-ray'), T('color3', 'i-palette', 'Renk', 'Color', 'Nesne, katman, kot, tek renk', 'Entity, layer, elevation, mono'), T('clip3', 'i-clip', 'Kesit', 'Clip', 'Z aralığı ve kesit kutusu', 'Z range and clip box'), T('display', 'i-sliders', 'Ekran ayarları', 'Display options')] },
+    { cap: 'grpStyle3', items: [T('vstyle', 'i-vs-wireframe', 'Görsel stil', 'Visual style', 'Tel kafes, gizli çizgi, gölgeli, gerçekçi, kavramsal, gri, eskiz, röntgen', 'Wireframe, hidden, shaded, realistic, conceptual, gray, sketchy, x-ray'), T('color3', 'i-palette', 'Renk', 'Color', 'Nesne, katman, kot, tek renk', 'Entity, layer, elevation, mono'), T('clip3', 'i-clip', 'Kesit', 'Clip', 'Z aralığı ve kesit kutusu', 'Z range and clip box'), T('display', 'i-sliders', 'Ekran ayarları', 'Display options')] },
     { cap: 'grpTools3', items: [T('3:select', 'i-select', 'Seç', 'Select'), T('3:dist', 'i-dist', '3B mesafe', '3D distance', 'Köşeler arası eğik mesafe, ΔZ, eğim', 'Slope distance between vertices'), T('3:move', 'i-move', 'Taşı (3B)', 'Move (3D)'), T('3:pline', 'i-pline3d', '3B Polyline', '3D Polyline'), T('3:setz', 'i-z', 'Kot ata', 'Set Z'), T('3:del', 'i-trash', 'Sil', 'Delete'), T('undo', 'i-undo', 'Geri al', 'Undo')] } ] },
 ];
 const DISPLAY_2D = [
@@ -106,7 +106,7 @@ const DISPLAY_2D = [
   { cap: 'grpHelpers', items: [T('grid', 'i-grid', 'Izgara', 'Grid'), T('crosshair', 'i-crosshair', 'Artı imleç', 'Crosshair'), T('rulers', 'i-ruler', 'Cetvel', 'Rulers'), T('fade', 'i-fade', 'Soldur', 'Fade', 'Seçili olmayan katmanları soldurur', 'Fade other layers')] },
 ];
 const DISPLAY_3D = [
-  { cap: 'grpStyle3', items: [T('style3', 'i-cube', 'Stil', 'Style'), T('color3', 'i-palette', 'Renk', 'Color'), T('light3', 'i-light', 'Işık', 'Light', 'Gölgeli stilde aydınlatma', 'Lighting in shaded styles'), T('display', 'i-sliders', 'Ekran ayarları', 'Display options')] },
+  { cap: 'grpStyle3', items: [T('vstyle', 'i-vs-wireframe', 'Görsel stil', 'Visual style'), T('color3', 'i-palette', 'Renk', 'Color'), T('light3', 'i-light', 'Işık', 'Light', 'Gölgeli stilde aydınlatma', 'Lighting in shaded styles'), T('display', 'i-sliders', 'Ekran ayarları', 'Display options')] },
   { cap: 'grpHelpers', items: [T('grid3', 'i-grid', 'Izgara', 'Grid'), T('axes3', 'i-axes', 'Eksenler', 'Axes'), T('cube3', 'i-3d', 'Küp', 'Cube', 'Görünüm küpü', 'View cube'), T('hud3', 'i-info', 'Bilgi', 'HUD', 'Kamera bilgisi', 'Camera info'), T('shadow3', 'i-sun', 'Gölge', 'Shadow', 'Zemin gölgesi', 'Ground shadow'), T('sil3', 'i-cube', 'Siluet', 'Silhouette', 'Siluet kenarları', 'Silhouette edges')] },
   { cap: 'grpCam3', items: [T('zscale', 'i-zscale', 'Z abartı', 'Z scale'), T('clip3', 'i-clip', 'Kesit', 'Clip'), T('turn3', 'i-turn', 'Döner tabla', 'Turntable'), T('persp', 'i-eye', 'Perspektif', 'Perspective')] },
 ];
@@ -291,6 +291,23 @@ function refreshTiles() {
   document.querySelectorAll('#toolbar [data-act="prevview"]').forEach(b => { b.disabled = !(vh && vh.canBack && vh.canBack()); });
   document.querySelectorAll('#toolbar [data-act="nextview"]').forEach(b => { b.disabled = !(vh && vh.canForward && vh.canForward()); });
   const bd = $('btnDisplay'); if (bd) bd.classList.toggle('active', !!($('displayPanel') && !$('displayPanel').hidden));
+  // görsel stil karosu: simge ve etiket etkin stili gösterir
+  const st = v3 ? v3.opts.style : 'wireframe';
+  document.querySelectorAll('#toolbar [data-act="vstyle"]').forEach(b => { const u = b.querySelector('use'); if (u) u.setAttribute('href', '#i-vs-' + (VSTYLES.some(x => x[0] === st) ? st : 'wireframe')); const lb = b.querySelector('.lb'); if (lb) lb.textContent = vstyleName(st); b.classList.toggle('on', !!v3 && st !== 'wireframe'); });
+}
+const VSTYLES = [['wireframe2d', 'v3Wire2d', '2B tel kafes'], ['wireframe', 'v3Wire', 'Tel kafes'], ['hidden', 'v3Hidden', 'Gizli çizgi'], ['shaded', 'v3Shaded', 'Gölgeli'], ['shadedEdges', 'v3ShadedEdges', 'Gölgeli+kenar'], ['realistic', 'v3Realistic', 'Gerçekçi'], ['conceptual', 'v3Conceptual', 'Kavramsal'], ['gray', 'v3Gray', 'Gri tonlar'], ['sketchy', 'v3Sketchy', 'Eskiz'], ['xray', 'v3Xray', 'Röntgen']];
+const vstyleName = (id) => { const v = VSTYLES.find(x => x[0] === id); return v ? tt(v[1], v[2]) : id; };
+/** Görsel stil açılır kutusu: önizleme simgeli ızgara */
+function vstylePop(btn) {
+  if (!v3 || !ed.is3D()) { if (!needModel()) return; enter3D(); }
+  if (!v3) return;
+  const html = `<div class="pop-title">${esc(tileLabel('vstyle'))}</div><div class="vs-grid">${VSTYLES.map(([id, k, tr]) => `<button type="button" data-vs="${id}" class="${v3.opts.style === id ? 'on' : ''}"><svg class="ic" aria-hidden="true"><use href="#i-vs-${id}"/></svg><span>${esc(tt(k, tr))}</span></button>`).join('')}</div>` +
+    `<div class="pop-row"><button type="button" class="btn small" data-vs-more="1">${esc(tt('dispTitle', 'Ekran ayarları'))} › 3B</button></div>`;
+  const pop = openPop(btn, html);
+  pop.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-vs]'); if (b) { v3.set('style', b.dataset.vs); pop.querySelectorAll('[data-vs]').forEach(x => x.classList.toggle('on', x === b)); refreshTiles(); haptic('toggle'); return; }
+    if (ev.target.closest('[data-vs-more]')) { closePop(); call(api.openDisplayOptions, { seg: '3d', focus: 'style' }); }
+  });
 }
 // ---- uzun basış: ipucu + sık kullanılan ---------------------------------------------------------
 function bindLongPress(tb) {
@@ -384,6 +401,7 @@ function act(name, btn) {
     case 'persp': if (v3) { v3.set('persp', !v3.cam.persp); overlay3D(); api.toast(v3.cam.persp ? tt('perspective', 'Perspektif') : tt('orthographic', 'Ortografik'), 1200); } break;
     case 'zscale': optionPop(btn, renderZScale, tt('zscaleTitle', 'Düşey abartı')); break;
     case 'style3': optionPop(btn, renderStyle, tt('styleTitle', 'Stil')); break;
+    case 'vstyle': vstylePop(btn); break;
     case 'clip3': optionPop(btn, renderClip, tt('clipTitle', 'Kesit')); break;
     case 'color3': call(api.openDisplayOptions, { seg: '3d', focus: 'colorMode' }); break;
     case 'light3': if (v3) v3.set('light', !v3.opts.light); break;

@@ -86,7 +86,7 @@ await ev(() => { document.getElementById('toast').hidden = true; });
   await page.click('#toolbar [data-tab="3d"]'); await page.click('#toolbar [data-act="3d"]'); await page.waitForTimeout(700);
   await page.click('#toolbar [data-tab="display"]'); await page.waitForTimeout(150);
   const acts3 = await ev(() => [...document.querySelectorAll('#toolbar .tb-row[data-for="display"] [data-act]')].map(b => b.dataset.act));
-  ok('36d 3B satırı', ['style3', 'color3', 'grid3', 'axes3', 'zscale', 'clip3', 'turn3'].every(a => acts3.includes(a)), acts3.join(','));
+  ok('36d 3B satırı', ['vstyle', 'color3', 'grid3', 'axes3', 'zscale', 'clip3', 'turn3'].every(a => acts3.includes(a)), acts3.join(','));
   await shot('s_display_tab_3d');
   // 4 zscale prompt yok
   const nd = dialogs.length;

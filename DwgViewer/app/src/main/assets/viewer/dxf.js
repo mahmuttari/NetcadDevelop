@@ -112,6 +112,12 @@ export function parseDxf(bytes) {
     const { e, P, seq } = r;
     if (P[210] || P[230]) e.extrusionDirection = { x: f(P, 210), y: f(P, 220), z: f(P, 230, 0, 1) };
     switch (type) {
+      case '3DSOLID': case 'REGION': case 'BODY': {
+        // ACIS SAT metni: 1 ve 3 kodlu satırlar, her karakter 159 - kod ile gizlenmiştir (33..126)
+        const lines = seq.filter(q => q[0] === 1 || q[0] === 3).map(q => q[1]);
+        e.acisText = lines.join('\n').replace(/[\x21-\x7e]/g, ch => String.fromCharCode(159 - ch.charCodeAt(0)));
+        return e;
+      }
       case 'LINE': e.startPoint = pt(P, 10); e.endPoint = pt(P, 11); return e;
       case 'POINT': e.position = pt(P, 10); return e;
       case 'CIRCLE': e.center = pt(P, 10); e.radius = f(P, 40); return e;

@@ -339,6 +339,10 @@ export class View3D {
       const isFace = !!(p.face || (p.closed && FACE_ETS.has(p.et)) || p.fill);
       const LB = isFace ? B.edges : B.lines;
       let cur = null;
+      if (p.tri) {                                  // katı model üçgeni: yalnız yüzey, kenar ve köşe eklenmez
+        const q = p.ops; if (q.length >= 3) tri([q[0][1], q[0][2], q[0][3] || 0], [q[1][1], q[1][2], q[1][3] || 0], [q[2][1], q[2][2], q[2][3] || 0]);
+        continue;
+      }
       const seg = (a, b2) => { push(LB, a[0], a[1], a[2]); push(LB, b2[0], b2[1], b2[2]); };
       const flush = () => {
         if (cur && cur.length > 1) {
