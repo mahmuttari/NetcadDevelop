@@ -303,7 +303,7 @@ export class SceneBuilder {
       const paper = new Set(records.filter(b => /^\*PAPER_SPACE/i.test(b.name || '')).map(b => b.handle));
       modelEnts = db.entities.filter(e => !paper.has(e.ownerBlockRecordSoftId) && !e.isInPaperSpace && e.type !== 'ATTRIB' && e.type !== 'VIEWPORT');
     }
-    layouts.push(this.layout('Model', true, modelEnts, null));
+    layouts.push(this.layout('Model', true, modelEnts, model || null));
     if (!this.opts.xref) {
       const papers = records.filter(b => /^\*PAPER_SPACE/i.test(b.name || '') && b.entities && b.entities.length);
       const named = papers.map(b => {
@@ -342,7 +342,8 @@ export class SceneBuilder {
     const root = { m: IDENT, zs: 1, zo: 0, layer: null, color: null, lt: null, lts: 1, lw: null, depth: 0, top: null, info: null };
     const prog = typeof this.opts.onProgress === 'function' ? this.opts.onProgress : null, nEnt = (ents || []).length;   // işçi ilerleme yüzdesi
     let iEnt = 0;
-    for (const e of ents || []) {
+    ents = this.sortedEnts(ents || [], block && block.handle);
+    for (const e of ents) {
       this.entityCount++;
       if (prog && (++iEnt % 5000) === 0) prog(iEnt, nEnt);
       try { this.entity(e, root); } catch (err) { console.warn('varlık atlandı', e && e.type, err); }
@@ -354,6 +355,22 @@ export class SceneBuilder {
       for (const v of this.viewports) { const bb = [v.x0, v.y0, v.x1, v.y1]; ext = ext ? [Math.min(ext[0], bb[0]), Math.min(ext[1], bb[1]), Math.max(ext[2], bb[2]), Math.max(ext[3], bb[3])] : bb; }
     }
     return { name, isModel, prims: this.prims, ext: ext || [0, 0, 1, 1], viewports: this.viewports };
+  }
+
+  /**
+   * Çizim sırası (SORTENTSTABLE): sahibi bu blok olan tabloda varlık → sıra tanıtıcısı eşlemesi varsa varlıklar
+   * sıra tanıtıcısına göre (tabloda olmayanlar kendi tanıtıcısıyla) artan sırada çizilir — AutoCAD'in "Çizim sırası"
+   * (öne/arkaya gönder) davranışı. Tablo yoksa dosyadaki sıra korunur.
+   */
+  sortedEnts(ents, ownerHandle) {
+    const tabs = this.db.sortents;
+    if (!tabs || !ents.length) return ents;
+    const key = ownerHandle == null ? '' : String(ownerHandle).toUpperCase();
+    const t = tabs[key] || (ents[0] && ents[0].ownerBlockRecordSoftId ? tabs[String(ents[0].ownerBlockRecordSoftId).toUpperCase()] : null);
+    if (!t || !t.size) return ents;
+    const own = (e) => { const v = parseInt(String(e.handle || ''), 16); return isFinite(v) ? v : Infinity; };
+    return ents.map((e, i) => { const h = String(e.handle || '').toUpperCase(); const k = t.has(h) ? t.get(h) : own(e); return { e, k, i }; })
+      .sort((a, b) => (a.k - b.k) || (a.i - b.i)).map(x => x.e);
   }
 
   /** Harici referans dosyası yüklendiğinde: bu veritabanının model uzayını verilen matrislerle kurar */
@@ -1210,7 +1227,7 @@ export class SceneBuilder {
 
   block(blk, ctx) {
     if (ctx.depth > 24) return;
-    for (const s of blk.entities || []) {
+    for (const s of this.sortedEnts(blk.entities || [], blk.handle)) {
       if (s.type === 'ATTDEF' && !(s.flags & 2)) continue;
       this.entity(s, ctx);
     }

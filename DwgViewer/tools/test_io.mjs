@@ -242,7 +242,25 @@ if (fs.existsSync(path.join(SM, 'Leader_2004.dwg'))) {
   ok('11 ZIP girdi adı CP857 ile çözülür (Şehir_ç.txt)', names.includes('Şehir_ç.txt'), JSON.stringify(names));
   await ev(() => window.dwgApp.docs.close());
 }
-ok('12 sayfa hatası yok', errors.length === 0, errors.join(' | ').slice(0, 300));
+// (12) Çizim sırası (SORTENTSTABLE): dosyada LINE önce, HATCH sonra; tablo HATCH'e küçük sıra tanıtıcısı verir → HATCH önce çizilir
+{
+  let d = L(0, 'SECTION') + L(2, 'HEADER') + L(9, '$ACADVER') + L(1, 'AC1015') + L(0, 'ENDSEC');
+  d += L(0, 'SECTION') + L(2, 'TABLES') + L(0, 'TABLE') + L(2, 'LAYER') + L(0, 'LAYER') + L(2, '0') + L(70, 0) + L(62, 7) + L(0, 'ENDTAB')
+    + L(0, 'TABLE') + L(2, 'BLOCK_RECORD') + L(0, 'BLOCK_RECORD') + L(5, '1F') + L(2, '*Model_Space') + L(0, 'ENDTAB') + L(0, 'ENDSEC');
+  d += L(0, 'SECTION') + L(2, 'ENTITIES')
+    + L(0, 'LINE') + L(5, 'E1') + L(330, '1F') + L(100, 'AcDbEntity') + L(8, '0') + L(100, 'AcDbLine') + L(10, 0) + L(20, 0) + L(30, 0) + L(11, 10) + L(21, 10) + L(31, 0)
+    + L(0, 'HATCH') + L(5, 'H1') + L(330, '1F') + L(100, 'AcDbEntity') + L(8, '0') + L(100, 'AcDbHatch') + L(10, 0) + L(20, 0) + L(30, 0) + L(210, 0) + L(220, 0) + L(230, 1) + L(2, 'SOLID') + L(70, 1) + L(71, 0) + L(91, 1)
+    + L(92, 2) + L(72, 0) + L(73, 1) + L(93, 4) + L(10, 0) + L(20, 0) + L(10, 10) + L(20, 0) + L(10, 10) + L(20, 10) + L(10, 0) + L(20, 10) + L(97, 0) + L(75, 0) + L(76, 1) + L(98, 0)
+    + L(0, 'ENDSEC');
+  d += L(0, 'SECTION') + L(2, 'OBJECTS') + L(0, 'DICTIONARY') + L(5, 'C') + L(0, 'SORTENTSTABLE') + L(5, 'S1') + L(330, 'C') + L(100, 'AcDbSortentsTable') + L(330, '1F')
+    + L(331, 'E1') + L(5, 'FF') + L(331, 'H1') + L(5, '1') + L(0, 'ENDSEC') + L(0, 'EOF');
+  fs.writeFileSync(path.join(out, 'sortents.dxf'), d);
+  await openFile(page, path.join(out, 'sortents.dxf'), { settle: 200 });
+  const r = await ev(() => { const ps = window.dwgApp.state.prims; return { h: ps.findIndex(p => p.et === 'HATCH'), l: ps.findIndex(p => p.et === 'LINE'), n: ps.length, hatchBack: window.dwgApp.state.hatchBack }; });
+  ok('12a SORTENTSTABLE: HATCH, LINE\'dan önce çizilir (dosya sırası tersiydi)', r.n === 2 && r.h === 0 && r.l === 1, JSON.stringify(r));
+  ok('12b taramalar arkada seçeneği varsayılan açık', r.hatchBack === true, String(r.hatchBack));
+}
+ok('13 sayfa hatası yok', errors.length === 0, errors.join(' | ').slice(0, 300));
 C.summary(errors);
 await browser.close(); srv.kill();
 C.exit();

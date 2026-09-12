@@ -13,7 +13,7 @@ export const S = {
   theme: 'dark', bgOverride: null, sun: false, preset: 'custom',
   show: { text: true, hatch: true, dim: true, point: true, image: true, attrib: true, block: true, ltype: true },
   colorMode: 'entity', monoColor: 'fg', lw: false, lwScale: 3, minLw: 1,
-  minTextPx: 2.2, hatchAlpha: 1, pointStyle: 'plus', pointPx: 3,
+  minTextPx: 2.2, hatchAlpha: 1, hatchBack: true, pointStyle: 'plus', pointPx: 3,
   grid: { on: false, step: 'auto', style: 'line' }, rulers: false, crosshair: 'small',
   fade: { on: false, pct: 70 }, isoBackup: null,
   selColor: '#ff9f0a', selWidth: 3, smooth: true, fastPan: 'auto',

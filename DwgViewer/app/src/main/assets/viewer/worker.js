@@ -58,7 +58,7 @@ async function readDb(bytes, id) {
   const critical = code >= ERR.CLASSESNOTFOUND ? code : 0;   // DWG_ERR_CRITICAL: CLASSESNOTFOUND (128) ve üstü; sağlam dosyalarda 64/68 kalır
   const suspect = critical || ((code & ERR.WRONGCRC) ? code : 0);   // CRC hatası: dosya açılır ama nesneler eksik olabilir (bozuk kopya) → uyarı
   let db, cp = 0;
-  try { try { cp = lib.dwg_get_codepage(dwg) | 0; } catch (_) { cp = 0; } db = lib.convert(dwg); db.raw3d = collectRaw3D(lib, dwg, db); }
+  try { try { cp = lib.dwg_get_codepage(dwg) | 0; } catch (_) { cp = 0; } db = lib.convert(dwg); db.raw3d = collectRaw3D(lib, dwg, db); db.sortents = collectSortents(lib, dwg, db); }
   catch (e) {
     if (isAbort(e)) lib = null;
     throw new Error(isMem(e) ? memMsg(u8.length) : (critical ? `DWG bozuk ya da kesik (LibreDWG hata kodu ${code}): ` : 'LibreDWG dosyayı çözemedi: ') + msgOf(e));
@@ -184,6 +184,37 @@ function rawSamples(raw) {
  * Dönüştürücünün taşımadığı 3B veriler: 3DSOLID / REGION / BODY için ACIS (SAT metni ya da SAB ikilisi)
  * ve önbellek tel kafesi; MESH (AcDbSubDMesh) için köşe ve yüz listesi. Anahtar: onaltılık tanıtıcı.
  */
+/**
+ * Çizim sırası tabloları (SORTENTSTABLE, tür 714): sahip blok kaydı → (varlık tanıtıcısı → sıra tanıtıcısı).
+ * Dönüştürücü bu nesneyi vermez; LibreDWG nesne listesi taranır. scene.js sortedEnts() bu eşlemeyle çizer.
+ */
+function collectSortents(lib, dwg, db) {
+  const W = lib.wasmInstance, out = {};
+  const hexOf = (v) => (v == null ? null : Number(v).toString(16).toUpperCase());
+  const absOf = (r) => { if (r == null) return null; if (typeof r === 'number') { try { return lib.dwg_ref_get_absref(r); } catch (_) { return null; } } if (typeof r === 'object') { if (r.absolute_ref != null) return r.absolute_ref; if (r.handleref && r.handleref.value != null) return r.handleref.value; } return null; };
+  const refArr = (ptr, n) => { try { return W.dwg_ptr_to_object_ref_ptr_array(ptr, n); } catch (_) { return null; } };
+  let model = null;
+  try { const rec = (db.tables.BLOCK_RECORD.entries || []).find(b => /^\*MODEL_SPACE$/i.test(b.name || '')); model = rec ? String(rec.handle).toUpperCase() : null; } catch (_) { /* yok */ }
+  let N = 0; try { N = lib.dwg_get_num_objects(dwg); } catch (_) { return null; }
+  let found = 0;
+  for (let i = 0; i < N && i < 4000000; i++) {
+    let o = null; try { o = lib.dwg_get_object(dwg, i); if (!o || lib.dwg_object_get_fixedtype(o) !== 714) continue; } catch (_) { continue; }
+    try {
+      const tio = lib.dwg_object_to_object_tio(o); if (!tio) continue;
+      const val = (f) => { try { const r = lib.dwg_dynapi_entity_value(tio, f); return r && r.data !== undefined ? r.data : null; } catch (_) { return null; } };
+      const n = val('num_ents') | 0; if (!(n > 0)) continue;
+      const ents = refArr(val('ents'), n), sorts = refArr(val('sort_ents'), n); if (!ents || !sorts) continue;
+      let owner = hexOf(absOf(val('block_owner')));
+      if (!owner) owner = model;                                     // sahibi çözülemezse model uzayı varsayılır
+      if (!owner) continue;
+      const m = out[owner] || (out[owner] = new Map());
+      for (let k = 0; k < n; k++) { const eh = absOf(ents[k]), sh = absOf(sorts[k]); if (eh != null && sh != null) m.set(hexOf(eh), Number(sh)); }
+      found++;
+    } catch (_) { /* tablo atlanır */ }
+  }
+  return found ? out : null;
+}
+
 function collectRaw3D(lib, dwg, db) {
   const out = {};
   const W = lib.wasmInstance;
@@ -319,6 +350,7 @@ self.onmessage = async (ev) => {
       scene.readWarn = db.readWarn || 0;
       if (scene.solidDiag) { scene.solidDiag.acds = db.acdsInfo || null; scene.solidDiag.samples = rawSamples(db.raw3d); }
       scene.census = db.census || null;
+      scene.drawOrder = db.sortents ? Object.values(db.sortents).reduce((n, m) => n + m.size, 0) : 0;   // çizim sırası tablosundaki varlık sayısı
       postMessage({ id, ok: true, scene });
     } else if (cmd === 'xref') {
       const db = await readDb(ev.data.bytes, id);

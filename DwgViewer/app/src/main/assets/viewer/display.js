@@ -20,7 +20,7 @@ const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;
 export const DISPLAY_DEFAULTS = Object.freeze({
   theme: 'dark', bgOverride: null, sun: false, preset: 'custom',
   showText: true, showHatch: true, showDim: true, showPoint: true, showImage: true, showAttrib: true, showBlock: true, showLtype: true,
-  colorMode: 'entity', monoColor: 'fg', lw: false, lwScale: 3, minLw: 1, minTextPx: 2.2, hatchAlpha: 1, pointStyle: 'plus', pointPx: 3,
+  colorMode: 'entity', monoColor: 'fg', lw: false, lwScale: 3, minLw: 1, minTextPx: 2.2, hatchAlpha: 1, hatchBack: true, pointStyle: 'plus', pointPx: 3,
   grid: false, gridStep: 'auto', gridStyle: 'line', rulers: false, crosshair: 'small',
   fade: false, fadePct: 70, selColor: '#ff9f0a', selWidth: 3, smooth: true, fastPan: 'auto',
   scaleBar: true, north: true, northBig: false, navFabs: true, dpad: false, coordInfo: true, vpFrames: true, compareOnlyDiff: false,
@@ -28,7 +28,7 @@ export const DISPLAY_DEFAULTS = Object.freeze({
 });
 export const THEME_IDS = ['dark', 'light', 'blueprint', 'sepia', 'hicontrast', 'system'];
 const PRESET_IDS = ['field', 'office', 'print', 'custom'];
-const BOOL_KEYS = new Set(['sun', 'showText', 'showHatch', 'showDim', 'showPoint', 'showImage', 'showAttrib', 'showBlock', 'showLtype', 'lw', 'grid', 'rulers', 'fade', 'smooth', 'scaleBar', 'north', 'northBig', 'navFabs', 'dpad', 'coordInfo', 'vpFrames', 'compareOnlyDiff']);
+const BOOL_KEYS = new Set(['sun', 'hatchBack', 'showText', 'showHatch', 'showDim', 'showPoint', 'showImage', 'showAttrib', 'showBlock', 'showLtype', 'lw', 'grid', 'rulers', 'fade', 'smooth', 'scaleBar', 'north', 'northBig', 'navFabs', 'dpad', 'coordInfo', 'vpFrames', 'compareOnlyDiff']);
 /** Düz anahtar → S yolu ([nesne, alan]); listede olmayan anahtar doğrudan S[key] */
 const PATH = {
   showText: ['show', 'text'], showHatch: ['show', 'hatch'], showDim: ['show', 'dim'], showPoint: ['show', 'point'], showImage: ['show', 'image'], showAttrib: ['show', 'attrib'], showBlock: ['show', 'block'], showLtype: ['show', 'ltype'],
@@ -292,7 +292,8 @@ function sectionHtml(id) {
         W.row(tt('pointStyle', 'Nokta biçimi'), W.seg('pointStyle', ['plus', 'x', 'o', 'dot'], S.pointStyle, ['+', '×', '○', '●'])) +
         W.row(tt('pointPx', 'Nokta boyutu'), W.slider('pointPx', 3, 10, 1, S.pointPx, 'px')) +
         W.row(tt('minTextPx', 'Yazı eşiği'), W.slider('minTextPx', 1, 8, 0.5, S.minTextPx, 'px')) +
-        W.row(tt('hatchAlpha', 'Tarama saydamlığı'), W.slider('hatchAlpha', 0, 100, 5, Math.round(S.hatchAlpha * 100), '%')), id);
+        W.row(tt('hatchAlpha', 'Tarama saydamlığı'), W.slider('hatchAlpha', 0, 100, 5, Math.round(S.hatchAlpha * 100), '%')) +
+        W.sw('hatchBack', S.hatchBack !== false, tt('hatchBack', 'Taramalar ve dolgular arkada')), id);
     case 'basemap': {
       let opts = [['none', tt('basemapNone', 'Yok')]];
       try { if (ctx.basemaps) opts = ctx.basemaps.map(b => [b.id, b.i18n ? t(b.i18n) : b.name]); } catch (_) { /* yok */ }

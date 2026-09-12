@@ -460,6 +460,21 @@ export function parseDxf(bytes, opts = {}) {
           const P = r.P;
           if (t === 'LAYOUT') db.objects.LAYOUT.push({ handle: r.e.handle, layoutName: s(P, 1), tabOrder: f(P, 71), paperSpaceTableId: s(P, 330) });
           else if (t === 'IMAGEDEF') db.objects.IMAGEDEF.push({ handle: r.e.handle, fileName: s(P, 1), size: { x: f(P, 10), y: f(P, 20) } });
+          else if (t === 'SORTENTSTABLE') {
+            // Çizim sırası: 100 AcDbSortentsTable'dan sonra 330 sahip blok kaydı, 331 varlık tanıtıcıları, 5 sıra tanıtıcıları (aynı sırada eşleşir)
+            let inTab = false, owner = ''; const ents = [], sorts = [];
+            for (const [c, v] of r.seq) {
+              if (c === 100) { inTab = v === 'AcDbSortentsTable'; continue; }
+              if (!inTab) continue;
+              if (c === 330 && !owner) owner = String(v).toUpperCase();
+              else if (c === 331) ents.push(String(v).toUpperCase());
+              else if (c === 5) sorts.push(parseInt(v, 16));
+            }
+            if (owner && ents.length) {
+              const m = (db.sortents || (db.sortents = {}))[owner] || ((db.sortents[owner] = new Map()));
+              for (let k = 0; k < ents.length && k < sorts.length; k++) if (isFinite(sorts[k])) m.set(ents[k], sorts[k]);
+            }
+          }
           rd.i -= 2;
         }
       }

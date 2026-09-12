@@ -44,9 +44,15 @@ function entityCss(c, fg) {
   let s = colCache.get(c);
   if (s !== undefined) return s;
   const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
-  if (theme().clampAci) {
+  const th = theme();
+  if (th.clampAci) {
     const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
     if (lum > 0.6) { const k = 0.6 / lum; s = '#' + ((Math.round(r * k) << 16) | (Math.round(g * k) << 8) | Math.round(b * k)).toString(16).padStart(6, '0'); }
+  } else if (th.dark) {
+    // Koyu temada parlaklık tabanı: saf mavi (ACI 5), lacivert, koyu gri gibi renkler 1 px çizgide seçilemez;
+    // parlaklığı 0,2'nin altındaki renk beyaza doğru karıştırılıp ~0,38'e çekilir (ton korunur).
+    const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+    if (lum < 0.2) { const t = (0.38 - lum) / (1 - lum); const L = (v) => Math.round(v + (255 - v) * t); s = '#' + ((L(r) << 16) | (L(g) << 8) | L(b)).toString(16).padStart(6, '0'); }
   }
   if (s === undefined) s = '#' + (c & 0xffffff).toString(16).padStart(6, '0');
   colCache.set(c, s);
@@ -169,9 +175,15 @@ export function drawPrims(c, prims, scale, rect, opt) {
     const visArea = (vx1 - vx0) * (vy1 - vy0), extArea = ext ? (ext[2] - ext[0]) * (ext[3] - ext[1]) : Infinity;
     if (visArea < extArea * 0.35) list = opt.tree.collect(vx0, vy0, vx1, vy1);
   }
-  const n = list ? list.length : prims.length;
+  let seq = list ? list.map(i => prims[i]) : prims;
+  if (S.hatchBack !== false) {   // taramalar ve dolgular önce: çizgi, yazı ve ölçüler dolgunun altında kalmaz
+    const a = [], b = [];
+    for (const p of seq) ((p.k === 0 && p.fill && (p.et === 'HATCH' || p.et === 'SOLID' || p.et === 'TRACE')) ? a : b).push(p);
+    if (a.length) seq = a.concat(b);
+  }
+  const n = seq.length;
   for (let ii = 0; ii < n; ii++) {
-    const p = list ? prims[list[ii]] : prims[ii];
+    const p = seq[ii];
     const bb = p.bb;
     if (bb[2] < vx0 || bb[0] > vx1 || bb[3] < vy0 || bb[1] > vy1) continue;
     if (p.k === 4) continue;
