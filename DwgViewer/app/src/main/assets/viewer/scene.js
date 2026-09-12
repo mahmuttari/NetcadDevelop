@@ -1263,7 +1263,12 @@ export class SceneBuilder {
     }
     if (!ops.length) return;
     const solid = e.solidFill === 1 || (e.patternName || '').toUpperCase() === 'SOLID';
-    if (!solid && this.hatchPattern(e, ops, ctx)) return;
+    if (!solid) {
+      // Desen çizgileri + aynı sınırın saydam dolgusu: render.js ekranda desen aralığı 2 px'in altına inince
+      // (uzak ölçek) çizgileri değil dolguyu çizer; böylece sık desen opak kütleye dönüşüp altını örtmez.
+      const hp = this.hatchPattern(e, ops, ctx);
+      if (hp) { const f = this.addPath(ops, { closed: true, fill: true, alpha: 0.18 }, e, ctx); if (f) f.hpFill = hp; return; }
+    }
     this.addPath(ops, { closed: true, fill: true, alpha: solid ? 0.85 : 0.18 }, e, ctx);
   }
 
@@ -1271,6 +1276,7 @@ export class SceneBuilder {
    * Desenli tarama: tanım satırlarından (açı, taban, offset, çizgi-boşluk listesi) sınırla kırpılmış çizgiler.
    * Değerler dosyada ölçek ve açı uygulanmış hâldedir (DXF 53/43-46/49, DWG deflines) — yeniden ölçeklenmez.
    * Üst sınır HATCH_MAX_SEG parça; aşılırsa false döner ve düz dolguya düşülür.
+   * Dönüş: en sık desen aralığı (dünya birimi, bağlam ölçeği uygulanmış) — render.js'te uzaklık düzeyi (LOD) için.
    */
   hatchPattern(e, ops, ctx) {
     const defs = e.definitionLines || e.patternLines || [];
@@ -1286,12 +1292,13 @@ export class SceneBuilder {
     if (!(diag > 0)) return false;
     const corners = [[bb[0], bb[1]], [bb[2], bb[1]], [bb[2], bb[3]], [bb[0], bb[3]]];
     const npts = polys.reduce((t, l) => t + l.length, 0);
-    const out = []; let segs = 0, lines = 0;
+    const out = []; let segs = 0, lines = 0, minStep = Infinity;
     for (const dl of defs) {
       const a = dl.angle || 0, ux = Math.cos(a), uy = Math.sin(a), nx = -uy, ny = ux;
       const base = dl.base || { x: 0, y: 0 }, off = dl.offset || { x: 0, y: 0 };
       const step = (off.x || 0) * nx + (off.y || 0) * ny;             // ardışık çizgiler arası dik uzaklık (işaretli)
       if (!(Math.abs(step) > 1e-12)) continue;
+      if (Math.abs(step) < minStep) minStep = Math.abs(step);
       const dashes = (dl.dashLengths || []).filter(v => typeof v === 'number' && isFinite(v));
       const period = dashes.reduce((t, v) => t + Math.abs(v), 0);
       let dmin = Infinity, dmax = -Infinity;
@@ -1331,10 +1338,13 @@ export class SceneBuilder {
         }
       }
     }
-    if (!out.length) return false;
+    if (!out.length || !isFinite(minStep)) return false;
     this._hatchSegs = (this._hatchSegs || 0) + segs;
-    this.addPath(out, {}, e, ctx);
-    return true;
+    const m = ctx.m, k = isIdent(m) ? 1 : Math.sqrt(Math.abs(det(m))) || 1;
+    const hp = minStep * k;
+    const pr = this.addPath(out, {}, e, ctx);
+    if (pr) pr.hp = hp;
+    return hp;
   }
 
   infinite(e, ctx, ext) {

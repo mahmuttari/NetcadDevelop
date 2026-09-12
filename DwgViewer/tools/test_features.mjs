@@ -23,7 +23,7 @@ const shot = (n) => page.screenshot({ path: `${out}/${n}.png` });
 const zoom = async (bb) => { await page.evaluate((bb) => window.dwgApp.zoomExtents(bb), bb); await page.waitForTimeout(200); };
 const tapWorld = async (x, y) => { const s = await page.evaluate(([x, y]) => window.dwgApp.toScreen(x, y), [x, y]); const r = await page.locator('#viewport').boundingBox(); await page.touchscreen.tap(r.x + s[0], r.y + s[1]); await page.waitForTimeout(250); };
 await load(`${S}/example_2000.dwg`);
-ok('0 example_2000.dwg yüklendi (338 ilkel)', await page.evaluate(() => window.dwgApp.state.hasDoc && window.dwgApp.state.prims.length === 338), String(await page.evaluate(() => window.dwgApp.state.prims.length)));   // 337 + MULTILEADER ok başı
+ok('0 example_2000.dwg yüklendi (339 ilkel)', await page.evaluate(() => window.dwgApp.state.hasDoc && window.dwgApp.state.prims.length === 339), String(await page.evaluate(() => window.dwgApp.state.prims.length)));   // 337 + MULTILEADER ok başı + desenli HATCH'in LOD dolgusu
 if (step === 'all' || step === 'profile') {
   await zoom([200, 500, 700, 900]);
   await page.evaluate(() => window.dwgApp.setMode('profile'));
@@ -49,7 +49,7 @@ if (step === 'all' || step === 'compare') {
   const fc = page.waitForEvent('filechooser', { timeout: 30000 }); await page.click('#btnMore'); await page.click('[data-act="compare"]'); const chooser = await fc; await chooser.setFiles(`${S}/example_2018.dwg`);
   await page.waitForFunction(() => window.dwgApp.state.compare, null, { timeout: 60000 }); await page.waitForTimeout(300); await zoom([-3000, -1500, 12500, 13000]); await shot('n_compare');
   const st = await page.evaluate(() => window.dwgApp.state.compare.stats);
-  ok('3 karşılaştırma 2000 ↔ 2018: 39 çıkan, 1 eklenen, 289 ortak', st.removed === 39 && st.added === 1 && st.common === 289, JSON.stringify(st));   // MULTILEADER çizgisi ve ok başı iki sürümde de eşleşir
+  ok('3 karşılaştırma 2000 ↔ 2018: 39 çıkan, 1 eklenen, 290 ortak', st.removed === 39 && st.added === 1 && st.common === 290, JSON.stringify(st));   // MULTILEADER çizgisi ve ok başı iki sürümde de eşleşir
   await page.evaluate(() => { window.dwgApp.state.compare = null; window.dwgApp.onBack(); window.dwgApp.render(); });
 }
 if (step === 'all' || step === 'dxf') {

@@ -121,6 +121,7 @@ function drawText(c, p, fg, col) {
 
 const DIM_TYPES = { DIMENSION: 1, ARC_DIMENSION: 1, LARGE_RADIAL_DIMENSION: 1 };
 const isHatch = (p) => p.et === 'HATCH' || (p.fill && p.et === 'SOLID');
+const HATCH_LOD_PX = 2;   // desen aralığı ekranda bunun altındaysa desen çizgileri yerine saydam dolgu çizilir
 const isDim = (p) => DIM_TYPES[p.et] === 1 || (p.info != null && p.info.t === 'DIMENSION');
 /** Görünürlük süzgeçleri (katman hariç): display.primVisible bunun üstüne katmanı ekler */
 export function passFilters(p) {
@@ -184,6 +185,8 @@ export function drawPrims(c, prims, scale, rect, opt) {
     if (L && (L.faded || L.locked)) alpha = fadeA;
     else if (fadeOn && p.lay !== curLayer) alpha = fadeA;
     if (p.k === 0) {
+      if (p.hp != null && p.hp * scale < HATCH_LOD_PX) continue;          // sık desen: çizgiler değil dolgu
+      if (p.hpFill != null && p.hpFill * scale >= HATCH_LOD_PX) continue; // seyrek desen: dolgu değil çizgiler
       if (!p.fill && (bb[2] - bb[0]) < minPx && (bb[3] - bb[1]) < minPx) continue;
       if (p.bg) col = bg;
       if (p.fill) {

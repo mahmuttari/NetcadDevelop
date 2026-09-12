@@ -23,7 +23,7 @@ const zoom = async (bb) => { await page.evaluate((bb) => window.dwgApp.zoomExten
 const tapWorld = async (x, y) => { await page.waitForTimeout(120); const s = await page.evaluate(([x, y]) => window.dwgApp.toScreen(x, y), [x, y]); const r = await page.locator('#viewport').boundingBox(); await page.touchscreen.tap(r.x + s[0], r.y + s[1]); await page.waitForTimeout(150); };
 const typed = async (v) => { await page.fill('#cmdInput', v); await page.click('#cmdEnter'); await page.waitForTimeout(100); };
 const rectPos = () => page.evaluate(() => { const p = window.dwgApp.state.scene.layouts[0].prims.find(q => q.ent && q.ent.type === 'LWPOLYLINE'); return p.ops[0].slice(1, 3); });
-const n0 = await count(); ok('1 başlangıç ilkel sayısı 338', n0 === 338, String(n0));   // 337 + MULTILEADER ok başı
+const n0 = await count(); ok('1 başlangıç ilkel sayısı 339', n0 === 339, String(n0));   // 337 + MULTILEADER ok başı + desenli HATCH'in LOD dolgusu
 await zoom([0, 0, 2000, 2000]);
 await shot('e_toolbar_view');
 // çizim: çizgi (yazılı koordinat, @uzunluk<açı, @dx,dy)
