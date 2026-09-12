@@ -925,6 +925,8 @@ ed.setCurLayer = (name) => { if (!name || !S.layers.has(name)) return false; ed.
 ed.openTab = (id) => { if ($('toolbar').classList.contains('collapsed')) collapse(false); setTab(id); };
 ed.collapse = (on) => collapse(!!on);
 ed.refreshTiles = refreshTiles;
+/** Yetki değişince (edition.onEdition) şeridi yeniden kurar: sekmeler / karolar yeniden çizilir, geçerli sekme korunur (yoksa 'view'), çalışan araç (2B tools ya da 3B ed.m3) işaretli kalır */
+ed.rebuild = () => { closePop(); buildToolbar(); if (ed.m3) markActive('3:' + ed.m3.name); else if (tools && tools.running && tools.active) markActive('t:' + tools.active); };
 /** Karo eylemi (dolaylı yol: sınama, kabuk); Ücretsiz sürümde gate() uygulanır */
 ed.act = (name) => act(String(name || ''));
 /** Klavye: Esc geri, Del sil, Ctrl+Z / Ctrl+Y (Ctrl+Shift+Z), Enter bitir; true → işlendi */

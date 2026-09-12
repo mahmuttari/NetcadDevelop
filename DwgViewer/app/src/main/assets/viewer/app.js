@@ -64,6 +64,7 @@ function saveSettings() { store.set('settings', JSON.stringify(settings)); }
 let displayApplied = false;
 function applySettings() {
   setLang(settings.lang); applyI18n();
+  if (Ed.isProPanelOpen()) Ed.openProPanel();   // açık Pro paneli gövdesi (özellik listesi, fiyat, düğmeler) t() ile kurulur: dil değişince yeniden çizilir
   if (!S.hasDoc) $('fileName').textContent = t('noFile');
   S.basemap.id = settings.basemap || 'none'; S.basemap.url = settings.basemapUrl || ''; S.basemap.wms = settings.wms || '';
   if (!displayApplied) {
@@ -1013,7 +1014,7 @@ function menuAction(act) {
     case 'qr': startQr(); break;
     case 'settings': showSettings(); break;
     case 'about': showAbout(); break;
-    case 'pro': Ed.goPro(); break;
+    case 'pro': Ed.openProPanel(); break;
     default: break;
   }
 }
@@ -1734,6 +1735,7 @@ function onBack() {
   if (!$('qrPanel').hidden) { stopQr(); return true; }
   if (!$('moreMenu').hidden) { closeMenu(); return true; }
   if (zoomWin) { cancelZoomWindow(); return true; }
+  if (Ed.isProPanelOpen()) { Ed.closeProPanel(); return true; }
   if (!$('drivePanel').hidden) { Drive.close(); return true; }
   if (Open.isOpen()) { Open.close(); return true; }
   if (Docs.isOpen()) { const open0 = openPanels(); if (open0.length) { for (const id of open0) hide(id); return true; } Docs.back(); return true; }
@@ -1773,9 +1775,9 @@ window.dwgApp = { loadCurrent, onFilePicked, onLocation, onBack, loadBytes, zoom
   display: D, toast, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, savePng, getSettings: () => settings, requestRender, openDisplayOptions,
   docs: Docs, drive: Drive, onGoogle: (ok, json) => Drive.onGoogle(ok, json), onDrive: (id, ok, json) => Drive.onDrive(id, ok, json), onDriveProgress: (id, d, tot) => Drive.onProgress(id, d, tot), openDrive: () => Drive.open(),
   open: Open, openCenter: (tab) => Open.open(tab), onFsRoot: (obj) => Open.onFsRoot(obj), onFs: (id, ok, json) => Open.onFs(id, ok, json),
-  edition: () => Ed.edition(), isPro: () => Ed.isPro(), goPro: () => Ed.goPro(), onAd: (reason, shown) => Ed.onAd(String(reason || ''), !!shown), __ads: Ed.__ads };
+  edition: () => Ed.edition(), isPro: () => Ed.isPro(), openProPanel: () => Ed.openProPanel(), proInfo: () => Ed.proInfo(), onEdition: (ed, reason) => Ed.onEdition(String(ed || ''), String(reason || '')), onAd: (reason, shown) => Ed.onAd(String(reason || ''), !!shown), __ads: Ed.__ads };
 ensureStatusChips();
-Ed.initEdition({ toast });   // Ücretsiz / Pro: menü, karşılama kartı, Drive düğmeleri; reklam zamanlayıcısı
+Ed.initEdition({ toast, rebuildToolbar: () => editor.rebuild() });   // Ücretsiz / Pro: menü, karşılama kartı, Pro paneli, Drive düğmeleri; reklam zamanlayıcısı; onEdition → şerit yeniden kurulur
 D.initDisplay({ requestRender, drawOverlay, toast, openDoc, show, hide, buildLayerList, settings, saveSettings, editorTheme, zoomExtents, zoomBy, fitPrims, viewHistory, setLayout, editor, ui: uiPrefs(), basemaps: BASEMAPS, haptic });
 mountNavFabs(vp);
 initEditor({ S, requestRender, drawOverlay, toast, noFaces: showNoFaces, pick: (w) => pick(w, TOL.pick / S.view.scale), snap: doSnap, showInfo, openDoc, hide, show, esc, kv, copyText, buildLayerList, fmt, store, RTree, baseName, zoomExtents, tracePath, worldTransform, strokeWorldRect,

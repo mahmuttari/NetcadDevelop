@@ -346,6 +346,15 @@
     <input id="folderInput" type="file" webkitdirectory multiple hidden>
   </aside>
 
+  <!-- Pro paneli (edition.js openProPanel): özellik listesi, fiyat, Satın al / Geri yükle / Lisans kodu -->
+  <aside id="proPanel" class="panel bottom" hidden role="dialog" aria-labelledby="proTitle">
+    <div class="panel-head">
+      <strong id="proTitle"><svg class="ic" aria-hidden="true"><use href="#i-star"/></svg> <span data-i18n="proTitle">DWG Görüntüleyici Pro</span></strong>
+      <button type="button" class="btn icon close" data-close="proPanel" data-i18n-aria="close" aria-label="Kapat"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
+    </div>
+    <div id="proBody" class="panel-body kv"></div>
+  </aside>
+
   <!-- Diğer menüsü -->
   <div id="moreMenu" class="menu" hidden>
     <button data-act="pro" type="button" class="accent" hidden><svg class="ic" aria-hidden="true"><use href="#i-star"/></svg><span data-i18n="goPro">Pro sürüme geç</span></button>

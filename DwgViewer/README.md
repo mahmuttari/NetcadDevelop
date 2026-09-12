@@ -1,4 +1,4 @@
-# DWG Görüntüleyici (Android) — v7.0
+# DWG Görüntüleyici (Android) — v7.1
 
 AutoCAD **DWG** ve **DXF** çizimlerini telefonda açan, çevrimdışı çalışan
 Android uygulaması. Dosya cihazdan dışarı çıkmaz; çözümleme telefonun
@@ -8,22 +8,20 @@ notlar ve PDF çıktısı.
 
 ## Kurulum
 
-1. İki çeşit vardır (bkz. "Ücretsiz ve Pro sürüm"): **Pro**
-   `release/DwgGoruntuleyici.apk` (paket `com.mahmuttari.dwgviewer`; mevcut
-   kurulumlar bu çeşitle yerinde güncellenir) ve **Ücretsiz**
-   `release/DwgGoruntuleyici-Free.apk` (paket
-   `com.mahmuttari.dwgviewer.free`; ikisi aynı cihazda yan yana kurulabilir).
-   Geliştirme dalı `claude/dwg-viewer-apk-ykjk7a` üzerindeki güncel nüsha:
+1. Tek uygulama vardır: `release/DwgGoruntuleyici.apk` (paket
+   `com.mahmuttari.dwgviewer`; mevcut kurulumlar yerinde güncellenir).
+   Uygulama ücretsiz kurulur; **Pro** özellikleri uygulama içinden satın
+   alınarak ya da lisans koduyla açılır (bkz. "Tek uygulama, Pro uygulama
+   içi satın alma"). Geliştirme dalı `claude/dwg-viewer-apk-ykjk7a` üzerindeki güncel nüsha:
    https://github.com/mahmuttari/NetcadDevelop/raw/claude/dwg-viewer-apk-ykjk7a/DwgViewer/release/DwgGoruntuleyici.apk
    (GitHub Actions'taki *DwgGoruntuleyici-apk* çıktısı ve `v*` etiketli
-   sürümlerde GitHub Releases sayfası da aynı APK'ları verir).
+   sürümlerde GitHub Releases sayfası da aynı APK'yı verir).
 2. Dosyaya dokunun; Android "bilinmeyen kaynaklardan yükleme" izni
    isterse verin.
 3. Uygulama, dosya yöneticisi, e-posta ve WhatsApp'ta `.dwg` / `.dxf`
    dosyaları için "Birlikte aç" listesine kendiliğinden girer. Uygulama
    içindeki **sürüm denetimi** derlendiği dalın `release/version.json`
-   (Pro) ya da `release/version-free.json` (Ücretsiz) dosyasına bakar ve
-   yeni sürüm varsa indirme bağlantısını açar.
+   dosyasına bakar ve yeni sürüm varsa indirme bağlantısını açar.
 
 Gereksinim: Android 8.0 (API 26) ve güncel bir **Android System WebView**.
 İzinler: konum (GPS, isteğe bağlı), kamera (QR, isteğe bağlı), internet
@@ -34,7 +32,7 @@ verisi gönderilmez).
 
 | Alan | Özellik |
 |---|---|
-| **Ücretsiz ve Pro sürüm (v7.0)** | İki Gradle çeşidi (`productFlavors`, boyut `edition`): **Pro** — `com.mahmuttari.dwgviewer`, uygulama adı "DWG Görüntüleyici Pro", reklam yok, bütün özellikler; **Ücretsiz** — `com.mahmuttari.dwgviewer.free`, uygulama adı "DWG Görüntüleyici", yalnız görüntüleme + ölçme, AdMob **geçiş reklamı** (interstitial). İki çeşit aynı sürüm numarasını taşır (versionCode 23, versionName 7.0) ve aynı cihazda yan yana kurulabilir. `BuildConfig.EDITION` = `"pro"` / `"free"`; `BuildConfig.PRO_URL` (gradle.properties `PRO_URL`, boşsa deponun `release/DwgGoruntuleyici.apk` adresi) Ücretsiz'de "Pro sürüme geç" bağlantısıdır; `UPDATE_URL` çeşide göre `version.json` / `version-free.json`. Köprü: `Android.edition()`, `proUrl()`, `adsAvailable()`, `showAd(reason)` → `dwgApp.onAd(reason, shown)`. Arayüz (`edition.js`): `edition()` Android köprüsünden, tarayıcıda `window.__edition` (sınama) yoksa `pro`; `PRO_ONLY` kümesindeki özellikler Ücretsiz'de **hiç çizilmez** (Çiz ve Düzenle sekmeleri; Profil, 3B Taşı / Kot ata / Sil / 3B Polyline, DXF kaydet, Değişiklikler, PDF, Karşılaştır, Notlar, Geri al / Yinele karoları; Diğer menüsünde Notlar / Profil / Karşılaştır / PDF; belge ve Drive panelinde "Drive'a yükle"), `gate(id)` dolaylı yolları (komut satırı, klavye, `dwgApp` çağrıları) yükseltme kutusuyla keser ("Bu özellik Pro sürümde. Pro sürümü indirmek ister misiniz?" → Pro APK bağlantısı). Ücretsiz'de Diğer menüsünde **Pro sürüme geç**, Hakkında'da sürüm satırında "Ücretsiz" / "Pro", karşılama kartında açıklama satırı ve Pro düğmesi. Reklam düzeni (yalnız Ücretsiz): her belge açılışında `showAd('open')`; belge açıkken ve sayfa görünürken son gösterimden **5 dakika** sonra `showAd('interval')` (denetim 15 s'de bir; Java tarafı iki gösterim arasına en az 60 s koyar); sınama kancası `dwgApp.__ads.tick(now)` / `state()`. AdMob test kimlikleri `gradle.properties` içindedir; yayın öncesi gerçek uygulama ve reklam birimi kimlikleriyle değiştirilir. Google ile giriş: Ücretsiz çeşidin kendi OAuth istemcisi (`GOOGLE_CLIENT_ID_FREE`, paket adı `.free`) ve kendi yönlendirme şeması vardır — yan yana kurulumda Google'dan dönen intent yanlış uygulamaya gitmez |
+| **Tek uygulama, Pro uygulama içi satın alma (v7.1)** | 7.0'daki iki Gradle çeşidi kaldırıldı: tek uygulama (`com.mahmuttari.dwgviewer`, adı "DWG Görüntüleyici"), tek `assembleRelease`, tek `release/DwgGoruntuleyici.apk` ve `release/version.json` (`version-free.json` ve `DwgGoruntuleyici-Free.apk` silindi; `BuildConfig.EDITION` ve `PRO_URL` kalktı, AdMob `Ads.java` `src/main`e taşındı). Ücretsiz / Pro ayrımı derleme zamanında değil **çalışma zamanında** belirlenir: (1) **Google Play Faturalandırma** (`com.android.billingclient:billing:7.1.1`) tek seferlik, tüketilmeyen ürün — ürün kimliği `BuildConfig.PRO_SKU` (`gradle.properties` `PRO_SKU`, varsayılan `dwg_pro`); her açılışta `queryPurchasesAsync(INAPP)` ile yeniden doğrulanır (PURCHASED + acknowledge), Play "yok" derse Play kaynaklı yetki silinir; (2) **çevrimdışı lisans kodu**: `DWGPRO-<base64url payload>.<base64url imza>`, payload UTF-8 JSON `{"p":"dwg_pro","n":"<lisans sahibi>","e":<bitiş epoch saniye ya da 0>}`, RSA-2048 **SHA256withRSA** imzası `BuildConfig.LICENSE_PUBLIC_KEY` (`gradle.properties` `LICENSE_PUBLIC_KEY`, Base64 X.509 SubjectPublicKeyInfo; boşsa lisans kodu özelliği kapalı) ile doğrulanır, `p == PRO_SKU` ve `e == 0` ya da `e > şimdi` aranır; lisans kaynaklı yetki bitiş tarihine kadar kalır. Yetki `SharedPreferences "pro"` altında `{source:"play"|"license", name?, exp?}`. Köprü (`MainActivity.Bridge`): `edition()` → `"pro"` \| `"free"`, `proInfo()` → `{edition, source, name, exp, price, billingReady, licenseEnabled}` (fiyat Play'in `formattedPrice` alanı), `buyPro()`, `restorePro()`, `activateLicense(code)` → true/false, `showAd(reason)` (Pro'da hemen `onAd(reason,false)`), `adsAvailable()`; her yetki değişiminde Java `dwgApp.onEdition(ed, reason)` çağırır (reason: `purchased` / `restored` / `license` / `cancelled` / `pending` / `error:<mesaj>` / `revoked` / `none`; açılıştaki Play doğrulaması da değişiklik varsa). Arayüz (`edition.js`): `edition()` her çağrıda köprüyü okur (köprü > önbellek > `window.__edition` > pro), önbellek `onEdition` ile yenilenir; `onEdition` → `applyEdition()`, yetki değiştiyse `editor.rebuild()` (sekmeler ve karolar yeniden çizilir, geçerli sekme korunur, çalışan araç işaretli kalır), reklam zamanlayıcısı durur / başlar, uyarı ("Pro etkinleştirildi", "Satın alma onay bekliyor", "Pro yetkisi kaldırıldı", hata iletisi; `cancelled` sessiz). "Pro sürüme geç" artık bağlantı açmaz: **Pro paneli** (`#proPanel` alt sayfası, `dwgApp.openProPanel()`) — özellik listesi (çizim ve düzenleme, 3B düzenleme, kot/eğim profili, notlar, DXF kaydetme, ölçekli PDF, karşılaştırma, geri al/yinele, Drive'a yükleme, reklamsız), fiyat (`proInfo.price`, boşsa "Fiyat Play Store'dan alınır"), **Satın al** (`billingReady` değilse pasif + "Google Play kullanılamıyor"), **Satın alımı geri yükle**, **Lisans kodu gir** (`licenseEnabled` ise; `askText` → `activateLicense`, başarısızsa "Lisans kodu geçersiz ya da süresi dolmuş"); Pro'da "Pro etkin — kaynak: Google Play / Lisans — ad (bitiş)"; tarayıcıda (Android yok) yalnız açıklama ve "Bu özellik Android uygulamasında satın alınır". Karşılama kartındaki Pro düğmesi, Diğer menüsündeki "Pro sürüme geç" ve `gate()` kutusunun onay düğmesi hep bu paneli açar; geri tuşu paneli kapatır. Ücretsizde gizleme mantığı (PRO_ONLY, sekmeler, karolar, menü, Drive'a yükleme) ve reklam düzeni (açılışta + 5 dakikada bir, yalnız Pro değilken) 7.0'daki gibidir. Lisans aracı **`tools/license_gen.mjs`** (Node `crypto`, bağımlılık yok): `keygen --out <özel.pem>` RSA-2048 anahtar çifti üretir (özel anahtar PEM'i verilen dosyaya, açık anahtar Base64 SPKI olarak stdout'a — `gradle.properties` `LICENSE_PUBLIC_KEY=` satırına yapıştırılır), `sign --key <özel.pem> --name "<ad>" [--expires YYYY-MM-DD] [--sku dwg_pro]` lisans kodu basar, `verify --pub <base64> <kod>` doğrular. Özel anahtar depoya girmez (`DwgViewer/.gitignore`: `keystore/license_private.pem`) |
 | Dosya | DWG R13 – 2018 (AC1012 … AC1032), ASCII DXF (kod sayfası çözümlemeli, Türkçe karakterler); son dosyalar listesi küçük resimle; sunucudan (JSON liste / dizin / doğrudan adres) indirme ve çevrimdışı kopya; QR ile pafta açma |
 | Gezinme | kaydırma, iki parmakla yakınlaştırma, çift dokunma, tümünü sığdır, **sayfa düzenleri** (layout sekmeleri, görünüm pencereleri kırpılarak model uzayı içeri çizilir), kayıtlı görünümler |
 | Görünüm | katman paneli (arama, toplu aç/kapa), koyu/açık arka plan, tek renk, **çizgi kalınlıkları**, çizgi tipleri, yazı stilleri (STYLE tablosu), yazı gizleme |
@@ -73,7 +71,8 @@ verisi gönderilmez).
 | **3B görünüm (araçlar)** | 3B mesafe (yatay, ΔZ, eğim), seçim, 3B taşıma, kot atama, silme, 3B polyline (köşeye dokunarak ya da `x,y,z` yazarak); köşe yakalama. Görsel stiller, kamera, ızgara, kesit ve görünüm ön ayarları için "Ekran seçenekleri (3B)" satırına bakın |
 | **Kaydetme** | **DXF** (AC1015): tüm çizim (bloklar patlatılmış, katmanlar ve çizgi tipleri korunur) ya da yalnız değişiklikler; paylaşım menüsüyle e-posta/WhatsApp/Drive'a gönderme |
 
-Ücretsiz ve Pro sürüm özellik ayrımı:
+Ücretsiz ve Pro özellik ayrımı (Pro, uygulama içi satın alma ya da lisans
+koduyla açılır; tek uygulama):
 
 | Özellik | Ücretsiz | Pro |
 |---|---|---|
@@ -86,7 +85,7 @@ verisi gönderilmez).
 | Düzenleme (seç, taşı, kopyala, döndür, ölçekle, aynala, ofset, sil, kot ata, yazı düzenle, özellikler), geri al / yinele, 3B taşı / kot ata / sil | – | ✓ |
 | Profil / eğim, notlar (redline), revizyon karşılaştırma | – | ✓ |
 | DXF kaydetme (tümü / yalnız değişiklikler), PDF oluşturma, Drive'a yükleme | – | ✓ |
-| Reklam | açılışta + 5 dakikada bir geçiş reklamı | yok |
+| Reklam (AdMob geçiş reklamı) | açılışta + 5 dakikada bir | yok |
 
 Çizilen varlıklar: LINE, LWPOLYLINE, POLYLINE (2B/3B/çok yüzlü), CIRCLE,
 ARC, ELLIPSE, SPLINE, POINT, TEXT, MTEXT, ATTRIB, INSERT (iç içe, dizili,
@@ -126,7 +125,9 @@ DWG/DXF baytları ─► worker.js ─► LibreDWG (WASM) / dxf.js ─► scene.
   sahte bir https kökünden sunulur; seçilen / paylaşılan / indirilen
   dosyalar `/file/<id>` adresinde akıtılır; dosya seçici, son dosyalar,
   pano, konum, kamera izni, PNG/PDF kaydetme ve paylaşma (FileProvider),
-  indirme deposu, küçük resimler, anahtar/değer deposu ve hata kaydı.
+  indirme deposu, küçük resimler, anahtar/değer deposu, hata kaydı, Google
+  Play Faturalandırma (Pro satın alma / geri yükleme) ve lisans kodu
+  doğrulaması; reklam (AdMob) yalnız Pro değilken.
 * **Çözümleme** bir Web Worker'da yapılır; arayüz kilitlenmez.
 * **Düzenleme** (`edit.js`, `tools.js`, `editor.js`): her komut (ekle, sil,
   dönüştür, kopyala, kot ata, özellik, katman, yazı) bir günlüğe yazılır ve
@@ -167,9 +168,7 @@ tarafında da iptal eder.
 
 ```
 cd DwgViewer
-./gradlew assembleProRelease     # app/build/outputs/apk/pro/release/app-pro-release.apk  → release/DwgGoruntuleyici.apk
-./gradlew assembleFreeRelease    # app/build/outputs/apk/free/release/app-free-release.apk → release/DwgGoruntuleyici-Free.apk
-./gradlew assembleRelease        # iki çeşit birden
+./gradlew assembleRelease        # app/build/outputs/apk/release/app-release.apk → release/DwgGoruntuleyici.apk
 ```
 
 JDK 17+, Android SDK (platform 34, build-tools 34.0.0), Gradle 8.14.3 ve
@@ -185,13 +184,20 @@ değişikliğinde sürüm eşitliğini denetler (`tools/release_check.mjs
 --no-apk`), tarayıcısız sınamayı koşturur, APK'yı derleyip *artifact*
 olarak yükler; `v*` etiketli push'ta APK'yı GitHub Release'e ekler.
 
-Yeni sürüm çıkarırken dört yer birlikte güncellenir: `app/build.gradle`
-(`versionCode`, `versionName`; iki çeşit de aynı numarayı taşır),
-`release/version.json` (Pro), `release/version-free.json` (Ücretsiz;
-`url` alanı `DwgGoruntuleyici-Free.apk`'ya işaret eder) ve README başlığı;
+Yeni sürüm çıkarırken üç yer birlikte güncellenir: `app/build.gradle`
+(`versionCode`, `versionName`), `release/version.json` ve README başlığı;
 `node tools/release_check.mjs` bunları ve `release/DwgGoruntuleyici.apk`
 içindeki görüntüleyici dosyalarının kaynakla bayt bayt aynı olduğunu
 doğrular.
+
+Pro satın alma için Play Console'da `PRO_SKU` kimlikli (varsayılan
+`dwg_pro`) tek seferlik ürün tanımlanır. Çevrimdışı lisans kodu için bir kez
+`node tools/license_gen.mjs keygen --out keystore/license_private.pem` ile anahtar çifti üretilir, açık
+anahtar `gradle.properties` içindeki `LICENSE_PUBLIC_KEY=` satırına yazılır
+(boşsa "Lisans kodu gir" düğmesi görünmez), özel anahtar
+`keystore/license_private.pem` olarak depo dışında saklanır; kod
+`node tools/license_gen.mjs sign --key keystore/license_private.pem --name "Ad" [--expires 2027-12-31]`
+ile basılır, `verify --pub <base64> <kod>` ile denetlenir.
 
 APK `keystore/dwgviewer.jks` ile imzalanır (şifre `gradle.properties`).
 Aynı anahtarla imzalanmayan bir sürüm kurulu sürümün üzerine yüklenemez.
@@ -226,7 +232,7 @@ satırıyla biter ve kalan varsa 1 ile çıkar.
 | `test_solids.mjs` | AcDs katıları (2013/2018), yüzey varlıkları, çok yüzlü ağlar, blok Z, 3B en-boy pikseli, görsel stil piksel ölçümleri |
 | `test_proxy.mjs` | proxy grafik akışı (tarayıcısız, sentetik) |
 | `test_docs.mjs` | ZIP/DOCX/XLSX/PDF, Drive köprü taklidi, 3B stiller ve parmak hareketleri |
-| `test_edition.mjs` | Ücretsiz / Pro sürüm: sahte Android köprüsüyle (edition, showAd, proUrl, openUrl) Ücretsiz'de sekme / karo / menü gizleme, karşılama kartı, gate() yükseltme kutusu (Vazgeç / kuyruklu hayır-evet), dolaylı yollar (act, setMode, menü, Ctrl+Z, Drive yükleme, 3B polyline), reklam zamanlaması (`__ads.tick`: açılış, 5 dk, onAd sonrası); Pro'da kısıt ve reklam olmaması; `edition()` önceliği (Android köprüsü > `window.__edition` > pro, geçersiz köprü değeri düşer) |
+| `test_edition.mjs` | Pro yetkisi: sahte Android köprüsüyle (edition dinamik, proInfo, buyPro, restorePro, activateLicense, showAd) Ücretsiz'de sekme / karo / menü gizleme, karşılama kartı, Pro paneli (fiyat, Satın al, Geri yükle, Lisans kodu; `billingReady=false` → pasif düğme), satın alma → `onEdition` → şerit yeniden kurulur (draw/edit belirir, #proLine ve menü düğmesi gizlenir, reklam durur, uyarı), `restored` / `revoked` / `cancelled` / `pending` / `error` / `none` nedenleri, yeniden yükleme sonrası lisans kodu akışı (yanlış kod → uyarı, doğru kod → Pro, kaynak / ad / bitiş), gate() yükseltme kutusu → panel (Vazgeç / kuyruklu hayır-evet), geri tuşu paneli kapatır, dolaylı yollar (act, setMode, menü, Ctrl+Z, Drive yükleme, 3B polyline), reklam zamanlaması (`__ads.tick`: açılış, 5 dk, onAd sonrası); Pro'da (Android yok) kısıt ve reklam olmaması, tarayıcıda panel yalnız açıklama; `edition()` önceliği (Android köprüsü > önbellek > `window.__edition` > pro). Ekran görüntüleri: `pro_panel_free.png`, `pro_panel_after.png`, `pro_panel_license.png`, `pro_panel_browser.png` |
 | `test_open.mjs` | Dosya Aç merkezi: tarayıcıda sanal klasör ağacı, Son / sık kullanılan, süzgeç, sıralama, arama; sahte Android köprüsüyle kök / kırıntı / arama / fsOpen / fsSlot / çevrimdışı |
 
 RAR (junrar), gerçek Google Drive ve Android PdfRenderer yalnız cihazda
@@ -259,6 +265,7 @@ RAR (junrar), gerçek Google Drive ve Android PdfRenderer yalnız cihazda
 | 6.6 | 21 | 2026-09-12 | Görsel simge seti: dolgulu piktogramlar, cetvelli ölçü simgeleri, telefonda simge + yazılı sekmeler, büyütülmüş kutucuk simgeleri |
 | 6.7 | 22 | 2026-09-12 | Dosya Aç merkezi: Son / Cihaz (kalıcı izinli klasörler, arama, süzgeç, sıralama) / Çevrimdışı sekmeleri, sık kullanılanlar, seçim kipi; Sunucu · Drive · QR çipleri |
 | 7.0 | 23 | 2026-09-12 | Ücretsiz ve Pro sürüm: iki Gradle çeşidi (`com.mahmuttari.dwgviewer` Pro, `.free` Ücretsiz), Ücretsiz'de yalnız görüntüleme + ölçme ve AdMob geçiş reklamı (açılışta + 5 dakikada bir), Pro'da bütün özellikler; `edition.js` kapısı, "Pro sürüme geç" bağlantısı, `version-free.json` |
+| 7.1 | 24 | 2026-09-12 | Tek uygulama, Pro uygulama içi satın alma: Gradle çeşitleri kaldırıldı, yetki çalışma zamanında (Google Play Faturalandırma `PRO_SKU` + RSA imzalı çevrimdışı lisans kodu), Pro paneli (fiyat, Satın al, Geri yükle, Lisans kodu), `onEdition` ile şerit yeniden kurulur, `tools/license_gen.mjs`; `version-free.json` ve Free APK silindi |
 
 ## QR kod biçimi
 

@@ -1,34 +1,48 @@
 /*
- * Sürüm çeşidi (Ücretsiz / Pro) ve reklam zamanlaması.
+ * Pro yetkisi (uygulama içi satın alma / lisans kodu) ve reklam zamanlaması. Tek uygulama; yetki ÇALIŞMA ZAMANINDA belirlenir.
  *
- *  - edition(): Android.edition() varsa o ('pro' | 'free'), yoksa window.__edition (sınama), yoksa 'pro'.
+ *  - edition(): Android.edition() varsa o ('pro' | 'free'; her çağrıda okunur ve önbelleğe alınır), yoksa önbellek (onEdition ile
+ *    yenilenir), yoksa window.__edition (sınama), yoksa 'pro'.
+ *  - onEdition(ed, reason): Java (Play doğrulaması, satın alma, geri yükleme, lisans, iptal) her yetki değişiminde çağırır:
+ *    önbellek yenilenir, applyEdition(), şerit yeniden kurulur (api.rebuildToolbar), reklam zamanlayıcısı durur / başlar, uyarı basılır.
+ *    reason: purchased | restored | license | cancelled | pending | error:<mesaj> | revoked | none
  *  - PRO_ONLY: yalnız Pro'da bulunan özellik kimlikleri (şerit karoları, sekmeler, menü eylemleri, Drive'a yükleme).
  *    Ücretsizde bu özellikler arayüzde HİÇ görünmez (rowGroups / tabList / applyEdition); gate() yalnız dolaylı
  *    yollara (komut satırı, klavye kısayolu, eski ayar, dwgApp üzerinden çağrı) karşı emniyettir.
  *  - gate(id): Pro'da ya da PRO_ONLY değilse true; aksi hâlde yükseltme kutusu (askConfirm) açar ve false döner.
- *    Kutu onaylanırsa Pro APK bağlantısı açılır (Android.openUrl / window.open).
+ *    Kutu onaylanırsa Pro paneli açılır.
+ *  - openProPanel(): #proPanel alt sayfası — özellik listesi, fiyat (Android.proInfo().price), Satın al (Android.buyPro),
+ *    Satın alımı geri yükle (Android.restorePro), Lisans kodu gir (Android.activateLicense; licenseEnabled ise).
+ *    Pro iken kaynak bilgisi (Google Play / Lisans: ad, bitiş); tarayıcıda (Android yok) yalnız açıklama.
  *  - Reklam (yalnız edition() === 'free' && Android.showAd): her belge açılışında showAd('open'); belge açıkken ve
  *    sayfa görünürken son gösterimden 5 dakika sonra showAd('interval'); denetim 15 s'de bir. lastAd, istek
  *    gönderildiğinde de onAd(reason, true) geldiğinde de ileri alınır (arka arkaya istek olmasın).
- *    Java tarafı ayrıca iki gösterim arasında en az 60 s taban koruması uygular.
+ *    Java tarafı ayrıca iki gösterim arasında en az 60 s taban koruması uygular; Pro'da showAd hemen onAd(reason, false) döner.
  *  - Sınama kancası: __ads = { tick(nowMs), state() } — tick verilen zamana göre karar verir.
  */
 import { S } from './state.js';
 import { t } from './i18n.js';
-import { askConfirm } from './dialog.js';
+import { askConfirm, askText } from './dialog.js';
 
 const $ = (id) => document.getElementById(id);
 const A = () => window.Android || null;
-export const DEFAULT_PRO_URL = 'https://github.com/mahmuttari/NetcadDevelop/raw/main/DwgViewer/release/DwgGoruntuleyici.apk';
 export const AD_INTERVAL_MS = 300000;   // 5 dakika
 export const AD_TICK_MS = 15000;        // denetim sıklığı
 let api = null;
+let cur = null;       // son bilinen yetki ('pro' | 'free'); köprü okunduğunda ve onEdition ile yenilenir
+let applied = null;   // applyEdition ile arayüze en son işlenen yetki (değişim tespiti: şerit yeniden kurulsun mu?)
 
-/** 'pro' | 'free' */
-export function edition() {
+/** Köprüden geçerli değer ('pro' | 'free') ya da '' */
+function bridgeEdition() {
   try { const a = A(); if (a && typeof a.edition === 'function') { const e = String(a.edition() || ''); if (e === 'free' || e === 'pro') return e; } } catch (_) { /* eski köprü */ }
-  const w = window.__edition;
-  return w === 'free' ? 'free' : 'pro';
+  return '';
+}
+/** 'pro' | 'free' — köprü > önbellek (onEdition) > window.__edition > 'pro' */
+export function edition() {
+  const b = bridgeEdition();
+  if (b) { cur = b; return b; }
+  if (cur) return cur;
+  return window.__edition === 'free' ? 'free' : 'pro';
 }
 export const isPro = () => edition() === 'pro';
 export const isFree = () => edition() === 'free';
@@ -43,28 +57,27 @@ export const PRO_ONLY = new Set([
   'driveUpload',                                                                      // Drive'a yükleme (belge eylemi, Drive paneli, toast eylemi)
 ]);
 
-/** Pro APK bağlantısı: Android.proUrl() (BuildConfig.PRO_URL), yoksa varsayılan */
-export function proUrl() {
-  try { const a = A(); if (a && typeof a.proUrl === 'function') { const u = String(a.proUrl() || '').trim(); if (u) return u; } } catch (_) { /* eski köprü */ }
-  return DEFAULT_PRO_URL;
-}
-/** Pro sürüm bağlantısını açar */
-export function goPro() {
-  const u = proUrl();
+/** Android.proInfo() → {edition, source, name, exp, price, billingReady, licenseEnabled}; köprü yoksa boş bilgi */
+export function proInfo() {
+  const info = { edition: edition(), source: 'none', name: '', exp: 0, price: '', billingReady: false, licenseEnabled: false, android: false };
+  const a = A(); if (!a) return info;
+  info.android = true;
+  if (typeof a.proInfo !== 'function') return info;
   try {
-    const a = A();
-    if (a && typeof a.openUrl === 'function') { a.openUrl(u); return true; }
-    const w = window.open(u, '_blank');
-    if (w) return true;
-  } catch (e) { console.warn(e); }
-  if (api && api.toast) api.toast(t('proOpenFail') + ': ' + u, { type: 'warn', ms: 6000 });
-  return false;
+    const o = JSON.parse(String(a.proInfo() || '{}')) || {};
+    if (o.edition === 'pro' || o.edition === 'free') info.edition = o.edition;
+    if (o.source === 'play' || o.source === 'license') info.source = o.source;
+    info.name = String(o.name || ''); info.exp = Number(o.exp) || 0; info.price = String(o.price || '');
+    info.billingReady = !!o.billingReady; info.licenseEnabled = !!o.licenseEnabled;
+  } catch (e) { console.warn('proInfo', e); }
+  return info;
 }
+
 let asking = false;
 async function upgradeDialog() {
   if (asking) return;   // aynı anda tek kutu
   asking = true;
-  try { if (await askConfirm(t('proOnly') + ' ' + t('proAsk'), { ok: t('goPro') })) goPro(); }
+  try { if (await askConfirm(t('proOnly') + ' ' + t('proAsk'), { ok: t('goPro') })) openProPanel(); }
   finally { asking = false; }
 }
 /** Özellik kapısı: Pro'da hep true; Ücretsizde PRO_ONLY ise yükseltme kutusu açılır ve false döner */
@@ -74,6 +87,69 @@ export function gate(id) {
   void upgradeDialog();
   return false;
 }
+
+// ---------------------------------------------------------------------------------
+// Pro paneli (#proPanel)
+// ---------------------------------------------------------------------------------
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const dateText = (epochSec) => { try { return new Date(epochSec * 1000).toLocaleDateString(document.documentElement.lang === 'en' ? 'en-GB' : 'tr-TR'); } catch (_) { return String(epochSec); } };
+function featureList() {
+  return `<ul class="pro-features">${String(t('proFeatures')).split('|').map(s => s.trim()).filter(Boolean).map(s => `<li>${esc(s)}</li>`).join('')}</ul>`;
+}
+function renderProPanel() {
+  const body = $('proBody'); if (!body) return;
+  const info = proInfo();
+  const pro = isPro();
+  let html = '';
+  if (pro) {
+    const src = info.source === 'license' ? t('proSrcLicense') + (info.name ? ' — ' + esc(info.name) : '') + (info.exp ? ' (' + t('proExpires') + ' ' + esc(dateText(info.exp)) + ')' : '') : info.source === 'play' ? t('proSrcPlay') : '';
+    html += `<div class="full pro-status" data-pro-status="${esc(info.source)}"><strong>${esc(t('proActiveVia'))}${src ? ': ' + src : ''}</strong></div>`;
+    html += `<div class="full">${featureList()}</div>`;
+  } else {
+    html += `<div class="full">${esc(t('proFeaturesIntro'))}</div>`;
+    html += `<div class="full">${featureList()}</div>`;
+    if (!info.android) {
+      html += `<div class="full muted" data-pro-note="browser">${esc(t('proBrowserOnly'))}</div>`;
+    } else {
+      html += `<div class="k">${esc(t('proPrice'))}</div><div class="v" id="proPrice">${info.price ? esc(info.price) : `<span class="muted">${esc(t('proPriceNA'))}</span>`}</div>`;
+      html += `<div class="full btns">`
+        + `<button type="button" class="btn primary" data-pro="buy"${info.billingReady ? '' : ' disabled'}>${esc(t('proBuy'))}</button>`
+        + `<button type="button" class="btn small" data-pro="restore"${info.billingReady ? '' : ' disabled'}>${esc(t('proRestore'))}</button>`
+        + (info.licenseEnabled ? `<button type="button" class="btn small" data-pro="license">${esc(t('proLicense'))}</button>` : '')
+        + `</div>`;
+      if (!info.billingReady) html += `<div class="full muted" data-pro-note="billing">${esc(t('proBillingNA'))}</div>`;
+    }
+  }
+  body.innerHTML = html;
+}
+async function proAction(kind) {
+  const a = A(); if (!a) return;
+  if (kind === 'buy') {
+    if (!proInfo().billingReady || typeof a.buyPro !== 'function') { if (api && api.toast) api.toast(t('proBillingNA'), { type: 'warn' }); return; }
+    try { a.buyPro(); } catch (e) { if (api && api.toast) api.toast(t('error') + ': ' + e.message, { type: 'error' }); }
+  } else if (kind === 'restore') {
+    if (typeof a.restorePro !== 'function') return;
+    try { a.restorePro(); } catch (e) { if (api && api.toast) api.toast(t('error') + ': ' + e.message, { type: 'error' }); }
+  } else if (kind === 'license') {
+    if (typeof a.activateLicense !== 'function') return;
+    const code = await askText(t('proLicensePrompt'), '', { ok: t('apply') });
+    const c = String(code == null ? '' : code).trim();
+    if (!c) return;
+    let ok = false;
+    try { ok = !!a.activateLicense(c); } catch (e) { console.warn(e); ok = false; }
+    if (!ok) { if (api && api.toast) api.toast(t('licenseInvalid'), { type: 'error' }); return; }
+    renderProPanel();   // Java onEdition('pro','license') göndermemiş olsa da panel güncel kalsın
+  }
+}
+/** Pro alt sayfasını açar (içerik her açılışta yeniden kurulur) */
+export function openProPanel() {
+  const p = $('proPanel'); if (!p) return false;
+  renderProPanel();
+  p.hidden = false;
+  return true;
+}
+export function closeProPanel() { const p = $('proPanel'); if (!p || p.hidden) return false; p.hidden = true; return true; }
+export const isProPanelOpen = () => { const p = $('proPanel'); return !!p && !p.hidden; };
 
 // ---------------------------------------------------------------------------------
 // Reklam zamanlaması (yalnız Ücretsiz + Android.showAd)
@@ -110,6 +186,7 @@ export const __ads = {
 // ---------------------------------------------------------------------------------
 export function applyEdition() {
   const pro = isPro();
+  applied = pro ? 'pro' : 'free';
   document.body.classList.toggle('edition-free', !pro); document.body.classList.toggle('edition-pro', pro);
   document.querySelectorAll('#moreMenu [data-act]').forEach(b => { const k = b.dataset.act; if (k === 'pro') b.hidden = pro; else if (PRO_ONLY.has(k)) b.hidden = !pro; });
   const pl = $('proLine'); if (pl) pl.hidden = pro;
@@ -117,10 +194,30 @@ export function applyEdition() {
   const w = document.querySelector('#empty [data-i18n="welcomeText"], #empty [data-i18n="welcomeTextFree"]'); if (w) { w.dataset.i18n = pro ? 'welcomeText' : 'welcomeTextFree'; w.textContent = t(w.dataset.i18n); }
   document.querySelectorAll('[data-drive="upload"]').forEach(b => { b.hidden = !pro; });
 }
-/** app.js bağlar: api { toast } */
+/** Java → yetki değişti (ya da satın alma / geri yükleme sonucu). ed: 'pro' | 'free'; reason: bkz. dosya başı */
+export function onEdition(ed, reason) {
+  const e = ed === 'free' ? 'free' : 'pro';
+  const r = String(reason == null ? '' : reason);
+  cur = e;
+  const changed = applied !== e;
+  applyEdition();
+  if (changed && api && typeof api.rebuildToolbar === 'function') { try { api.rebuildToolbar(); } catch (err) { console.warn(err); } }
+  if (isPro()) stop(); else start();
+  if (isProPanelOpen()) renderProPanel();
+  const toast = (m, o) => { if (api && api.toast) api.toast(m, o); };
+  if (r === 'purchased' || r === 'restored' || r === 'license') toast(t('proActivated'), { type: 'ok' });
+  else if (r === 'pending') toast(t('proPending'), { type: 'warn', ms: 5000 });
+  else if (r === 'revoked') toast(t('proRevoked'), { type: 'warn' });
+  else if (r === 'none') toast(t('proRestoreNone'), { type: 'warn' });
+  else if (r.startsWith('error')) toast(t('error') + (r.length > 6 ? ': ' + r.slice(6) : ''), { type: 'error' });
+  // cancelled ve boş neden: sessiz
+  return e;
+}
+/** app.js bağlar: api { toast, rebuildToolbar } */
 export function initEdition(a) {
   api = a || null;
   applyEdition();
-  const b = $('btnGoPro'); if (b && !b.dataset.bound) { b.dataset.bound = '1'; b.addEventListener('click', () => goPro()); }
+  const b = $('btnGoPro'); if (b && !b.dataset.bound) { b.dataset.bound = '1'; b.addEventListener('click', () => openProPanel()); }
+  const body = $('proBody'); if (body && !body.dataset.bound) { body.dataset.bound = '1'; body.addEventListener('click', (ev) => { const btn = ev.target.closest('[data-pro]'); if (btn && !btn.disabled) void proAction(btn.dataset.pro); }); }
   start();
 }

@@ -10,7 +10,8 @@
 -keep class com.github.junrar.** { *; }
 -dontwarn org.slf4j.**
 
-# play-services-ads 23.6 (yalnız Ücretsiz çeşit) API 35 sınıfına başvurur; compileSdk 34'te R8 bulamaz, uyarı bastırılır.
-# Reklam SDK'sının kendi keep kuralları AAR ile gelir (consumer rules); ayrıca kural gerekmez.
+# play-services-ads 23.6 API 35 sınıfına başvurur; compileSdk 34'te R8 bulamaz, uyarı bastırılır.
+# Reklam SDK'sının ve Play Faturalandırma'nın (billing 7.1.1) kendi keep kuralları AAR ile gelir (consumer rules);
+# ayrıca kural gerekmez.
 -dontwarn android.media.LoudnessCodecController
 -dontwarn android.media.LoudnessCodecController$OnLoudnessCodecUpdateListener

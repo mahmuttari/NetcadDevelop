@@ -20,6 +20,11 @@
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.DwgViewer">
 
+        <!-- AdMob uygulama kimliği (gradle.properties → ADMOB_APP_ID; boşsa Google'ın test kimliği) -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="${admobAppId}" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

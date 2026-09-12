@@ -16,13 +16,14 @@ import com.google.android.ump.ConsentRequestParameters;
 import com.google.android.ump.UserMessagingPlatform;
 
 /**
- * Ücretsiz çeşit: AdMob geçiş reklamı (interstitial).
+ * AdMob geçiş reklamı (interstitial); yalnız Pro yetkisi olmayan kullanıcıya.
  *
  * Akış: init() → UMP rıza bilgisi güncellenir, gerekiyorsa rıza formu gösterilir → canRequestAds olunca
  * MobileAds arka planda başlatılır ve ilk reklam ön yüklenir. show(reason, cb): yüklü reklam varsa gösterir,
  * kapanınca bir sonrakini yükler ve cb.done(true) der; yüklü değilse cb.done(false) der ve yüklemeyi tetikler.
  * JS zamanlaması ne derse desin iki gösterim arasında en az {@link #MIN_GAP_MS} beklenir (AdMob politikası).
- * Pro çeşitte aynı adlı sınıf boştur (src/pro).
+ * Pro yetkisi varken MainActivity init() çağırmaz; yetki sonradan gelirse destroy() ile yüklü reklam bırakılır ve
+ * bir daha yüklenmez ({@link #stopped}).
  */
 public class Ads {
     private static final String TAG = "DwgViewerAds";
@@ -31,7 +32,7 @@ public class Ads {
 
     private final Activity act;
     private InterstitialAd ad;
-    private boolean sdkReady, initStarted, loading, showing;
+    private boolean sdkReady, initStarted, loading, showing, stopped;
     private long lastShown = -MIN_GAP_MS; // ilk gösterim beklemesin
 
     public interface Done { void done(boolean shown); }
@@ -53,14 +54,14 @@ public class Ads {
     }
 
     private void startSdk() {
-        if (initStarted) return;
+        if (initStarted || stopped) return;
         initStarted = true;
         new Thread(() -> MobileAds.initialize(act, status -> act.runOnUiThread(() -> { sdkReady = true; load(); })), "admob-init").start();
     }
 
     /** Bir sonraki geçiş reklamını ön yükler (ana iş parçacığı) */
     private void load() {
-        if (!sdkReady || loading || ad != null || act.isFinishing()) return;
+        if (!sdkReady || loading || ad != null || stopped || act.isFinishing()) return;
         loading = true;
         InterstitialAd.load(act, BuildConfig.ADMOB_INTERSTITIAL_ID, new AdRequest.Builder().build(), new InterstitialAdLoadCallback() {
             @Override public void onAdLoaded(InterstitialAd a) { loading = false; ad = a; }
@@ -69,7 +70,7 @@ public class Ads {
     }
 
     /** Yüklü bir reklam var ve taban koruması geçti mi? */
-    public boolean ready() { return ad != null && !showing && SystemClock.elapsedRealtime() - lastShown >= MIN_GAP_MS; }
+    public boolean ready() { return ad != null && !stopped && !showing && SystemClock.elapsedRealtime() - lastShown >= MIN_GAP_MS; }
 
     /** Yüklüyse gösterir; kapanınca yenisini yükler ve cb.done(true). Değilse cb.done(false) ve yükleme tetiklenir. Ana iş parçacığında çağrılır. */
     public void show(String reason, Done cb) {
@@ -84,5 +85,6 @@ public class Ads {
         try { a.show(act); } catch (Exception e) { showing = false; Log.w(TAG, "gösterim: " + e); load(); cb.done(false); }
     }
 
-    public void destroy() { ad = null; }
+    /** Reklamı bırakır ve bir daha yüklemez (Pro'ya geçiş, etkinlik sonu) */
+    public void destroy() { stopped = true; ad = null; }
 }

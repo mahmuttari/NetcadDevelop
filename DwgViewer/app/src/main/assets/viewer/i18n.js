@@ -110,8 +110,12 @@ export const TR = {
   openAddFolder: 'Klasör ekle', openAddDownloads: 'İndirilenler\'den klasör ekle', openDlHint: 'Android 11 ve üstünde İndirilenler\'in kendisi seçilemez; içindeki bir alt klasörü seçin (Android/data seçilemez).', openNoRoots: 'Bir klasör ekleyin: erişim izni bir kez istenir ve kalıcıdır; klasördeki dosyalar kopyalanmadan buradan açılır.', openBrowserFolder: 'Tarayıcıda bir klasör seçin; dosyalar bu oturumda buradan açılır.',
   openRootGone: 'Erişim izni kaybolmuş', openRootGoneMsg: 'Bu klasörün erişim izni kaybolmuş (cihaz sıfırlama ya da izin kaldırma). Yeniden ekleyerek izni yenileyin.', openRenew: 'İzni yenile', openRemoveRoot: 'Klasörü listeden çıkar', openTruncated: 'Arama sonuçları kısaltıldı; daha belirgin bir ad yazın.', openEmptyDir: 'Klasör boş', openSearching: 'Aranıyor…',
   // sürüm çeşidi (edition.js)
-  editionFree: 'Ücretsiz', editionPro: 'Pro', goPro: 'Pro sürüme geç', proOnly: 'Bu özellik Pro sürümde.', proAsk: 'Pro sürümü indirmek ister misiniz?',
-  freeLine: 'Ücretsiz sürüm: görüntüleme ve ölçme. Çizim, düzenleme, notlar, DXF/PDF çıktısı ve Drive\'a yükleme Pro sürümde.', proOpenFail: 'Pro sürüm bağlantısı açılamadı', proUrlCopied: 'Pro sürüm bağlantısı panoya kopyalandı',
+  editionFree: 'Ücretsiz', editionPro: 'Pro', goPro: 'Pro sürüme geç', proOnly: 'Bu özellik Pro sürümde.', proAsk: 'Pro sayfası açılsın mı?',
+  freeLine: 'Ücretsiz sürüm: görüntüleme ve ölçme. Pro\'yu satın alarak çizim, düzenleme, notlar, DXF/PDF çıktısı ve Drive\'a yüklemeyi açın; reklamlar kalkar.',
+  proTitle: 'DWG Görüntüleyici Pro', proFeaturesIntro: 'Pro tek seferlik satın alımdır; bütün özellikleri açar:', proFeatures: 'Çizim ve düzenleme araçları|3B düzenleme|Kot / eğim profili|Notlar (redline)|DXF kaydetme|Ölçekli PDF çıktısı|Revizyon karşılaştırma|Geri al / yinele|Drive\'a yükleme|Reklamsız',
+  proPrice: 'Fiyat', proPriceNA: 'Fiyat Play Store\'dan alınır', proBuy: 'Satın al', proRestore: 'Satın alımı geri yükle', proLicense: 'Lisans kodu gir', proLicensePrompt: 'Lisans kodu (DWGPRO-…):', licenseInvalid: 'Lisans kodu geçersiz ya da süresi dolmuş',
+  proActivated: 'Pro etkinleştirildi', proPending: 'Satın alma onay bekliyor; onaylanınca Pro açılır', proRevoked: 'Pro yetkisi kaldırıldı', proRestoreNone: 'Geri yüklenecek satın alım bulunamadı',
+  proActiveVia: 'Pro etkin — kaynak', proSrcPlay: 'Google Play', proSrcLicense: 'Lisans', proExpires: 'bitiş', proBillingNA: 'Google Play kullanılamıyor', proBrowserOnly: 'Bu özellik Android uygulamasında satın alınır.',
   openOfflineAndroid: 'Çevrimdışı kopyalar Android uygulamasında tutulur: sunucudan indirilen paftalar ve "Çevrimdışı sakla" ile alınan belgeler burada listelenir.', openNoOffline: 'Çevrimdışı kopya yok.', openPickHint: 'Dosyaya dokunarak seçin', openOfflineLink: 'Çevrimdışı kopyalar → Dosya Aç',
 };
 export const EN = {
@@ -225,8 +229,12 @@ export const EN = {
   openAddFolder: 'Add folder', openAddDownloads: 'Add a folder under Downloads', openDlHint: 'On Android 11 and later the Downloads folder itself cannot be picked; pick a subfolder inside it (Android/data cannot be picked).', openNoRoots: 'Add a folder: access permission is asked once and kept; files in it open from here without copying.', openBrowserFolder: 'Pick a folder in the browser; its files open from here during this session.',
   openRootGone: 'Permission lost', openRootGoneMsg: 'Access to this folder was lost (device reset or permission revoked). Add it again to renew the permission.', openRenew: 'Renew permission', openRemoveRoot: 'Remove folder from list', openTruncated: 'Search results were truncated; type a more specific name.', openEmptyDir: 'Empty folder', openSearching: 'Searching…',
   // edition (edition.js)
-  editionFree: 'Free', editionPro: 'Pro', goPro: 'Get the Pro version', proOnly: 'This feature is in the Pro version.', proAsk: 'Download the Pro version?',
-  freeLine: 'Free version: viewing and measuring. Drawing, editing, notes, DXF/PDF export and Drive upload are in the Pro version.', proOpenFail: 'Could not open the Pro version link', proUrlCopied: 'Pro version link copied to the clipboard',
+  editionFree: 'Free', editionPro: 'Pro', goPro: 'Get Pro', proOnly: 'This feature is in the Pro version.', proAsk: 'Open the Pro page?',
+  freeLine: 'Free version: viewing and measuring. Buy Pro to unlock drawing, editing, notes, DXF/PDF export and Drive upload; ads are removed.',
+  proTitle: 'DWG Viewer Pro', proFeaturesIntro: 'Pro is a one-time purchase that unlocks everything:', proFeatures: 'Drawing and editing tools|3D editing|Elevation / slope profile|Notes (redline)|DXF saving|Scaled PDF export|Revision comparison|Undo / redo|Upload to Drive|No ads',
+  proPrice: 'Price', proPriceNA: 'The price is shown by the Play Store', proBuy: 'Buy', proRestore: 'Restore purchase', proLicense: 'Enter license code', proLicensePrompt: 'License code (DWGPRO-…):', licenseInvalid: 'License code is invalid or expired',
+  proActivated: 'Pro activated', proPending: 'Purchase is pending approval; Pro unlocks once approved', proRevoked: 'Pro entitlement removed', proRestoreNone: 'No purchase to restore',
+  proActiveVia: 'Pro active — source', proSrcPlay: 'Google Play', proSrcLicense: 'License', proExpires: 'expires', proBillingNA: 'Google Play is not available', proBrowserOnly: 'This is purchased in the Android app.',
   openOfflineAndroid: 'Offline copies are kept in the Android app: sheets downloaded from a server and documents saved with "Keep offline" are listed here.', openNoOffline: 'No offline copies.', openPickHint: 'Tap a file to pick it', openOfflineLink: 'Offline copies → Open file',
 };
 let dict = TR, lang = 'tr';

@@ -1,8 +1,8 @@
-// Sürüm tutarlılığı denetimi: app/build.gradle ↔ release/version.json + version-free.json ↔ README başlığı
-// ↔ (varsa) release APK'ları (Pro: DwgGoruntuleyici.apk, Ücretsiz: DwgGoruntuleyici-Free.apk).
+// Sürüm tutarlılığı denetimi: app/build.gradle ↔ release/version.json ↔ README başlığı ↔ (varsa) release APK'sı
+// (release/DwgGoruntuleyici.apk: paket adı com.mahmuttari.dwgviewer, etiket "DWG Görüntüleyici").
 // Kullanım: node tools/release_check.mjs [--no-apk] [--apk <yol>] [--aapt <yol>]
 //   --no-apk : APK denetimini atla (CI'da APK derlenmeden önce)
-//   --apk    : yalnız verilen tek APK'yı denetle (paket adı sınanmaz)
+//   --apk    : verilen APK'yı denetle (paket adı ve etiket yine sınanır)
 // Farklılık varsa 1 ile çıkar ve farkları listeler.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -13,11 +13,9 @@ import { projectRoot } from './harness.mjs';
 const argv = process.argv.slice(2);
 const opt = (k) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : undefined; };
 const noApk = argv.includes('--no-apk');
-// iki çeşit: Pro (mevcut paket adı) ve Ücretsiz (.free eki); --apk verildiyse yalnız o dosya, paket adı sınanmaz
-const APKS = opt('--apk')
-  ? [{ ad: 'APK', yol: path.resolve(projectRoot, opt('--apk')), paket: null }]
-  : [{ ad: 'Pro', yol: path.resolve(projectRoot, 'release/DwgGoruntuleyici.apk'), paket: 'com.mahmuttari.dwgviewer' },
-     { ad: 'Free', yol: path.resolve(projectRoot, 'release/DwgGoruntuleyici-Free.apk'), paket: 'com.mahmuttari.dwgviewer.free' }];
+// tek uygulama: Pro yetkisi çalışma zamanında (Play satın alması / lisans kodu), APK ve paket adı tektir
+const PAKET = 'com.mahmuttari.dwgviewer', ETIKET = 'DWG Görüntüleyici';
+const APKS = [{ ad: 'APK', yol: path.resolve(projectRoot, opt('--apk') || 'release/DwgGoruntuleyici.apk'), paket: PAKET, etiket: ETIKET }];
 const problems = [];
 const bad = (m) => { problems.push(m); console.log('FARK  ' + m); };
 const good = (m) => console.log('OK    ' + m);
@@ -33,8 +31,7 @@ const readmeLine = rd('README.md').split(/\r?\n/)[0];
 const rv = (/\bv(\d+(?:\.\d+)*)\b/.exec(readmeLine) || [])[1];
 console.log(`build.gradle     versionCode=${vc} versionName=${vn}`);
 if (!vc || !vn) bad('app/build.gradle içinde versionCode/versionName okunamadı');
-// iki sürüm dosyası aynı numarayı taşır; url'ler kendi APK'sına işaret eder
-for (const [f, apk] of [['release/version.json', 'DwgGoruntuleyici.apk'], ['release/version-free.json', 'DwgGoruntuleyici-Free.apk']]) {
+for (const [f, apk] of [['release/version.json', 'DwgGoruntuleyici.apk']]) {
   let vj;
   try { vj = JSON.parse(rd(f)); } catch (e) { bad(`${f} okunamadı: ${e.message}`); continue; }
   const n = path.basename(f).padEnd(16);
@@ -52,8 +49,7 @@ if (noApk) console.log('APK denetimi atlandı (--no-apk)');
 else {
   const aapt = findAapt();
   if (!aapt) warn('aapt bulunamadı (--aapt, AAPT, ANDROID_HOME/ANDROID_SDK_ROOT, local.properties sdk.dir ya da PATH); badging denetimi atlandı');
-  const varolan = APKS.filter(a => fs.existsSync(a.yol) || (warn(`${a.ad} APK yok: ${path.relative(projectRoot, a.yol)} (denetim atlandı)`), false));
-  if (varolan.length === 0 && !opt('--apk')) warn('hiçbir release APK yok');
+  const varolan = APKS.filter(a => fs.existsSync(a.yol) || (warn(`${a.ad} yok: ${path.relative(projectRoot, a.yol)} (denetim atlandı)`), false));
   for (const a of varolan) checkApk(a, aapt);
 }
 
@@ -61,7 +57,7 @@ console.log(problems.length ? `\nSONUÇ: ${problems.length} fark` : '\nSONUÇ: s
 process.exit(problems.length ? 1 : 0);
 
 // ---------------------------------------------------------------------------
-/** Tek APK: badging (paket adı, versionCode/versionName) ve assets/viewer bayt eşitliği */
+/** APK: badging (paket adı, etiket, versionCode/versionName) ve assets/viewer bayt eşitliği */
 function checkApk(a, aapt) {
   const rel = path.relative(projectRoot, a.yol);
   if (aapt) {
@@ -72,7 +68,8 @@ function checkApk(a, aapt) {
       const avc = Number((/versionCode='(\d+)'/.exec(r.stdout) || [])[1]), avn = (/versionName='([^']*)'/.exec(r.stdout) || [])[1];
       const label = (/application-label:'([^']*)'/.exec(r.stdout) || [])[1];
       console.log(`${a.ad.padEnd(16)} package=${pkg} versionCode=${avc} versionName=${avn} label="${label}" (${rel})`);
-      if (a.paket) { if (pkg === a.paket) good(`${a.ad} paket adı ${a.paket}`); else bad(`${a.ad} paket adı "${pkg}" ≠ ${a.paket}`); }
+      if (pkg === a.paket) good(`${a.ad} paket adı ${a.paket}`); else bad(`${a.ad} paket adı "${pkg}" ≠ ${a.paket}`);
+      if (label === a.etiket) good(`${a.ad} etiketi "${a.etiket}"`); else bad(`${a.ad} etiketi "${label}" ≠ "${a.etiket}"`);
       if (avc === vc) good(`${a.ad} versionCode = ${vc}`); else bad(`${a.ad} versionCode ${avc} ≠ build.gradle ${vc}`);
       if (avn === vn) good(`${a.ad} versionName = ${vn}`); else bad(`${a.ad} versionName "${avn}" ≠ build.gradle "${vn}"`);
     }

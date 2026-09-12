@@ -11,3 +11,5 @@ package-lock.json
 tools/out/
 captures/
 .kotlin/
+# Çevrimdışı lisans kodlarını imzalayan özel anahtar (tools/license_gen.mjs keygen); depoya girmez
+keystore/license_private.pem
