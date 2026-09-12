@@ -96,7 +96,7 @@ const TABS = [
   { id: '3d', i18n: 'tab3d', icon: 'i-cube', groups: [
     { cap: 'grpView3', items: [T('3d', 'i-3d', '3B aç/kapat', '3D on/off', 'Tek parmak döndürür, iki parmak kaydırır / yakınlaştırır', 'One finger orbits, two fingers pan / zoom'), T('fit3', 'i-fit', 'Sığdır', 'Fit'), T('v:iso', 'i-iso', 'İzometrik', 'Isometric'), T('v:top', 'i-top', 'Üst', 'Top'), T('v:front', 'i-front', 'Ön', 'Front'), T('v:left', 'i-left', 'Sol', 'Left'), T('v:right', 'i-right', 'Sağ', 'Right'), T('v:back', 'i-back', 'Arka', 'Back'), T('v:bottom', 'i-bottom', 'Alt', 'Bottom')] },
     { cap: 'grpCam3', items: [T('persp', 'i-eye', 'Perspektif', 'Perspective', 'Perspektif / ortografik', 'Perspective / orthographic'), T('zscale', 'i-zscale', 'Z abartı', 'Z scale', 'Düşey abartı çarpanı', 'Vertical exaggeration'), T('cam3', 'i-camera', 'Yer imleri', 'Bookmarks', 'Kamera konumlarını kaydeder', 'Save camera positions'), T('turn3', 'i-turn', 'Döner tabla', 'Turntable')] },
-    { cap: 'grpStyle3', items: [T('vstyle', 'i-vs-wireframe', 'Görsel stil', 'Visual style', 'Tel kafes, gizli çizgi, gölgeli, gerçekçi, kavramsal, gri, eskiz, röntgen', 'Wireframe, hidden, shaded, realistic, conceptual, gray, sketchy, x-ray'), T('color3', 'i-palette', 'Renk', 'Color', 'Nesne, katman, kot, tek renk', 'Entity, layer, elevation, mono'), T('clip3', 'i-clip', 'Kesit', 'Clip', 'Z aralığı ve kesit kutusu', 'Z range and clip box'), T('display', 'i-sliders', 'Ekran ayarları', 'Display options')] },
+    { cap: 'grpStyle3', items: [T('vstyle', 'i-vs-wireframe', 'Görsel stil', 'Visual style', 'Tel kafes, gizli çizgi, gölgeli, gerçekçi, kavramsal, gri, eskiz, röntgen', 'Wireframe, hidden, shaded, realistic, conceptual, gray, sketchy, x-ray'), T('edges3', 'i-edges', 'Kenarlar', 'Edges', 'Yüzey kenar çizgilerini aç/kapat (stilin varsayılanını geçersiz kılar)', 'Toggle face edge lines (overrides the style default)'), T('color3', 'i-palette', 'Renk', 'Color', 'Nesne, katman, kot, tek renk', 'Entity, layer, elevation, mono'), T('clip3', 'i-clip', 'Kesit', 'Clip', 'Z aralığı ve kesit kutusu', 'Z range and clip box'), T('display', 'i-sliders', 'Ekran ayarları', 'Display options')] },
     { cap: 'grpTools3', items: [T('3:select', 'i-select', 'Seç', 'Select'), T('3:dist', 'i-dist', '3B mesafe', '3D distance', 'Köşeler arası eğik mesafe, ΔZ, eğim', 'Slope distance between vertices'), T('3:move', 'i-move', 'Taşı (3B)', 'Move (3D)'), T('3:pline', 'i-pline3d', '3B Polyline', '3D Polyline'), T('3:setz', 'i-z', 'Kot ata', 'Set Z'), T('3:del', 'i-trash', 'Sil', 'Delete'), T('undo', 'i-undo', 'Geri al', 'Undo')] } ] },
 ];
 const DISPLAY_2D = [
@@ -106,7 +106,7 @@ const DISPLAY_2D = [
   { cap: 'grpHelpers', items: [T('grid', 'i-grid', 'Izgara', 'Grid'), T('crosshair', 'i-crosshair', 'Artı imleç', 'Crosshair'), T('rulers', 'i-ruler', 'Cetvel', 'Rulers'), T('fade', 'i-fade', 'Soldur', 'Fade', 'Seçili olmayan katmanları soldurur', 'Fade other layers')] },
 ];
 const DISPLAY_3D = [
-  { cap: 'grpStyle3', items: [T('vstyle', 'i-vs-wireframe', 'Görsel stil', 'Visual style'), T('color3', 'i-palette', 'Renk', 'Color'), T('light3', 'i-light', 'Işık', 'Light', 'Gölgeli stilde aydınlatma', 'Lighting in shaded styles'), T('display', 'i-sliders', 'Ekran ayarları', 'Display options')] },
+  { cap: 'grpStyle3', items: [T('vstyle', 'i-vs-wireframe', 'Görsel stil', 'Visual style'), T('edges3', 'i-edges', 'Kenarlar', 'Edges'), T('color3', 'i-palette', 'Renk', 'Color'), T('light3', 'i-light', 'Işık', 'Light', 'Gölgeli stilde aydınlatma', 'Lighting in shaded styles'), T('display', 'i-sliders', 'Ekran ayarları', 'Display options')] },
   { cap: 'grpHelpers', items: [T('grid3', 'i-grid', 'Izgara', 'Grid'), T('axes3', 'i-axes', 'Eksenler', 'Axes'), T('cube3', 'i-3d', 'Küp', 'Cube', 'Görünüm küpü', 'View cube'), T('hud3', 'i-info', 'Bilgi', 'HUD', 'Kamera bilgisi', 'Camera info'), T('shadow3', 'i-sun', 'Gölge', 'Shadow', 'Zemin gölgesi', 'Ground shadow'), T('sil3', 'i-cube', 'Siluet', 'Silhouette', 'Siluet kenarları', 'Silhouette edges')] },
   { cap: 'grpCam3', items: [T('zscale', 'i-zscale', 'Z abartı', 'Z scale'), T('clip3', 'i-clip', 'Kesit', 'Clip'), T('turn3', 'i-turn', 'Döner tabla', 'Turntable'), T('persp', 'i-eye', 'Perspektif', 'Perspective')] },
 ];
@@ -285,7 +285,7 @@ function refreshTiles() {
     on.lw = !!S.lw; on.mono = S.colorMode === 'mono'; on.ltype = S.show.ltype; on.grid = S.grid.on; on.crosshair = S.crosshair !== 'off'; on.rulers = !!S.rulers; on.fade = S.fade.on;
     on.osnap = S.snapModes && S.snapModes.size > 0; on['3d'] = ed.is3D();
   }
-  if (v3) { const o = v3.opts; on.grid3 = o.grid; on.axes3 = o.axes; on.cube3 = o.cube; on.hud3 = o.hud; on.light3 = o.light; on.turn3 = o.turntable; on.persp = v3.cam.persp; on.clip3 = !!o.clip; on.shadow3 = o.shadow; on.sil3 = o.silhouette; }
+  if (v3) { const o = v3.opts; on.grid3 = o.grid; on.axes3 = o.axes; on.cube3 = o.cube; on.hud3 = o.hud; on.light3 = o.light; on.turn3 = o.turntable; on.persp = v3.cam.persp; on.clip3 = !!o.clip; on.shadow3 = o.shadow; on.sil3 = o.silhouette; on.edges3 = !!v3._styleFx().edges; }
   document.querySelectorAll('#toolbar [data-act]').forEach(b => { const k = b.dataset.act; if (k in on) { b.classList.toggle('on', !!on[k]); b.setAttribute('aria-pressed', String(!!on[k])); } });
   const vh = api && api.viewHistory;
   document.querySelectorAll('#toolbar [data-act="prevview"]').forEach(b => { b.disabled = !(vh && vh.canBack && vh.canBack()); });
@@ -406,6 +406,7 @@ function act(name, btn) {
     case 'color3': call(api.openDisplayOptions, { seg: '3d', focus: 'colorMode' }); break;
     case 'light3': if (v3) v3.set('light', !v3.opts.light); break;
     case 'grid3': if (v3) v3.set('grid', !v3.opts.grid); break;
+    case 'edges3': if (v3) { const onNow = v3._styleFx().edges; v3.set('edges', onNow ? 'none' : 'facet'); api.toast(onNow ? tt('edgesOff', 'Kenarlar kapalı') : tt('edgesOn', 'Kenarlar açık'), 1200); } break;
     case 'axes3': if (v3) v3.set('axes', !v3.opts.axes); break;
     case 'cube3': if (v3) { v3.set('cube', !v3.opts.cube); syncCube(); } break;
     case 'hud3': if (v3) { v3.set('hud', !v3.opts.hud); syncCube(); overlay3D(); } break;

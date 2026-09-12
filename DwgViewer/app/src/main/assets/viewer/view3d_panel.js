@@ -209,7 +209,7 @@ export function openView3DOptions(v3, bodyEl, host = {}) {
     W.slider('faceOpacity', 0.1, 1, 0.05, o.faceOpacity, '', tt('faceOpacity', 'Yüz saydamlığı'))));
   // Kenar ayarları
   parts.push(W.sec('edge', tt('v3Edges', 'Kenar ayarları'),
-    W.seg('edges', [['facet', tt('edgesFacet', 'Yüzey kenarları')], ['none', tt('edgesNone', 'Yok')]], o.edges, tt('edgeMode', 'Kenar kipi')) +
+    W.seg('edges', [['auto', tt('edgesAuto', 'Stile göre')], ['facet', tt('edgesFacet', 'Yüzey kenarları')], ['none', tt('edgesNone', 'Yok')]], o.edges, tt('edgeMode', 'Kenar kipi')) +
     W.seg('edgeColor', [['auto', tt('auto', 'Otomatik')], ['black', tt('black', 'Siyah')], ['white', tt('white', 'Beyaz')], ['fg', tt('toneFg', 'Ön plan')]], o.edgeColor, tt('edgeColor', 'Kenar rengi')) +
     W.sw('silhouette', o.silhouette, tt('silhouette', 'Siluet kenarları')) +
     W.slider('silhouetteWidth', 1, 6, 0.5, o.silhouetteWidth, '', tt('silhouetteWidth', 'Siluet kalınlığı')) +

@@ -94,9 +94,10 @@ for (const f of ['example_2013.dwg', 'example_2018.dwg']) {
     const snap = (st) => { v.set('style', st); v.render(); const c = document.createElement('canvas'); c.width = v.cv.width; c.height = v.cv.height; const g = c.getContext('2d'); g.drawImage(v.cv, 0, 0); return g.getImageData(0, 0, c.width, c.height).data; };
     const a = snap('wireframe'), b2 = snap('shaded'), c2 = snap('realistic'), d2 = snap('conceptual');
     const diff = (x, y) => { let n = 0; for (let k = 0; k < x.length; k += 16) if (Math.abs(x[k] - y[k]) + Math.abs(x[k + 1] - y[k + 1]) + Math.abs(x[k + 2] - y[k + 2]) > 30) n++; return n; };
-    return { ws: diff(a, b2), sr: diff(b2, c2), sc: diff(b2, d2) };
+    v.set('style', 'realistic'); const fx = v._styleFx();
+    return { ws: diff(a, b2), sr: diff(b2, c2), sc: diff(b2, d2), realistic: { shade: fx.shade, quality: fx.quality, specular: fx.specular, edges: fx.edges } };
   });
-  ok(`2 ${f}: görsel stiller farklı görüntü üretiyor`, stylesDiffer.ws > 200 && stylesDiffer.sr > 50 && stylesDiffer.sc > 200, JSON.stringify(stylesDiffer));
+  ok(`2 ${f}: görsel stiller farklı görüntü üretiyor; gerçekçi = yumuşak + parlama, kenarsız`, stylesDiffer.ws > 200 && stylesDiffer.sc > 200 && stylesDiffer.realistic.shade === 2 && stylesDiffer.realistic.quality === 'smooth' && stylesDiffer.realistic.specular && !stylesDiffer.realistic.edges, JSON.stringify(stylesDiffer));
   await page.screenshot({ path: `${out}/solid_${f.replace(/\W/g, '_')}.png` });
 }
 

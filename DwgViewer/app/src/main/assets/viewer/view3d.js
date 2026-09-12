@@ -146,7 +146,7 @@ const PERSIST_SKIP = new Set(['clip', 'clipBox', 'turntable', 'zScale']);
 const TOUCH_ENUM = { oneFinger: ['orbit', 'pan'], twoFinger: ['zoompan', 'zoomrotate'], threeFinger: ['pan', 'orbit', 'none'], doubleTap: ['fit', 'zoom', 'none'] };
 const ENUMS = {
   style: ['wireframe', 'wireframe2d', 'hidden', 'shaded', 'shadedEdges', 'realistic', 'conceptual', 'gray', 'sketchy', 'xray'], colorMode: ['entity', 'layer', 'elevation', 'mono'], lightMode: ['camera', 'fixed'],
-  lightQuality: ['faceted', 'smooth'], edges: ['facet', 'none'], edgeColor: ['auto', 'black', 'white', 'fg'],
+  lightQuality: ['faceted', 'smooth'], edges: ['auto', 'facet', 'none'], edgeColor: ['auto', 'black', 'white', 'fg'],
   gridZ: ['min', 'zero', 'custom'], bg: ['theme', 'gradient', 'black', 'white', 'custom'], lineWidth: ['thin', 'normal', 'thick'],
   elevLabels: ['off', 'sel', 'visible'], hudPos: ['tl', 'bl'],
 };
@@ -164,7 +164,7 @@ export class View3D {
     elevLabels: 'off', hud: true, hudPos: 'tl',
     // görsel stil ayrıntıları (AutoCAD görsel stil yöneticisine benzer): yüz, kenar, ortam
     lightQuality: 'faceted', specular: false, faceOpacity: 1,
-    edges: 'facet', edgeColor: 'auto', silhouette: false, silhouetteWidth: 2, overhang: 0, jitter: 0,
+    edges: 'auto', edgeColor: 'auto', silhouette: false, silhouetteWidth: 2, overhang: 0, jitter: 0,
     shadow: false,
     touch: Object.freeze({ oneFinger: 'orbit', invertY: false, sensitivity: 1, twoFinger: 'zoompan', threeFinger: 'pan', doubleTap: 'fit' }),
   });
@@ -172,7 +172,7 @@ export class View3D {
   static STYLES = Object.freeze({
     wireframe: { faces: 'none', edges: true, depth: true }, wireframe2d: { faces: 'none', edges: true, depth: false },
     hidden: { faces: 'bg', edges: true }, shaded: { faces: 'lit', edges: false }, shadedEdges: { faces: 'lit', edges: true },
-    realistic: { faces: 'lit', edges: true, shade: 2, quality: 'smooth', specular: true }, conceptual: { faces: 'lit', edges: true, shade: 1, silhouette: true },
+    realistic: { faces: 'lit', edges: false, shade: 2, quality: 'smooth', specular: true }, conceptual: { faces: 'lit', edges: true, shade: 1, silhouette: true },
     gray: { faces: 'lit', edges: true, gray: 1 }, sketchy: { faces: 'lit', edges: true, jitter: 2, overhang: 2 }, xray: { faces: 'xray', edges: true },
   });
   static PRESETS = [
@@ -231,7 +231,7 @@ export class View3D {
       if (PERSIST_SKIP.has(k) || !(k in st)) continue;
       const v = st[k], def = View3D.DEFAULTS[k];
       if (k === 'touch') { if (v && typeof v === 'object') { for (const tk of Object.keys(TOUCH_ENUM)) if (TOUCH_ENUM[tk].includes(v[tk])) this.opts.touch[tk] = v[tk]; if (typeof v.invertY === 'boolean') this.opts.touch.invertY = v.invertY; if (isFinite(v.sensitivity) && v.sensitivity > 0) this.opts.touch.sensitivity = clamp(+v.sensitivity, 0.25, 4); } continue; }
-      if (ENUMS[k]) { if (ENUMS[k].includes(v)) this.opts[k] = v; continue; }
+      if (ENUMS[k]) { if (k === 'edges' && v === 'facet' && st.edgesChosen !== true) { this.opts[k] = 'auto'; continue; } if (ENUMS[k].includes(v)) this.opts[k] = v; continue; }   // eski varsayılan 'facet' → stile göre
       if (k === 'gridStep') { if (v === 'auto' || (isFinite(v) && v > 0)) this.opts[k] = v; continue; }
       if (typeof def === 'boolean') { if (typeof v === 'boolean') this.opts[k] = v; continue; }
       if (typeof def === 'number') { if (typeof v === 'number' && isFinite(v)) this.opts[k] = v; continue; }
@@ -243,7 +243,7 @@ export class View3D {
     this._persistT = setTimeout(() => {
       const o = {};
       for (const k of Object.keys(View3D.DEFAULTS)) if (!PERSIST_SKIP.has(k)) o[k] = this.opts[k];
-      o.persp = this.cam.persp;
+      o.persp = this.cam.persp; o.edgesChosen = true;
       store.set('view3d', JSON.stringify(o));
     }, 300);
   }
@@ -408,7 +408,7 @@ export class View3D {
   _styleFx() {
     const o = this.opts, st = View3D.STYLES[o.style] || View3D.STYLES.wireframe;
     return {
-      faces: this._n.tris ? st.faces : (st.faces === 'xray' ? 'xray' : 'none'), edges: o.edges !== 'none' && st.edges !== false, depth: st.depth !== false,
+      faces: this._n.tris ? st.faces : (st.faces === 'xray' ? 'xray' : 'none'), edges: o.edges === 'none' ? false : o.edges === 'facet' ? true : st.edges !== false, depth: st.depth !== false,
       shade: st.shade || 0, gray: st.gray || 0, quality: o.lightQuality === 'smooth' || st.quality === 'smooth' ? 'smooth' : 'faceted',
       specular: o.specular || !!st.specular, silhouette: o.silhouette || !!st.silhouette, jitter: Math.max(o.jitter, st.jitter || 0), overhang: Math.max(o.overhang, st.overhang || 0), shadow: o.shadow,
     };
@@ -436,18 +436,28 @@ export class View3D {
     const pos = s.pos, nrm = s.nrm, n = pos.length / 3, groups = new Map(), keys = new Array(n);
     const eps = Math.max(1e-9, this.radius * 1e-6), cosT = Math.cos(30 * Math.PI / 180);
     for (let i = 0; i < n; i++) { const k = Math.round(pos[i * 3] / eps) + ',' + Math.round(pos[i * 3 + 1] / eps) + ',' + Math.round(pos[i * 3 + 2] / eps); keys[i] = k; let g = groups.get(k); if (!g) { g = []; groups.set(k, g); } g.push(i); }
+    // üçgen alanları: kıymık (çok ince) üçgenlerin normali koordinat gürültüsüyle eğrilir; ortalama alanla ağırlıklanır ve
+    // başvuru yönü köşedeki EN BÜYÜK yüzün normalidir — kıymık, büyük komşusunun yönünü alır
+    const area = new Float32Array(n / 3);
+    for (let t = 0; t < n / 3; t++) { const a = t * 9; const ux = pos[a + 3] - pos[a], uy = pos[a + 4] - pos[a + 1], uz = pos[a + 5] - pos[a + 2], vx = pos[a + 6] - pos[a], vy = pos[a + 7] - pos[a + 1], vz = pos[a + 8] - pos[a + 2]; area[t] = 0.5 * Math.hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx); }
     const out = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) {
-      const nx = nrm[i * 3], ny = nrm[i * 3 + 1], nz = nrm[i * 3 + 2];
-      let ax = 0, ay = 0, az = 0;
       const g = groups.get(keys[i]);
+      let big = i, bigA = area[(i / 3) | 0];
+      for (const j of g) { const aj = area[(j / 3) | 0]; if (aj > bigA) { bigA = aj; big = j; } }
+      let rx = nrm[big * 3], ry = nrm[big * 3 + 1], rz = nrm[big * 3 + 2];
+      const nx = nrm[i * 3], ny = nrm[i * 3 + 1], nz = nrm[i * 3 + 2];
+      const own = area[(i / 3) | 0];
+      if (own > bigA * 0.02 && Math.abs(nx * rx + ny * ry + nz * rz) < cosT) { rx = nx; ry = ny; rz = nz; }   // gerçek başka yüzey: kendi yönü başvuru
+      let ax = 0, ay = 0, az = 0;
       for (const j of g) {
         const mx = nrm[j * 3], my = nrm[j * 3 + 1], mz = nrm[j * 3 + 2];
-        const d = nx * mx + ny * my + nz * mz;
+        const d = rx * mx + ry * my + rz * mz;
         if (Math.abs(d) < cosT) continue;                 // kırışıklık: farklı yüzey, ortalamaya girmez
-        const sg = d < 0 ? -1 : 1;                        // ters sarımlı komşu: işareti hizala
-        ax += sg * mx; ay += sg * my; az += sg * mz;
+        const w = area[(j / 3) | 0] || 1e-12, sg = d < 0 ? -1 : 1;   // ters sarımlı komşu: işareti hizala
+        ax += sg * w * mx; ay += sg * w * my; az += sg * w * mz;
       }
+      if ((nx * ax + ny * ay + nz * az) < 0) { ax = -ax; ay = -ay; az = -az; }   // sonuç kendi yönüyle aynı yarı uzayda
       const L = Math.hypot(ax, ay, az);
       if (L > 1e-12) { out[i * 3] = ax / L; out[i * 3 + 1] = ay / L; out[i * 3 + 2] = az / L; }
       else { out[i * 3] = nx; out[i * 3 + 1] = ny; out[i * 3 + 2] = nz; }
