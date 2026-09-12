@@ -43,7 +43,7 @@ async function readDb(bytes, id) {
  * kurucu ham 3B veriyi (raw3d) bu tanıtıcılarla bulabilsin.
  */
 function synthesizeDropped(lib, db, byType, ownerOf, hex) {
-  const names = { 37: 'REGION', 39: 'BODY', 663: 'MESH', 633: 'EXTRUDEDSURFACE', 660: 'LOFTEDSURFACE', 675: 'NURBSURFACE', 682: 'PLANESURFACE', 702: 'REVOLVEDSURFACE', 720: 'SWEPTSURFACE', 498: 'ACAD_PROXY_ENTITY', 65534: 'ACAD_PROXY_ENTITY' };
+  const names = { 37: 'REGION', 39: 'BODY', 663: 'MESH', 633: 'EXTRUDEDSURFACE', 660: 'LOFTEDSURFACE', 675: 'NURBSURFACE', 682: 'PLANESURFACE', 702: 'REVOLVEDSURFACE', 720: 'SWEPTSURFACE', 498: 'ACAD_PROXY_ENTITY', 65534: 'ACAD_PROXY_ENTITY', 29: 'POLYLINE_PFACE', 30: 'POLYLINE_MESH' };
   let layerByHandle = null;
   const layerName = (ent) => {
     try {
@@ -56,7 +56,7 @@ function synthesizeDropped(lib, db, byType, ownerOf, hex) {
   const recByHandle = new Map(); for (const r of records) recByHandle.set(String(r.handle || '').toUpperCase(), r);
   const seen = new Set(); const walk = (list) => { for (const e of list || []) if (e && e.handle) seen.add(e.handle); };
   walk(db.entities); for (const r of records) walk(r.entities);
-  for (const t of [37, 39, 663, 633, 660, 675, 682, 702, 720, 498, 65534]) {
+  for (const t of [37, 39, 663, 633, 660, 675, 682, 702, 720, 498, 65534, 29, 30]) {
     for (const o of byType[t] || []) {
       try {
         const h = hex(o); if (!h || seen.has(h)) continue;
@@ -139,7 +139,7 @@ function collectRaw3D(lib, dwg, db) {
   try { const o = lib.dwg_paper_space_object(dwg); if (o) roots.push(o); } catch (_) { /* yok */ }
   try { const a = lib.dwg_getall_BLOCK_HEADER(dwg); const arr = Array.isArray(a) ? a : (a && a.size ? Array.from({ length: a.size() }, (_, i) => a.get(i)) : []); for (const o of arr) if (o && !roots.includes(o)) roots.push(o); } catch (_) { /* yok */ }
   // REGION 37, 3DSOLID 38, BODY 39, MESH 663; AcDbSurface türevleri (ACIS taşır): EXTRUDED 633, LOFTED 660, NURB 675, PLANE 682, REVOLVED 702, SWEPT 720
-  const byType = { 37: [], 38: [], 39: [], 663: [], 633: [], 660: [], 675: [], 682: [], 702: [], 720: [], 498: [], 65534: [] }, ownerOf = new Map();
+  const byType = { 37: [], 38: [], 39: [], 663: [], 633: [], 660: [], 675: [], 682: [], 702: [], 720: [], 498: [], 65534: [], 29: [], 30: [] }, ownerOf = new Map();
   const census = {}; const typeName = (ft) => { try { const E = LW.Dwg_Object_Type; const n = E && E[ft]; return n ? String(n).replace(/^DWG_TYPE_/, '') : String(ft); } catch (_) { return String(ft); } };
   for (const root of roots) {
     let next = null, guard = 0;
@@ -175,6 +175,68 @@ function collectRaw3D(lib, dwg, db) {
         if (rec.acis || rec.wires) out[h] = rec;
       } catch (e) { /* bu katı atlanır */ }
     }
+  }
+  // çok yüzlü ağ (POLYLINE_PFACE 29) ve çokgen ağ (POLYLINE_MESH 30): köşe/yüz alt varlıklarından ağ kurulur
+  let handleIndex = null;
+  const objByHandle = (hv) => {
+    try { const o = lib.dwg_resolve_handle(dwg, hv); if (o) return o; } catch (_) { /* geç */ }
+    return null;
+  };
+  const vertexObjects = (o, tio) => {
+    const out = [];
+    const n = val(tio, 'num_owned') || 0, vp = val(tio, 'vertex');
+    if (n > 0 && vp) {
+      try {
+        const refs = W.dwg_ptr_to_object_ref_ptr_array(vp, n);
+        for (let i = 0; i < n; i++) { const r = refs[i]; if (!r) continue; let ab = null; try { ab = lib.dwg_ref_get_absref(r); } catch (_) { ab = r && r.absolute_ref; } const vo = ab ? objByHandle(ab) : null; if (vo) out.push(vo); }
+      } catch (_) { /* aşağıdaki yola düş */ }
+    }
+    if (!out.length) {                                            // R13-R2000: first_vertex … last_vertex ardışık nesnelerdir
+      const fv = val(tio, 'first_vertex'), lv = val(tio, 'last_vertex');
+      const hv = (r) => { try { return lib.dwg_ref_get_absref(r); } catch (_) { return r && r.absolute_ref; } };
+      const h0 = fv ? hv(fv) : null, h1 = lv ? hv(lv) : null;
+      if (h0 && h1) {
+        if (!handleIndex) { handleIndex = new Map(); try { const N = lib.dwg_get_num_objects(dwg); for (let i = 0; i < N; i++) { const oo = lib.dwg_get_object(dwg, i); try { handleIndex.set(Number(lib.dwg_obj_get_handle_value(oo)), i); } catch (_) { /* geç */ } } } catch (_) { /* geç */ } }
+        const i0 = handleIndex.get(Number(h0)), i1 = handleIndex.get(Number(h1));
+        if (i0 != null && i1 != null && i1 >= i0 && i1 - i0 < 5000000) for (let i = i0; i <= i1; i++) { try { out.push(lib.dwg_get_object(dwg, i)); } catch (_) { /* geç */ } }
+      }
+    }
+    return out;
+  };
+  const pointOf = (vt) => { const pt = val(vt, 'point'); return pt && typeof pt === 'object' ? [pt.x || 0, pt.y || 0, pt.z || 0] : null; };
+  for (const o of objs(29)) {                                   // POLYLINE_PFACE
+    try {
+      const tio = lib.dwg_object_to_entity_tio(o); const h = hex(o); if (!tio || !h) continue;
+      const verts = [], faces = [], hidden = [];
+      for (const vo of vertexObjects(o, tio)) {
+        let ft = -1; try { ft = lib.dwg_object_get_fixedtype(vo); } catch (_) { continue; }
+        const vt = lib.dwg_object_to_entity_tio(vo); if (!vt) continue;
+        if (ft === 14) {                                          // VERTEX_PFACE_FACE: vertind[4] (1 tabanlı, negatif = görünmez kenar)
+          let vi = val(vt, 'vertind'); if (typeof vi === 'number') { try { vi = Array.from(W.dwg_ptr_to_int16_t_array(vi, 4)); } catch (_) { vi = null; } }
+          // dynapi sabit diziyi (BSd[4]) vermez: yapı yerleşiminden okunur — parent* (4) + flag RC (1) + dolgu (1) → vertind @6
+          if (!Array.isArray(vi)) { try { vi = Array.from(W.dwg_ptr_to_int16_t_array(vt + 6, 4)); } catch (_) { vi = null; } }
+          if (!Array.isArray(vi)) continue;
+          const idx = [], hid = [];
+          for (const v of vi) { if (!v) continue; idx.push(Math.abs(v) - 1); hid.push(v < 0); }
+          if (idx.length >= 2) { faces.push(idx.length, ...idx); hidden.push(false, ...hid); }
+        } else if (ft === 13 || ft === 12 || ft === 11 || ft === 10) { const pt = pointOf(vt); if (pt) verts.push(pt); }   // VERTEX_PFACE / MESH / 3D / 2D
+      }
+      if (verts.length && faces.length) out[h] = { mesh: { verts, faces, hidden } };
+      else if (verts.length > 1) out[h] = { wires: [verts] };
+    } catch (e) { /* atla */ }
+  }
+  for (const o of objs(30)) {                                   // POLYLINE_MESH: M×N köşe ızgarası
+    try {
+      const tio = lib.dwg_object_to_entity_tio(o); const h = hex(o); if (!tio || !h) continue;
+      const M = val(tio, 'num_m_verts') || 0, Nn = val(tio, 'num_n_verts') || 0, flag = val(tio, 'flag') || 0;
+      const verts = [];
+      for (const vo of vertexObjects(o, tio)) { const vt = lib.dwg_object_to_entity_tio(vo); if (!vt) continue; const pt = pointOf(vt); if (pt) verts.push(pt); }
+      if (M < 2 || Nn < 2 || verts.length < M * Nn) { if (verts.length > 1) out[h] = { wires: [verts] }; continue; }
+      const closedM = !!(flag & 1), closedN = !!(flag & 32), faces = [];
+      const at = (i, j) => i * Nn + j;
+      for (let i = 0; i < (closedM ? M : M - 1); i++) for (let j = 0; j < (closedN ? Nn : Nn - 1); j++) { const i2 = (i + 1) % M, j2 = (j + 1) % Nn; faces.push(4, at(i, j), at(i, j2), at(i2, j2), at(i2, j)); }
+      out[h] = { mesh: { verts, faces } };
+    } catch (e) { /* atla */ }
   }
   for (const o of objs(663)) {                                  // MESH
     try {

@@ -162,7 +162,8 @@ export function parseDxf(bytes) {
       }
       case 'POLYLINE': {
         const fl = f(P, 70);
-        e.type = (fl & 8) ? 'POLYLINE3D' : (fl & 64) ? 'POLYFACE' : 'POLYLINE2D';
+        e.type = (fl & 8) ? 'POLYLINE3D' : (fl & 64) ? 'POLYFACE' : (fl & 16) ? 'POLYLINE_MESH' : 'POLYLINE2D';
+        if (fl & 16) { e.mCount = f(P, 71); e.nCount = f(P, 72); }
         e.flag = fl; e.elevation = f(P, 30); e.startWidth = f(P, 40); e.endWidth = f(P, 41); e.vertices = []; e._seq = true; return e;
       }
       case 'VIEWPORT': e.viewportCenter = pt(P, 10); e.width = f(P, 40); e.height = f(P, 41); e.status = f(P, 68); e.viewportId = f(P, 69); e.displayCenter = { x: f(P, 12), y: f(P, 22) };

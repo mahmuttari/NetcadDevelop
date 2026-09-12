@@ -632,6 +632,7 @@ function refresh3D() {
   const fadeLayers = new Set([...S.layers.values()].filter(l => l.faded).map(l => l.name));
   v3.setScene(S.scene.layouts[0].prims, S.layers, { dark: S.dark, mono: S.mono, bg: bgColor(), fg: fgColor(), fade: S.fade.on && fadeLayers.size ? { pct: S.fade.pct, layers: fadeLayers } : null, selColor: S.selColor });
   v3.setSelection(ed.sel);
+  if (!v3.counts.tris && typeof api.noFaces === 'function' && ed._noFaceKey !== S.fileKey) { ed._noFaceKey = S.fileKey; try { api.noFaces(); } catch (_) { /* geç */ } }
 }
 function render3D() { if (v3 && ed.is3D()) { v3.render(); overlay3D(); } }
 export function onResize() { if (ed.is3D()) { resize3D(); v3.render(); overlay3D(); } }

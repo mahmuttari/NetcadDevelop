@@ -450,10 +450,20 @@ export class SceneBuilder {
         break;
       }
       case 'POLYLINE_PFACE': case 'POLYLINE_MESH': case 'POLYFACE': {
+        if (!e.vertices && this.db.raw3d && this.db.raw3d[e.handle]) { this.solid(e, ctx); break; }   // DWG: köşe/yüz listesi işçiden gelir
         const vs = e.vertices || [];
-        const locs = vs.filter(v => !(v.flag & 128));
-        const faces = vs.filter(v => (v.flag & 128));
-        if (faces.length) {
+        // DXF: konum köşeleri 192 (64|128), yüz kayıtları yalnız 128 bayrağını taşır
+        const isFace = (v) => (v.flag & 128) && !(v.flag & 64) && (v.polyfaceIndex0 || v.polyfaceIndex1);
+        const locs = vs.filter(v => !isFace(v));
+        const faces = vs.filter(isFace);
+        const M = e.mCount || 0, Nn = e.nCount || 0;
+        if (e.type === 'POLYLINE_MESH' && M >= 2 && Nn >= 2 && locs.length >= M * Nn) {     // çokgen ağ: M×N ızgara, dörtgen yüzler
+          const closedM = !!(e.flag & 1), closedN = !!(e.flag & 32), at = (i, j) => locs[i * Nn + j];
+          for (let i = 0; i < (closedM ? M : M - 1); i++) for (let j = 0; j < (closedN ? Nn : Nn - 1); j++) {
+            const q = [at(i, j), at(i, (j + 1) % Nn), at((i + 1) % M, (j + 1) % Nn), at((i + 1) % M, j)];
+            this.addPath(q.map((v, k) => [k ? 1 : 0, v.x, v.y, v.z]), { closed: true }, e, ctx);
+          }
+        } else if (faces.length) {
           for (const f of faces) {
             const idx = [f.polyfaceIndex0, f.polyfaceIndex1, f.polyfaceIndex2, f.polyfaceIndex3].filter(i => i);
             const pts = idx.map(i => locs[Math.abs(i) - 1]).filter(Boolean);
@@ -865,8 +875,14 @@ export class SceneBuilder {
     const st = this.style(e, ctx), info = ctx.info || this.info(e, st);
     const edges = [], tris = [];
     if (raw && raw.mesh) {
-      const V = raw.mesh.verts, F = raw.mesh.faces;
-      for (let i = 0; i < F.length;) { const n = F[i++]; if (n < 2 || i + n > F.length) break; const idx = F.slice(i, i + n); i += n; const pts = idx.map(j => V[j]).filter(Boolean); if (pts.length < 2) continue; edges.push(pts.concat([pts[0]])); for (let k = 1; k < pts.length - 1; k++) tris.push(pts[0], pts[k], pts[k + 1]); }
+      const V = raw.mesh.verts, F = raw.mesh.faces, H = raw.mesh.hidden;
+      for (let i = 0; i < F.length;) {
+        const n = F[i++]; if (n < 2 || i + n > F.length) break; const base = i; const idx = F.slice(i, i + n); i += n;
+        const pts = idx.map(j => V[j]).filter(Boolean); if (pts.length < 2) continue;
+        if (H) { for (let k = 0; k < pts.length; k++) { if (H[base + k]) continue; if (pts.length === 2 && k === 1) break; edges.push([pts[k], pts[(k + 1) % pts.length]]); } }   // görünmez kenarlar (negatif indeks) çizilmez
+        else edges.push(pts.concat([pts[0]]));
+        for (let k = 1; k < pts.length - 1; k++) tris.push(pts[0], pts[k], pts[k + 1]);
+      }
     } else if (raw && raw.acis) {
       try {
         const key = e.handle; let t = this._acisCache && this._acisCache.get(key);

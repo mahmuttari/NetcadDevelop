@@ -191,7 +191,7 @@ await page.click('#toolbar [data-tab="3d"]'); await page.click('#toolbar [data-a
   await page.setInputFiles('#fileInput', path.join(SM, 'example_2000.dwg'));
   await page.waitForFunction(() => window.dwgApp.state.hasDoc && window.dwgApp.state.fileName === 'example_2000.dwg' && document.getElementById('loading').hidden, null, { timeout: 120000 }); await page.waitForTimeout(400);
   const r = await ev(() => { const ps = window.dwgApp.state.scene.layouts[0].prims; return { solids: window.dwgApp.state.counts['3DSOLID'], tri: ps.filter(p => p.tri).length, edges: ps.filter(p => !p.tri && p.et === '3DSOLID').length, drawn2d: ps.filter(p => p.tri && window.dwgApp.display.primVisible(p)).length }; });
-  ok('3DSOLID + 2 REGION üçgenlendi (SAT)', r.solids === 1 && r.tri === 28 && r.edges >= 12 && r.drawn2d === 0, JSON.stringify(r));
+  ok('3DSOLID + 2 REGION + çok yüzlü ağ üçgenlendi (SAT)', r.solids === 1 && r.tri === 30 && r.edges >= 12 && r.drawn2d === 0, JSON.stringify(r));
   await ev(() => window.dwgApp.editor.openTab('3d')); await page.click('#toolbar .tb-row[data-for="3d"] [data-act="3d"]'); await page.waitForTimeout(600);
   const c = await ev(() => { const v = window.dwgApp.editor.view3d(); return { tris: v.counts.tris, hud: v.hudText() }; });
   ok('3B yüzey sayısı', c.tris >= 213 && !/Yüzey yok/.test(c.hud), JSON.stringify(c));

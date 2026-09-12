@@ -10,8 +10,8 @@ android {
         applicationId "com.mahmuttari.dwgviewer"
         minSdk 26
         targetSdk 34
-        versionCode 11
-        versionName "5.6"
+        versionCode 12
+        versionName "5.7"
 
         // Google ile giriş: gradle.properties → GOOGLE_CLIENT_ID (Android türü OAuth istemcisi).
         // Yönlendirme şeması istemci numarasından türetilir: com.googleusercontent.apps.<no>

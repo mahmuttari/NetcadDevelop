@@ -115,6 +115,20 @@ for (const f of ['example_2013.dwg', 'example_2018.dwg']) {
   }
 }
 
+// ---- 4. çok yüzlü ağ (POLYFACE) ve çokgen ağ (POLYLINE_MESH): DXF yolu ve varsa dwgwrite ile üretilmiş DWG'ler ----
+for (const f of ['pface.dxf', 'pface_2000.dwg', 'pface_2018.dwg']) {
+  const fp = path.join(SM, f);
+  if (!fs.existsSync(fp)) { console.log('SKIP', f, 'yok'); continue; }
+  await open(fp);
+  i = await info3d();
+  const by = await page.evaluate(() => { const by = {}; for (const p of window.dwgApp.state.scene.layouts[0].prims) { const k = p.et + (p.tri ? ':tri' : ':path'); by[k] = (by[k] || 0) + 1; } return by; });
+  const faceCount = (by['POLYFACE:path'] || 0) + (by['POLYLINE_PFACE:tri'] || 0) + (by['POLYLINE_MESH:path'] || 0) + (by['POLYLINE_MESH:tri'] || 0);
+  ok(`4 ${f}: küp yüzleri ve ağ dörtgenleri sahnede`, faceCount >= 8, JSON.stringify(by));
+  ok(`4 ${f}: 3B yüzeyler var, HUD "Yüzey yok" demiyor`, i && i.tris >= 12 && !/Yüzey yok/.test(i.hud), i && `tris=${i.tris} ${i.hud}`);
+  if (f.endsWith('.dxf')) ok(`4 ${f}: sınır kutusu küp + ağ (0..30, 0..10, 0..10)`, i && Math.abs(i.bb[0]) < 1e-6 && Math.abs(i.bb[3] - 30) < 1e-6 && Math.abs(i.bb[5] - 10) < 1e-6, i && i.bb.join(','));
+  else ok(`4 ${f}: DWG çok yüzlü ağ üçgenleri (küp 12 + örnek 2) ve görünmez kenar dışarıda`, by['POLYLINE_PFACE:tri'] === 14 && by['POLYLINE_PFACE:path'] === 28 && by['POLYLINE_MESH:tri'] === 4, JSON.stringify(by));
+}
+
 console.log(`\nSONUÇ: ${pass} geçti, ${fail} kaldı; sayfa hataları: ${errors.length}`);
 for (const e of errors) console.log('  hata:', e.slice(0, 200));
 await browser.close(); srv.kill();

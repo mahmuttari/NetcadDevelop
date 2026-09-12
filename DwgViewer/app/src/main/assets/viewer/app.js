@@ -32,6 +32,18 @@ const VERSION_URL = 'https://raw.githubusercontent.com/mahmuttari/NetcadDevelop/
 // Ayarlar
 // ---------------------------------------------------------------------------
 const settings = Object.assign({ lang: 'tr', dark: true, lwScale: 3, crs: 'NONE', unit: 'auto', swap: false, dx: 0, dy: 0, basemap: 'none', basemapUrl: '', wms: '', opacity: 0.8, snap: ['end', 'mid', 'cen', 'int', 'ins', 'node'] }, store.json('settings', {}));
+/** 3B görünümde hiç yüzey yoksa: dosyadaki varlık türleri ve katı tanılaması bir kartta gösterilir (bir dosya için bir kez) */
+function showNoFaces() {
+  const c = S.counts || {}, cen = (S.scene && S.scene.census) || {}, d = S.scene && S.scene.solidDiag;
+  const list = (o) => Object.entries(o).sort((a, b) => b[1] - a[1]).slice(0, 30).map(([k, v]) => `${k} <b>${v}</b>`).join(', ') || '—';
+  const rows = [['Durum', 'Bu çizimde 3B yüzey bulunamadı; yalnız çizgiler çiziliyor. Görsel stiller (gölgeli, gerçekçi…) yüzey gerektirir.'],
+    [t('entityTypes'), list(c)], [t('dwgTypes'), list(cen)],
+    ['Sürüm', `${S.version} · uygulama ${A() && A().versionCode ? 'v' + A().versionCode() : 'tarayıcı'}`]];
+  if (d) rows.push([t('solidDiag'), `${d.solids} katı · ${d.faces} yüzey · ${d.skipped} atlandı` + (d.errors.length ? ' · ' + d.errors.slice(0, 3).join('; ') : '')]);
+  rows.push([`<div class="full btns"><button class="btn small" id="btnNoFaceShare">${t('solidDiagShare')}</button></div>`]);
+  openDoc('3B yüzey bulunamadı', kv(rows));
+  const b = $('btnNoFaceShare'); if (b) b.onclick = () => { const txt = solidDiagText(); if (A() && A().shareText) A().shareText('DWG Görüntüleyici katı tanılaması', txt); else copyText(txt); };
+}
 /** katı tanılama metni: sürümler, AcDs özeti, katı başına ham veri boyutu ve ilk katıların base64 örneği */
 function solidDiagText() {
   const d = (S.scene && S.scene.solidDiag) || { solids: 0, faces: 0, approx: 0, skipped: 0, surfaces: {}, versions: [], unknownTags: [], errors: [], acds: null, samples: [] };
@@ -1690,7 +1702,7 @@ window.dwgApp = { loadCurrent, onFilePicked, onLocation, onBack, loadBytes, zoom
 ensureStatusChips();
 D.initDisplay({ requestRender, drawOverlay, toast, openDoc, show, hide, buildLayerList, settings, saveSettings, editorTheme, zoomExtents, zoomBy, fitPrims, viewHistory, setLayout, editor, ui: uiPrefs(), basemaps: BASEMAPS, haptic });
 mountNavFabs(vp);
-initEditor({ S, requestRender, drawOverlay, toast, pick: (w) => pick(w, TOL.pick / S.view.scale), snap: doSnap, showInfo, openDoc, hide, show, esc, kv, copyText, buildLayerList, fmt, store, RTree, baseName, zoomExtents, tracePath,
+initEditor({ S, requestRender, drawOverlay, toast, noFaces: showNoFaces, pick: (w) => pick(w, TOL.pick / S.view.scale), snap: doSnap, showInfo, openDoc, hide, show, esc, kv, copyText, buildLayerList, fmt, store, RTree, baseName, zoomExtents, tracePath,
   action: (a) => { if (a === 'layers') $('btnLayers').click(); else if (a === 'search') $('btnSearch').click(); else if (a === 'more') $('btnMore').click(); else menuAction(a); },
   savePng, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, isolateLayers, unisolate, settings, stamp, haptic, openDisplayOptions, setDisplay, getDisplay, toggleDisplay, display: D });
 $('stScale').addEventListener('click', showScalePicker);
