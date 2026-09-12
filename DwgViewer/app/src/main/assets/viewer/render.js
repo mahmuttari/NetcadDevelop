@@ -65,11 +65,11 @@ export function layerPalette(name) {
   return s;
 }
 
-function dashOf(prim, ltypes, scale) {
+function dashOf(prim, ltypes, scale, ltK) {
   if (!prim.lt) return null;
   const lt = ltypes[prim.lt];
   if (!lt) return null;
-  const k = prim.lts || 1;
+  const k = (prim.lts || 1) * (ltK || 1);   // ltK: görünüm penceresinde PSLTSCALE (kâğıt birimi) çarpanı
   const total = lt.len * k;
   if (total * scale < 4) return null;
   const arr = [];
@@ -142,7 +142,7 @@ export const fastPanActive = () => S.gestureActive && (S.fastPan === 'auto' ? S.
 
 /**
  * İlkelleri çizer. c dünya dönüşümünde; scale = dünya→css px; rect = görünür dünya dikdörtgeni
- * opt: { layers, ltypes, fg, bg, colorOf(p) → css | null(atla), tree }
+ * opt: { layers, ltypes, fg, bg, colorOf(p) → css | null(atla), tree, frozen (pencerede dondurulmuş katman adları), ltK (çizgi tipi çarpanı) }
  */
 export function drawPrims(c, prims, scale, rect, opt) {
   const [vx0, vy0, vx1, vy1] = rect;
@@ -151,7 +151,7 @@ export function drawPrims(c, prims, scale, rect, opt) {
   const minPx = 0.35 / scale;
   const thinPx = fast ? 0.75 : Math.max(S.minLw, th.minLw);
   const thin = (S.smooth ? thinPx : 1 / S.dpr) / scale; // yumuşatma kapalıyken tam 1 fiziksel px
-  const { layers, ltypes, fg, bg } = opt;
+  const { layers, ltypes, fg, bg, frozen, ltK } = opt;
   const lwOn = S.lw, lwK = S.lwScale / 100 / scale; // 1/100 mm → dünya birimi (px cinsinden kalınlık / scale)
   const sh = S.show, ltOn = sh.ltype;
   const mode = th.forceMono ? 'mono' : S.colorMode;
@@ -176,6 +176,7 @@ export function drawPrims(c, prims, scale, rect, opt) {
     if (p.k === 4) continue;
     const L = layers.get(p.lay);
     if (L && !L.visible) continue;
+    if (frozen && frozen.has(p.lay)) continue;
     if (!passFilters(p)) continue;
     let col = opt.colorOf ? opt.colorOf(p) : (monoCol || (mode === 'layer' ? layerPalette(p.lay) : entityCss(p.col, fg)));
     if (col === null) continue;
@@ -194,8 +195,8 @@ export function drawPrims(c, prims, scale, rect, opt) {
         continue;
       }
       let w = p.w > thin ? p.w : thin;
-      if (lwOn && !(p.w > thin)) { const lw = (p.lw || 25) * lwK; if (lw > w) w = lw; }
-      const dash = ltOn ? dashOf(p, ltypes, scale) : null;
+      if (lwOn && !(p.w > thin)) { const lw = (p.lw != null && p.lw >= 0 ? p.lw : 25) * lwK; if (lw > w) w = lw; }   // 0,00 mm en ince kalır
+      const dash = ltOn ? dashOf(p, ltypes, scale, ltK) : null;
       const key = col + '|' + w + '|' + (dash ? p.lt + '@' + p.lts : '') + '|' + alpha;
       if (key !== curKey) {
         flush();
@@ -350,7 +351,9 @@ export function drawFrame(c, cv) {
       const ms = scale * vp.scale;
       const hw = (vp.x1 - vp.x0) / 2 / vp.scale, hh = (vp.y1 - vp.y0) / 2 / vp.scale;
       const rr = vp.twist ? [vp.cx - Math.hypot(hw, hh), vp.cy - Math.hypot(hw, hh), vp.cx + Math.hypot(hw, hh), vp.cy + Math.hypot(hw, hh)] : [vp.cx - hw, vp.cy - hh, vp.cx + hw, vp.cy + hh];
-      drawPrims(c, model.prims, ms, rr, { ...opt, tree: S.tree });
+      // PSLTSCALE=1: çizgi tipi uzunlukları kâğıt biriminde sabittir; pencere başına dondurulmuş katmanlar (VIEWPORT 331) gizlenir
+      const psLt = !(S.scene.header && S.scene.header.PSLTSCALE === 0), frozen = vp.frozen && vp.frozen.length ? new Set(vp.frozen) : null;
+      drawPrims(c, model.prims, ms, rr, { ...opt, tree: S.tree, frozen, ltK: psLt && vp.scale > 0 ? 1 / vp.scale : 1 });
       c.restore();
     }
     drawPrims(c, S.prims, scale, rect, opt);

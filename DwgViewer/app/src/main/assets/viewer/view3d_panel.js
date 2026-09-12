@@ -32,14 +32,18 @@ const W = {
   seg: (key, opts, cur, label) => (label ? `<div class="opt-row opt-row-lb"><span class="opt-lb">${esc(label)}</span></div>` : '') +
     `<div class="seg" data-key="${key}">${opts.map(([v, l]) => `<button type="button" data-val="${esc(v)}"${String(v) === String(cur) ? ' class="on"' : ''} aria-pressed="${String(v) === String(cur)}">${esc(l)}</button>`).join('')}</div>`,
   slider: (key, min, max, step, cur, unit, label, extra = '') => (label ? `<div class="opt-row opt-row-lb"><span class="opt-lb">${esc(label)}</span></div>` : '') +
-    `<div class="slider" data-key="${key}"><button type="button" class="dec" aria-label="${esc(tt('decrease', 'Azalt'))}">−</button><input type="range" data-key="${key}" min="${min}" max="${max}" step="${step}" value="${cur}"${extra} aria-label="${esc(label || key)}"><output>${esc(fmtDef(cur, 2))}${unit ? ' ' + esc(unit) : ''}</output><button type="button" class="inc" aria-label="${esc(tt('increase', 'Artır'))}">+</button></div>`,
+    `<div class="slider" data-key="${key}"${unit ? ` data-unit="${esc(unit)}"` : ''}><button type="button" class="dec" aria-label="${esc(tt('decrease', 'Azalt'))}">−</button><input type="range" data-key="${key}" min="${min}" max="${max}" step="${step}" value="${cur}"${extra} aria-label="${esc(label || key)}"><output>${esc(fmtDef(cur, 2))}${unit ? ' ' + esc(unit) : ''}</output><button type="button" class="inc" aria-label="${esc(tt('increase', 'Artır'))}">+</button></div>`,
   select: (key, opts, cur, label) => W.row(label, `<select class="opt-sel" data-key="${key}" aria-label="${esc(label)}">${opts.map(([v, l]) => `<option value="${esc(v)}"${String(v) === String(cur) ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`),
   note: (txt) => `<div class="opt-note">${esc(txt)}</div>`,
 };
 
-/** seçenek değerini okur (touch.x / persp / zScale dâhil) */
+/** stil ön ayarının zorlayabildiği seçenekler: widget etkin değeri (_styleFx) gösterir, stil zorluyorsa kilitlenir */
+const FX_KEY = { silhouette: 'silhouette', specular: 'specular', lightQuality: 'quality', jitter: 'jitter', overhang: 'overhang' };
+const forcedByStyle = (v3, key) => { const st = View3D.STYLES[v3.opts.style]; if (!st) return false; return key === 'lightQuality' ? st.quality === 'smooth' : !!st[key]; };
+/** seçenek değerini okur (touch.x / persp / zScale dâhil; stil zorlamalı olanlarda etkin değer) */
 function getOpt(v3, key) {
   if (key === 'zScale') return v3.zScale;
+  if (FX_KEY[key] && typeof v3._styleFx === 'function') return v3._styleFx()[FX_KEY[key]];
   if (key === 'persp') return v3.cam.persp;
   if (key.startsWith('touch.')) return v3.opts.touch[key.slice(6)];
   return v3.opts[key];
@@ -108,6 +112,11 @@ function bindWidgets(root, v3, host, hooks = {}) {
     root.querySelectorAll('select[data-key]').forEach(se => { const v = getOpt(v3, se.dataset.key); if (v != null) se.value = String(v); });
     root.querySelectorAll('input[type=number][data-key], input[type=color][data-key]').forEach(inp => { const v = getOpt(v3, inp.dataset.key); if (v != null && document.activeElement !== inp) inp.value = String(v); });
     root.querySelectorAll('.chip[data-key]').forEach(ch => { const v = getOpt(v3, ch.dataset.key); if (typeof v === 'boolean') ch.classList.toggle('on', v); });
+    // stilin zorladığı ayar kilitlenir (kavramsalda siluet, gerçekçide parlama/yumuşak, eskizde titreme/uzatma)
+    for (const key of Object.keys(FX_KEY)) {
+      const lock = forcedByStyle(v3, key);
+      root.querySelectorAll(`[data-key="${key}"]`).forEach(el => { if (el instanceof HTMLInputElement) el.disabled = lock; el.classList.toggle('locked', lock); if (el.classList.contains('seg') || el.classList.contains('slider')) { el.setAttribute('aria-disabled', String(lock)); el.querySelectorAll('button').forEach(b => { b.disabled = lock; }); el.style.opacity = lock ? '0.5' : ''; } });
+    }
     hooks.refresh && hooks.refresh();
   };
   const onEvt = () => refresh();
@@ -120,7 +129,7 @@ function bindWidgets(root, v3, host, hooks = {}) {
 // tek bölüm renderer'ları (popover için)
 // ---------------------------------------------------------------------------------
 const STYLE_OPTS = () => [['wireframe2d', tt('v3Wire2d', '2B tel kafes')], ['wireframe', tt('v3Wire', 'Tel kafes')], ['hidden', tt('v3Hidden', 'Gizli çizgi')], ['shaded', tt('v3Shaded', 'Gölgeli')], ['shadedEdges', tt('v3ShadedEdges', 'Gölgeli+kenar')], ['realistic', tt('v3Realistic', 'Gerçekçi')], ['conceptual', tt('v3Conceptual', 'Kavramsal')], ['gray', tt('v3Gray', 'Gri tonlar')], ['sketchy', tt('v3Sketchy', 'Eskiz')], ['xray', tt('v3Xray', 'Röntgen')]];
-const COLOR_OPTS = () => [['entity', tt('colorEntity', 'Nesne')], ['layer', tt('colorLayer', 'Katman')], ['elevation', tt('v3Elev', 'Kot')], ['mono', tt('colorMono', 'Tek renk')]];
+const COLOR_OPTS = () => [['entity', tt('v3ColorEntity', 'Nesne')], ['layer', tt('v3ColorLayer', 'Katman')], ['elevation', tt('v3Elev', 'Kot')], ['mono', tt('colorMono', 'Tek renk')]];
 const noFaces = (v3) => !v3.counts.tris;
 
 export function renderStyle(el, v3, host) {
@@ -186,7 +195,7 @@ export function renderClip(el, v3, host) {
 // ---------------------------------------------------------------------------------
 export function openView3DOptions(v3, bodyEl, host = {}) {
   const o = v3.opts, parts = [];
-  const isShaded = () => o.style === 'shaded' || o.style === 'shadedEdges';
+  const isShaded = () => { const st = View3D.STYLES[o.style]; return !!st && st.faces === 'lit'; };   // aydınlatma kullanan bütün stiller (gerçekçi, kavramsal, gri, eskiz dâhil)
   const subs = [];
   const mk = (id) => { const d = document.createElement('div'); d.dataset.part = id; return d; };
   bodyEl.innerHTML = '';
@@ -204,17 +213,17 @@ export function openView3DOptions(v3, bodyEl, host = {}) {
     (noFaces(v3) ? W.note(tt('v3NoFaces', 'Bu çizimde yüzey yok (3DFACE/dolgu) — tel kafes gösteriliyor')) : '')));
   // Yüz ayarları (AutoCAD görsel stil yöneticisi › Yüz)
   parts.push(W.sec('face', tt('v3Face', 'Yüz ayarları'),
-    W.seg('lightQuality', [['faceted', tt('lqFaceted', 'Yüzeyli')], ['smooth', tt('lqSmooth', 'Yumuşak')]], o.lightQuality, tt('lightQuality', 'Aydınlatma kalitesi')) +
-    W.sw('specular', o.specular, tt('specular', 'Parlama (specular)')) +
+    W.seg('lightQuality', [['faceted', tt('lqFaceted', 'Yüzeyli')], ['smooth', tt('lqSmooth', 'Yumuşak')]], getOpt(v3, 'lightQuality'), tt('lightQuality', 'Aydınlatma kalitesi')) +
+    W.sw('specular', getOpt(v3, 'specular'), tt('specular', 'Parlama (specular)')) +
     W.slider('faceOpacity', 0.1, 1, 0.05, o.faceOpacity, '', tt('faceOpacity', 'Yüz saydamlığı'))));
   // Kenar ayarları
   parts.push(W.sec('edge', tt('v3Edges', 'Kenar ayarları'),
     W.seg('edges', [['auto', tt('edgesAuto', 'Stile göre')], ['facet', tt('edgesFacet', 'Yüzey kenarları')], ['none', tt('edgesNone', 'Yok')]], o.edges, tt('edgeMode', 'Kenar kipi')) +
     W.seg('edgeColor', [['auto', tt('auto', 'Otomatik')], ['black', tt('black', 'Siyah')], ['white', tt('white', 'Beyaz')], ['fg', tt('toneFg', 'Ön plan')]], o.edgeColor, tt('edgeColor', 'Kenar rengi')) +
-    W.sw('silhouette', o.silhouette, tt('silhouette', 'Siluet kenarları')) +
-    W.slider('silhouetteWidth', 1, 6, 0.5, o.silhouetteWidth, '', tt('silhouetteWidth', 'Siluet kalınlığı')) +
-    W.slider('overhang', 0, 6, 0.5, o.overhang, '', tt('overhang', 'Çizgi uzatma (taşma)')) +
-    W.slider('jitter', 0, 4, 0.5, o.jitter, '', tt('jitter', 'Titreme (eskiz)'))));
+    W.sw('silhouette', getOpt(v3, 'silhouette'), tt('silhouette', 'Siluet kenarları')) +
+    W.slider('silhouetteWidth', 1, 6, 0.5, o.silhouetteWidth, 'px', tt('silhouetteWidth', 'Siluet kalınlığı')) +
+    W.slider('overhang', 0, 6, 0.5, getOpt(v3, 'overhang'), '', tt('overhang', 'Çizgi uzatma (taşma)')) +
+    W.slider('jitter', 0, 4, 0.5, getOpt(v3, 'jitter'), '', tt('jitter', 'Titreme (eskiz)'))));
   // Ortam
   parts.push(W.sec('env', tt('v3Env', 'Ortam'),
     W.sw('shadow', o.shadow, tt('groundShadow', 'Zemin gölgesi')) +
@@ -335,7 +344,9 @@ export function buildViewCube(container, v3, host = {}) {
   const bPersp = document.createElement('button'); bPersp.type = 'button'; bPersp.dataset.cube = 'persp'; bPersp.className = 'cube-btn';
   const bHome = document.createElement('button'); bHome.type = 'button'; bHome.dataset.cube = 'home'; bHome.className = 'cube-btn'; bHome.setAttribute('aria-label', tt('fit3', 'Sığdır'));
   bHome.innerHTML = document.getElementById('i-home') ? '<svg class="ic" width="16" height="16" aria-hidden="true"><use href="#i-home"/></svg>' : '⌂';
-  for (const b of [bPersp, bHome]) b.style.cssText = 'min-width:40px;height:26px;padding:0 6px;border:1px solid var(--line,#888);border-radius:6px;background:var(--btn,#333);color:var(--fg,#eee);font:600 11px system-ui,sans-serif';
+  // 84 px'lik küp genişliğine iki düğme sığar: simge düğmesi dar (28 px), metin düğmesi kalan genişliği alır ('Paralel' kırpılmaz)
+  for (const b of [bPersp, bHome]) b.style.cssText = 'min-width:0;height:26px;padding:0 4px;border:1px solid var(--line,#888);border-radius:6px;background:var(--btn,#333);color:var(--fg,#eee);font:600 10px system-ui,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+  bPersp.style.flex = '1 1 0'; bHome.style.flex = '0 0 28px'; bHome.style.padding = '0';
   btns.append(bPersp, bHome); container.appendChild(btns);
 
   const emit = (k, v) => { try { host.onChange && host.onChange(k, v); } catch (_) { /* geç */ } };
@@ -352,6 +363,7 @@ export function buildViewCube(container, v3, host = {}) {
     if (c.yaw === last.yaw && c.pitch === last.pitch && c.persp === last.persp) return;
     last = { yaw: c.yaw, pitch: c.pitch, persp: c.persp };
     bPersp.textContent = c.persp ? tt('perspShort', 'Persp') : tt('orthoShort', 'Paralel');
+    bPersp.setAttribute('aria-label', c.persp ? tt('perspective', 'Perspektif') : tt('orthographic', 'Paralel')); bPersp.title = bPersp.getAttribute('aria-label');
     // çizim açıları: yüzler kenardan görünmesin diye sınırlanır (her zaman 3 yüz tıklanabilir)
     let p = c.pitch, y = c.yaw;
     const amin = 22 * Math.PI / 180, amax = 68 * Math.PI / 180;

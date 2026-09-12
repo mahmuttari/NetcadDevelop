@@ -96,6 +96,11 @@
     <symbol id="i-open" viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></symbol>
     <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
     <symbol id="i-3d" viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></symbol>
+    <symbol id="i-viewcube" viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="m4 7.5 8 4.5 8-4.5-8-4.5z" fill="currentColor" fill-opacity=".35"/><path d="M12 12v9"/><path d="M2 12h2M20 12h2M12 22v0" opacity=".6"/><circle cx="12" cy="7.5" r="1.2" fill="currentColor"/></symbol>
+    <symbol id="i-drive" viewBox="0 0 24 24"><path d="M7 19a4 4 0 0 1-.5-8A6 6 0 0 1 18 9a4 4 0 0 1-1 8z"/><path d="M12 12v6M9.5 14.5 12 12l2.5 2.5"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 17v3h16v-3"/></symbol>
+    <symbol id="i-qr" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M5.5 5.5h2v2h-2zM16.5 5.5h2v2h-2zM5.5 16.5h2v2h-2z" fill="currentColor"/><path d="M14 14h3v3M21 14v3h-3M14 21h3M21 21v0"/></symbol>
     <!-- görsel stil önizleme simgeleri -->
     <symbol id="i-vs-wireframe2d" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16"/><path d="M4 12h16M12 4v16"/></symbol>
     <symbol id="i-edges" viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z" fill="currentColor" opacity=".18"/><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></symbol>
@@ -114,13 +119,13 @@
 <div id="app">
   <header id="topbar">
     <button id="btnOpen" class="btn primary" data-i18n-title="open" type="button"><svg class="ic" aria-hidden="true"><use href="#i-open"/></svg><span data-i18n="open">Aç</span></button>
-    <div class="filewrap"><div id="fileName" class="filename">Dosya seçilmedi</div><div id="fileSub" class="filesub"></div></div>
-    <button id="btnSearch" class="btn icon" data-i18n-title="search" type="button" aria-label="Ara"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg></button>
-    <button id="btnExtents" class="btn icon" data-i18n-title="fit" type="button" aria-label="Sığdır"><svg class="ic" aria-hidden="true"><use href="#i-fit"/></svg></button>
-    <button id="btnLayers" class="btn icon" data-i18n-title="layers" type="button" aria-label="Katmanlar"><svg class="ic" aria-hidden="true"><use href="#i-layers"/></svg></button>
-    <button id="btnMeasure" class="btn icon" data-i18n-title="measure" type="button" aria-label="Ölçü"><svg class="ic" aria-hidden="true"><use href="#i-dist"/></svg></button>
-    <button id="btnDisplay" class="btn icon" data-i18n-title="dispTitle" type="button" aria-label="Ekran ayarları"><svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg></button>
-    <button id="btnMore" class="btn icon" data-i18n-title="more" type="button" aria-label="Diğer"><svg class="ic" aria-hidden="true"><use href="#i-more"/></svg></button>
+    <div class="filewrap"><div id="fileName" class="filename"></div><div id="fileSub" class="filesub"></div></div>
+    <button id="btnSearch" class="btn icon" data-i18n-title="search" data-i18n-aria="search" type="button" aria-label="Ara"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg></button>
+    <button id="btnExtents" class="btn icon" data-i18n-title="fit" data-i18n-aria="fit" type="button" aria-label="Sığdır"><svg class="ic" aria-hidden="true"><use href="#i-fit"/></svg></button>
+    <button id="btnLayers" class="btn icon" data-i18n-title="layers" data-i18n-aria="layers" type="button" aria-label="Katmanlar"><svg class="ic" aria-hidden="true"><use href="#i-layers"/></svg></button>
+    <button id="btnMeasure" class="btn icon" data-i18n-title="measure" data-i18n-aria="measure" type="button" aria-label="Ölçü"><svg class="ic" aria-hidden="true"><use href="#i-dist"/></svg></button>
+    <button id="btnDisplay" class="btn icon" data-i18n-title="dispTitle" data-i18n-aria="dispTitle" type="button" aria-label="Ekran ayarları"><svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg></button>
+    <button id="btnMore" class="btn icon" data-i18n-title="more" data-i18n-aria="more" type="button" aria-label="Diğer"><svg class="ic" aria-hidden="true"><use href="#i-more"/></svg></button>
   </header>
   <div id="layoutTabs" class="tabs" hidden></div>
 
@@ -141,7 +146,7 @@
           <div class="row">
             <button id="btnServer" class="btn small" data-i18n="server" type="button">Sunucudan indir</button>
             <button id="btnQr" class="btn small" data-i18n="qr" type="button">QR okut</button>
-            <button id="btnDrive" class="btn small" type="button"><svg class="ic" aria-hidden="true"><use href="#i-map"/></svg><span data-i18n="drive">Google Drive</span></button>
+            <button id="btnDrive" class="btn small" type="button"><svg class="ic" aria-hidden="true"><use href="#i-drive"/></svg><span data-i18n="drive">Google Drive</span></button>
           </div>
           <div id="recentWrap" hidden>
             <h3 data-i18n="recent">Son dosyalar</h3>
@@ -152,33 +157,34 @@
       </div>
       <div id="cmdBar" class="cmdbar" hidden>
         <span id="cmdText"></span>
-        <span class="cmd-in"><input id="cmdInput" type="text" placeholder="x,y | @dx,dy | @L<açı" autocomplete="off" inputmode="text"><button id="cmdEnter" type="button" aria-label="Gir">↵</button></span>
+        <span class="cmd-in"><input id="cmdInput" type="text" data-i18n-ph="coordPh" placeholder="x,y | @dx,dy | @L<açı" autocomplete="off" inputmode="text"><button id="cmdEnter" type="button" data-i18n-aria="enter" aria-label="Gir">↵</button></span>
         <span id="cmdBtns"></span>
       </div>
       <div id="docView" class="docview" hidden>
         <div class="doc-head">
-          <button type="button" class="btn icon" data-doc="back" hidden aria-label="Geri"><svg class="ic" aria-hidden="true"><use href="#i-arrow-left"/></svg></button>
+          <button type="button" class="btn icon" data-doc="back" hidden data-i18n-aria="tlBack" aria-label="Geri"><svg class="ic" aria-hidden="true"><use href="#i-arrow-left"/></svg></button>
           <div class="doc-title"><strong id="docName"></strong><small id="docMeta"></small></div>
           <div class="doc-acts" id="docActs"></div>
-          <button type="button" class="btn icon" data-doc="close" aria-label="Kapat"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
+          <button type="button" class="btn icon" data-doc="close" data-i18n-aria="close" aria-label="Kapat"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
         </div>
         <div class="doc-tools" id="docTools"></div>
         <div class="doc-body" id="docContent"></div>
       </div>
       <div id="notesBar" class="notesbar" hidden>
-        <button data-tool="select" class="active" data-i18n-title="select" type="button">👆</button>
-        <button data-tool="pen" data-i18n-title="pen" type="button">✏️</button>
-        <button data-tool="line" data-i18n-title="line" type="button">╱</button>
-        <button data-tool="arrow" data-i18n-title="arrow" type="button">➜</button>
-        <button data-tool="rect" data-i18n-title="rect" type="button">▭</button>
-        <button data-tool="circle" data-i18n-title="circle" type="button">◯</button>
-        <button data-tool="text" data-i18n-title="noteText" type="button">T</button>
-        <button data-tool="photo" data-i18n-title="photo" type="button">📷</button>
-        <input type="color" id="noteColor" value="#ff3b30" data-i18n-title="noteColor">
-        <button id="noteUndo" data-i18n-title="undo" type="button">↶</button>
-        <button id="noteDelete" data-i18n-title="delete" type="button">🗑</button>
-        <button id="noteClose" data-i18n-title="close" type="button">✕</button>
+        <button data-tool="select" class="active" data-i18n-title="select" data-i18n-aria="select" type="button" aria-label="Seç"><svg class="ic" aria-hidden="true"><use href="#i-select"/></svg></button>
+        <button data-tool="pen" data-i18n-title="pen" data-i18n-aria="pen" type="button" aria-label="Kalem"><svg class="ic" aria-hidden="true"><use href="#i-pen"/></svg></button>
+        <button data-tool="line" data-i18n-title="line" data-i18n-aria="line" type="button" aria-label="Çizgi"><svg class="ic" aria-hidden="true"><use href="#i-line"/></svg></button>
+        <button data-tool="arrow" data-i18n-title="arrow" data-i18n-aria="arrow" type="button" aria-label="Ok"><svg class="ic" aria-hidden="true"><use href="#i-arrow-right"/></svg></button>
+        <button data-tool="rect" data-i18n-title="rect" data-i18n-aria="rect" type="button" aria-label="Dikdörtgen"><svg class="ic" aria-hidden="true"><use href="#i-rect"/></svg></button>
+        <button data-tool="circle" data-i18n-title="circle" data-i18n-aria="circle" type="button" aria-label="Daire"><svg class="ic" aria-hidden="true"><use href="#i-circle"/></svg></button>
+        <button data-tool="text" data-i18n-title="noteText" data-i18n-aria="noteText" type="button" aria-label="Yazı"><svg class="ic" aria-hidden="true"><use href="#i-text"/></svg></button>
+        <button data-tool="photo" data-i18n-title="photo" data-i18n-aria="photo" type="button" aria-label="Fotoğraf"><svg class="ic" aria-hidden="true"><use href="#i-camera"/></svg></button>
+        <input type="color" id="noteColor" value="#ff3b30" data-i18n-title="noteColor" data-i18n-aria="noteColor" aria-label="Renk">
+        <button id="noteUndo" data-i18n-title="undo" data-i18n-aria="undo" type="button" aria-label="Geri al"><svg class="ic" aria-hidden="true"><use href="#i-undo"/></svg></button>
+        <button id="noteDelete" data-i18n-title="delete" data-i18n-aria="delete" type="button" aria-label="Sil"><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg></button>
+        <button id="noteClose" data-i18n-title="close" data-i18n-aria="close" type="button" aria-label="Kapat"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
       </div>
+      <div id="toast" class="toast hud" hidden aria-live="polite"><span class="tx"></span><button class="act" type="button" hidden></button></div>
       <div id="tour" class="hud tour" hidden role="dialog" aria-live="polite">
         <div class="tour-card">
           <strong id="tourTitle" data-i18n="tourTitle">Hoş geldiniz</strong>
@@ -199,15 +205,15 @@
     </aside>
   </div>
 
-  <nav id="toolbar" aria-label="Araç çubuğu"></nav>
+  <nav id="toolbar" data-i18n-aria="toolbar" aria-label="Araç çubuğu"></nav>
   <footer id="statusbar">
     <div id="stQuick" class="st-quick">
-      <button type="button" data-quick="grid" data-i18n-title="stQuickGrid" aria-label="Izgara" aria-pressed="false"><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg></button>
-      <button type="button" data-quick="lw" data-i18n-title="stQuickLw" aria-label="Çizgi kalınlığı" aria-pressed="false"><svg class="ic" aria-hidden="true"><use href="#i-lw"/></svg></button>
-      <button type="button" data-quick="text" data-i18n-title="stQuickText" aria-label="Yazı" aria-pressed="true"><svg class="ic" aria-hidden="true"><use href="#i-text"/></svg></button>
-      <button type="button" data-quick="osnap" data-i18n-title="stQuickOsnap" aria-label="Nesne yakalama" aria-pressed="true"><svg class="ic" aria-hidden="true"><use href="#i-snap"/></svg></button>
+      <button type="button" data-quick="grid" data-i18n-title="stQuickGrid" data-i18n-aria="stQuickGrid" aria-label="Izgara" aria-pressed="false"><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg></button>
+      <button type="button" data-quick="lw" data-i18n-title="stQuickLw" data-i18n-aria="stQuickLw" aria-label="Çizgi kalınlığı" aria-pressed="false"><svg class="ic" aria-hidden="true"><use href="#i-lw"/></svg></button>
+      <button type="button" data-quick="text" data-i18n-title="stQuickText" data-i18n-aria="stQuickText" aria-label="Yazı" aria-pressed="true"><svg class="ic" aria-hidden="true"><use href="#i-text"/></svg></button>
+      <button type="button" data-quick="osnap" data-i18n-title="stQuickOsnap" data-i18n-aria="stQuickOsnap" aria-label="Nesne yakalama" aria-pressed="true"><svg class="ic" aria-hidden="true"><use href="#i-snap"/></svg></button>
     </div>
-    <span id="stCoord" title="Kopyalamak için dokunun">X: – &nbsp; Y: –</span>
+    <span id="stCoord" data-i18n-title="copyHint" title="Kopyalamak için dokunun">X: – &nbsp; Y: –</span>
     <span id="stSnap" class="st-chip" hidden></span>
     <span id="stGrid" class="st-chip" hidden></span>
     <button id="stScale" class="st-chip" type="button"></button>
@@ -218,8 +224,9 @@
 
   <div id="loading" class="modal" hidden>
     <div class="spinner"></div>
-    <div id="loadingText">Yükleniyor…</div>
+    <div id="loadingText" data-i18n="loading">Yükleniyor…</div>
     <div id="loadingSub" class="sub"></div>
+    <button id="loadingCancel" class="btn small" type="button" data-i18n="cancel">Vazgeç</button>
   </div>
 
   <!-- Katmanlar -->
@@ -231,11 +238,11 @@
       <button class="btn small" id="btnLayersNone" data-i18n="layersNone" type="button">Hiçbiri</button>
       <button class="btn small" id="btnLayersInvert" data-i18n="layersInvert" type="button">Ters çevir</button>
       <button class="btn small accent" id="btnLayersUniso" data-i18n="layersUniso" type="button" hidden>İzolasyonu kaldır</button>
-      <button class="btn icon close" data-close="layerPanel" type="button" aria-label="Kapat"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
+      <button class="btn icon close" data-close="layerPanel" type="button" data-i18n-aria="close" aria-label="Kapat"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
     <div class="layer-tools">
       <input id="layerFilter" type="search" data-i18n-ph="layerFilter" placeholder="Katman ara…">
-      <select id="layerSort" aria-label="Sıralama"><option value="name" data-i18n="sortName">Ada göre</option><option value="count" data-i18n="sortCount">Sayıya göre</option></select>
+      <select id="layerSort" data-i18n-aria="sortBy" aria-label="Sıralama"><option value="name" data-i18n="sortName">Ada göre</option><option value="count" data-i18n="sortCount">Sayıya göre</option></select>
       <label id="layerOnlyVis" class="chk"><input type="checkbox"> <span data-i18n="onlyVis">Yalnız görünenler</span></label>
     </div>
     <div id="layerList" class="panel-body"></div>
@@ -244,10 +251,10 @@
   <!-- Nesne bilgisi -->
   <aside id="infoPanel" class="panel bottom" hidden>
     <div class="panel-head">
-      <strong id="infoTitle">Nesne</strong>
+      <strong id="infoTitle" data-i18n="entity">Nesne</strong>
       <button class="btn small" id="infoZoom" data-i18n="zoomTo" type="button">Yakınlaştır</button>
       <button class="btn small" id="infoCopy" data-i18n="copyCoord" type="button">Koordinatı kopyala</button>
-      <button class="btn icon close" data-close="infoPanel" type="button" aria-label="Kapat"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
+      <button class="btn icon close" data-close="infoPanel" type="button" data-i18n-aria="close" aria-label="Kapat"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
     <div id="infoBody" class="panel-body kv"></div>
   </aside>
@@ -259,7 +266,7 @@
       <span class="muted" id="measureHint" data-i18n="measureHint"></span>
       <button class="btn small" id="btnMeasureUndo" data-i18n="undo" type="button">Geri al</button>
       <button class="btn small" id="btnMeasureClear" data-i18n="clear" type="button">Temizle</button>
-      <button class="btn icon close" id="btnMeasureClose" type="button" aria-label="Kapat"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
+      <button class="btn icon close" id="btnMeasureClose" type="button" data-i18n-aria="close" aria-label="Kapat"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
     <div id="snapBar" class="snapbar">
       <label><input type="checkbox" data-snap="end" checked>END</label>
@@ -278,7 +285,7 @@
   <aside id="searchPanel" class="panel bottom" hidden>
     <div class="panel-head">
       <input id="searchInput" type="search" data-i18n-ph="searchPh" placeholder="Yazı, katman, blok, öznitelik, handle…">
-      <button class="btn icon close" data-close="searchPanel" type="button" aria-label="Kapat"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
+      <button class="btn icon close" data-close="searchPanel" type="button" data-i18n-aria="close" aria-label="Kapat"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
     <div id="searchBody" class="panel-body list"></div>
   </aside>
@@ -287,7 +294,7 @@
   <aside id="docPanel" class="panel bottom" hidden>
     <div class="panel-head">
       <strong id="docTitle"></strong>
-      <button class="btn icon close" data-close="docPanel" type="button" aria-label="Kapat"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
+      <button class="btn icon close" data-close="docPanel" type="button" data-i18n-aria="close" aria-label="Kapat"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
     <div id="docBody" class="panel-body kv"></div>
   </aside>
@@ -298,7 +305,7 @@
       <div id="displaySeg" class="seg"><button type="button" data-seg="2d" class="on">2B</button><button type="button" data-seg="3d">3B</button></div>
       <strong id="displayTitle" data-i18n="dispTitle">Ekran ayarları</strong>
       <button type="button" class="btn small" id="displayReset" data-i18n="dispReset">Sıfırla</button>
-      <button type="button" class="btn icon close" data-close="displayPanel" aria-label="Kapat"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
+      <button type="button" class="btn icon close" data-close="displayPanel" data-i18n-aria="close" aria-label="Kapat"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
     <div id="displayBody" class="panel-body"></div>
   </aside>
@@ -306,12 +313,12 @@
   <!-- Google Drive -->
   <aside id="drivePanel" class="panel bottom" hidden role="dialog">
     <div class="panel-head">
-      <strong><svg class="ic" aria-hidden="true"><use href="#i-map"/></svg> Google Drive</strong>
+      <strong><svg class="ic" aria-hidden="true"><use href="#i-drive"/></svg> Google Drive</strong>
       <div id="driveAccount" class="drive-account"></div>
-      <button type="button" class="btn icon" data-drive="upload" data-i18n-title="driveUpload" aria-label="Drive'a yükle"><svg class="ic" aria-hidden="true"><use href="#i-export"/></svg></button>
-      <button type="button" class="btn icon" data-drive="mkdir" data-i18n-title="newFolder" aria-label="Yeni klasör"><svg class="ic" aria-hidden="true"><use href="#i-open"/></svg></button>
-      <button type="button" class="btn icon" data-drive="refresh" data-i18n-title="refresh" aria-label="Yenile"><svg class="ic" aria-hidden="true"><use href="#i-turn"/></svg></button>
-      <button type="button" class="btn icon close" data-close="drivePanel" aria-label="Kapat"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
+      <button type="button" class="btn icon" data-drive="upload" data-i18n-title="driveUpload" data-i18n-aria="driveUpload" aria-label="Drive'a yükle"><svg class="ic" aria-hidden="true"><use href="#i-export"/></svg></button>
+      <button type="button" class="btn icon" data-drive="mkdir" data-i18n-title="newFolder" data-i18n-aria="newFolder" aria-label="Yeni klasör"><svg class="ic" aria-hidden="true"><use href="#i-open"/></svg></button>
+      <button type="button" class="btn icon" data-drive="refresh" data-i18n-title="refresh" data-i18n-aria="refresh" aria-label="Yenile"><svg class="ic" aria-hidden="true"><use href="#i-turn"/></svg></button>
+      <button type="button" class="btn icon close" data-close="drivePanel" data-i18n-aria="close" aria-label="Kapat"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
     <div class="drive-tools"><input id="driveSearch" type="search" data-i18n-ph="driveSearchPh" placeholder="Drive'da ara…"></div>
     <div id="driveCrumbs" class="drive-crumbs"></div>
@@ -321,14 +328,14 @@
   <!-- Diğer menüsü -->
   <div id="moreMenu" class="menu" hidden>
     <button data-act="info" type="button"><svg class="ic" aria-hidden="true"><use href="#i-info"/></svg><span data-i18n="info">Çizim bilgisi</span></button>
-    <button data-act="drive" type="button"><svg class="ic" aria-hidden="true"><use href="#i-map"/></svg><span data-i18n="drive">Google Drive</span></button>
+    <button data-act="drive" type="button"><svg class="ic" aria-hidden="true"><use href="#i-drive"/></svg><span data-i18n="drive">Google Drive</span></button>
     <button data-act="layouts" type="button"><svg class="ic" aria-hidden="true"><use href="#i-layout"/></svg><span data-i18n="layouts">Sayfa düzenleri</span></button>
     <button data-act="notes" type="button"><svg class="ic" aria-hidden="true"><use href="#i-pen"/></svg><span data-i18n="notes">Notlar (redline)</span></button>
     <button data-act="profile" type="button"><svg class="ic" aria-hidden="true"><use href="#i-profile"/></svg><span data-i18n="profile">Profil / eğim</span></button>
     <button data-act="gps" type="button"><svg class="ic" aria-hidden="true"><use href="#i-gps"/></svg><span data-i18n="gps">GPS konumu</span></button>
     <button data-act="basemap" type="button"><svg class="ic" aria-hidden="true"><use href="#i-map"/></svg><span data-i18n="basemap">Harita altlığı</span></button>
     <button data-act="compare" type="button"><svg class="ic" aria-hidden="true"><use href="#i-compare"/></svg><span data-i18n="compare">Revizyon karşılaştır</span></button>
-    <button data-act="xrefs" type="button"><svg class="ic" aria-hidden="true"><use href="#i-export"/></svg><span data-i18n="xrefs">Referans dosyaları</span></button>
+    <button data-act="xrefs" type="button"><svg class="ic" aria-hidden="true"><use href="#i-link"/></svg><span data-i18n="xrefs">Referans dosyaları</span></button>
     <button data-act="views" type="button"><svg class="ic" aria-hidden="true"><use href="#i-bookmark"/></svg><span data-i18n="views">Kayıtlı görünümler</span></button>
     <button data-act="display" type="button"><svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg><span data-i18n="dispTitle">Ekran ayarları</span></button>
     <button data-act="bg" type="button"><svg class="ic" aria-hidden="true"><use href="#i-theme"/></svg><span data-i18n="bg">Arka plan: koyu / açık</span></button>
@@ -337,8 +344,8 @@
     <button data-act="text" type="button"><svg class="ic" aria-hidden="true"><use href="#i-text"/></svg><span data-i18n="text">Yazıları göster / gizle</span></button>
     <button data-act="png" type="button"><svg class="ic" aria-hidden="true"><use href="#i-image"/></svg><span data-i18n="png">Görünümü PNG kaydet</span></button>
     <button data-act="pdf" type="button"><svg class="ic" aria-hidden="true"><use href="#i-pdf"/></svg><span data-i18n="pdf">PDF oluştur</span></button>
-    <button data-act="server" type="button"><svg class="ic" aria-hidden="true"><use href="#i-export"/></svg><span data-i18n="server">Sunucudan indir</span></button>
-    <button data-act="qr" type="button"><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg><span data-i18n="qr">QR okut</span></button>
+    <button data-act="server" type="button"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg><span data-i18n="server">Sunucudan indir</span></button>
+    <button data-act="qr" type="button"><svg class="ic" aria-hidden="true"><use href="#i-qr"/></svg><span data-i18n="qr">QR okut</span></button>
     <button data-act="settings" type="button"><svg class="ic" aria-hidden="true"><use href="#i-props"/></svg><span data-i18n="settings">Ayarlar</span></button>
     <button data-act="about" type="button"><svg class="ic" aria-hidden="true"><use href="#i-info"/></svg><span data-i18n="about">Hakkında</span></button>
   </div>
@@ -353,7 +360,6 @@
     <button class="btn" id="qrStop" data-i18n="qrStop" type="button">Durdur</button>
   </div>
 
-  <div id="toast" class="toast" hidden aria-live="polite"><span class="tx"></span><button class="act" type="button" hidden></button></div>
 </div>
 <script src="lib/jsQR.js"></script>
 <script type="module" src="app.js"></script>

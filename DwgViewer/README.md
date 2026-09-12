@@ -1,4 +1,4 @@
-# DWG Görüntüleyici (Android) — v6.0
+# DWG Görüntüleyici (Android) — v6.1
 
 AutoCAD **DWG** ve **DXF** çizimlerini telefonda açan, çevrimdışı çalışan
 Android uygulaması. Dosya cihazdan dışarı çıkmaz; çözümleme telefonun
@@ -8,12 +8,17 @@ notlar ve PDF çıktısı.
 
 ## Kurulum
 
-1. `release/DwgGoruntuleyici.apk` dosyasını telefona indirin (ya da GitHub
-   Actions'taki *DwgGoruntuleyici-apk* çıktısını alın).
+1. `release/DwgGoruntuleyici.apk` dosyasını telefona indirin. Geliştirme
+   dalı `claude/dwg-viewer-apk-ykjk7a` üzerindeki güncel nüsha:
+   https://github.com/mahmuttari/NetcadDevelop/raw/claude/dwg-viewer-apk-ykjk7a/DwgViewer/release/DwgGoruntuleyici.apk
+   (GitHub Actions'taki *DwgGoruntuleyici-apk* çıktısı ve `v*` etiketli
+   sürümlerde GitHub Releases sayfası da aynı APK'yı verir).
 2. Dosyaya dokunun; Android "bilinmeyen kaynaklardan yükleme" izni
    isterse verin.
 3. Uygulama, dosya yöneticisi, e-posta ve WhatsApp'ta `.dwg` / `.dxf`
-   dosyaları için "Birlikte aç" listesine kendiliğinden girer.
+   dosyaları için "Birlikte aç" listesine kendiliğinden girer. Uygulama
+   içindeki **sürüm denetimi** derlendiği dalın `release/version.json`
+   dosyasına bakar ve yeni sürüm varsa indirme bağlantısını açar.
 
 Gereksinim: Android 8.0 (API 26) ve güncel bir **Android System WebView**.
 İzinler: konum (GPS, isteğe bağlı), kamera (QR, isteğe bağlı), internet
@@ -49,27 +54,33 @@ verisi gönderilmez).
 | **Çok yüzlü ve çokgen ağlar (v5.7)** | DWG dosyalarındaki **POLYLINE_PFACE** (çok yüzlü ağ, dışa aktarılmış 3B modellerin en yaygın yüzey biçimi) ve **POLYLINE_MESH** (M×N çokgen ağ) varlıkları dönüştürücü tarafından düşürülüyordu; artık köşe ve yüz alt varlıkları LibreDWG'den doğrudan okunur (R2004+ köşe tanıtıcı dizisi, R13–R2000 first/last vertex aralığı), görünmez kenarlar (negatif indeks) çizilmez, kapalı M/N yönleri sarılır. DXF yolunda çokgen ağ (bayrak 16) artık 2B polyline sanılmaz, köşe ızgarasından dörtgen yüzler kurulur; çok yüzlü ağda konum köşeleri (192) ile yüz kayıtları (128) doğru ayrılır. Sınama DWG'leri LibreDWG'nin `dwgwrite` aracıyla R2000 ve R2018 olarak üretilmiştir (`test_solids` 4. bölüm). 3B görünüme yüzeysiz girilince "3B yüzey bulunamadı" kartı çıkar: dosyadaki varlık türleri, LibreDWG nesne türleri, katı tanılaması ve paylaşma düğmesi |
 | **Ağ kenarları ve siluet (v5.8)** | Çok yüzlü ağ, çokgen ağ ve proxy kabuklarında kenarlar **kırışıklık açısı** kuralıyla seçilir (`meshEdges`): iki komşu yüz 20°'den az açı yapıyorsa aradaki kenar (üçgenleme çaprazı, düz yüzeyin parçaları) çizilmez; sınır kenarları ve gerçek köşeler kalır, dosyadaki görünmez kenar bayrağı her zaman geçerlidir. Kavramsal stilin siluet kabuğu artık **piksel** cinsindendir (hedef uzaklığındaki piksel boyuna göre), yakınlaşınca siyah bant oluşmaz. **v5.9:** yumuşak aydınlatma (gerçekçi stil, "yumuşak" aydınlatma kalitesi) **kırışıklık açısına** (30°) bağlı: bir köşede yalnız birbirine yakın yönlü yüzlerin normalleri ortalanır; kutu köşelerinde dik yüzler karışmaz, düz yüzeyler düz, kavisli yüzeyler yumuşak gölgelenir. Sınama: gerçekçi stilde küp yüzünün merkezi ile köşeleri aynı tonda (piksel ölçümü). Ayrıca 3B **Sığdır** dikey (dar) tuvalde genişliği de hesaba katar; önceden yalnız yüksekliğe sığdırıp modelin yanlarını kesiyordu |
 | **Kenar düğmesi ve kıymık dayanıklılığı (v6.0)** | Gerçekçi stil varsayılan olarak **kenarsız** çizer (AutoCAD gibi). 3B ve Ekran › 3B sekmesinde **Kenarlar** düğmesi yüzey kenar çizgilerini stilden bağımsız açar/kapatır; Ekran ayarları › Kenar kipi üç durumludur: *Stile göre* / *Yüzey kenarları* / *Yok*. Eski sürümde kaydedilmiş varsayılan "Yüzey kenarları" ayarı kullanıcı seçmediyse "Stile göre"ye alınır. Çok ince (kıymık) üçgenlerin normali koordinat gürültüsüyle eğrilir; yumuşak aydınlatmada ortalama alanla ağırlıklanır ve başvuru yönü köşedeki en büyük yüzdür, kenar süzgecinde kıymık yüzler kırışıklık kararına girmez — düz plakalardaki koyu şeritler ve çapraz çizgiler kalkar |
-| **Araç çubuğu** | alt kısımda sekmeli düğme çubuğu: (Favoriler) · Görünüm · Ekran · Ölçü · Çiz · Düzenle · 3B; komut satırı (adım adım yönerge, yazılı koordinat girişi `x,y` / `x,y,z` / `@dx,dy` / `@L<açı`, Bitir / Kapat / Geri / İptal düğmeleri) |
+| **Yayın sürümü denetimi ve düzeltmeleri (v6.1)** | Projenin baştan sona denetimiyle (3B çizim, 3B veri hattı, 2B çizim, arayüz, Android kabuğu, dosya biçimleri, belgeler ve sınamalar) bulunan ve bağımsız olarak doğrulanan hatalar giderildi. **2B çizim:** anonim bloğu olmayan **DIMENSION** varlıkları için ölçü çizgisi, uzatma çizgileri (DIMEXO/DIMEXE), ok başları (DIMASZ×DIMSCALE, DIMTSZ) ve yazı DIMSTYLE + XDATA geçersiz kılmalarından üretilir; blok ekleme noktası (12/22) uygulanır; **LEADER/MLEADER** ok başı ve spline çağrı çizgisi; DWG'de **LWPOLYLINE kapalılık** biti (512) doğru okunur; DXF'te **çizgi kalınlığı** (370, 1/100 mm) artık DWG kodu sanılmaz (0,13 mm çizgiler 0,60 mm basılmaz); 0,00 mm kalınlık ince kalır; **gerçek renk** (420) ACI'ye üstün gelir; konik/değişken genişlikli polyline'lar parça parça dolu çizilir; desenli **HATCH** tanım satırlarından sınırla kırpılmış desen çizgileriyle çizilir; -Z ekstrüzyonlu TEXT/MTEXT/SOLID/HATCH/INSERT/POINT aynalanır; MTEXT `\{ \}` kaçışları ve `\U+XXXX` dizileri DWG yolunda da çözülür; iç içe bloklarda ByBlock çizgi tipi; sayfa düzeni pencerelerinde PSLTSCALE ve pencere başına dondurulmuş katmanlar; 3DFACE görünmez kenarları; yay/elips sınır kutusu tam çember yerine yayın kendisi (sığdırma). **3B:** kaydırma hızı parmağı izler (CSS piksel/yükseklik), cihaz döndürülünce sığdırma korunur, WebGL bağlam kaybında tamponlar yeniden kurulur, düşey abartıda normaller ölçeklenir, km ölçekli paftada ayrıntıya yakınlaşılabilir (near/far), siluet kalınlığı ve kot etiketi ızgarası cihaz pikseline değil CSS pikseline bağlı, ölçü dokunuşlarında sahne GPU'ya yeniden yüklenmez. **ACIS:** bozuk SAB'da uzunluk sınırları (işçi belleksiz kalmaz), gövde dönüşümü satır-vektör kuralıyla ve ölçekle, ters yönlü yay kenarları, tam çevreli silindir/koni yüzleri şerit olarak, küre/torus yamaları sınır döngüleriyle kırpılır. **Dosya okuma:** LibreDWG hata kodu değerlendirilir (kesik/bozuk DWG sessizce boş açılmaz; kısmi okumada uyarı), BOM'lu DXF, DOS857/DOS850 kod sayfaları, DXF'te ACAD_TABLE / MULTILEADER / TOLERANCE / MESH / ACDSDATA ve proxy grafikleri (310), işçi zaman aşımı ve **İptal** düğmesi, gerçek ilerleme, 80 MB üstü dosyada onay, XLSX görüntülemede sayfalama. **Android:** http harita altlıkları ve pafta sunucuları (karışık içerik kipi), uygulama simgesine dokununca çizim yeniden yüklenmez, "Son dosyalar" kalıcı URI izniyle çalışır ve ölü kayıtlar silinir, WebView çökmesinde görüntüleyici yeniden kurulur ve Java çökmeleri hata kaydına girer, Drive yüklemesi akışlı (bellek), yedeklemeye Drive belirteci girmez, yaklaşık konum izniyle çalışma, PKCE doğrulayıcısı süreç ölümüne dayanıklı, pano yapıştırma köprüsü, tahminli geri hareketi, R8 küçültme (dex 4,4 MB → 0,3 MB), xlsx/kml/kmz/gpx/geojson/csv/txt için "Birlikte aç", RAR5 için anlaşılır ileti, sürüm denetimi derlendiği dalın adresine bakar. **Arayüz:** 3B durum çipi kısaltıldı (kırpılma yok), yatayda görünüm küpü ile gezinti düğmeleri çakışmaz, not çubuğu dar ekranda sarılır ve SVG simgeler kullanır, komut satırı gezinti düğmelerini örtmez, belge yokken karolar devre dışı, üst çubukta dosya adı okunur, "Hakkında" ekranı güncel (sürüm, derleme kimliği, lisanslar, klavye kısayolları), tarayıcı `prompt()/confirm()` yerine uygulama içi diyaloglar, **İngilizce arayüz tamamlandı** (3B panel, araç adları, iletiler). **Sınama:** ortak `tools/harness.mjs`, `tools/test_all.mjs` (bütün betikler), `tools/test_core.mjs` (DWG sürümleri, Türkçe DXF, ikili DXF, sayfa düzeni, arama, PDF, notlar), `tools/release_check.mjs` (sürüm ve APK–kaynak eşitliği); önceden yalnız günlük basan üç betik iddiaya çevrildi; örnek dosyalar `samples/` içinde |
 | **Çizim** | çizgi (zincirleme), polyline (açık/kapalı), dikdörtgen, daire (merkez + yarıçap noktası ya da yazılı yarıçap), yay (3 nokta), nokta, yazı, 3B polyline (kotlu), 3B yüzey; geçerli katman / renk seçimi, yeni katman oluşturma; tüm yakalama kipleri çizimde de geçerli |
 | **Düzenleme** | seç (dokunarak ekle/çıkar, tümünü seç), taşı, kopyala (yineleyerek), döndür (yazılı açı ya da nokta), ölçekle, aynala (orijinali koru / korumama), ofset (mesafe + taraf), sil, kot ata, yazı düzenle, özellikler (katman/renk); sınırsız geri al / yinele; düzenlemeler dosya başına kalıcı (uygulama kapansa da korunur) |
 | **Ölçüm araçları** | mesafe (yatay, ΔX/ΔY/ΔZ, 3B, açı), alan (m², dekar, hektar; çevre), açı (3 nokta), yarıçap/çap/çevre, koordinat (XYZ + enlem/boylam + kopyalama) |
-| **3B görünüm** | WebGL: yörünge (tek parmak döndür, iki parmak kaydır/yakınlaştır), izometrik/üst/ön/sol ön ayarları, perspektif/ortografik, Z abartı çarpanı, ızgara ve eksenler, köşe yakalama; 3B mesafe (yatay, ΔZ, eğim), seçim, 3B taşıma, kot atama, silme, 3B polyline (köşeye dokunarak ya da x,y,z yazarak) |
+| **3B görünüm (araçlar)** | 3B mesafe (yatay, ΔZ, eğim), seçim, 3B taşıma, kot atama, silme, 3B polyline (köşeye dokunarak ya da `x,y,z` yazarak); köşe yakalama. Görsel stiller, kamera, ızgara, kesit ve görünüm ön ayarları için "Ekran seçenekleri (3B)" satırına bakın |
 | **Kaydetme** | **DXF** (AC1015): tüm çizim (bloklar patlatılmış, katmanlar ve çizgi tipleri korunur) ya da yalnız değişiklikler; paylaşım menüsüyle e-posta/WhatsApp/Drive'a gönderme |
 
 Çizilen varlıklar: LINE, LWPOLYLINE, POLYLINE (2B/3B/çok yüzlü), CIRCLE,
 ARC, ELLIPSE, SPLINE, POINT, TEXT, MTEXT, ATTRIB, INSERT (iç içe, dizili,
 ölçekli, döndürülmüş), DIMENSION, HATCH, SOLID, 3DFACE, LEADER,
-MULTILEADER, MLINE, XLINE, RAY, ACAD_TABLE, WIPEOUT, IMAGE, VIEWPORT,
-3DSOLID, REGION, BODY (ACIS SAT/SAB), MESH.
+MULTILEADER, TOLERANCE, MLINE, XLINE, RAY, ACAD_TABLE, WIPEOUT, IMAGE,
+VIEWPORT, 3DSOLID, REGION, BODY (ACIS SAT/SAB), MESH, POLYLINE_PFACE,
+POLYLINE_MESH, yüzey varlıkları (PLANESURFACE vb.), ACAD_PROXY_ENTITY.
 
-Yapmadıkları: ikili DXF'i çizmez; R2007 (AC1021) dosyalarında AcDs bölümü
-okunmaz (o sürümde katı verisi zaten varlığın içindedir); NURBS (spline)
-yüzeyler yalnız sınırlarından yaklaşık doldurulur; SHX
-yazı tipleri yerine sistem yazı tipini kullanır. **DWG olarak yazamaz**:
+Yapmadıkları: ikili DXF'i çizmez (anlaşılır bir iletiyle reddeder); OLE
+nesnelerini çizmez; NURBS (spline) yüzeyler yalnız sınırlarından yaklaşık
+doldurulur; SHX yazı tipleri yerine sistem yazı tipini kullanır; sayfa
+düzeni pencerelerinde dikdörtgen olmayan kırpma sınırı uygulanmaz; RAR5
+arşivleri açılmaz (RAR4 ya da ZIP gerekir). **DWG olarak yazamaz**:
 kullanılan LibreDWG WebAssembly derlemesinde yazma kapalıdır; düzenlemeler
 DXF olarak kaydedilir (AutoCAD ve NetCAD doğrudan açar). Orijinal DWG
 hiçbir zaman değiştirilmez. ED50 datum kaydırması ülke ortalaması
-parametreleriyle yapılır (±2-5 m).
+parametreleriyle yapılır (±2-5 m). **Dosya boyutu:** çözümleme cihaz
+belleğinde yapılır; pratik sınır 4 GB RAM'li telefonda 80-100 MB
+dosyadır. 80 MB üstünde uygulama açmadan önce sorar; daha büyük paftalar
+PURGE/AUDIT ile küçültülmeli ya da parçalanmalıdır. Uzun süren
+yükleme **Vazgeç** ile kesilebilir.
 
 ## Nasıl çalışır
 
@@ -132,12 +143,24 @@ cd DwgViewer
 ./gradlew assembleRelease        # app/build/outputs/apk/release/app-release.apk
 ```
 
-JDK 17+, Android SDK (platform 34, build-tools 34.0.0) gerekir;
-`local.properties` içinde `sdk.dir=…` verin. GitHub Actions
-(`.github/workflows/dwgviewer-apk.yml`) her `DwgViewer/**` değişikliğinde
-APK'yı derleyip *artifact* olarak yükler. `release/version.json`
-uygulamanın sürüm denetiminde kullanılır; yeni sürümde
-`versionCode`/`versionName` ile birlikte güncellenir.
+JDK 17+, Android SDK (platform 34, build-tools 34.0.0), Gradle 8.14.3 ve
+AGP 8.11.1 gerekir; `local.properties` içinde `sdk.dir=…` verin. Sürüm
+(release) derlemesi R8 ile küçültülür; JS köprüsü ve junrar
+`app/proguard-rules.pro` ile korunur. Derleme, git dalını ve kısa commit
+numarasını `BuildConfig.UPDATE_URL` / `BuildConfig.GIT_SHA` olarak gömer:
+sürüm denetimi derlendiği dalın `release/version.json` dosyasına bakar,
+derleme kimliği "Hakkında" ekranında ve hata kaydında görünür.
+
+GitHub Actions (`.github/workflows/dwgviewer-apk.yml`) her `DwgViewer/**`
+değişikliğinde sürüm eşitliğini denetler (`tools/release_check.mjs
+--no-apk`), tarayıcısız sınamayı koşturur, APK'yı derleyip *artifact*
+olarak yükler; `v*` etiketli push'ta APK'yı GitHub Release'e ekler.
+
+Yeni sürüm çıkarırken üç yer birlikte güncellenir: `app/build.gradle`
+(`versionCode`, `versionName`), `release/version.json` ve README başlığı;
+`node tools/release_check.mjs` bunları ve `release/DwgGoruntuleyici.apk`
+içindeki görüntüleyici dosyalarının kaynakla bayt bayt aynı olduğunu
+doğrular.
 
 APK `keystore/dwgviewer.jks` ile imzalanır (şifre `gradle.properties`).
 Aynı anahtarla imzalanmayan bir sürüm kurulu sürümün üzerine yüklenemez.
@@ -145,18 +168,57 @@ Aynı anahtarla imzalanmayan bir sürüm kurulu sürümün üzerine yüklenemez.
 ## Tarayıcıda deneme / sınama
 
 ```
-node tools/serve.mjs 8765          # http://localhost:8765/ — dosya seçiciyle aynı sayfa
-PLAYWRIGHT_PKG=<playwright kurulu dizin> node tools/screenshot.mjs <çıktı> a.dwg b.dxf
+node tools/serve.mjs 8765          # http://localhost:8765/ — dosya seçiciyle aynı sayfa (0 → boş port)
+PLAYWRIGHT_PKG=<node_modules dizini> node tools/test_all.mjs     # bütün sınamalar
+PLAYWRIGHT_PKG=<node_modules dizini> node tools/test_core.mjs    # tek betik: [çıktı] [örnekler]
+node tools/test_proxy.mjs                                        # tarayıcısız
+node tools/release_check.mjs [--no-apk]                          # sürüm / APK tutarlılığı
+PLAYWRIGHT_PKG=<node_modules dizini> node tools/screenshot.mjs <çıktı> a.dwg b.dxf
 ```
 
-Sınama betikleri: `tools/test_editor.mjs`, `test_3d.mjs`, `test_features.mjs`,
-`test_display2d.mjs`, `test_shell.mjs`, `test_solids.mjs` (AcDs katıları, yüzey varlıkları, blok Z, 3B en-boy pikseli), `test_proxy.mjs` (proxy grafikleri), `test_docs.mjs` (ZIP/DOCX/XLSX/PDF, Drive
-köprü taklidi, 3B stiller ve parmak hareketleri).
+Gereksinim: Node 22, Playwright + Chromium (`PLAYWRIGHT_BROWSERS_PATH`).
+Betikler ortak `tools/harness.mjs` üzerinden çalışır: sunucu boş bir
+portta açılır, Chromium WebGL bayraklarıyla (`--use-gl=swiftshader
+--enable-webgl --ignore-gpu-blocklist`) başlatılır, örnekler varsayılan
+olarak `samples/` klasöründen (kökenleri `samples/README.md`) okunur, çıktı
+`tools/out/<betik>/` altına yazılır. Her betik `SONUÇ: N geçti, M kaldı`
+satırıyla biter ve kalan varsa 1 ile çıkar.
 
-Çekirdek LibreDWG'nin `test/test-data/example_*.dwg` dosyaları ve
-Türkçe kod sayfalı bir DXF ile sınanmıştır (sahne kurma, R-ağacı,
-yakalama, projeksiyon geri dönüşümü < 1 mm, ölçü, profil, notlar, PDF,
-karşılaştırma, sayfa düzeni, GPS işaretçisi).
+| Betik | Kapsam |
+|---|---|
+| `test_core.mjs` | R14, 2000, 2004, 2007, 2010, 2013, 2018 DWG açılışı ve sürüm etiketi; Türkçe kod sayfalı DXF; ikili DXF reddi; sayfa düzenleri; arama; PDF çıktısı; notlar |
+| `test_display2d.mjs` | 2B ekran seçenekleri, tema, kalınlık, ızgara, dokunma hedefleri, ayar göçü |
+| `test_shell.mjs` | şerit arayüz, sekmeler, karolar, tablet/yatay düzen, i18n ham anahtar denetimi |
+| `test_editor.mjs` | çizim ve düzenleme araçları, geri al/yinele, DXF kaydetme, 3B araçlar |
+| `test_3d.mjs` | 3B görünüm, kot atama, 3B polyline, 2B'ye dönüş |
+| `test_features.mjs` | GPS işaretçisi, profil, karşılaştırma, projeksiyon geri dönüşümü |
+| `test_solids.mjs` | AcDs katıları (2013/2018), yüzey varlıkları, çok yüzlü ağlar, blok Z, 3B en-boy pikseli, görsel stil piksel ölçümleri |
+| `test_proxy.mjs` | proxy grafik akışı (tarayıcısız, sentetik) |
+| `test_docs.mjs` | ZIP/DOCX/XLSX/PDF, Drive köprü taklidi, 3B stiller ve parmak hareketleri |
+
+RAR (junrar), gerçek Google Drive ve Android PdfRenderer yalnız cihazda
+çalışır; tarayıcı sınamaları bunları köprü taklidiyle geçer.
+
+## Sürüm geçmişi
+
+| Sürüm | versionCode | Tarih | Başlıca |
+|---|---|---|---|
+| 1.0 | 1 | 2026-09-06 | İlk sürüm: WebView + LibreDWG WebAssembly, DWG/DXF görüntüleme |
+| 2.0 | 2 | 2026-09-06 | Saha, profesyonel ve kurumsal özellik paketleri (GPS, ölçü, profil, notlar, PDF, karşılaştırma, XREF) |
+| 3.0 | 3 | 2026-09-08 | Çizim ve düzenleme araçları, sekmeli araç çubuğu, 3B görünüm, DXF kaydetme |
+| 4.0 | 4 | 2026-09-11 | Şerit arayüz, Ekran sekmesi (2B/3B seçenekleri), görünüm küpü, erişilebilirlik |
+| 5.0 | 5 | 2026-09-11 | PDF/Word/Excel/ZIP/RAR görüntüleme, Google ile giriş ve Drive, 3B görsel stiller ve parmak hareketleri |
+| 5.1 | 6 | 2026-09-11 | 3B katılar (ACIS SAT/SAB, MESH), OCS dönüşümü, görsel stil düğmesi |
+| 5.2 | 7 | 2026-09-11 | AcDs katı verisi (2013/2018), REGION/BODY/MESH, blok Z ötelemesi |
+| 5.3 | 8 | 2026-09-11 | ACIS işaretçileri türe göre, SAB yeniden eşitleme, katı tanılaması |
+| 5.4 | 9 | 2026-09-11 | Katı tanılaması paylaşımı, yüklemede uyarı, HUD nedeni |
+| 5.5 | 10 | 2026-09-11 | AutoCAD yüzey varlıkları (PLANESURFACE vb.) |
+| 5.6 | 11 | 2026-09-11 | Proxy varlık grafikleri, SAB sayım/alt tür düzeltmeleri |
+| 5.7 | 12 | 2026-09-12 | Çok yüzlü ve çokgen ağlar, "3B yüzey bulunamadı" kartı |
+| 5.8 | 13 | 2026-09-12 | Ağ kenarlarında kırışıklık süzgeci, piksel tabanlı siluet |
+| 5.9 | 14 | 2026-09-12 | Kırışıklık açılı yumuşak aydınlatma, dikey tuvalde sığdırma |
+| 6.0 | 15 | 2026-09-12 | Kenarlar düğmesi, gerçekçi stil kenarsız, kıymık üçgen dayanıklılığı |
+| 6.1 | 16 | 2026-09-12 | Yayın sürümü: baştan sona denetim; 2B ölçü/çağrı/kalınlık/renk/tarama, 3B kaydırma/döndürme/bağlam kaybı, ACIS kırpma, dosya okuma dayanıklılığı, Android kabuğu, arayüz ve İngilizce tamamlama, sınama altyapısı |
 
 ## QR kod biçimi
 
@@ -174,6 +236,8 @@ içeren bir HTML dizin listesi.
 ## Lisans
 
 Çözümleyici LibreDWG'dir (GNU GPL v3); bu yüzden uygulamanın kaynak kodu
-da GPL v3 ile dağıtılır. jsQR Apache-2.0 lisanslıdır. Harita altlıkları
-kendi kullanım koşullarına tabidir (OpenStreetMap: ODbL; Esri: Esri
-kullanım şartları).
+da GPL v3 ile dağıtılır. Üçüncü taraf bileşenler (ayrıntı:
+`app/src/main/assets/viewer/lib/NOTICE.md`): @mlightcad/libredwg-web 0.7.10
+(GPL-3.0), jsQR (Apache-2.0), junrar 7.5.5 (MIT), AndroidX Core 1.13.1
+(Apache-2.0). Harita altlıkları kendi kullanım koşullarına tabidir
+(OpenStreetMap: ODbL; Esri: Esri kullanım şartları).

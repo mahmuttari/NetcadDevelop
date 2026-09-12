@@ -1,28 +1,23 @@
 // Kabuk (C) kabul sınaması: şerit, sık kullanılan, katlama, Ekran sekmesi, alt sayfa, durum çubuğu, yatay/tablet, ui, i18n, tur, 3B küp
-// Kullanım: PLAYWRIGHT_PKG=/opt/node22/lib/node_modules/ node tools/test_shell.mjs <çıktı> <örnekler> [port]
-import { createRequire } from 'node:module';
-const { chromium } = createRequire(process.env.PLAYWRIGHT_PKG || '/opt/node22/lib/node_modules/')('playwright');
-import { spawn } from 'node:child_process';
-import fs from 'node:fs';
-const out = process.argv[2] || '/tmp/ui_shell', SM = process.argv[3] || '/home/user/NetcadDevelop/DwgViewer/samples', port = Number(process.argv[4] || (8981 + Math.floor(Math.random() * 40)));
-fs.mkdirSync(out, { recursive: true });
-const srv = spawn(process.execPath, ['/home/user/NetcadDevelop/DwgViewer/tools/serve.mjs', String(port)], { stdio: 'ignore' });
-await new Promise(r => setTimeout(r, 700));
-let fails = 0, passes = 0;
-const ok = (n, c, x = '') => { if (c) { passes++; console.log('PASS', n, x); } else { fails++; console.log('FAIL', n, x); } };
-const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'] });
-const ctx = await browser.newContext({ viewport: { width: 412, height: 915 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true, acceptDownloads: true });
+// Kullanım: PLAYWRIGHT_PKG=<node_modules> node tools/test_shell.mjs [çıktı] [örnekler]
+import { args, startServer, launchBrowser, openFile, onDialog, noUpdate, checker, PHONE } from './harness.mjs';
+const { out, samples: SM } = args(import.meta.url);
+const srv = await startServer();
+const C = checker(), ok = C.ok;
+const browser = await launchBrowser();
+const ctx = await browser.newContext(PHONE);
+await noUpdate(ctx);
 const page = await ctx.newPage();
 const errors = [];
 page.on('pageerror', e => { errors.push(e.message); console.log('[pageerror]', e.message); });
 page.on('console', m => { if (m.type() === 'error') { errors.push(m.text()); console.log('[console.error]', m.text().slice(0, 200)); } });
-const dialogs = []; page.on('dialog', async d => { dialogs.push(d.message()); await d.accept('5'); });
+const dialogs = []; onDialog(page, async d => { dialogs.push(d.message()); await d.accept('5'); });
 const shot = (n) => page.screenshot({ path: `${out}/${n}.png` });
 const ev = (fn, a) => page.evaluate(fn, a);
-await page.goto(`http://localhost:${port}/index.html`); await page.waitForSelector('#btnOpen2');
+await page.goto(srv.url + 'index.html'); await page.waitForSelector('#btnOpen2');
 await ev(() => localStorage.clear());
 await page.reload(); await page.waitForSelector('#btnOpen2');
-const load = async (f) => { await page.setInputFiles('#fileInput', f); await page.waitForFunction(() => window.dwgApp && window.dwgApp.state.hasDoc && document.getElementById('loading').hidden, null, { timeout: 120000 }); await page.waitForTimeout(900); };
+const load = async (f) => { await openFile(page, f, { settle: 900 }); };
 await load(`${SM}/example_2000.dwg`);
 // 45 tur
 ok('45a tur görünür', await ev(() => !document.getElementById('tour').hidden));
@@ -106,7 +101,7 @@ await ev(() => { document.getElementById('toast').hidden = true; });
   ok('21c front', await ev(() => Math.abs(window.dwgApp.editor.view3d().cam.yaw + Math.PI / 2) < 0.01), String(await ev(() => window.dwgApp.editor.view3d().cam.yaw)));
   await page.click('#cube3d [data-corner="isoNE"]'); await page.waitForTimeout(450);
   ok('21d isoNE', await ev(() => { const c = window.dwgApp.editor.view3d().cam; return Math.abs(c.yaw + Math.PI / 4) < 0.01 && Math.abs(c.pitch - 0.6155) < 0.01; }), await ev(() => JSON.stringify(window.dwgApp.editor.view3d().cam)));
-  ok('38b stMode 3B', /Yaw/.test(await page.locator('#stMode').innerText()));
+  ok('38b stMode 3B', /^3B · (Paralel|Persp)$/.test((await page.locator('#stMode').innerText()).trim()), await page.locator('#stMode').innerText());
   await shot('s_3d_cube');
   // 32 display sheet 3B
   await page.click('#toolbar .tb-row[data-for="display"] [data-act="display"]'); await page.waitForTimeout(400);
@@ -234,7 +229,6 @@ for (const vp of [[412, 915], [360, 640]]) {
   await shot('s_tablet_display');
   await ev(() => window.dwgApp.onBack()); await page.waitForTimeout(200);
 }
-console.log(`\nSONUÇ: ${passes} geçti, ${fails} kaldı; sayfa hataları: ${errors.length}`);
-for (const e of errors) console.log('  err:', e.slice(0, 200));
+C.summary(errors);
 await browser.close(); srv.kill();
-process.exit(fails ? 1 : 0);
+C.exit();

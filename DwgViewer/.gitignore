@@ -5,3 +5,9 @@ local.properties
 .idea/
 *.iml
 .DS_Store
+node_modules/
+package-lock.json
+*.log
+tools/out/
+captures/
+.kotlin/

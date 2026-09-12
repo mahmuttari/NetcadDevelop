@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Temalı simge katmanı (Android 13+): ön yüzün tek renkli kopyası; rengi sistem verir -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:pathData="M30,74 L30,34 L60,34 A20,20 0 0 1 60,74 Z"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4"
+        android:fillColor="#00000000"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M30,54 L60,54"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.5" />
+    <path
+        android:pathData="M30,82 L80,82 M30,79 L30,85 M80,79 L80,85"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.5" />
+    <path
+        android:pathData="M78,30 L84,36 M78,36 L84,30"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.5" />
+</vector>

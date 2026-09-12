@@ -1,17 +1,12 @@
 // Belge görüntüleyici (PDF / DOCX / XLSX / ZIP / metin), Drive paneli (Android köprü taklidi) ve 3B stil sınaması.
-// Kullanım: PLAYWRIGHT_PKG=/opt/node22/lib/node_modules/ node tools/test_docs.mjs <çıktı> <örnekler> [port]
-import { createRequire } from 'node:module';
-const { chromium } = createRequire(process.env.PLAYWRIGHT_PKG || '/opt/node22/lib/node_modules/')('playwright');
-import { spawn } from 'node:child_process';
+// Kullanım: PLAYWRIGHT_PKG=<node_modules> node tools/test_docs.mjs [çıktı] [örnekler]
+import { args, startServer, launchBrowser, onDialog, noUpdate, checker, PHONE } from './harness.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
-const out = process.argv[2] || '/tmp/ui_docs', SM = process.argv[3] || '/home/user/NetcadDevelop/DwgViewer/samples', port = Number(process.argv[4] || (8990 + Math.floor(Math.random() * 9)));
-fs.mkdirSync(out, { recursive: true });
-const srv = spawn(process.execPath, ['/home/user/NetcadDevelop/DwgViewer/tools/serve.mjs', String(port)], { stdio: 'ignore' });
-await new Promise(r => setTimeout(r, 700));
-let fails = 0, passes = 0;
-const ok = (n, c, x = '') => { if (c) { passes++; console.log('PASS', n, x); } else { fails++; console.log('FAIL', n, x); } };
+const { out, samples: SM } = args(import.meta.url);
+const srv = await startServer();
+const C = checker(), ok = C.ok;
 
 // ---- küçük ZIP yazıcı (store + deflate, CRC32) ----
 const crcTable = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
@@ -54,16 +49,17 @@ fs.writeFileSync(path.join(out, 'ornek.zip'), zip); fs.writeFileSync(path.join(o
 const pdf = `%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 100]>>endobj\ntrailer<</Root 1 0 R>>`;
 fs.writeFileSync(path.join(out, 'test.pdf'), pdf);
 
-const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'] });
-const ctx = await browser.newContext({ viewport: { width: 412, height: 915 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true, acceptDownloads: true });
+const browser = await launchBrowser();
+const ctx = await browser.newContext(PHONE);
+await noUpdate(ctx);
 const page = await ctx.newPage();
 const errors = [];
 page.on('pageerror', e => { errors.push(e.message); console.log('[pageerror]', e.message); });
 page.on('console', m => { if (m.type() === 'error' && !/404/.test(m.text())) { errors.push(m.text()); console.log('[console.error]', m.text().slice(0, 200)); } });  // pdfpage_* taklit ortamda 404 döner
-page.on('dialog', async d => { await d.accept('5'); });
+onDialog(page, async d => { await d.accept('5'); });
 const shot = (n) => page.screenshot({ path: `${out}/${n}.png` });
 const ev = (fn, a) => page.evaluate(fn, a);
-await page.goto(`http://localhost:${port}/index.html`); await page.waitForSelector('#btnOpen2');
+await page.goto(srv.url + 'index.html'); await page.waitForSelector('#btnOpen2');
 await ev(() => { localStorage.clear(); localStorage.setItem('ui', JSON.stringify({ hints: { tour: true } })); });
 await page.reload(); await page.waitForSelector('#btnOpen2');
 
@@ -206,7 +202,6 @@ await page.click('#toolbar [data-tab="3d"]'); await page.click('#toolbar [data-a
   await shot('solid_conceptual');
   await ev(() => window.dwgApp.onBack());
 }
-console.log(`\nSONUÇ: ${passes} geçti, ${fails} kaldı; sayfa hataları: ${errors.length}`);
-for (const e of errors) console.log('  err:', e.slice(0, 200));
+C.summary(errors);
 await browser.close(); srv.kill();
-process.exit(fails ? 1 : 0);
+C.exit();

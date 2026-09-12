@@ -140,17 +140,36 @@ export function flatten(ops) {
   }
   return pts;
 }
+/** yay sınırı: uç noktalar + süpürme içindeki çeyrek açıları (tam çember kutusu değil) */
+function arcExt(cx, cy, r, a0, a1, bb) {
+  let d = a1 - a0;
+  if (!Number.isFinite(a0) || !Number.isFinite(d)) { a0 = 0; d = TAU; }   // bozuk açı: tam çember kutusu
+  a0 %= TAU; if (a0 < 0) a0 += TAU;                                       // taşkın açı (1e300): döngü sabit adımda biter
+  if (d < 0) d = d % TAU + TAU;
+  if (d > TAU) d = TAU;
+  const hit = (a) => {
+    const x = cx + r * Math.cos(a), y = cy + r * Math.sin(a);
+    if (x < bb[0]) bb[0] = x; if (y < bb[1]) bb[1] = y; if (x > bb[2]) bb[2] = x; if (y > bb[3]) bb[3] = y;
+  };
+  hit(a0); hit(a0 + d);
+  const Q = Math.PI / 2;
+  for (let q = Math.ceil(a0 / Q - 1e-9) * Q; q <= a0 + d + 1e-9; q += Q) hit(q);
+}
 export function opsBBox(ops) {
   const bb = [Infinity, Infinity, -Infinity, -Infinity];
   for (const o of ops) {
-    let x0, y0, x1, y1;
-    if (o[0] === 0 || o[0] === 1) { x0 = x1 = o[1]; y0 = y1 = o[2]; }
-    else if (o[0] === 2 || o[0] === -2) { x0 = o[1] - o[3]; x1 = o[1] + o[3]; y0 = o[2] - o[3]; y1 = o[2] + o[3]; }
-    else { const r = Math.max(o[3], o[4]); x0 = o[1] - r; x1 = o[1] + r; y0 = o[2] - r; y1 = o[2] + r; }
-    if (x0 < bb[0]) bb[0] = x0;
-    if (y0 < bb[1]) bb[1] = y0;
-    if (x1 > bb[2]) bb[2] = x1;
-    if (y1 > bb[3]) bb[3] = y1;
+    if (o[0] === 2) { arcExt(o[1], o[2], o[3], o[4], o[5], bb); continue; }
+    if (o[0] === -2) { arcExt(o[1], o[2], o[3], o[5], o[4], bb); continue; }
+    if (o[0] === 3) {
+      const pts = []; ellipsePts(o[1], o[2], o[3], o[4], o[5], o[6], o[7], pts);
+      for (const p of pts) { if (p[0] < bb[0]) bb[0] = p[0]; if (p[1] < bb[1]) bb[1] = p[1]; if (p[0] > bb[2]) bb[2] = p[0]; if (p[1] > bb[3]) bb[3] = p[1]; }
+      continue;
+    }
+    const x = o[1], y = o[2];
+    if (x < bb[0]) bb[0] = x;
+    if (y < bb[1]) bb[1] = y;
+    if (x > bb[2]) bb[2] = x;
+    if (y > bb[3]) bb[3] = y;
   }
   return bb;
 }

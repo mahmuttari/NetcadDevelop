@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 8-11 otomatik yedekleme: Google belirteçleri ve hata kaydı buluta gitmez -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="google.xml" />
+    <exclude domain="file" path="log/" />
+</full-backup-content>

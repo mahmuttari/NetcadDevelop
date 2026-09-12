@@ -21,10 +21,12 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.provider.OpenableColumns;
+import android.provider.Settings;
 import android.util.Base64;
 import android.util.Log;
 import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
+import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
@@ -46,7 +48,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -67,6 +72,7 @@ public class MainActivity extends Activity {
     private static final int REQ_LOCATION = 2001;
     private static final int REQ_CAMERA = 2002;
     private static final int RECENT_MAX = 12;
+    private static final String BUILD_ID = "v" + BuildConfig.VERSION_NAME + " (" + BuildConfig.VERSION_CODE + ", " + BuildConfig.GIT_SHA + ")";
 
     private static final Map<String, String> MIME = new HashMap<>();
     static {
@@ -80,8 +86,12 @@ public class MainActivity extends Activity {
         MIME.put("gif", "image/gif"); MIME.put("webp", "image/webp"); MIME.put("bmp", "image/bmp"); MIME.put("dxf", "application/dxf"); MIME.put("dwg", "application/acad");
     }
 
+    private static boolean crashHookSet;
     private WebView webView;
     private boolean pageReady;
+    // sayfa hazır olmadan gelen JS çağrıları (Google giriş sonucu, paylaşılan metin, liste yenileme)
+    private final List<String> pendingJs = new ArrayList<>();
+    private Object backCallback; // android.window.OnBackInvokedCallback (API 33+)
 
     // geçerli dosya
     private Uri currentUri;
@@ -107,10 +117,37 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // Java tarafındaki yakalanmamış istisnalar (bg executor'daki OOM dahil) hata kaydına girer; süreç başına bir kez kurulur
+        if (!crashHookSet) {
+            crashHookSet = true;
+            final Thread.UncaughtExceptionHandler def = Thread.getDefaultUncaughtExceptionHandler();
+            final Context app = getApplicationContext(); // etkinlik değil: süreç boyunca yaşayan işleyici Activity'yi tutmasın
+            Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
+                appendLog(app, new Date() + " " + BUILD_ID + " " + t.getName() + " " + Log.getStackTraceString(e));
+                if (def != null) def.uncaughtException(t, e);
+            });
+        }
         docs = new Docs(this);
         google = new GoogleDrive(this);
         bg.execute(() -> docs.sweep());
+        createWebView();
+
+        if (Build.VERSION.SDK_INT >= 33) {
+            // Android 13+ tahminli geri hareketi: enableOnBackInvokedCallback açıkken onBackPressed çağrılmaz
+            android.window.OnBackInvokedCallback cb = this::onBackPressed;
+            backCallback = cb;
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, cb);
+        }
+
+        // yeniden yaratılmada geçerli dosya durumdan geri alınır; zaten işlenmiş intent (giriş dönüşü vb.) yeniden işlenmez
+        if (savedInstanceState == null) handleIntent(getIntent()); else restoreState(savedInstanceState);
+        webView.loadUrl(START_URL);
+    }
+
+    /** WebView'ı kurar; render süreci çöktüğünde yeniden çağrılır */
+    private void createWebView() {
         webView = new WebView(this);
+        pageReady = false;
         webView.setBackgroundColor(0xFF161C25);
         setContentView(webView);
 
@@ -123,9 +160,12 @@ public class MainActivity extends Activity {
         s.setBuiltInZoomControls(false);
         s.setDisplayZoomControls(false);
         s.setMediaPlaybackRequiresUserGesture(false);
-        s.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        // yerel varlıklar zaten no-store sunulur; yalnız harita karoları sunucunun Cache-Control'üne göre önbelleğe girer
+        s.setCacheMode(WebSettings.LOAD_DEFAULT);
         s.setTextZoom(100);
         s.setGeolocationEnabled(false);
+        // sayfa yalnız yerel assets'ten gelir; http WMS/XYZ ve http pafta sunucuları için gerekli
+        s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
 
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG);
         webView.addJavascriptInterface(new Bridge(), "Android");
@@ -147,8 +187,23 @@ public class MainActivity extends Activity {
 
             @Override
             public void onPageFinished(WebView view, String url) {
+                // başlangıç dosyasını app.js getPendingFile() ile kendisi alır;
+                // pushCurrentFile yalnız onNewIntent / seçici / son dosyalar için
                 pageReady = true;
-                pushCurrentFile();
+                flushPendingJs();
+            }
+
+            @Override
+            public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail d) {
+                appendLog(new Date() + " " + BUILD_ID + " WebView render süreci çöktü crash=" + d.didCrash() + " prio=" + d.rendererPriorityAtExit());
+                if (webView != view) return true;
+                Toast.makeText(MainActivity.this, d.didCrash() ? R.string.webview_crashed : R.string.webview_restarted, Toast.LENGTH_LONG).show();
+                WebView old = webView;
+                webView = null;
+                createWebView();           // setContentView eskisini ağaçtan düşürür
+                old.destroy();
+                webView.loadUrl(START_URL); // sayfa açılınca geçerli dosyayı getPendingFile ile yeniden çeker
+                return true;
             }
         });
         webView.setWebChromeClient(new WebChromeClient() {
@@ -165,30 +220,37 @@ public class MainActivity extends Activity {
                 }
             }
         });
-
-        handleIntent(getIntent());
-        webView.loadUrl(START_URL);
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        handleIntent(intent);
-        pushCurrentFile();
+        if (handleIntent(intent)) pushCurrentFile(); // yalnız yeni dosya geldiyse; giriş dönüşü ve simge tıklaması yüklemez
     }
 
-    private void handleIntent(Intent intent) {
-        if (intent == null) return;
+    /** true: intent'ten yeni bir dosya alındı */
+    private boolean handleIntent(Intent intent) {
+        if (intent == null) return false;
         Uri uri = null;
         String action = intent.getAction();
         if (Intent.ACTION_VIEW.equals(action)) {
             uri = intent.getData();
             // Google ile giriş yönlendirmesi
-            if (uri != null && google.handleRedirect(uri, (ok, json) -> js("window.dwgApp && window.dwgApp.onGoogle(" + ok + "," + json + ")"))) return;
+            if (uri != null && google.handleRedirect(uri, (ok, json) -> jsWhenReady("window.dwgApp && window.dwgApp.onGoogle(" + ok + "," + json + ")"))) return false;
+        } else if (Intent.ACTION_SEND.equals(action)) {
+            uri = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+            if (uri == null) {
+                // paylaşılan bağlantı / metin: QR akışıyla aynı yoldan (https://…/pafta.dwg#B-127, dwg://…, B-127)
+                String txt = intent.getStringExtra(Intent.EXTRA_TEXT);
+                if (txt != null && !txt.trim().isEmpty())
+                    jsWhenReady("window.dwgApp && window.dwgApp.onQr && window.dwgApp.onQr(" + JSONObject.quote(txt.trim()) + ")");
+                return false;
+            }
         }
-        else if (Intent.ACTION_SEND.equals(action)) uri = intent.getParcelableExtra(Intent.EXTRA_STREAM);
-        if (uri != null) setCurrent(uri);
+        if (uri == null) return false;
+        setCurrent(uri);
+        return true;
     }
 
     private void setCurrent(Uri uri) {
@@ -196,10 +258,31 @@ public class MainActivity extends Activity {
         currentFile = null;
         currentName = queryName(uri);
         currentSize = querySize(uri);
+        boolean persistable = false;
         try {
             getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            persistable = true;
         } catch (Exception ignored) { }
         addRecent(uri.toString(), currentName, currentSize);
+        if (!persistable && ContentResolver.SCHEME_CONTENT.equals(uri.getScheme())) {
+            // dosya yöneticisi / WhatsApp / e-postadan gelen geçici URI: süreç kapanınca erişilemez.
+            // Arka planda önbelleğe kopyalanır, kayıt file:// olarak değiştirilir (UI bloklanmaz, dosya URI'den açılır)
+            final Uri src = uri; final String name = currentName; final long size0 = currentSize; final String srcKey = uri.toString();
+            bg.execute(() -> {
+                try (InputStream in = getContentResolver().openInputStream(src)) {
+                    if (in == null) return;
+                    JSONObject o = docs.importStream(in, name);
+                    final File copy = docs.file(o.getString("id"));
+                    final long size = size0 >= 0 ? size0 : copy.length(); // küçük resim anahtarı (ad_boyut) değişmesin
+                    runOnUiThread(() -> {
+                        removeRecent(srcKey);
+                        if (src.equals(currentUri)) { currentUri = null; currentFile = copy; currentSize = size; }
+                        addRecent(Uri.fromFile(copy).toString(), name, size);
+                        jsWhenReady("window.dwgApp && window.dwgApp.refreshRecent && window.dwgApp.refreshRecent()");
+                    });
+                } catch (Exception e) { Log.w(TAG, "kopya", e); }
+            });
+        }
     }
 
     private void setCurrentFile(File f) {
@@ -212,12 +295,47 @@ public class MainActivity extends Activity {
 
     private void pushCurrentFile() {
         if (!pageReady || (currentUri == null && currentFile == null)) return;
-        final String js = "window.dwgApp && window.dwgApp.loadCurrent(" + JSONObject.quote(currentName) + "," + currentSize + ")";
-        webView.post(() -> webView.evaluateJavascript(js, null));
+        js("window.dwgApp && window.dwgApp.loadCurrent(" + JSONObject.quote(currentName) + "," + currentSize + ")");
     }
 
     private void js(String code) {
         if (webView != null) webView.post(() -> webView.evaluateJavascript(code, null));
+    }
+
+    /** Sayfa hazırsa hemen, değilse onPageFinished'te çalıştırır (giriş dönüşü sayfa yüklenmeden gelebilir) */
+    private void jsWhenReady(String code) {
+        runOnUiThread(() -> { if (pageReady) js(code); else pendingJs.add(code); });
+    }
+
+    private void flushPendingJs() {
+        for (String code : pendingJs) js(code);
+        pendingJs.clear();
+    }
+
+    // ---- durum (yeniden yaratılma) -------------------------------------------------------------
+    @Override
+    protected void onSaveInstanceState(Bundle out) {
+        super.onSaveInstanceState(out);
+        if (currentUri != null) out.putString("currentUri", currentUri.toString());
+        if (currentFile != null) out.putString("currentFile", currentFile.getAbsolutePath());
+        out.putString("currentName", currentName);
+        out.putLong("currentSize", currentSize);
+    }
+
+    private void restoreState(Bundle in) {
+        String u = in.getString("currentUri"), f = in.getString("currentFile");
+        if (u == null && f == null) return;
+        currentUri = u == null ? null : Uri.parse(u);
+        currentFile = f == null ? null : new File(f);
+        currentName = in.getString("currentName", "cizim.dwg");
+        currentSize = in.getLong("currentSize", -1);
+    }
+
+    @Override
+    public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        // hafif: açık PDF çizicisi bırakılır (gerektiğinde yeniden açılır)
+        if (level >= TRIM_MEMORY_RUNNING_LOW && docs != null) docs.closePdf();
     }
 
     // ---- dosya adı / boyutu ----------------------------------------------------------------
@@ -344,6 +462,8 @@ public class MainActivity extends Activity {
         pickPurpose = purpose == null ? "open" : purpose;
         Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         i.addCategory(Intent.CATEGORY_OPENABLE);
+        // kalıcı izin: 'son dosyalar' uygulama yeniden başladıktan sonra da açılsın
+        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         i.setType(mime == null || mime.isEmpty() ? "*/*" : mime);
         if (mime == null || mime.equals("*/*")) {
             i.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{
@@ -414,14 +534,29 @@ public class MainActivity extends Activity {
         } catch (Exception e) { Log.w(TAG, "recent", e); }
     }
 
+    private void removeRecent(String uri) {
+        try {
+            JSONArray old = new JSONArray(prefs().getString("recent", "[]")), out = new JSONArray();
+            for (int i = 0; i < old.length(); i++) {
+                JSONObject o = old.getJSONObject(i);
+                if (!uri.equals(o.optString("uri"))) out.put(o);
+            }
+            prefs().edit().putString("recent", out.toString()).apply();
+        } catch (Exception ignored) { }
+    }
+
     /** app.js ile aynı kural: ad_boyut, izin verilmeyen karakterler '_' */
     private static String fileKey(String name, long size) {
         return (name + "_" + size).replaceAll("[^\\w.-]+", "_");
     }
 
     // ---- konum -----------------------------------------------------------------------------
+    private boolean hasPermission(String p) { return checkSelfPermission(p) == PackageManager.PERMISSION_GRANTED; }
+
     private void startLocation() {
-        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+        boolean fine = hasPermission(Manifest.permission.ACCESS_FINE_LOCATION);
+        boolean coarse = hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION);
+        if (!fine && !coarse) {
             requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, REQ_LOCATION);
             return;
         }
@@ -438,11 +573,13 @@ public class MainActivity extends Activity {
             @Override public void onStatusChanged(String p, int s, Bundle b) { }
         };
         try {
-            if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER))
+            // Android 12+ 'yaklaşık konum': yalnız COARSE varsa GPS sağlayıcısı kullanılamaz, ağ sağlayıcısıyla devam edilir
+            if (fine && locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER))
                 locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 0.5f, locationListener);
             if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER))
                 locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 2000, 1f, locationListener);
-            Location last = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+            if (!fine) Toast.makeText(this, R.string.location_approx, Toast.LENGTH_SHORT).show();
+            Location last = fine ? locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER) : null;
             if (last == null) last = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
             if (last != null) locationListener.onLocationChanged(last);
         } catch (SecurityException e) {
@@ -460,10 +597,20 @@ public class MainActivity extends Activity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
         if (requestCode == REQ_LOCATION) {
-            if (granted) startLocation(); else js("window.dwgApp && window.dwgApp.onLocationError('konum izni verilmedi')");
+            // izinler ada göre değerlendirilir: 'Yaklaşık' seçildiğinde yalnız COARSE gelir, o da yeter
+            boolean fine = false, coarse = false;
+            for (int i = 0; i < permissions.length && i < grantResults.length; i++) {
+                if (grantResults[i] != PackageManager.PERMISSION_GRANTED) continue;
+                if (Manifest.permission.ACCESS_FINE_LOCATION.equals(permissions[i])) fine = true;
+                if (Manifest.permission.ACCESS_COARSE_LOCATION.equals(permissions[i])) coarse = true;
+            }
+            if (fine || coarse) startLocation();
+            else if (!shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_COARSE_LOCATION))
+                js("window.dwgApp && window.dwgApp.onLocationError('konum izni kalıcı olarak reddedildi; Ayarlar > Uygulamalar > DWG Görüntüleyici > İzinler yolundan verin')");
+            else js("window.dwgApp && window.dwgApp.onLocationError('konum izni verilmedi')");
         } else if (requestCode == REQ_CAMERA && pendingCameraRequest != null) {
+            boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
             if (granted) pendingCameraRequest.grant(new String[]{PermissionRequest.RESOURCE_VIDEO_CAPTURE});
             else pendingCameraRequest.deny();
             pendingCameraRequest = null;
@@ -517,9 +664,13 @@ public class MainActivity extends Activity {
         return where;
     }
 
-    private void appendLog(String line) {
+    private void appendLog(String line) { appendLog(this, line); }
+
+    private static void appendLog(Context ctx, String line) {
         try {
-            File f = new File(dir("log"), "errors.log");
+            File d = new File(ctx.getFilesDir(), "log");
+            if (!d.exists()) d.mkdirs();
+            File f = new File(d, "errors.log");
             if (f.length() > 200_000) f.delete();
             try (FileOutputStream out = new FileOutputStream(f, true)) { out.write((line + "\n").getBytes(StandardCharsets.UTF_8)); }
         } catch (IOException ignored) { }
@@ -553,6 +704,17 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void finish() { runOnUiThread(MainActivity.this::finish); }
         @JavascriptInterface public String appVersion() { return BuildConfig.VERSION_NAME; }
         @JavascriptInterface public int versionCode() { return BuildConfig.VERSION_CODE; }
+        /** Sürüm denetimi için version.json adresi (derlendiği dala göre) */
+        @JavascriptInterface public String updateUrl() { return BuildConfig.UPDATE_URL; }
+        /** Derleme kimliği: kısa git commit numarası ('yok' ise git bulunamadı) */
+        @JavascriptInterface public String buildId() { return BuildConfig.GIT_SHA; }
+        /** Kalıcı izin reddinde uygulamanın sistem ayarları sayfası */
+        @JavascriptInterface
+        public void openAppSettings() {
+            runOnUiThread(() -> {
+                try { startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()))); } catch (Exception ignored) { }
+            });
+        }
 
         @JavascriptInterface
         public void copy(String text) {
@@ -560,6 +722,19 @@ public class MainActivity extends Activity {
                 ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
                 if (cm != null) cm.setPrimaryClip(ClipData.newPlainText("koordinat", text));
             });
+        }
+
+        /** Pano metni (WebView'da navigator.clipboard.readText çalışmaz); ana iş parçacığında okunur */
+        @JavascriptInterface
+        public String paste() {
+            java.util.concurrent.FutureTask<String> t = new java.util.concurrent.FutureTask<>(() -> {
+                ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                if (cm == null || !cm.hasPrimaryClip() || cm.getPrimaryClip() == null || cm.getPrimaryClip().getItemCount() == 0) return "";
+                CharSequence cs = cm.getPrimaryClip().getItemAt(0).coerceToText(MainActivity.this);
+                return cs == null ? "" : cs.toString();
+            });
+            runOnUiThread(t);
+            try { return t.get(2, java.util.concurrent.TimeUnit.SECONDS); } catch (Exception e) { return ""; }
         }
 
         @JavascriptInterface
@@ -591,12 +766,17 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public String getRecent() {
             try {
-                JSONArray arr = new JSONArray(prefs().getString("recent", "[]"));
+                JSONArray arr = new JSONArray(prefs().getString("recent", "[]")), out = new JSONArray();
                 for (int i = 0; i < arr.length(); i++) {
                     JSONObject o = arr.getJSONObject(i);
+                    // önbellek kopyası silinmiş (Docs.sweep, 7 gün) file:// kayıtları listeden düşer
+                    Uri u = Uri.parse(o.optString("uri"));
+                    if (ContentResolver.SCHEME_FILE.equals(u.getScheme()) && (u.getPath() == null || !new File(u.getPath()).exists())) continue;
                     o.put("thumb", new File(dir("thumbs"), safe(o.optString("key")) + ".png").exists());
+                    out.put(o);
                 }
-                return arr.toString();
+                if (out.length() != arr.length()) prefs().edit().putString("recent", out.toString()).apply();
+                return out.toString();
             } catch (Exception e) { return "[]"; }
         }
         @JavascriptInterface
@@ -604,15 +784,21 @@ public class MainActivity extends Activity {
             runOnUiThread(() -> {
                 try {
                     Uri u = Uri.parse(uriStr);
-                    if (ContentResolver.SCHEME_FILE.equals(u.getScheme())) { setCurrentFile(new File(u.getPath())); }
-                    else {
+                    if (ContentResolver.SCHEME_FILE.equals(u.getScheme())) {
+                        File f = new File(u.getPath());
+                        if (!f.exists()) throw new IOException("dosya yok");
+                        setCurrentFile(f);
+                    } else {
                         // erişilebilir mi?
                         try (InputStream in = getContentResolver().openInputStream(u)) { if (in == null) throw new IOException(); }
                         setCurrent(u);
                     }
                     pushCurrentFile();
                 } catch (Exception e) {
-                    Toast.makeText(MainActivity.this, R.string.open_failed, Toast.LENGTH_SHORT).show();
+                    // ölü kayıt: listeden silinir, JS listeyi yeniler
+                    removeRecent(uriStr);
+                    jsWhenReady("window.dwgApp && window.dwgApp.refreshRecent && window.dwgApp.refreshRecent()");
+                    Toast.makeText(MainActivity.this, R.string.recent_gone, Toast.LENGTH_SHORT).show();
                 }
             });
         }
@@ -769,11 +955,22 @@ public class MainActivity extends Activity {
                             out = info.toString(); break;
                         }
                         case "upload": {
-                            byte[] bytes;
-                            if (a.has("fileId")) { File f = docs.file(a.getString("fileId")); if (f == null) throw new IOException("dosya yok"); try (InputStream in = new FileInputStream(f)) { java.io.ByteArrayOutputStream o = new java.io.ByteArrayOutputStream(); MainActivity.copy(in, o); bytes = o.toByteArray(); } }
-                            else if ("current".equals(a.optString("src"))) { try (InputStream in = currentFile != null ? new FileInputStream(currentFile) : getContentResolver().openInputStream(currentUri)) { java.io.ByteArrayOutputStream o = new java.io.ByteArrayOutputStream(); MainActivity.copy(in, o); bytes = o.toByteArray(); } }
-                            else bytes = Base64.decode(a.getString("b64"), Base64.DEFAULT);
-                            out = google.upload(bytes, a.getString("name"), a.optString("mime", "application/octet-stream"), a.optString("folder", ""), a.has("convertTo") ? a.getString("convertTo") : null);
+                            // dosya Java yığınına alınmaz: akış + uzunluk doğrudan Drive'a yazılır
+                            String name = a.getString("name"), mime = a.optString("mime", "application/octet-stream"), folder = a.optString("folder", "");
+                            String convertTo = a.has("convertTo") ? a.getString("convertTo") : null;
+                            File src = null;
+                            if (a.has("fileId")) { src = docs.file(a.getString("fileId")); if (src == null) throw new IOException("dosya yok"); }
+                            else if ("current".equals(a.optString("src"))) {
+                                src = currentFile;
+                                if (src == null && currentUri != null && currentSize < 0) {
+                                    // boyutu bilinmeyen içerik: önce önbelleğe alınır, uzunluk oradan okunur
+                                    try (InputStream in = getContentResolver().openInputStream(currentUri)) { src = docs.file(docs.importStream(in, currentName).getString("id")); }
+                                }
+                                if (src == null && currentUri == null) throw new IOException("dosya yok");
+                            }
+                            if (src != null) { try (InputStream in = new FileInputStream(src)) { out = google.upload(in, src.length(), name, mime, folder, convertTo); } }
+                            else if ("current".equals(a.optString("src"))) { try (InputStream in = getContentResolver().openInputStream(currentUri)) { if (in == null) throw new IOException("dosya açılamadı"); out = google.upload(in, currentSize, name, mime, folder, convertTo); } }
+                            else { byte[] bytes = Base64.decode(a.getString("b64"), Base64.DEFAULT); out = google.upload(new ByteArrayInputStream(bytes), bytes.length, name, mime, folder, convertTo); }
                             break;
                         }
                         case "convertPdf": {
@@ -784,9 +981,9 @@ public class MainActivity extends Activity {
                         }
                         default: throw new IOException("bilinmeyen işlem: " + op);
                     }
-                } catch (Exception e) {
+                } catch (Throwable e) { // OutOfMemoryError da JS'e hata olarak döner, uygulama kapanmaz
                     Log.w(TAG, "drive " + op, e);
-                    ok = false; out = JSONObject.quote(String.valueOf(e.getMessage()));
+                    ok = false; out = JSONObject.quote(GoogleDrive.message(e));
                 }
                 js("window.dwgApp && window.dwgApp.onDrive(" + JSONObject.quote(reqId) + "," + ok + "," + out + ")");
             });
@@ -803,6 +1000,10 @@ public class MainActivity extends Activity {
         stopLocation();
         if (docs != null) docs.closePdf();
         bg.shutdown();
+        if (Build.VERSION.SDK_INT >= 33 && backCallback != null) {
+            getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback((android.window.OnBackInvokedCallback) backCallback);
+            backCallback = null;
+        }
         if (webView != null) { webView.destroy(); webView = null; }
         super.onDestroy();
     }

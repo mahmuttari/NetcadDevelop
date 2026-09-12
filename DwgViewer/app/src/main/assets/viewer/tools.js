@@ -11,38 +11,43 @@
  */
 import { TAU, flatten, polyArea, pathLength, segDist, opsBBox } from './geom.js';
 import { newId, offsetPoints } from './edit.js';
+import { t, addStrings } from './i18n.js';
+import { askText, askConfirm } from './dialog.js';
 
 const R2D = 180 / Math.PI, D2R = Math.PI / 180;
 
 export const TOOLS = {
-  // çizim
-  line: { name: 'Çizgi', steps: ['Birinci noktayı seçin', 'İkinci noktayı seçin (devam eder)'] },
-  pline: { name: 'Polyline', steps: ['Birinci noktayı seçin', 'Sonraki noktayı seçin · Bitir / Kapat'] },
-  rect: { name: 'Dikdörtgen', steps: ['Birinci köşeyi seçin', 'Karşı köşeyi seçin'] },
-  circle: { name: 'Daire', steps: ['Merkezi seçin', 'Yarıçap noktasını seçin ya da yarıçapı yazın'] },
-  arc3: { name: 'Yay (3 nokta)', steps: ['Başlangıç noktası', 'Yay üzerinde bir nokta', 'Bitiş noktası'] },
-  point: { name: 'Nokta', steps: ['Noktayı seçin'] },
-  text: { name: 'Yazı', steps: ['Yazı konumunu seçin'] },
-  pline3d: { name: '3B Polyline', steps: ['Birinci noktayı seçin (kot sorulur)', 'Sonraki noktayı seçin · Bitir'] },
-  face3d: { name: '3B Yüzey', steps: ['1. köşe', '2. köşe', '3. köşe', '4. köşe (isteğe bağlı) · Bitir'] },
+  // çizim  (name/steps Türkçe; en/stepsEn İngilizce — sözlüğe tool_<ad> / tstep_<ad>_<i> anahtarlarıyla kaydedilir)
+  line: { name: 'Çizgi', en: 'Line', steps: ['Birinci noktayı seçin', 'İkinci noktayı seçin (devam eder)'], stepsEn: ['Pick the first point', 'Pick the second point (continues)'] },
+  pline: { name: 'Polyline', en: 'Polyline', steps: ['Birinci noktayı seçin', 'Sonraki noktayı seçin · Bitir / Kapat'], stepsEn: ['Pick the first point', 'Pick the next point · Finish / Close'] },
+  rect: { name: 'Dikdörtgen', en: 'Rectangle', steps: ['Birinci köşeyi seçin', 'Karşı köşeyi seçin'], stepsEn: ['Pick the first corner', 'Pick the opposite corner'] },
+  circle: { name: 'Daire', en: 'Circle', steps: ['Merkezi seçin', 'Yarıçap noktasını seçin ya da yarıçapı yazın'], stepsEn: ['Pick the center', 'Pick a radius point or type the radius'] },
+  arc3: { name: 'Yay (3 nokta)', en: 'Arc (3 points)', steps: ['Başlangıç noktası', 'Yay üzerinde bir nokta', 'Bitiş noktası'], stepsEn: ['Start point', 'A point on the arc', 'End point'] },
+  point: { name: 'Nokta', en: 'Point', steps: ['Noktayı seçin'], stepsEn: ['Pick the point'] },
+  text: { name: 'Yazı', en: 'Text', steps: ['Yazı konumunu seçin'], stepsEn: ['Pick the text position'] },
+  pline3d: { name: '3B Polyline', en: '3D Polyline', steps: ['Birinci noktayı seçin (kot sorulur)', 'Sonraki noktayı seçin · Bitir'], stepsEn: ['Pick the first point (elevation is asked)', 'Pick the next point · Finish'] },
+  face3d: { name: '3B Yüzey', en: '3D Face', steps: ['1. köşe', '2. köşe', '3. köşe', '4. köşe (isteğe bağlı) · Bitir'], stepsEn: ['Vertex 1', 'Vertex 2', 'Vertex 3', 'Vertex 4 (optional) · Finish'] },
   // düzenleme
-  select: { name: 'Seç', steps: ['Nesnelere dokunun (ekle/çıkar) · Bitir'] },
-  move: { name: 'Taşı', steps: ['Nesneleri seçin · Bitir', 'Taban noktası', 'Hedef nokta (ya da @dx,dy)'] },
-  copy: { name: 'Kopyala', steps: ['Nesneleri seçin · Bitir', 'Taban noktası', 'Hedef nokta (yineler) · Bitir'] },
-  rotate: { name: 'Döndür', steps: ['Nesneleri seçin · Bitir', 'Dönme merkezi', 'Açıyı yazın (°) ya da ikinci noktayı seçin'] },
-  scale: { name: 'Ölçekle', steps: ['Nesneleri seçin · Bitir', 'Taban noktası', 'Çarpanı yazın'] },
-  mirror: { name: 'Aynala', steps: ['Nesneleri seçin · Bitir', 'Ayna çizgisi 1. nokta', 'Ayna çizgisi 2. nokta'] },
-  offset: { name: 'Ofset', steps: ['Nesneleri seçin · Bitir', 'Mesafeyi yazın', 'Tarafı seçin (nokta)'] },
-  del: { name: 'Sil', steps: ['Nesneleri seçin · Bitir'] },
-  setz: { name: 'Kot ata', steps: ['Nesneleri seçin · Bitir', 'Kotu (Z) yazın'] },
-  edittext: { name: 'Yazı düzenle', steps: ['Yazıya dokunun'] },
+  select: { name: 'Seç', en: 'Select', steps: ['Nesnelere dokunun (ekle/çıkar) · Bitir'], stepsEn: ['Tap objects (add/remove) · Finish'] },
+  move: { name: 'Taşı', en: 'Move', steps: ['Nesneleri seçin · Bitir', 'Taban noktası', 'Hedef nokta (ya da @dx,dy)'], stepsEn: ['Select objects · Finish', 'Base point', 'Target point (or @dx,dy)'] },
+  copy: { name: 'Kopyala', en: 'Copy', steps: ['Nesneleri seçin · Bitir', 'Taban noktası', 'Hedef nokta (yineler) · Bitir'], stepsEn: ['Select objects · Finish', 'Base point', 'Target point (repeats) · Finish'] },
+  rotate: { name: 'Döndür', en: 'Rotate', steps: ['Nesneleri seçin · Bitir', 'Dönme merkezi', 'Açıyı yazın (°) ya da ikinci noktayı seçin'], stepsEn: ['Select objects · Finish', 'Rotation center', 'Type the angle (°) or pick a second point'] },
+  scale: { name: 'Ölçekle', en: 'Scale', steps: ['Nesneleri seçin · Bitir', 'Taban noktası', 'Çarpanı yazın'], stepsEn: ['Select objects · Finish', 'Base point', 'Type the factor'] },
+  mirror: { name: 'Aynala', en: 'Mirror', steps: ['Nesneleri seçin · Bitir', 'Ayna çizgisi 1. nokta', 'Ayna çizgisi 2. nokta'], stepsEn: ['Select objects · Finish', 'Mirror line point 1', 'Mirror line point 2'] },
+  offset: { name: 'Ofset', en: 'Offset', steps: ['Nesneleri seçin · Bitir', 'Mesafeyi yazın', 'Tarafı seçin (nokta)'], stepsEn: ['Select objects · Finish', 'Type the distance', 'Pick the side (point)'] },
+  del: { name: 'Sil', en: 'Delete', steps: ['Nesneleri seçin · Bitir'], stepsEn: ['Select objects · Finish'] },
+  setz: { name: 'Kot ata', en: 'Set Z', steps: ['Nesneleri seçin · Bitir', 'Kotu (Z) yazın'], stepsEn: ['Select objects · Finish', 'Type the elevation (Z)'] },
+  edittext: { name: 'Yazı düzenle', en: 'Edit text', steps: ['Yazıya dokunun'], stepsEn: ['Tap the text'] },
   // ölçüm
-  dist: { name: 'Mesafe', steps: ['Noktalara dokunun'] },
-  area: { name: 'Alan', steps: ['Köşelere dokunun · Bitir'] },
-  angle: { name: 'Açı', steps: ['Köşe (tepe) noktası', 'Birinci kol noktası', 'İkinci kol noktası'] },
-  radius: { name: 'Yarıçap', steps: ['Daire ya da yaya dokunun'] },
-  coord: { name: 'Koordinat', steps: ['Noktaya dokunun'] },
+  dist: { name: 'Mesafe', en: 'Distance', steps: ['Noktalara dokunun'], stepsEn: ['Tap points'] },
+  area: { name: 'Alan', en: 'Area', steps: ['Köşelere dokunun · Bitir'], stepsEn: ['Tap vertices · Finish'] },
+  angle: { name: 'Açı', en: 'Angle', steps: ['Köşe (tepe) noktası', 'Birinci kol noktası', 'İkinci kol noktası'], stepsEn: ['Vertex point', 'First arm point', 'Second arm point'] },
+  radius: { name: 'Yarıçap', en: 'Radius', steps: ['Daire ya da yaya dokunun'], stepsEn: ['Tap a circle or arc'] },
+  coord: { name: 'Koordinat', en: 'Coordinate', steps: ['Noktaya dokunun'], stepsEn: ['Tap a point'] },
 };
+{ const tr = {}, en = {}; for (const [k, d] of Object.entries(TOOLS)) { tr['tool_' + k] = d.name; en['tool_' + k] = d.en || d.name; d.steps.forEach((st, i) => { tr[`tstep_${k}_${i}`] = st; en[`tstep_${k}_${i}`] = (d.stepsEn && d.stepsEn[i]) || st; }); } addStrings(tr, en); }
+const toolName = (k) => t('tool_' + k);
+const toolStep = (k, i) => t(`tstep_${k}_${i}`);
 const SELECT_TOOLS = new Set(['move', 'copy', 'rotate', 'scale', 'mirror', 'offset', 'del', 'setz']);
 
 export class ToolManager {
@@ -79,9 +84,9 @@ export class ToolManager {
   say() {
     const def = TOOLS[this.active];
     if (!def) return;
-    let text = def.name + ': ';
-    if (this.selecting) text += TOOLS[this.active].steps[0] + `  [${this.api.sel.size} seçili]`;
-    else text += def.steps[Math.min(this.step, def.steps.length - 1)];
+    let text = toolName(this.active) + ': ';
+    if (this.selecting) text += toolStep(this.active, 0) + `  [${this.api.sel.size} ${t('selCount')}]`;
+    else text += toolStep(this.active, Math.min(this.step, def.steps.length - 1));
     const numberTools = { circle: 1, rotate: 2, scale: 2, offset: 1, setz: 1 };
     const wantsNumber = numberTools[this.active] != null && this.step === numberTools[this.active] && !this.selecting;
     const buttons = [];
@@ -102,14 +107,14 @@ export class ToolManager {
     const numberTools = { circle: 1, rotate: 2, scale: 2, offset: 1, setz: 1 };
     if (numberTools[this.active] != null && this.step === numberTools[this.active]) {
       const v = parseFloat(s.replace(',', '.'));
-      if (!isFinite(v)) { this.api.toast('Sayı bekleniyor'); return; }
+      if (!isFinite(v)) { this.api.toast(t('numberExpected')); return; }
       this.number = v;
       this.onNumber(v);
       return;
     }
     const p = this.parsePoint(s);
-    if (!p) { this.api.toast('Koordinat biçimi: x,y | x,y,z | @dx,dy | @L<açı'); return; }
-    this.point(p, null);
+    if (!p) { this.api.toast(t('coordFormat')); return; }
+    void this.point(p, null);
   }
   parsePoint(s) {
     const rel = s.startsWith('@');
@@ -140,44 +145,49 @@ export class ToolManager {
     }
     if (this.active === 'radius' || this.active === 'edittext') {
       const p = this.api.pick(w);
-      if (!p) { this.api.toast('Nesne bulunamadı'); return true; }
+      if (!p) { this.api.toast(t('noObject')); return true; }
       if (this.active === 'radius') {
         const o = p.k === 0 ? p.ops.find(q => q[0] === 2 || q[0] === -2) : null;
-        if (!o) { this.api.toast('Daire ya da yay değil'); return true; }
+        if (!o) { this.api.toast(t('notCircle')); return true; }
         const u = this.api.units();
-        this.api.result([['Yarıçap', this.api.fmt(o[3]) + u], ['Çap', this.api.fmt(2 * o[3]) + u], ['Merkez', this.api.fmt(o[1]) + ' ; ' + this.api.fmt(o[2])], ['Çevre', this.api.fmt(pathLength(p.ops, p.closed)) + u]]);
+        this.api.result([[t('radius'), this.api.fmt(o[3]) + u], [t('diameter'), this.api.fmt(2 * o[3]) + u], [t('center'), this.api.fmt(o[1]) + ' ; ' + this.api.fmt(o[2])], [t('circumference'), this.api.fmt(pathLength(p.ops, p.closed)) + u]]);
         this.draft = { circle: { c: [o[1], o[2]], r: o[3] } }; this.api.overlay();
       } else {
-        if (p.k !== 1) { this.api.toast('Yazı değil'); return true; }
-        const txt = prompt('Yazı:', p.lines.join('\n'));
-        if (txt !== null && txt !== p.lines.join('\n')) this.api.run({ op: 'edittext', keys: [p.key], text: txt });
-        this.api.render();
+        if (p.k !== 1) { this.api.toast(t('notText')); return true; }
+        void this.editText(p);
       }
       return true;
     }
     const numberTools = { circle: 1, rotate: 2, scale: 2, offset: 1, setz: 1 };
     const sn = this.api.snap(w);
     const p = sn ? [sn.p[0], sn.p[1], sn.p[2] != null ? sn.p[2] : 0] : [w[0], w[1], 0];
-    if (numberTools[this.active] === this.step && this.active === 'scale') { this.api.toast('Çarpanı yazın'); return true; }
-    if (numberTools[this.active] === this.step && this.active === 'setz') { this.api.toast('Kotu yazın'); return true; }
-    if (numberTools[this.active] === this.step && this.active === 'offset') { this.api.toast('Mesafeyi yazın'); return true; }
-    this.point(p, sn);
+    if (numberTools[this.active] === this.step && this.active === 'scale') { this.api.toast(t('typeFactor')); return true; }
+    if (numberTools[this.active] === this.step && this.active === 'setz') { this.api.toast(t('typeZ')); return true; }
+    if (numberTools[this.active] === this.step && this.active === 'offset') { this.api.toast(t('typeDist')); return true; }
+    void this.point(p, sn);
     return true;
+  }
+  /** yazı düzenleme kutusu (uygulama içi diyalog) */
+  async editText(p) {
+    const old = p.lines.join('\n');
+    const txt = await askText(t('textPrompt'), old, { multiline: true });
+    if (txt !== null && txt !== old) this.api.run({ op: 'edittext', keys: [p.key], text: txt });
+    this.api.render();
   }
   onNumber(v) {
     const A = this.api;
     switch (this.active) {
       case 'circle': { const c = this.pts[0]; this.commit({ type: 'CIRCLE', pts: [c], r: Math.abs(v) }); this.pts = []; this.step = 0; break; }
       case 'rotate': { const c = this.pts[0]; this.xform(rotM(c, v * D2R)); this.done(); break; }
-      case 'scale': { const c = this.pts[0]; if (!(v > 0)) { A.toast('Çarpan > 0 olmalı'); return; } this.xform([v, 0, 0, v, c[0] * (1 - v), c[1] * (1 - v)]); this.done(); break; }
-      case 'setz': { A.run({ op: 'setz', keys: [...A.sel].map(p => p.key), z: v }); A.toast('Kot atandı: ' + A.fmt(v)); this.done(); break; }
+      case 'scale': { const c = this.pts[0]; if (!(v > 0)) { A.toast(t('factorPositive')); return; } this.xform([v, 0, 0, v, c[0] * (1 - v), c[1] * (1 - v)]); this.done(); break; }
+      case 'setz': { A.run({ op: 'setz', keys: [...A.sel].map(p => p.key), z: v }); A.toast(t('zSet') + ': ' + A.fmt(v)); this.done(); break; }
       case 'offset': { this.number = v; this.step = 2; this.say(); break; }
       default: break;
     }
     A.render();
   }
-  /** toplanan nokta */
-  point(p, sn) {
+  /** toplanan nokta (kot / yazı / ayna onayı sorulabildiğinden async; çağıranlar beklemez) */
+  async point(p, sn) {
     const A = this.api;
     this.pts.push(p); this.last = p;
     const n = this.pts.length;
@@ -188,7 +198,7 @@ export class ToolManager {
       case 'pline': case 'area': this.step = 1; break;
       case 'pline3d': case 'face3d': {
         if (!sn || sn.p[2] == null) {
-          const v = prompt(`${n}. nokta kotu (Z):`, this.last && n > 1 ? String(this.pts[n - 2][2]) : '0');
+          const v = await askText(`${n}. ${t('pointZ')}`, this.last && n > 1 ? String(this.pts[n - 2][2]) : '0', { type: 'number' });
           if (v === null) { this.pts.pop(); return; }
           p[2] = parseFloat(String(v).replace(',', '.')) || 0;
         }
@@ -197,22 +207,22 @@ export class ToolManager {
       }
       case 'rect': if (n === 2) { const [a, b] = this.pts; this.commit({ type: 'LWPOLYLINE', closed: true, pts: [[a[0], a[1], a[2]], [b[0], a[1], a[2]], [b[0], b[1], a[2]], [a[0], b[1], a[2]]] }); this.pts = []; this.step = 0; } else this.step = 1; break;
       case 'circle': if (n === 2) { const [c, q] = this.pts; this.commit({ type: 'CIRCLE', pts: [c], r: Math.hypot(q[0] - c[0], q[1] - c[1]) }); this.pts = []; this.step = 0; } else this.step = 1; break;
-      case 'arc3': if (n === 3) { const arc = arc3(this.pts[0], this.pts[1], this.pts[2]); if (arc) this.commit({ type: 'ARC', pts: [[arc.cx, arc.cy, this.pts[0][2]]], r: arc.r, a0: arc.a0, a1: arc.a1 }); else A.toast('Noktalar doğrusal'); this.pts = []; this.step = 0; } else this.step = n; break;
+      case 'arc3': if (n === 3) { const arc = arc3(this.pts[0], this.pts[1], this.pts[2]); if (arc) this.commit({ type: 'ARC', pts: [[arc.cx, arc.cy, this.pts[0][2]]], r: arc.r, a0: arc.a0, a1: arc.a1 }); else A.toast(t('collinear')); this.pts = []; this.step = 0; } else this.step = n; break;
       case 'point': this.commit({ type: 'POINT', pts: [p] }); this.pts = []; break;
       case 'text': {
-        const txt = prompt('Yazı:', '');
-        if (txt) { const h = prompt('Yazı yüksekliği:', String(A.textHeight())); const hv = parseFloat(String(h || '').replace(',', '.')); this.commit({ type: 'TEXT', pts: [p], text: txt, h: hv > 0 ? hv : A.textHeight() }); }
+        const txt = await askText(t('textPrompt'), '', { multiline: true });
+        if (txt) { const h = await askText(t('textHeightPrompt'), String(A.textHeight()), { type: 'number' }); const hv = parseFloat(String(h || '').replace(',', '.')); this.commit({ type: 'TEXT', pts: [p], text: txt, h: hv > 0 ? hv : A.textHeight() }); }
         this.pts = []; break;
       }
-      case 'move': case 'copy': case 'rotate': case 'scale': case 'mirror': case 'offset': this.modifyPoint(); break;
+      case 'move': case 'copy': case 'rotate': case 'scale': case 'mirror': case 'offset': await this.modifyPoint(); break;
       case 'dist': this.step = 1; this.showDist(); break;
-      case 'angle': if (n === 3) { const [v, a, b] = this.pts; const ang = Math.abs(angDiff(Math.atan2(a[1] - v[1], a[0] - v[0]), Math.atan2(b[1] - v[1], b[0] - v[0]))) * R2D; A.result([['Açı', A.fmt(ang, 2) + '°'], ['Tümleyen', A.fmt(360 - ang, 2) + '°'], ['Kol 1', A.fmt(Math.hypot(a[0] - v[0], a[1] - v[1])) + A.units()], ['Kol 2', A.fmt(Math.hypot(b[0] - v[0], b[1] - v[1])) + A.units()]]); this.draft = { segs: [[v, a], [v, b]], pts: this.pts.slice() }; this.pts = []; this.step = 0; } else this.step = n; break;
+      case 'angle': if (n === 3) { const [v, a, b] = this.pts; const ang = Math.abs(angDiff(Math.atan2(a[1] - v[1], a[0] - v[0]), Math.atan2(b[1] - v[1], b[0] - v[0]))) * R2D; A.result([[t('angle'), A.fmt(ang, 2) + '°'], [t('supplement'), A.fmt(360 - ang, 2) + '°'], [t('arm1'), A.fmt(Math.hypot(a[0] - v[0], a[1] - v[1])) + A.units()], [t('arm2'), A.fmt(Math.hypot(b[0] - v[0], b[1] - v[1])) + A.units()]]); this.draft = { segs: [[v, a], [v, b]], pts: this.pts.slice() }; this.pts = []; this.step = 0; } else this.step = n; break;
       case 'coord': {
         const rows = [['X', A.fmt(p[0])], ['Y', A.fmt(p[1])], ['Z', A.fmt(p[2] || 0)]];
-        if (sn) rows.push(['Yakalama', sn.kind.toUpperCase()]);
+        if (sn) rows.push([t('snapLbl'), sn.kind.toUpperCase()]);
         const ll = A.lonLat ? A.lonLat(p[0], p[1]) : null;
-        if (ll) rows.push(['Enlem / Boylam', ll[1].toFixed(6) + ' / ' + ll[0].toFixed(6)]);
-        rows.push([`<div class="full btns"><button class="btn small" id="tCopy">Kopyala</button></div>`]);
+        if (ll) rows.push([t('latLon'), ll[1].toFixed(6) + ' / ' + ll[0].toFixed(6)]);
+        rows.push([`<div class="full btns"><button class="btn small" id="tCopy">${t('copy')}</button></div>`]);
         A.result(rows, () => A.copy(A.fmt(p[0]) + ';' + A.fmt(p[1]) + ';' + A.fmt(p[2] || 0)));
         this.draft = { pts: [p] }; this.pts = []; break;
       }
@@ -222,13 +232,13 @@ export class ToolManager {
     this.say();
     A.overlay();
   }
-  modifyPoint() {
+  async modifyPoint() {
     const A = this.api;
     const n = this.pts.length;
     if (this.active === 'move' && n === 2) { const [a, b] = this.pts; this.xform([1, 0, 0, 1, b[0] - a[0], b[1] - a[1]], (b[2] || 0) - (a[2] || 0)); this.done(); return; }
     if (this.active === 'copy' && n >= 2) { const a = this.pts[0], b = this.pts[n - 1]; const keys = [...A.sel].map(p => p.key); A.run({ op: 'copy', keys, newKeys: keys.map(() => newId()), m: [1, 0, 0, 1, b[0] - a[0], b[1] - a[1]], dz: (b[2] || 0) - (a[2] || 0) }); A.render(); this.step = 2; return; }
     if (this.active === 'rotate' && n === 2) { const [c, q] = this.pts; this.xform(rotM(c, Math.atan2(q[1] - c[1], q[0] - c[0]))); this.done(); return; }
-    if (this.active === 'mirror' && n === 2) { const [a, b] = this.pts; const keys = [...A.sel].map(p => p.key); const m = mirrorM(a, b); const keep = confirm('Orijinal nesneler kalsın mı?'); if (keep) A.run({ op: 'copy', keys, newKeys: keys.map(() => newId()), m }); else A.run({ op: 'xform', keys, m }); A.render(); this.done(); return; }
+    if (this.active === 'mirror' && n === 2) { const [a, b] = this.pts; const keys = [...A.sel].map(p => p.key); const m = mirrorM(a, b); const keep = await askConfirm(t('keepOriginals')); if (keep) A.run({ op: 'copy', keys, newKeys: keys.map(() => newId()), m }); else A.run({ op: 'xform', keys, m }); A.render(); this.done(); return; }
     if (this.active === 'offset' && this.step === 2) {
       const side = this.pts[n - 1]; const d = Math.abs(this.number || 0);
       const ents = [];
@@ -241,13 +251,13 @@ export class ToolManager {
         const pick = dist(o1) < dist(o2) ? o1 : o2;
         ents.push({ type: pts.length === 2 ? 'LINE' : 'LWPOLYLINE', pts: pick, closed: p.closed, layer: p.lay, color: p.info && p.info.ci != null ? p.info.ci : 256, id: newId() });
       }
-      if (ents.length) A.run({ op: 'add', ents }); else A.toast('Ofset uygulanamadı');
+      if (ents.length) A.run({ op: 'add', ents }); else A.toast(t('offsetFail'));
       A.render(); this.done(); return;
     }
     this.step = Math.min(n + 1, TOOLS[this.active].steps.length - 1);
   }
   xform(m, dz = 0) { const keys = [...this.api.sel].map(p => p.key); if (!keys.length) return; this.api.run({ op: 'xform', keys, m, dz }); this.api.render(); }
-  done() { this.pts = []; this.step = 0; this.api.sel.clear(); this.api.toast(TOOLS[this.active].name + ' uygulandı'); this.cancel(); }
+  done() { this.pts = []; this.step = 0; this.api.sel.clear(); this.api.toast(toolName(this.active) + ' ' + t('applied')); this.cancel(); }
   commit(ent) {
     const A = this.api;
     ent.id = newId(); ent.layer = ent.layer || A.layer(); if (ent.color == null) ent.color = A.color();
@@ -258,10 +268,10 @@ export class ToolManager {
   finish() {
     const A = this.api;
     if (this.selecting) {
-      if (!A.sel.size) { A.toast('Seçim boş'); return; }
+      if (!A.sel.size) { A.toast(t('selEmpty')); return; }
       this.selecting = false;
       if (this.active === 'select') { this.cancel(); return; }
-      if (this.active === 'del') { A.run({ op: 'delete', keys: [...A.sel].map(p => p.key) }); A.render(); A.toast('Silindi'); this.done(); return; }
+      if (this.active === 'del') { A.run({ op: 'delete', keys: [...A.sel].map(p => p.key) }); A.render(); A.toast(t('deleted')); this.done(); return; }
       this.step = 1; this.say(); return;
     }
     const n = this.pts.length;
@@ -299,15 +309,15 @@ export class ToolManager {
       const ang = Math.atan2(m[i][1] - m[i - 1][1], m[i][0] - m[i - 1][0]) * R2D;
       rows.push([`${i} → ${i + 1}`, `${A.fmt(d)}${u}  ΔX ${A.fmt(m[i][0] - m[i - 1][0])}  ΔY ${A.fmt(m[i][1] - m[i - 1][1])}` + (dz ? `  ΔZ ${A.fmt(dz)}  3B ${A.fmt(d3)}${u}` : '') + `  ${A.fmt(ang, 2)}°` + (A.unitToM() && A.unitToM() !== 1 ? `  = ${A.fmt(d * A.unitToM(), 2)} m` : '')]);
     }
-    if (m.length > 2) rows.push(['Toplam', A.fmt(total) + u + (total3 !== total ? ` (3B ${A.fmt(total3)}${u})` : '')]);
+    if (m.length > 2) rows.push([t('total'), A.fmt(total) + u + (total3 !== total ? ` (3B ${A.fmt(total3)}${u})` : '')]);
     A.result(rows);
   }
   showArea() {
     const A = this.api, m = this.pts, u = A.units();
     const area = polyArea(m), per = pathLength(m.map((q, i) => [i ? 1 : 0, q[0], q[1]]), true);
-    const rows = [['Alan', A.fmt(area) + (u ? u + '²' : '')], ['Çevre', A.fmt(per) + u], ['Köşe', m.length]];
-    if (A.unitToM() && A.unitToM() !== 1) rows.push(['Alan (m²)', A.fmt(area * A.unitToM() ** 2, 2) + ' m²'], ['Alan (da)', A.fmt(area * A.unitToM() ** 2 / 1000, 3) + ' da']);
-    else if (A.unitToM() === 1) rows.push(['Alan (da)', A.fmt(area / 1000, 3) + ' da'], ['Alan (ha)', A.fmt(area / 10000, 4) + ' ha']);
+    const rows = [[t('area'), A.fmt(area) + (u ? u + '²' : '')], [t('perimeter'), A.fmt(per) + u], [t('cornersN'), m.length]];
+    if (A.unitToM() && A.unitToM() !== 1) rows.push([t('areaM2'), A.fmt(area * A.unitToM() ** 2, 2) + ' m²'], [t('areaDa'), A.fmt(area * A.unitToM() ** 2 / 1000, 3) + ' da']);
+    else if (A.unitToM() === 1) rows.push([t('areaDa'), A.fmt(area / 1000, 3) + ' da'], [t('areaHa'), A.fmt(area / 10000, 4) + ' ha']);
     A.result(rows);
     this.draft = { pts: m.slice(), segs: m.slice(1).map((q, i) => [m[i], q]), close: true, keep: true };
   }

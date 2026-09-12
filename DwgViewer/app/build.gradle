@@ -2,6 +2,25 @@ plugins {
     id "com.android.application"
 }
 
+// Derleme kimliği: git dalı ve kısa commit numarası. Git kökü DwgViewer'ın üstündedir; git
+// bulunamazsa ya da komut başarısız olursa derleme bozulmaz, 'main' ve 'yok' kullanılır.
+def gitOut = { List<String> cmd, String fallback ->
+    try {
+        def p = new ProcessBuilder(cmd).directory(rootProject.projectDir).redirectErrorStream(true).start()
+        def txt = p.inputStream.text.trim()
+        p.waitFor()
+        return (p.exitValue() == 0 && txt) ? txt : fallback
+    } catch (Exception ignored) {
+        return fallback
+    }
+}
+def gitBranch = gitOut(["git", "rev-parse", "--abbrev-ref", "HEAD"], "")
+if (!gitBranch || gitBranch == "HEAD") {
+    // CI'da çıkış çoğunlukla ayrık HEAD'dir; dal adı ortam değişkenlerinden alınır
+    gitBranch = System.getenv("GITHUB_HEAD_REF") ?: System.getenv("GITHUB_REF_NAME") ?: "main"
+}
+def gitSha = gitOut(["git", "rev-parse", "--short", "HEAD"], "yok")
+
 android {
     namespace "com.mahmuttari.dwgviewer"
     compileSdk 34
@@ -10,8 +29,15 @@ android {
         applicationId "com.mahmuttari.dwgviewer"
         minSdk 26
         targetSdk 34
-        versionCode 15
-        versionName "6.0"
+        versionCode 16
+        versionName "6.1"
+
+        // Uygulama yalnız Türkçe ve İngilizce kaynak taşır (bağımlılıkların 85 dilde etiketi düşer)
+        resourceConfigurations += ["tr", "en"]
+
+        // Sürüm denetimi derlendiği dalın version.json dosyasına bakar; derleme kimliği hata kaydında görünür
+        buildConfigField "String", "UPDATE_URL", "\"https://raw.githubusercontent.com/mahmuttari/NetcadDevelop/" + gitBranch + "/DwgViewer/release/version.json\""
+        buildConfigField "String", "GIT_SHA", "\"" + gitSha + "\""
 
         // Google ile giriş: gradle.properties → GOOGLE_CLIENT_ID (Android türü OAuth istemcisi).
         // Yönlendirme şeması istemci numarasından türetilir: com.googleusercontent.apps.<no>
@@ -33,9 +59,15 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled false
-            shrinkResources false
+            // R8: kullanılmayan androidx/kotlinx sınıfları düşer; JS köprüsü ve junrar proguard-rules.pro ile korunur
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
             signingConfig signingConfigs.release
+            // AGP'nin sürüm-kontrol damgası git kökünü bulamaz (NO_SUPPORTED_VCS_FOUND); kimlik GIT_SHA ile gömülür
+            vcsInfo {
+                include false
+            }
         }
         debug {
             applicationIdSuffix ".debug"
@@ -51,10 +83,15 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
+    androidResources {
+        // Varsayılan kalıplar korunur; assets içindeki .md dosyaları (lib/NOTICE.md) APK'ya girmez
+        ignoreAssetsPattern "!.svn:!.git:!.ds_store:!*.scc:.*:<dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:!*.md"
+    }
+
     // .wasm dosyası APK içinde sıkıştırılmış kalır (yaklaşık 10 MB -> 3 MB);
     // AssetManager açarken kendisi açar.
     packaging {
-        resources.excludes += ["META-INF/*"]
+        resources.excludes += ["META-INF/*", "kotlin/**", "DebugProbesKt.bin"]
     }
 }
 

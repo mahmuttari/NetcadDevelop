@@ -1,16 +1,11 @@
 // Katı modeller (AcDs / ASM), blok ekleme Z ötelemesi ve 3B en-boy oranı sınaması.
-// Kullanım: PLAYWRIGHT_PKG=/opt/node22/lib/node_modules/ node tools/test_solids.mjs <çıktı> <örnekler>
-import { createRequire } from 'node:module';
-const { chromium } = createRequire(process.env.PLAYWRIGHT_PKG || '/opt/node22/lib/node_modules/')('playwright');
-import { spawn } from 'node:child_process';
+// Kullanım: PLAYWRIGHT_PKG=<node_modules> node tools/test_solids.mjs [çıktı] [örnekler]
+import { args, startServer, launchBrowser, openFile, onDialog, noUpdate, checker } from './harness.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
-const out = process.argv[2] || '/tmp/ui_solids', SM = process.argv[3] || '/home/user/NetcadDevelop/DwgViewer/samples', port = Number(process.argv[4] || (8940 + Math.floor(Math.random() * 30)));
-fs.mkdirSync(out, { recursive: true });
-const srv = spawn(process.execPath, ['/home/user/NetcadDevelop/DwgViewer/tools/serve.mjs', String(port)], { stdio: 'ignore' });
-await new Promise(r => setTimeout(r, 600));
-let pass = 0, fail = 0;
-const ok = (name, cond, extra = '') => { if (cond) pass++; else fail++; console.log((cond ? 'PASS ' : 'FAIL ') + name + (extra ? ' ' + extra : '')); };
+const { out, samples: SM } = args(import.meta.url);
+const srv = await startServer();
+const C = checker(), ok = C.ok;
 
 // ---- sınama DXF'i: 100x100 3DFACE karesi (z=0) + Z=500'e eklenmiş, Z ölçeği 2 olan blok ----
 const g = (c, v) => `${c}\n${v}\n`;
@@ -25,18 +20,18 @@ const dxf = g(0, 'SECTION') + g(2, 'HEADER') + g(9, '$ACADVER') + g(1, 'AC1015')
   g(0, 'ENDSEC') + g(0, 'EOF');
 fs.writeFileSync(path.join(out, 'kare.dxf'), dxf);
 
-const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'] });
+const browser = await launchBrowser();
 const ctx = await browser.newContext({ viewport: { width: 412, height: 915 }, deviceScaleFactor: 2.625, hasTouch: true, isMobile: true });
+await noUpdate(ctx);
 const page = await ctx.newPage();
 const errors = [];
 page.on('pageerror', e => errors.push(e.message));
-page.on('dialog', async d => { await d.dismiss(); });
+onDialog(page);
 
 async function open(file) {
-  await page.goto(`http://localhost:${port}/index.html`); await page.waitForSelector('#btnOpen2');
+  await page.goto(srv.url + 'index.html'); await page.waitForSelector('#btnOpen2');
   await page.evaluate(() => { try { localStorage.clear(); } catch (_) { /* geç */ } });
-  await page.setInputFiles('#fileInput', file);
-  await page.waitForFunction(() => window.dwgApp && window.dwgApp.state.hasDoc && document.getElementById('loading').hidden, null, { timeout: 180000 });
+  await openFile(page, file, { timeout: 180000 });
   await page.evaluate(() => { document.getElementById('toast').hidden = true; const t = document.getElementById('tour'); if (t) t.hidden = true; });
   await page.click('#toolbar [data-tab="3d"]'); await page.click('#toolbar [data-act="3d"]'); await page.waitForTimeout(700);
 }
@@ -80,7 +75,7 @@ await page.setViewportSize({ width: 412, height: 915 });
 // ---- 2. AcDs katıları: 2013 ve 2018 örnekleri ----
 for (const f of ['example_2013.dwg', 'example_2018.dwg']) {
   const fp = path.join(SM, f);
-  if (!fs.existsSync(fp)) { console.log('SKIP', f, 'yok'); continue; }
+  if (!fs.existsSync(fp)) { C.skip(f, 'yok'); continue; }
   await open(fp);
   i = await info3d();
   const solids = await page.evaluate(() => { const by = {}; for (const p of window.dwgApp.state.scene.layouts[0].prims) if (p.tri && p.info) { const h = p.info.h; by[h] = by[h] || { t: p.info.t, tri: 0 }; by[h].tri++; } return by; });
@@ -104,7 +99,7 @@ for (const f of ['example_2013.dwg', 'example_2018.dwg']) {
 // ---- 3. AutoCAD yüzey varlıkları (2004, satır içi SAB; ACIS 20800): koni, tor, küre, düzlem, spline ----
 {
   const fp = path.join(SM, 'Surface_2004.dwg');
-  if (!fs.existsSync(fp)) console.log('SKIP Surface_2004.dwg yok');
+  if (!fs.existsSync(fp)) C.skip('Surface_2004.dwg', 'yok');
   else {
     await open(fp);
     i = await info3d();
@@ -119,7 +114,7 @@ for (const f of ['example_2013.dwg', 'example_2018.dwg']) {
 // ---- 4. çok yüzlü ağ (POLYFACE) ve çokgen ağ (POLYLINE_MESH): DXF yolu ve varsa dwgwrite ile üretilmiş DWG'ler ----
 for (const f of ['pface.dxf', 'pface_2000.dwg', 'pface_2018.dwg']) {
   const fp = path.join(SM, f);
-  if (!fs.existsSync(fp)) { console.log('SKIP', f, 'yok'); continue; }
+  if (!fs.existsSync(fp)) { C.skip(f, 'yok'); continue; }
   await open(fp);
   i = await info3d();
   const by = await page.evaluate(() => { const by = {}; for (const p of window.dwgApp.state.scene.layouts[0].prims) { const k = p.et + (p.tri ? ':tri' : ':path'); by[k] = (by[k] || 0) + 1; } return by; });
@@ -162,7 +157,6 @@ for (const f of ['pface.dxf', 'pface_2000.dwg', 'pface_2018.dwg']) {
   await page.screenshot({ path: `${out}/realistic_cube.png` });
 }
 
-console.log(`\nSONUÇ: ${pass} geçti, ${fail} kaldı; sayfa hataları: ${errors.length}`);
-for (const e of errors) console.log('  hata:', e.slice(0, 200));
+C.summary(errors);
 await browser.close(); srv.kill();
-process.exit(fail ? 1 : 0);
+C.exit();

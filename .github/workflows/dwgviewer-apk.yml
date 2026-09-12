@@ -2,14 +2,28 @@ name: DWG Görüntüleyici APK
 
 on:
   push:
+    # yalnız tags yazılırsa dal push'ları tetiklemez; ikisi de açıkça sayılır
+    branches:
+      - "**"
+    tags:
+      - "v*"
     paths:
       - "DwgViewer/**"
       - ".github/workflows/dwgviewer-apk.yml"
   workflow_dispatch:
 
+# Aynı dal/etiket için eski koşu iptal edilir
+concurrency:
+  group: dwgviewer-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: write   # etiketli push'ta Release'e APK yüklemek için
+    # defaults.run yalnız `run` adımlarını etkiler; actions'ların `path` girdileri depo köküne göredir
     defaults:
       run:
         working-directory: DwgViewer
@@ -20,15 +34,32 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+          cache: gradle
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
 
       - uses: android-actions/setup-android@v3
         with:
           packages: "platform-tools platforms;android-34 build-tools;34.0.0"
 
+      - name: Sürüm eşitliği (build.gradle ↔ version.json ↔ README)
+        run: node tools/release_check.mjs --no-apk
+
+      - name: Tarayıcısız sınama (proxy grafikleri)
+        run: node tools/test_proxy.mjs
+
       - name: APK derle (imzalı release)
         run: |
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon --console=plain
+
+      - name: APK sürümü build.gradle ile aynı mı
+        run: |
+          vc=$(grep -oP 'versionCode \K\d+' app/build.gradle)
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging app/build/outputs/apk/release/app-release.apk | grep -q "versionCode='$vc'" \
+            || { echo "APK versionCode, build.gradle ($vc) ile aynı değil"; exit 1; }
 
       - name: APK'yı yeniden adlandır
         run: cp app/build/outputs/apk/release/app-release.apk DwgGoruntuleyici.apk
@@ -38,3 +69,9 @@ jobs:
           name: DwgGoruntuleyici-apk
           path: DwgViewer/DwgGoruntuleyici.apk
           if-no-files-found: error
+
+      - name: Release'e yükle (yalnız v* etiketi)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: DwgViewer/DwgGoruntuleyici.apk

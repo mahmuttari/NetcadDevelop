@@ -1,6 +1,6 @@
 /* Harita altlığı: XYZ / WMS karolarını yükler, önbellekler ve çizim koordinatına yerleştirir. */
 import { S, visibleRect } from './state.js';
-import { lonLatToTile, tileToLonLat, zoomForResolution, BASEMAPS, toCrs } from './proj.js';
+import { lonLatToTile, tileToLonLat, zoomForResolution, BASEMAPS, toCrs, attrOf } from './proj.js';
 import { fromPoints } from './geom.js';
 
 const cache = new Map();   // url → { img, ok, err }
@@ -81,5 +81,5 @@ export function drawBasemap(ctx) {
   return drawn;
 }
 export const tilesPending = () => pending;
-export const basemapAttribution = () => { const bm = BASEMAPS.find(b => b.id === S.basemap.id); return bm && bm.attr ? bm.attr : ''; };
+export const basemapAttribution = () => { const bm = BASEMAPS.find(b => b.id === S.basemap.id); return bm ? attrOf(bm) : ''; };
 export { toCrs };

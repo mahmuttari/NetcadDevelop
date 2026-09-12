@@ -130,8 +130,8 @@ export function toggleDisplay(key) {
   if (!BOOL_KEYS.has(key)) return getDisplay(key);
   const v = !getDisplay(key);
   setDisplay(key, v);
-  const msgs = { showText: [t('textShown'), t('textHidden')], showHatch: ['Tarama gösteriliyor', 'Tarama gizlendi'], showDim: ['Ölçülendirme gösteriliyor', 'Ölçülendirme gizlendi'], showPoint: ['Noktalar gösteriliyor', 'Noktalar gizlendi'], showImage: ['Resimler gösteriliyor', 'Resimler gizlendi'], showAttrib: ['Öznitelikler gösteriliyor', 'Öznitelikler gizlendi'], showBlock: ['Bloklar gösteriliyor', 'Bloklar gizlendi'], showLtype: ['Çizgi tipleri açık', 'Çizgi tipleri kapalı'], lw: [t('lw') + ': açık', t('lw') + ': kapalı'], grid: ['Izgara açık', 'Izgara kapalı'], sun: ['Güneş modu açık', 'Güneş modu kapalı'], fade: ['Diğer katmanlar soluk', 'Soldurma kapalı'] };
-  if (msgs[key]) call(ctx.toast, v ? msgs[key][0] : msgs[key][1]);
+  const msgs = { showText: ['textShown', 'textHidden'], showHatch: ['hatchShown', 'hatchHidden'], showDim: ['dimShown', 'dimHidden'], showPoint: ['pointsShown', 'pointsHidden'], showImage: ['imagesShown', 'imagesHidden'], showAttrib: ['attribsShown', 'attribsHidden'], showBlock: ['blocksShown', 'blocksHidden'], showLtype: ['ltypeOn', 'ltypeOff'], lw: ['lwOn', 'lwOff'], grid: ['gridOn', 'gridOff'], sun: ['sunOn', 'sunOff'], fade: ['fadeOn', 'fadeOff'] };
+  if (msgs[key]) call(ctx.toast, t(v ? msgs[key][0] : msgs[key][1]));
   return v;
 }
 /** Anlık düz kopya (settings.display biçimi) */
@@ -245,8 +245,8 @@ function sectionHtml(id) {
     case 'theme':
       return W.sec(tt('dispTheme', 'Tema'),
         W.seg('theme', THEME_IDS, S.theme, [tt('themeDark', 'Koyu'), tt('themeLight', 'Açık'), tt('themeBlueprint', 'Blueprint'), tt('themeSepia', 'Sepya'), tt('themeHc', 'Yüksek kontrast'), tt('themeSystem', 'Sisteme uy')]) +
-        W.row(tt('bgColor', 'Arka plan'), W.swatches('bgOverride', [{ val: '', name: tt('fromTheme', 'Temadan') }, { val: '#000000', name: 'Siyah' }, { val: '#202020', name: 'Koyu gri' }, { val: '#ffffff', name: 'Beyaz' }, { val: '#f7f2e6', name: 'Krem' }, { val: '#e8f0fa', name: 'Açık mavi' }, { val: '#0d1a0d', name: 'Yeşil-siyah' }], S.bgOverride) +
-          `<input type="color" class="opt-color" data-key="bgOverride" value="${esc(S.bgOverride || bgColor())}" aria-label="${tt('bgCustom', 'Özel renk')}">`) +
+        W.row(tt('bgColor', 'Arka plan'), W.swatches('bgOverride', [{ val: '', name: tt('fromTheme', 'Tema') }, { val: '#000000', name: t('black') }, { val: '#202020', name: t('swDarkGray') }, { val: '#ffffff', name: t('white') }, { val: '#f7f2e6', name: t('swCream') }, { val: '#e8f0fa', name: t('swLightBlue') }, { val: '#0d1a0d', name: t('swGreenBlack') }], S.bgOverride) +
+          `<input type="color" class="opt-color" data-key="bgOverride" value="${esc(S.bgOverride || bgColor())}" aria-label="${tt('bgCustomColor', 'Özel renk')}">`) +
         W.sw('sun', S.sun, tt('sunMode', 'Güneş modu')), id);
     case 'filters':
       return W.sec(tt('dispVis', 'Görünürlük'), W.chips([
@@ -266,7 +266,7 @@ function sectionHtml(id) {
     case 'helpers':
       return W.sec(tt('dispHelpers', 'Yardımcılar'),
         W.sw('grid', S.grid.on, tt('grid', 'Izgara')) +
-        W.row(tt('gridStep', 'Adım'), W.select('gridStep', [['auto', tt('auto', 'Otomatik')], ['1', '1'], ['5', '5'], ['10', '10'], ['50', '50'], ['100', '100'], ['1000', '1000']], S.grid.step)) +
+        W.row(tt('gridStep', 'Izgara adımı'), W.select('gridStep', [['auto', tt('auto', 'Otomatik')], ['1', '1'], ['5', '5'], ['10', '10'], ['50', '50'], ['100', '100'], ['1000', '1000']], S.grid.step)) +
         W.row(tt('gridStyle', 'Biçim'), W.seg('gridStyle', ['line', 'point'], S.grid.style, [tt('gridLine', 'Çizgi'), tt('gridPoint', 'Nokta')])) +
         W.sw('rulers', S.rulers, tt('rulers', 'Cetveller')) +
         W.row(tt('crosshair', 'Artı imleç'), W.seg('crosshair', ['off', 'small', 'full'], S.crosshair, [tt('crossOff', 'Kapalı'), tt('crossSmall', 'Küçük'), tt('crossFull', 'Tam ekran')])) +
@@ -285,7 +285,7 @@ function sectionHtml(id) {
         `<div class="opt-row"><button type="button" class="btn small" data-do="unisolate" ${S.isoBackup ? '' : 'disabled'}>${tt('unisolate', 'İzolasyonu kaldır')}</button><button type="button" class="btn small" data-do="unfade">${tt('unfadeAll', 'Soldurmaları kaldır')}</button></div>`, id);
     case 'selection':
       return W.sec(tt('dispSel', 'Seçim'),
-        W.row(tt('selColor', 'Vurgu rengi'), W.swatches('selColor', [{ val: '#ff9f0a', name: 'Turuncu' }, { val: '#ff2d95', name: 'Macenta' }, { val: '#32ade6', name: 'Cam göbeği' }, { val: '#30d158', name: 'Yeşil' }, { val: '#ff453a', name: 'Kırmızı' }], S.selColor)) +
+        W.row(tt('selColor', 'Vurgu rengi'), W.swatches('selColor', [{ val: '#ff9f0a', name: t('swOrange') }, { val: '#ff2d95', name: t('swMagenta') }, { val: '#32ade6', name: t('swCyan') }, { val: '#30d158', name: t('swGreen') }, { val: '#ff453a', name: t('swRed') }], S.selColor)) +
         W.row(tt('selWidth', 'Kalınlık'), W.slider('selWidth', 2, 5, 0.5, S.selWidth, 'px')), id);
     case 'points':
       return W.sec(tt('dispPoints', 'Noktalar ve yazı'),
@@ -295,7 +295,7 @@ function sectionHtml(id) {
         W.row(tt('hatchAlpha', 'Tarama saydamlığı'), W.slider('hatchAlpha', 0, 100, 5, Math.round(S.hatchAlpha * 100), '%')), id);
     case 'basemap': {
       let opts = [['none', tt('basemapNone', 'Yok')]];
-      try { if (ctx.basemaps) opts = ctx.basemaps.map(b => [b.id, b.name]); } catch (_) { /* yok */ }
+      try { if (ctx.basemaps) opts = ctx.basemaps.map(b => [b.id, b.i18n ? t(b.i18n) : b.name]); } catch (_) { /* yok */ }
       return W.sec(tt('dispBasemap', 'Altlık'),
         W.row(tt('basemap', 'Harita altlığı'), W.select('basemapId', opts, S.basemap.id)) +
         W.row(tt('basemapOpacity', 'Saydamlık'), W.slider('basemapOpacity', 0, 100, 5, Math.round(S.basemap.opacity * 100), '%')) +
@@ -487,7 +487,7 @@ export function mountNavFabs(viewportEl) {
     const gps = $('gpsBtn'); if (gps) navEl.appendChild(gps);
     bindNav(navEl);
     dpadEl = document.createElement('div'); dpadEl.id = 'dpad'; dpadEl.className = 'hud dpad'; dpadEl.hidden = true;
-    dpadEl.innerHTML = ['up', 'left', 'right', 'down'].map(d => `<button type="button" data-pan="${d}" aria-label="${{ up: 'Yukarı', down: 'Aşağı', left: 'Sola', right: 'Sağa' }[d]}">${icon('i-arrow-' + d, { up: '▲', down: '▼', left: '◀', right: '▶' }[d])}</button>`).join('');
+    dpadEl.innerHTML = ['up', 'left', 'right', 'down'].map(d => `<button type="button" data-pan="${d}" aria-label="${t({ up: 'panUp', down: 'panDown', left: 'panLeft', right: 'panRight' }[d])}">${icon('i-arrow-' + d, { up: '▲', down: '▼', left: '◀', right: '▶' }[d])}</button>`).join('');
     vp.appendChild(dpadEl);
     bindDpad(dpadEl);
     const wake = () => { navEl.classList.remove('idle'); clearTimeout(idleTimer); idleTimer = setTimeout(() => navEl.classList.add('idle'), 2000); };

@@ -1,3 +1,4 @@
+import { t } from './i18n.js';
 /*
  * Projeksiyon: Transversal Merkator (TM/UTM) ileri-geri dönüşüm, datum kaydırması
  * (ED50 ↔ WGS84, 3 parametreli Helmert), Türkiye'de kullanılan CRS ön tanımları
@@ -18,8 +19,11 @@ export const ELLIPSOIDS = {
 /** ED50 → WGS84 (EPSG:1133 Avrupa ortalaması); ters yönde işaret değişir */
 const ED50_TO_WGS84 = { dx: -87, dy: -98, dz: -121 };
 
+/** CRS / altlık kaydının arayüz adı: i18n anahtarı varsa sözlükten, yoksa kayıttaki ad */
+export const nameOf = (o) => (o && o.i18n ? t(o.i18n) : (o ? o.name : ''));
+export const attrOf = (o) => (o && o.attrI18n ? t(o.attrI18n) : (o ? o.attr || '' : ''));
 export const CRS = [
-  { id: 'NONE', name: 'Tanımsız / yerel', tm: null },
+  { id: 'NONE', name: 'Tanımsız / yerel', i18n: 'crsNone', tm: null },
   ...[27, 30, 33, 36, 39, 42, 45].map(l => ({ id: 'ITRF96_TM' + l, name: `ITRF96 / TM${l} (3°)  EPSG:${5253 + (l - 27) / 3}`, ell: 'GRS80', lon0: l, k0: 1, fe: 500000, fn: 0, datum: 'WGS84' })),
   ...[35, 36, 37].map(z => ({ id: 'WGS84_UTM' + z, name: `WGS84 / UTM ${z}N (6°)  EPSG:326${z}`, ell: 'WGS84', lon0: z * 6 - 183, k0: 0.9996, fe: 500000, fn: 0, datum: 'WGS84' })),
   ...[27, 30, 33, 36, 39, 42, 45].map(l => ({ id: 'ED50_TM' + l, name: `ED50 / TM${l} (3°)  EPSG:${2319 + (l - 27) / 3}`, ell: 'INTL1924', lon0: l, k0: 1, fe: 500000, fn: 0, datum: 'ED50' })),
@@ -154,11 +158,11 @@ export function zoomForResolution(mPerPx, lat) {
   return Math.max(0, Math.min(20, Math.round(z)));
 }
 export const BASEMAPS = [
-  { id: 'none', name: 'Altlık yok' },
-  { id: 'osm', name: 'OpenStreetMap', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', max: 19, attr: '© OpenStreetMap katkıda bulunanlar' },
+  { id: 'none', name: 'Altlık yok', i18n: 'basemapNone' },
+  { id: 'osm', name: 'OpenStreetMap', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', max: 19, attr: '© OpenStreetMap katkıda bulunanlar', attrI18n: 'osmAttr' },
   { id: 'esri_sat', name: 'Esri Uydu (World Imagery)', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', max: 19, attr: 'Esri, Maxar, Earthstar Geographics' },
   { id: 'esri_topo', name: 'Esri Topografik', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', max: 19, attr: 'Esri' },
   { id: 'esri_street', name: 'Esri Sokak', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', max: 19, attr: 'Esri' },
-  { id: 'wms', name: 'Özel WMS (EPSG:3857)', wms: true },
-  { id: 'xyz', name: 'Özel XYZ karo adresi', custom: true },
+  { id: 'wms', name: 'Özel WMS (EPSG:3857)', i18n: 'wmsCustom', wms: true },
+  { id: 'xyz', name: 'Özel XYZ karo adresi', i18n: 'xyzCustom', custom: true },
 ];

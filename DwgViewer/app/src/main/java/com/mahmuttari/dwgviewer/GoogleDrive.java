@@ -46,7 +46,8 @@ public class GoogleDrive {
 
     private final Activity act;
     private final SharedPreferences prefs;
-    private String pendingVerifier, pendingState;
+    // PKCE doğrulayıcı ve state prefs'te tutulur: kullanıcı tarayıcıdayken süreç öldürülse de yönlendirme işlenir
+    private static final long PKCE_TTL = 10 * 60_000L;
 
     public interface Cb { void done(boolean ok, String json); }
 
@@ -63,12 +64,13 @@ public class GoogleDrive {
         if (!configured()) return "İstemci kimliği tanımlı değil (gradle.properties → GOOGLE_CLIENT_ID).";
         try {
             byte[] rnd = new byte[48]; new SecureRandom().nextBytes(rnd);
-            pendingVerifier = b64url(rnd);
+            String verifier = b64url(rnd);
             byte[] st = new byte[16]; new SecureRandom().nextBytes(st);
-            pendingState = b64url(st);
-            String challenge = b64url(MessageDigest.getInstance("SHA-256").digest(pendingVerifier.getBytes(StandardCharsets.US_ASCII)));
+            String state = b64url(st);
+            prefs.edit().putString("pkce_verifier", verifier).putString("pkce_state", state).putLong("pkce_t", System.currentTimeMillis()).apply();
+            String challenge = b64url(MessageDigest.getInstance("SHA-256").digest(verifier.getBytes(StandardCharsets.US_ASCII)));
             String url = AUTH + "?client_id=" + enc(BuildConfig.GOOGLE_CLIENT_ID) + "&redirect_uri=" + enc(redirectUri()) + "&response_type=code&scope=" + enc(SCOPES)
-                    + "&code_challenge=" + challenge + "&code_challenge_method=S256&state=" + pendingState + "&access_type=offline&prompt=consent";
+                    + "&code_challenge=" + challenge + "&code_challenge_method=S256&state=" + state + "&access_type=offline&prompt=consent";
             act.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
             return "";
         } catch (Exception e) {
@@ -82,8 +84,11 @@ public class GoogleDrive {
         if (uri == null || !redirectUri().startsWith(uri.getScheme() + ":")) return false;
         String code = uri.getQueryParameter("code"), state = uri.getQueryParameter("state"), err = uri.getQueryParameter("error");
         if (err != null) { cb.done(false, JSONObject.quote(err)); return true; }
-        if (code == null || pendingVerifier == null || state == null || !state.equals(pendingState)) { cb.done(false, "\"geçersiz yanıt\""); return true; }
-        final String verifier = pendingVerifier; pendingVerifier = null; pendingState = null;
+        final String verifier = prefs.getString("pkce_verifier", null), expState = prefs.getString("pkce_state", null);
+        long t = prefs.getLong("pkce_t", 0);
+        prefs.edit().remove("pkce_verifier").remove("pkce_state").remove("pkce_t").apply();
+        if (code == null || verifier == null || state == null || !state.equals(expState)) { cb.done(false, "\"geçersiz yanıt\""); return true; }
+        if (System.currentTimeMillis() - t > PKCE_TTL) { cb.done(false, "\"giriş isteği zaman aşımına uğradı; yeniden deneyin\""); return true; }
         new Thread(() -> {
             try {
                 String body = "code=" + enc(code) + "&client_id=" + enc(BuildConfig.GOOGLE_CLIENT_ID) + "&redirect_uri=" + enc(redirectUri()) + "&grant_type=authorization_code&code_verifier=" + enc(verifier);
@@ -95,10 +100,18 @@ public class GoogleDrive {
                 cb.done(true, me.toString());
             } catch (Exception e) {
                 Log.w(TAG, "token", e);
-                cb.done(false, JSONObject.quote(String.valueOf(e.getMessage())));
+                cb.done(false, JSONObject.quote(message(e)));
             }
         }).start();
         return true;
+    }
+
+    /** Kullanıcıya gösterilecek hata iletisi: ağ yokluğu ve bellek yetersizliği Türkçe, ötekiler olduğu gibi */
+    public static String message(Throwable e) {
+        if (e instanceof java.net.UnknownHostException || e instanceof java.net.SocketTimeoutException || e instanceof java.net.ConnectException)
+            return "İnternet bağlantısı yok (" + e.getClass().getSimpleName() + ")";
+        if (e instanceof OutOfMemoryError) return "Dosya yüklemek için bellek yetmedi";
+        return e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
     }
 
     private void saveTokens(JSONObject tok, String keepRefresh) {
@@ -184,8 +197,11 @@ public class GoogleDrive {
         return f;
     }
 
-    /** Çok parçalı yükleme; convertTo (ör. application/vnd.google-apps.document) verilirse Google biçimine çevrilir */
-    public String upload(byte[] bytes, String name, String mime, String folderId, String convertTo) throws IOException {
+    /**
+     * Çok parçalı yükleme; gövde akıtılır, dosya Java yığınına alınmaz. len bilinmiyorsa (-1) parçalı kip.
+     * convertTo (ör. application/vnd.google-apps.document) verilirse Google biçimine çevrilir.
+     */
+    public String upload(InputStream in, long len, String name, String mime, String folderId, String convertTo) throws IOException {
         JSONObject meta = new JSONObject();
         try {
             meta.put("name", name);
@@ -193,11 +209,16 @@ public class GoogleDrive {
             if (convertTo != null) meta.put("mimeType", convertTo);
         } catch (Exception ignored) { }
         String boundary = "dwgviewer" + System.currentTimeMillis();
-        ByteArrayOutputStream body = new ByteArrayOutputStream(bytes.length + 512);
-        body.write(("--" + boundary + "\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" + meta + "\r\n--" + boundary + "\r\nContent-Type: " + mime + "\r\n\r\n").getBytes(StandardCharsets.UTF_8));
-        body.write(bytes);
-        body.write(("\r\n--" + boundary + "--").getBytes(StandardCharsets.UTF_8));
-        return post(UPLOAD + "?uploadType=multipart&supportsAllDrives=true&fields=" + enc("id,name,mimeType,webViewLink,parents"), body.toByteArray(), "multipart/related; boundary=" + boundary, accessToken());
+        byte[] head = ("--" + boundary + "\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" + meta + "\r\n--" + boundary + "\r\nContent-Type: " + mime + "\r\n\r\n").getBytes(StandardCharsets.UTF_8);
+        byte[] tail = ("\r\n--" + boundary + "--").getBytes(StandardCharsets.UTF_8);
+        HttpURLConnection c = open(UPLOAD + "?uploadType=multipart&supportsAllDrives=true&fields=" + enc("id,name,mimeType,webViewLink,parents"), "POST", accessToken());
+        c.setDoOutput(true);
+        c.setRequestProperty("Content-Type", "multipart/related; boundary=" + boundary);
+        if (len >= 0) c.setFixedLengthStreamingMode(head.length + len + tail.length); else c.setChunkedStreamingMode(65536);
+        try (OutputStream out = c.getOutputStream()) { out.write(head); Docs.copy(in, out); out.write(tail); }
+        int code = c.getResponseCode();
+        if (code >= 400) throw new IOException(errorOf(c, code));
+        try (InputStream rin = c.getInputStream()) { return read(rin); }
     }
     public String createFolder(String name, String parent) throws IOException {
         JSONObject meta = new JSONObject();
@@ -216,9 +237,8 @@ public class GoogleDrive {
         String low = name.toLowerCase();
         if (low.endsWith(".xls") || low.endsWith(".xlsx") || low.endsWith(".csv") || low.endsWith(".ods")) gtype = "application/vnd.google-apps.spreadsheet";
         else if (low.endsWith(".ppt") || low.endsWith(".pptx") || low.endsWith(".odp")) gtype = "application/vnd.google-apps.presentation";
-        byte[] bytes;
-        try (InputStream in = new java.io.FileInputStream(src)) { ByteArrayOutputStream o = new ByteArrayOutputStream(); Docs.copy(in, o); bytes = o.toByteArray(); }
-        String up = upload(bytes, name, mime, null, gtype);
+        String up;
+        try (InputStream in = new java.io.FileInputStream(src)) { up = upload(in, src.length(), name, mime, null, gtype); }
         String id;
         try { id = new JSONObject(up).getString("id"); } catch (Exception e) { throw new IOException("dönüştürme yanıtı okunamadı: " + up); }
         try { return download(id, name.replaceFirst("\\.[^.]+$", ""), gtype, dir, pr); }

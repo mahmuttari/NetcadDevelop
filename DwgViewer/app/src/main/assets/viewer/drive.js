@@ -11,6 +11,7 @@
 import { S, store, fmt } from './state.js';
 import { t } from './i18n.js';
 import { kindOf, iconFor } from './docs.js';
+import { askText, askConfirm } from './dialog.js';
 
 const $ = (id) => document.getElementById(id);
 const tt = (k, tr) => { const v = t(k); return v === k ? tr : v; };
@@ -69,7 +70,7 @@ export function open(o = {}) {
   p.hidden = false;
   renderAccount();
   if (!available()) { $('driveList').innerHTML = `<div class="doc-card"><strong>Google Drive</strong><p>${esc(tt('driveAndroidOnly', 'Google Drive yalnız Android uygulamasında kullanılabilir.'))}</p></div>`; return; }
-  if (!signedIn()) { $('driveList').innerHTML = `<div class="doc-card">${ICON('i-map')}<strong>Google Drive</strong><p>${esc(tt('driveIntro', 'Drive\'daki DWG, DXF, PDF, Word ve arşiv dosyalarını açmak, çizimlerinizi ve çıktılarınızı Drive\'a yüklemek için Google hesabınızla giriş yapın.'))}</p><button type="button" class="btn primary" data-drive="signin">${ICON('i-gps')} ${esc(tt('signIn', 'Google ile giriş yap'))}</button></div>`; return; }
+  if (!signedIn()) { $('driveList').innerHTML = `<div class="doc-card">${ICON('i-drive')}<strong>Google Drive</strong><p>${esc(tt('driveIntro', 'Drive\'daki DWG, DXF, PDF, Word ve arşiv dosyalarını açmak, çizimlerinizi ve çıktılarınızı Drive\'a yüklemek için Google hesabınızla giriş yapın.'))}</p><button type="button" class="btn primary" data-drive="signin">${ICON('i-gps')} ${esc(tt('signIn', 'Google ile giriş yap'))}</button></div>`; return; }
   load();
 }
 export function close() { const p = $('drivePanel'); if (p) p.hidden = true; nav.pick = null; }
@@ -117,7 +118,7 @@ function renderList() {
   if (nav.pageToken) h += `<div class="row"><button type="button" class="btn small" data-drive="more">${esc(tt('loadMore', 'Daha fazla'))}</button></div>`;
   list.innerHTML = h;
 }
-function gdocLabel(m) { return m.endsWith('document') ? 'Google Dokümanlar' : m.endsWith('spreadsheet') ? 'Google E-Tablolar' : m.endsWith('presentation') ? 'Google Slaytlar' : m.endsWith('shortcut') ? tt('shortcut', 'Kısayol') : 'Google'; }
+function gdocLabel(m) { return m.endsWith('document') ? t('gdocDoc') : m.endsWith('spreadsheet') ? t('gdocSheet') : m.endsWith('presentation') ? t('gdocSlide') : m.endsWith('shortcut') ? tt('shortcut', 'Kısayol') : 'Google'; }
 async function onClick(ev) {
   const b = ev.target.closest('[data-drive]');
   if (b) {
@@ -127,7 +128,7 @@ async function onClick(ev) {
     else if (k === 'crumb') { const i = +b.dataset.i; const c = nav.crumbs[i]; nav.crumbs = nav.crumbs.slice(0, i + 1); nav.folder = c.id; load(); }
     else if (k === 'more') load(true);
     else if (k === 'upload') uploadMenu();
-    else if (k === 'mkdir') { const name = prompt(tt('folderName', 'Klasör adı:'), ''); if (name) { try { await call('mkdir', { name, parent: nav.folder }); api.toast(tt('folderCreated', 'Klasör oluşturuldu'), { type: 'ok' }); load(); } catch (e) { api.toast(e.message, { type: 'error' }); } } }
+    else if (k === 'mkdir') { const name = await askText(tt('folderName', 'Klasör adı:'), ''); if (name) { try { await call('mkdir', { name, parent: nav.folder }); api.toast(tt('folderCreated', 'Klasör oluşturuldu'), { type: 'ok' }); load(); } catch (e) { api.toast(e.message, { type: 'error' }); } } }
     else if (k === 'refresh') load();
     else if (k === 'pickhere') { const p = nav.pick; nav.pick = null; if (p && p.fn) p.fn(nav.folder === 'shared' || nav.folder === 'recent' || nav.folder === 'starred' ? 'root' : nav.folder); }
     else if (k === 'menu') { ev.stopPropagation(); fileMenu(b.closest('.drive-item')); }
@@ -158,7 +159,7 @@ function fileMenu(it) {
   $('dmOpen').onclick = () => { api.hide('docPanel'); openFile(d); };
   $('dmKeep').onclick = async () => { api.hide('docPanel'); try { const info = await call('download', { id: d.id, name: d.name, mime: d.mime, size: +d.size || 0 }); if (A() && A().docKeep) A().docKeep(info.id); api.toast(tt('docKept', 'Çevrimdışı kopya alındı (Sunucudan indir › Çevrimdışı kopyalar)'), { type: 'ok' }); } catch (e) { api.toast(e.message, { type: 'error' }); } };
   if ($('dmLink')) $('dmLink').onclick = () => { api.hide('docPanel'); if (A() && A().openUrl) A().openUrl(d.link); else window.open(d.link, '_blank'); };
-  $('dmDel').onclick = async () => { api.hide('docPanel'); if (!confirm(tt('confirmDelete', 'Silinsin mi?') + ' ' + d.name)) return; try { await call('delete', { id: d.id }); api.toast(tt('deleted', 'Silindi')); load(); } catch (e) { api.toast(e.message, { type: 'error' }); } };
+  $('dmDel').onclick = async () => { api.hide('docPanel'); if (!(await askConfirm(tt('confirmDelete', 'Silinsin mi?') + ' ' + d.name))) return; try { await call('delete', { id: d.id }); api.toast(tt('deleted', 'Silindi')); load(); } catch (e) { api.toast(e.message, { type: 'error' }); } };
 }
 // ---- yükleme -------------------------------------------------------------------------
 function uploadMenu() {

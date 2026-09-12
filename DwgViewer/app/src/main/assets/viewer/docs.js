@@ -10,6 +10,7 @@
  */
 import { fmt } from './state.js';
 import { t } from './i18n.js';
+import { CP857, decodeCp } from './codepage.js';
 
 const $ = (id) => document.getElementById(id);
 const tt = (k, tr) => { const v = t(k); return v === k ? tr : v; };
@@ -48,7 +49,7 @@ class ZipReader {
     if (count === 0xffff || off === 0xffffffff) {
       for (let i = eocd - 20; i >= Math.max(0, eocd - 100); i--) if (dv.getUint32(i, true) === 0x07064b50) { const z64 = Number(dv.getBigUint64(i + 8, true)); count = Number(dv.getBigUint64(z64 + 32, true)); off = Number(dv.getBigUint64(z64 + 48, true)); break; }
     }
-    const out = [], td = new TextDecoder('utf-8'), cp = new TextDecoder('windows-1254');
+    const out = [], td = new TextDecoder('utf-8');
     let p = off;
     for (let i = 0; i < count; i++) {
       if (dv.getUint32(p, true) !== 0x02014b50) break;
@@ -57,7 +58,7 @@ class ZipReader {
       const nlen = dv.getUint16(p + 28, true), elen = dv.getUint16(p + 30, true), clen = dv.getUint16(p + 32, true);
       let loff = dv.getUint32(p + 42, true);
       const nameBytes = this.u8.subarray(p + 46, p + 46 + nlen);
-      const name = (flags & 0x800) ? td.decode(nameBytes) : cp.decode(nameBytes);
+      const name = (flags & 0x800) ? td.decode(nameBytes) : decodeCp(nameBytes, CP857);   // UTF-8 bayrağı yoksa ad OEM kod sayfasındadır (Türkçe Windows: CP857)
       // zip64 ek alanı
       let q = p + 46 + nlen; const qe = q + elen;
       while (q + 4 <= qe) { const id = dv.getUint16(q, true), l = dv.getUint16(q + 2, true); if (id === 1) { let r = q + 4; if (size === 0xffffffff) { size = Number(dv.getBigUint64(r, true)); r += 8; } if (csize === 0xffffffff) { csize = Number(dv.getBigUint64(r, true)); r += 8; } if (loff === 0xffffffff) loff = Number(dv.getBigUint64(r, true)); } q += 4 + l; }
@@ -231,9 +232,12 @@ export async function docxToHtml(arc) {
   let width = '';
   const sect = body ? child(body, 'sectPr') : null;
   const pg = sect ? child(sect, 'pgSz') : null; if (pg && attr(pg, 'w')) width = (+attr(pg, 'w') / 20) + 'pt';
-  const html = body ? await blockHtml(body) : '';
-  return { html, width };
+  // üst düzey bloklar ayrı ayrı (parts): showDocx uzun belgeyi parça parça basar; html tamamı (uyumluluk)
+  const parts = [];
+  if (body) for (const c of body.children) { const n = c.localName; if (n === 'p') parts.push(await paraHtml(c)); else if (n === 'tbl') parts.push(await tableHtml(c)); else if (n === 'sdt' || n === 'customXml' || n === 'smartTag') { const h = await blockHtml(n === 'sdt' ? (child(c, 'sdtContent') || c) : c); if (h) parts.push(h); } }
+  return { html: parts.join(''), width, parts };
 }
+const DOCX_PAGE = 3000;
 function roman(n) { const v = [1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1], s = ['M', 'CM', 'D', 'CD', 'C', 'XC', 'L', 'XL', 'X', 'IX', 'V', 'IV', 'I']; let o = ''; for (let i = 0; i < v.length; i++) while (n >= v[i]) { o += s[i]; n -= v[i]; } return o; }
 
 // ---------------------------------------------------------------------------------
@@ -256,7 +260,7 @@ export async function xlsxToHtml(arc) {
         for (const c of row.getElementsByTagName('c')) {
           const ref = c.getAttribute('r') || ''; const col = colIndex(ref.replace(/\d+/g, '')); const tp = c.getAttribute('t'); const v = c.getElementsByTagName('v')[0]; const is = c.getElementsByTagName('is')[0];
           let val = '';
-          if (tp === 's') val = shared[+(v ? v.textContent : 0)] || ''; else if (tp === 'inlineStr') val = is ? is.textContent : ''; else if (tp === 'b') val = v && v.textContent === '1' ? 'DOĞRU' : 'YANLIŞ'; else if (v) { const n = Number(v.textContent); val = isFinite(n) && v.textContent.trim() !== '' ? fmt(n, 6) : v.textContent; }
+          if (tp === 's') val = shared[+(v ? v.textContent : 0)] || ''; else if (tp === 'inlineStr') val = is ? is.textContent : ''; else if (tp === 'b') val = v && v.textContent === '1' ? t('boolTrue') : t('boolFalse'); else if (v) { const n = Number(v.textContent); val = isFinite(n) && v.textContent.trim() !== '' ? fmt(n, 6) : v.textContent; }
           cells[col] = val; if (col + 1 > maxC) maxC = col + 1;
         }
         rows.push(cells);
@@ -264,13 +268,19 @@ export async function xlsxToHtml(arc) {
       const merges = [...doc.getElementsByTagName('mergeCell')].map(m => m.getAttribute('ref'));
       const span = new Map(), skip = new Set();
       for (const m of merges) { const [a, b] = m.split(':'); if (!b) continue; const ca = colIndex(a.replace(/\d+/g, '')), ra = +a.replace(/\D+/g, '') - 1, cb = colIndex(b.replace(/\d+/g, '')), rb = +b.replace(/\D+/g, '') - 1; span.set(ra + ':' + ca, [rb - ra + 1, cb - ca + 1]); for (let r2 = ra; r2 <= rb; r2++) for (let c2 = ca; c2 <= cb; c2++) if (r2 !== ra || c2 !== ca) skip.add(r2 + ':' + c2); }
-      let html = '<table class="xlsx-tbl"><tr><th></th>' + Array.from({ length: maxC }, (_, i) => `<th>${colName(i)}</th>`).join('') + '</tr>';
-      rows.forEach((cells, ri) => { html += `<tr><th>${ri + 1}</th>`; for (let ci = 0; ci < maxC; ci++) { if (skip.has(ri + ':' + ci)) continue; const sp = span.get(ri + ':' + ci); const v = cells[ci] == null ? '' : cells[ci]; html += `<td${sp ? ` rowspan="${sp[0]}" colspan="${sp[1]}"` : ''}${/^[-\d.,]+$/.test(v) ? ' class="num"' : ''}>${esc(v)}</td>`; } html += '</tr>'; });
-      sheets.push({ name: sh.getAttribute('name') || path, html: html + '</table>', rows: rows.length });
-    } catch (e) { sheets.push({ name: sh.getAttribute('name') || path, html: `<div class="muted">${esc(e.message)}</div>`, rows: 0 }); }
+      // html: sayfanın tamamı (uyumluluk); tableHtml(upto): ilk upto satır — büyük sayfalar (on binlerce satır) parça parça basılır
+      const tableHtml = (upto = rows.length) => {
+        let html = '<table class="xlsx-tbl"><tr><th></th>' + Array.from({ length: maxC }, (_, i) => `<th>${colName(i)}</th>`).join('') + '</tr>';
+        const n = Math.min(upto, rows.length);
+        for (let ri = 0; ri < n; ri++) { const cells = rows[ri]; html += `<tr><th>${ri + 1}</th>`; for (let ci = 0; ci < maxC; ci++) { if (skip.has(ri + ':' + ci)) continue; const sp = span.get(ri + ':' + ci); const v = cells[ci] == null ? '' : cells[ci]; html += `<td${sp ? ` rowspan="${sp[0]}" colspan="${sp[1]}"` : ''}${/^[-\d.,]+$/.test(v) ? ' class="num"' : ''}>${esc(v)}</td>`; } html += '</tr>'; }
+        return html + '</table>';
+      };
+      sheets.push({ name: sh.getAttribute('name') || path, get html() { return tableHtml(); }, tableHtml, rows: rows.length, maxC });
+    } catch (e) { sheets.push({ name: sh.getAttribute('name') || path, html: `<div class="muted">${esc(e.message)}</div>`, tableHtml: null, rows: 0 }); }
   }
   return sheets;
 }
+const XLSX_PAGE = 1000;
 function colIndex(letters) { let n = 0; for (const ch of letters.toUpperCase()) n = n * 26 + (ch.charCodeAt(0) - 64); return Math.max(0, n - 1); }
 function colName(i) { let s = ''; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; }
 
@@ -355,7 +365,7 @@ function renderActs(d) {
   if (android && d.id) h += `<button type="button" class="btn icon" data-doc="open" title="${esc(tt('docOpenWith', 'Başka uygulamayla aç'))}" aria-label="${esc(tt('docOpenWith', 'Başka uygulamayla aç'))}">${ICON('i-export')}</button>`;
   if (android && d.id) h += `<button type="button" class="btn icon" data-doc="share" title="${esc(tt('share', 'Paylaş'))}" aria-label="${esc(tt('share', 'Paylaş'))}">${ICON('i-more')}</button>`;
   if (android && d.id) h += `<button type="button" class="btn icon" data-doc="keep" title="${esc(tt('docKeep', 'Çevrimdışı sakla'))}" aria-label="${esc(tt('docKeep', 'Çevrimdışı sakla'))}">${ICON('i-save')}</button>`;
-  if (api && api.driveAvailable && api.driveAvailable()) h += `<button type="button" class="btn icon" data-doc="drive" title="${esc(tt('driveUpload', "Drive'a yükle"))}" aria-label="${esc(tt('driveUpload', "Drive'a yükle"))}">${ICON('i-map')}</button>`;
+  if (api && api.driveAvailable && api.driveAvailable()) h += `<button type="button" class="btn icon" data-doc="drive" title="${esc(tt('driveUpload', "Drive'a yükle"))}" aria-label="${esc(tt('driveUpload', "Drive'a yükle"))}">${ICON('i-drive')}</button>`;
   els.acts.innerHTML = h;
 }
 export function close() {
@@ -445,7 +455,13 @@ async function showDocx(d) {
   const arc = await arcFor(d);
   const r = await docxToHtml(arc);
   els.tools.innerHTML = `<button type="button" class="btn small" data-doc="zout">${ICON('i-zoom-out')}</button><button type="button" class="btn small" data-doc="zin">${ICON('i-zoom-in')}</button>` + (api && api.driveAvailable && api.driveAvailable() ? `<button type="button" class="btn small" data-doc="convert">${esc(tt('drivePdf', "Drive ile PDF'e çevir"))}</button>` : '');
-  els.body.innerHTML = `<div class="docx-page" style="${r.width ? 'max-width:' + r.width : ''}">${r.html || `<p class="muted">${esc(tt('docEmpty', 'Belge boş'))}</p>`}</div>`;
+  const parts = r.parts || [r.html];
+  const render = (upto) => {
+    const html = parts.slice(0, upto).join('') + (upto < parts.length ? `<div class="muted">${parts.length} ${esc(tt('blocksOfFirst', 'bloğun ilk'))} ${upto}</div><button type="button" class="btn small" data-more="${Math.min(parts.length, upto * 2)}">${esc(tt('loadMore', 'Daha fazla'))}</button>` : '');
+    els.body.innerHTML = `<div class="docx-page" style="${r.width ? 'max-width:' + r.width : ''}">${html || `<p class="muted">${esc(tt('docEmpty', 'Belge boş'))}</p>`}</div>`;
+  };
+  els.body.onclick = (ev) => { const b = ev.target.closest('[data-more]'); if (b) { const top = els.body.scrollTop; render(+b.dataset.more); els.body.scrollTop = top; hookZoomButtons('.docx-page'); } };
+  render(DOCX_PAGE);
   els.body.querySelectorAll('a[href^="http"]').forEach(a => a.addEventListener('click', (ev) => { if (A() && A().openUrl) { ev.preventDefault(); A().openUrl(a.href); } }));
   hookZoomButtons('.docx-page');
 }
@@ -453,8 +469,15 @@ async function showXlsx(d) {
   const arc = await arcFor(d);
   const sheets = await xlsxToHtml(arc);
   els.tools.innerHTML = `<div class="tabs doc-tabs">${sheets.map((s, i) => `<button type="button" data-sheet="${i}" class="${i ? '' : 'active'}">${esc(s.name)}</button>`).join('')}</div>`;
-  const render = (i) => { els.body.innerHTML = `<div class="xlsx-wrap">${sheets[i] ? sheets[i].html : ''}</div>`; };
+  // sayfalı basım: ilk XLSX_PAGE satır, "Daha fazla" ile katlanarak; 60k satırlık tablo ana iş parçacığını kilitlemesin
+  const render = (i, upto = XLSX_PAGE) => {
+    const s = sheets[i]; if (!s) { els.body.innerHTML = ''; return; }
+    let html = s.tableHtml ? s.tableHtml(upto) : s.html;
+    if (s.tableHtml && upto < s.rows) html += `<div class="muted">${s.rows} ${esc(tt('rowsOfFirst', 'satırın ilk'))} ${Math.min(upto, s.rows)}</div><button type="button" class="btn small" data-more="${i}" data-upto="${Math.min(s.rows, upto * 2)}">${esc(tt('loadMore', 'Daha fazla'))}</button>`;
+    els.body.innerHTML = `<div class="xlsx-wrap">${html}</div>`;
+  };
   els.tools.querySelector('.doc-tabs').addEventListener('click', (ev) => { const b = ev.target.closest('[data-sheet]'); if (!b) return; els.tools.querySelectorAll('[data-sheet]').forEach(x => x.classList.toggle('active', x === b)); render(+b.dataset.sheet); });
+  els.body.onclick = (ev) => { const b = ev.target.closest('[data-more]'); if (b) { const top = els.body.scrollTop; render(+b.dataset.more, +b.dataset.upto); els.body.scrollTop = top; } };
   render(0);
 }
 function hookZoomButtons(sel) {

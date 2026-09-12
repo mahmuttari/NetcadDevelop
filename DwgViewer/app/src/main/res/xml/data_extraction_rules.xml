@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ yedekleme ve cihazlar arası aktarım: Google belirteçleri ve hata kaydı dışarıda kalır -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="google.xml" />
+        <exclude domain="file" path="log/" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="google.xml" />
+    </device-transfer>
+</data-extraction-rules>

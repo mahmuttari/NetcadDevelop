@@ -20,9 +20,12 @@
  * Ortak: col (RGB; -1 = ön plan), lay, lt (ad), lts (çizgi tipi ölçeği), lw (1/100 mm), bb, info
  */
 import { parseAcis, tessellate, triangulate, newell } from './acis.js';
-import { TAU, IDENT, mul, apply, isIdent, isSim, simScale, simRot, det, insertMatrix, arcPts, ellipsePts, bulgeArc, bsplinePts, catmullPts, opsBBox } from './geom.js';
+import { TAU, IDENT, mul, apply, isIdent, isSim, simScale, simRot, det, insertMatrix, arcPts, ellipsePts, bulgeArc, bsplinePts, catmullPts, opsBBox, flatten } from './geom.js';
 
 export const FG = -1;
+/** desenli taramada üretilecek en çok çizgi parçası; aşılırsa düz dolgu */
+const HATCH_MAX_SEG = 20000;
+const HATCH_SCENE_MAX_SEG = 300000;   // bütün taramaların toplam desen parçası; aşılınca kalan taramalar düz dolgu
 
 // ---- ACI paleti ---------------------------------------------------------------
 function hsv(h, s, v) {
@@ -50,12 +53,12 @@ export const ACI = new Array(256).fill(0);
 // DWG çizgi kalınlığı kodu → 1/100 mm
 const LW_TABLE = [0, 5, 9, 13, 15, 18, 20, 25, 30, 35, 40, 50, 53, 60, 70, 80, 90, 100, 106, 120, 140, 158, 200, 211];
 export const LW_DEFAULT = 25;
-function lwOf(code) {
+function lwOf(code, def = LW_DEFAULT) {
   if (code == null) return -1;
   if (code >= 0 && code < LW_TABLE.length) return LW_TABLE[code];
   if (code === 29 || code === -1) return -1;   // ByLayer
   if (code === 30 || code === -2) return -2;   // ByBlock
-  if (code === 31 || code === -3) return LW_DEFAULT;
+  if (code === 31 || code === -3) return def;  // varsayılan: başlık $LWDEFAULT
   if (code > 31 && code <= 211) return code;   // DXF: doğrudan 1/100 mm
   return -1;
 }
@@ -65,6 +68,9 @@ export function mtextLines(raw) {
   if (raw == null) return [];
   let s = String(raw);
   s = s.replace(/\\\\/g, '\x01');
+  // \{ \} kaçışları korunur; \U+XXXX (kod sayfasında olmayan karakter) ve \M+ (MIF) DWG yolunda da çözülür
+  s = s.replace(/\\\{/g, '\x02').replace(/\\\}/g, '\x03');
+  s = s.replace(/\\U\+([0-9A-Fa-f]{4})/g, (m, h) => String.fromCharCode(parseInt(h, 16))).replace(/\\M\+[1-5][0-9A-Fa-f]{4}/g, '?');
   s = s.replace(/\\P/g, '\n').replace(/\\~/g, ' ');
   s = s.replace(/\\S([^;]*?)[\^#/]([^;]*?);/g, '$1/$2');
   s = s.replace(/\\[fF][^;]*;/g, '').replace(/\\p[^;]*;/g, '');
@@ -72,14 +78,22 @@ export function mtextLines(raw) {
   s = s.replace(/\\[LlOoKkNXx]/g, '');
   s = s.replace(/[{}]/g, '');
   s = s.replace(/%%[dD]/g, '°').replace(/%%[pP]/g, '±').replace(/%%[cC]/g, 'Ø').replace(/%%[uUoO]/g, '').replace(/%%%/g, '%');
+  s = s.replace(/\x02/g, '{').replace(/\x03/g, '}');
   s = s.replace(/\x01/g, '\\');
   return s.split('\n');
+}
+/** MTEXT satırlarının \H…x çarpanı: ilk satır içi yükseklik kodu (satır bazında kaba ölçek) */
+export function mtextHeightFactor(raw) {
+  const m = /^(?:\{|\\[fFpPCcWwQqTtAaLlOoKk][^;]*;|\\[LlOoKk])*\\H([0-9.]+)x;/.exec(String(raw == null ? '' : raw));   // yalnız metnin başındaki kod: bütün yazı o boyda
+  const k = m ? parseFloat(m[1]) : 1;
+  return k > 0 && k < 20 ? k : 1;
 }
 export const textPlain = (t) => mtextLines(t).join(' ');
 
 function layerColor(l) {
-  if (l.colorIndex >= 1 && l.colorIndex <= 255) return ACI[l.colorIndex];
+  // gerçek renk (420 / method 194) ACI'den (62) önce gelir: AutoCAD gerçek renkli katmana ikisini de yazar
   if (typeof l.color === 'number' && l.color !== 0xffffff && l.color !== 0) return l.color & 0xffffff;
+  if (l.colorIndex >= 1 && l.colorIndex <= 255) return ACI[l.colorIndex];
   return FG;
 }
 const normColor = (c) => (c === 0xffffff || c === 0) ? FG : c;
@@ -172,6 +186,9 @@ function opsToWcs(ops, z, ocs) {
   return out;
 }
 
+/** -Z ekstrüzyonda kendi dalında aynalanan ya da konumu dünya koordinatlı olduğu için (MTEXT, POINT, ölçü tanım noktaları…) aynalanmayan türler */
+const FLIP_SELF = new Set(['LWPOLYLINE', 'POLYLINE2D', 'CIRCLE', 'ARC', 'LINE', 'POLYLINE3D', 'MTEXT', 'POINT', 'TOLERANCE', 'ACAD_TABLE', 'TABLE', 'POLYLINE_PFACE', 'POLYLINE_MESH', 'POLYFACE', '3DFACE', 'SPLINE', 'ELLIPSE', 'XLINE', 'RAY', 'LEADER', 'MLINE', 'IMAGE', 'WIPEOUT', 'VIEWPORT', 'DIMENSION', 'ARC_DIMENSION', 'LARGE_RADIAL_DIMENSION', 'MULTILEADER', 'MLEADER', 'ACAD_PROXY_ENTITY', 'PROXY_ENTITY', '3DSOLID', 'REGION', 'BODY', 'MESH', 'SURFACE', 'PLANESURFACE', 'EXTRUDEDSURFACE', 'LOFTEDSURFACE', 'NURBSURFACE', 'REVOLVEDSURFACE', 'SWEPTSURFACE']);
+
 export class SceneBuilder {
   /**
    * @param db DwgDatabase
@@ -187,9 +204,11 @@ export class SceneBuilder {
       this.blocksByName.set((b.name || '').toUpperCase(), b);
       this.blocksByHandle.set(b.handle, b);
     }
+    const hLw = db.header && db.header.LWDEFAULT;
+    this.lwDefault = (typeof hLw === 'number' && hLw >= 0 && hLw <= 211) ? hLw : LW_DEFAULT;   // 0,00 mm dâhil: 0 geçerli bir kalınlıktır
     this.layers = new Map();
     for (const l of db.tables.LAYER.entries) this.layers.set(this.prefix + l.name, {
-      name: this.prefix + l.name, color: layerColor(l), lt: (l.lineType || 'Continuous'), lw: lwOf(l.lineweight) > 0 ? lwOf(l.lineweight) : LW_DEFAULT,
+      name: this.prefix + l.name, color: layerColor(l), lt: (l.lineType || 'Continuous'), lw: lwOf(l.lineweight, this.lwDefault) >= 0 ? lwOf(l.lineweight, this.lwDefault) : this.lwDefault,
       frozen: !!l.frozen, off: !!l.off, visible: !(l.frozen || l.off), count: 0 });
     this.ltypes = {};
     for (const lt of db.tables.LTYPE.entries) {
@@ -208,9 +227,18 @@ export class SceneBuilder {
     this.entityCount = 0;
   }
 
+  /** katman tanıtıcısı (VIEWPORT 331) ya da adı → sahnedeki katman adı */
+  layerNameOf(v) {
+    const sv = String(v == null ? '' : v);
+    if (!sv) return null;
+    if (this.layers.has(this.prefix + sv)) return this.prefix + sv;
+    if (!this.layerByHandle) { this.layerByHandle = new Map(); for (const l of this.db.tables.LAYER.entries) if (l.handle) this.layerByHandle.set(String(l.handle).toUpperCase(), this.prefix + l.name); }
+    return this.layerByHandle.get(sv.toUpperCase()) || null;
+  }
+
   layerOf(name) {
     let l = this.layers.get(name);
-    if (!l) { l = { name, color: FG, lt: 'Continuous', lw: LW_DEFAULT, frozen: false, off: false, visible: true, count: 0 }; this.layers.set(name, l); }
+    if (!l) { l = { name, color: FG, lt: 'Continuous', lw: this.lwDefault, frozen: false, off: false, visible: true, count: 0 }; this.layers.set(name, l); }
     return l;
   }
 
@@ -220,19 +248,20 @@ export class SceneBuilder {
     const layName = ctx.layer && e.layer === '0' ? raw : this.prefix + raw;
     const lay = this.layerOf(layName);
     let col;
-    if (typeof e.color === 'number' && e.colorIndex !== 0 && !(e.colorIndex >= 1 && e.colorIndex <= 255)) col = normColor(e.color & 0xffffff);
+    // gerçek renk (420 / method 194) ACI'den önce: AutoCAD gerçek renkli varlığa en yakın ACI'yi de yazar
+    if (typeof e.color === 'number' && e.colorIndex !== 0) col = normColor(e.color & 0xffffff);
     else if (e.colorIndex === 0) col = ctx.color != null ? ctx.color : lay.color;
     else if (e.colorIndex >= 1 && e.colorIndex <= 255) col = ACI[e.colorIndex];
     else col = lay.color;
     let lt = e.lineType || '';
     const u = lt.toUpperCase();
-    if (!u || u === 'BYLAYER') lt = lay.lt; else if (u === 'BYBLOCK') lt = ctx.lt || lay.lt;
+    if (!u || u === 'BYLAYER') lt = lay.lt; else if (u === 'BYBLOCK') lt = ctx.lt || lay.lt;   // ctx.lt: üst bağlamın çözülmüş adı
     const ltu = (lt || 'CONTINUOUS').toUpperCase();
     const lts = this.ltscale * (e.lineTypeScale || 1) * (ctx.lts || 1);
-    let lw = lwOf(e.lineweight);
+    let lw = lwOf(e.lineweight, this.lwDefault);
     if (lw === -2) lw = ctx.lw != null ? ctx.lw : lay.lw;
     if (lw < 0) lw = lay.lw;
-    return { lay: layName, col, lt: this.ltypes[ltu] ? ltu : null, lts, lw };
+    return { lay: layName, col, lt: this.ltypes[ltu] ? ltu : null, ltName: ltu, lts, lw };
   }
 
   count(t) { this.counts[t] = (this.counts[t] || 0) + 1; }
@@ -303,7 +332,7 @@ export class SceneBuilder {
 
   headerInfo() {
     const h = this.db.header || {};
-    return { INSUNITS: h.INSUNITS, LTSCALE: h.LTSCALE, EXTMIN: h.EXTMIN, EXTMAX: h.EXTMAX, LIMMIN: h.LIMMIN, LIMMAX: h.LIMMAX, CECOLOR: h.CECOLOR ? h.CECOLOR.index : undefined };
+    return { INSUNITS: h.INSUNITS, LTSCALE: h.LTSCALE, PSLTSCALE: h.PSLTSCALE == null ? 1 : (h.PSLTSCALE ? 1 : 0), EXTMIN: h.EXTMIN, EXTMAX: h.EXTMAX, LIMMIN: h.LIMMIN, LIMMAX: h.LIMMAX, CECOLOR: h.CECOLOR ? h.CECOLOR.index : undefined };
   }
 
   layout(name, isModel, ents, block) {
@@ -311,8 +340,11 @@ export class SceneBuilder {
     this.deferred = [];
     this.viewports = [];
     const root = { m: IDENT, zs: 1, zo: 0, layer: null, color: null, lt: null, lts: 1, lw: null, depth: 0, top: null, info: null };
+    const prog = typeof this.opts.onProgress === 'function' ? this.opts.onProgress : null, nEnt = (ents || []).length;   // işçi ilerleme yüzdesi
+    let iEnt = 0;
     for (const e of ents || []) {
       this.entityCount++;
+      if (prog && (++iEnt % 5000) === 0) prog(iEnt, nEnt);
       try { this.entity(e, root); } catch (err) { console.warn('varlık atlandı', e && e.type, err); }
     }
     let ext = this.extents(this.prims);
@@ -413,17 +445,19 @@ export class SceneBuilder {
 
   pushText(x, y, h, rot, lines, hax, vay, ws, e, ctx, opt = {}) {
     const m = ctx.m;
+    let mirrored = false;
     if (!isIdent(m)) {
       const p = apply(m, x, y); x = p[0]; y = p[1];
       const s = Math.sqrt(Math.abs(det(m))) || 1;
-      h *= s; rot += Math.atan2(m[1], m[0]);
-      if (det(m) < 0) rot = -rot;
+      h *= s;
+      if (det(m) < 0) { mirrored = true; rot = Math.atan2(m[1], m[0]) - rot; }   // aynalı bağlam (negatif ölçekli blok, -Z ekstrüzyon): M·R(θ) = R(φ-θ)·flipY → glif de aynalanır
+      else rot += Math.atan2(m[1], m[0]);
     }
     const maxLen = Math.max(...lines.map(l => l.length));
     const wEst = maxLen * h * 0.75 * ws, hEst = h * (1 + 1.667 * (lines.length - 1));
     const R = Math.hypot(wEst, hEst);
     const st = this.style(e, ctx);
-    const p = { k: 1, x, y, z: zW(opt.z || 0, ctx), h, rot, lines, ha: hax, va: vay, ws, font: opt.font, obl: opt.obl || 0, mx: !!opt.mx, my: !!opt.my,
+    const p = { k: 1, x, y, z: zW(opt.z || 0, ctx), h, rot, lines, ha: hax, va: vay, ws, font: opt.font, obl: opt.obl || 0, mx: !!opt.mx, my: mirrored !== !!opt.my,
       col: opt.col != null ? opt.col : st.col, lay: st.lay, lw: st.lw, bb: [x - R, y - R, x + R, y + R], info: ctx.info || this.info(e, st), et: e.type, spacing: opt.spacing || 1 };
     this.prims.push(p);
     this.layerOf(st.lay).count++;
@@ -439,10 +473,12 @@ export class SceneBuilder {
   // ---- varlıklar ---------------------------------------------------------------------
   entity(e, ctx) {
     if (!e || e.isVisible === false) return;
-    if (ctx.depth === 0) { this.count(e.type); ctx = { ...ctx, top: e, info: null }; }
+    if (ctx.depth === 0 && !e._flipped) { this.count(e.type); ctx = { ...ctx, top: e, info: null }; }
     const flipX = !!(e.extrusionDirection && e.extrusionDirection.z < -0.5);
     const ocs = ocsOf(e);
     if (ocs && this.entityOcs(e, ctx, ocs)) return;
+    // -Z ekstrüzyon (0,0,-1): OCS x = -dünya x. Yol türleri kendi dalında aynalanır; OCS konumlu ötekiler (yazı, dolgu, tarama, blok) bağlam matrisiyle
+    if (flipX && !FLIP_SELF.has(e.type)) { this.entity({ ...e, extrusionDirection: null, _flipped: true }, { ...ctx, m: mul(ctx.m, [-1, 0, 0, 1, 0, 0]) }); return; }
     switch (e.type) {
       case 'ACAD_PROXY_ENTITY': case 'PROXY_ENTITY': this.proxy(e, ctx); break;
       case '3DSOLID': case 'REGION': case 'BODY': case 'MESH': case 'SURFACE': case 'PLANESURFACE': case 'EXTRUDEDSURFACE': case 'LOFTEDSURFACE': case 'NURBSURFACE': case 'REVOLVEDSURFACE': case 'SWEPTSURFACE': this.solid(e, ctx); break;
@@ -458,8 +494,10 @@ export class SceneBuilder {
           vs = vs.filter(v => hasSpline ? (v.flag & 8) : !(v.flag & 16));
         }
         if (vs.length < 1) break;
-        const closed = !!(e.flag & 1);
+        // DWG kuruluşu: LWPOLYLINE'da 512 kapalı, 256 plinegen, 1 ekstrüzyon var (dxf.js 70'i buna çevirir); POLYLINE2D'de 1 kapalı
+        const closed = e.type === 'LWPOLYLINE' ? !!(e.flag & 512) : !!(e.flag & 1);
         const z = e.elevation || 0;
+        if (this.varWidthPoly(e, vs, closed, z, flipX ? -1 : 1, ctx)) break;
         const ops = [];
         const X = (v) => flipX ? -v.x : v.x;
         ops.push([0, X(vs[0]), vs[0].y, z]);
@@ -502,11 +540,14 @@ export class SceneBuilder {
             this.addPath(q.map((v, k) => [k ? 1 : 0, v.x, v.y, v.z]), { closed: true }, e, ctx);
           }
         } else if (faces.length) {
+          // DXF yüz kayıtları: negatif indeks görünmez kenar; DWG yoluyla aynı ağ (kenar süzgeci + üçgen) üretilir
+          const verts = locs.map(v => [v.x, v.y, v.z || 0]), fl = [], hidden = [];
           for (const f of faces) {
-            const idx = [f.polyfaceIndex0, f.polyfaceIndex1, f.polyfaceIndex2, f.polyfaceIndex3].filter(i => i);
-            const pts = idx.map(i => locs[Math.abs(i) - 1]).filter(Boolean);
-            if (pts.length >= 2) { const ops = [[0, pts[0].x, pts[0].y, pts[0].z]]; for (let i = 1; i < pts.length; i++) ops.push([1, pts[i].x, pts[i].y, pts[i].z]); this.addPath(ops, { closed: pts.length > 2 }, e, ctx); }
+            const idx = [f.polyfaceIndex0, f.polyfaceIndex1, f.polyfaceIndex2, f.polyfaceIndex3].filter(i => i && Math.abs(i) <= verts.length);
+            if (idx.length < 2) continue;
+            fl.push(idx.length, ...idx.map(i => Math.abs(i) - 1)); hidden.push(false, ...idx.map(i => i < 0));
           }
+          if (fl.length) this.solid(e, ctx, { mesh: { verts, faces: fl, hidden } });
         } else if (locs.length > 1) {
           const ops = [[0, locs[0].x, locs[0].y, locs[0].z]]; for (let i = 1; i < locs.length; i++) ops.push([1, locs[i].x, locs[i].y, locs[i].z]); this.addPath(ops, {}, e, ctx);
         }
@@ -551,12 +592,13 @@ export class SceneBuilder {
       case 'MTEXT': {
         const lines = this.wrapMText(e);
         if (!lines.length || !(e.textHeight > 0)) break;
+        const hk = mtextHeightFactor(e.text);
         const ap = e.attachmentPoint || 1;
         const hax = (ap - 1) % 3, vay = ap <= 3 ? 3 : ap <= 6 ? 2 : 1;
         let rot = e.rotation || 0;
         if (e.direction && (Math.abs(e.direction.x) > 1e-9 || Math.abs(e.direction.y) > 1e-9)) rot = Math.atan2(e.direction.y, e.direction.x);
         const sty = this.styles[(e.styleName || 'STANDARD').toUpperCase()];
-        this.pushText(e.insertionPoint.x, e.insertionPoint.y, e.textHeight, rot, lines, hax, vay, 1, e, ctx, { spacing: e.lineSpacing || 1, font: sty ? sty.font : undefined, z: e.insertionPoint.z });
+        this.pushText(e.insertionPoint.x, e.insertionPoint.y, e.textHeight * hk, rot, lines, hax, vay, 1, e, ctx, { spacing: e.lineSpacing || 1, font: sty ? sty.font : undefined, z: e.insertionPoint.z });
         break;
       }
       case 'INSERT': this.insert(e, ctx); break;
@@ -565,11 +607,10 @@ export class SceneBuilder {
         const st = this.style(e, ctx);
         const info = ctx.info || this.info(e, st);
         if (blk && blk.entities && blk.entities.length) {
-          this.block(blk, { ...ctx, layer: e.layer, color: st.col, lt: e.lineType, lw: st.lw, depth: ctx.depth + 1, info });
-        } else if (e.textPoint) {
-          const txt = e.text && e.text !== '<>' ? e.text : (e.measurement != null ? String(Math.round(e.measurement * 1000) / 1000) : '');
-          if (txt) this.pushText(e.textPoint.x, e.textPoint.y, this.dimTextHeight(e), e.textRotation || 0, mtextLines(txt), 1, 2, 1, e, { ...ctx, info });
-        }
+          // 12/22 (ins_pt): paylaşılan *D bloğunu kullanan ölçü kopyalarının ötelemesi (modern dosyalarda 0,0)
+          const ip = e.insertionPoint, m = ip && (ip.x || ip.y) ? mul(ctx.m, [1, 0, 0, 1, ip.x, ip.y]) : ctx.m;
+          this.block(blk, { ...ctx, m, layer: e.layer, color: st.col, lt: st.ltName, lw: st.lw, depth: ctx.depth + 1, info });
+        } else this.dimFallback(e, { ...ctx, info });
         break;
       }
       case 'ACAD_TABLE': case 'TABLE': {
@@ -586,22 +627,38 @@ export class SceneBuilder {
         break;
       }
       case '3DFACE': {
-        const c = [e.corner1, e.corner2, e.corner3, e.corner4].filter(Boolean);
+        let c = [e.corner1, e.corner2, e.corner3, e.corner4].filter(Boolean);
+        if (c.length === 4 && c[3].x === c[2].x && c[3].y === c[2].y && (c[3].z || 0) === (c[2].z || 0)) c = c.slice(0, 3);   // üçgen: 4. köşe 3.'nün kopyası
         if (c.length < 2) break;
-        const ops = [[0, c[0].x, c[0].y, c[0].z]];
-        for (let i = 1; i < c.length; i++) ops.push([1, c[i].x, c[i].y, c[i].z]);
-        this.addPath(ops, { closed: true }, e, ctx);
+        const inv = e.flag | 0, n = c.length;
+        if (!(inv & 15) || n < 3) {
+          const ops = [[0, c[0].x, c[0].y, c[0].z]];
+          for (let i = 1; i < n; i++) ops.push([1, c[i].x, c[i].y, c[i].z]);
+          this.addPath(ops, { closed: n > 2 }, e, ctx);
+          break;
+        }
+        // görünmez kenar var: kenarlar tek tek (bayrağı set olan atlanır), yüzey ağ dalıyla (kenarsız üçgen)
+        const verts = c.map(q => [q.x, q.y, q.z || 0]);
+        const bits = n === 3 ? [1, 2, 8] : [1, 2, 4, 8];   // üçgende 3. kenar (4→3) sıfır boylu; kapanış kenarı 4. bayrağa (8) bakar
+        this.solid(e, ctx, { mesh: { verts, faces: [n, ...verts.map((_, i) => i)], hidden: [false, ...verts.map((_, i) => !!(inv & bits[i]))] } });
         break;
       }
       case 'LEADER': {
         const vs = e.vertices || [];
         if (vs.length < 2) break;
-        const ops = [[0, vs[0].x, vs[0].y]];
-        for (let i = 1; i < vs.length; i++) ops.push([1, vs[i].x, vs[i].y]);
-        this.addPath(ops, {}, e, ctx);
+        const V = vs;   // köşeler WCS'dir (DXF 10, LibreDWG points): -Z ekstrüzyonda aynalanmaz
+        const pts = e.isSpline && V.length >= 3 ? catmullPts(V, false) : V.map(v => [v.x, v.y]);   // path_type 1: uydurma noktalarından geçen eğri
+        this.addPath(pts.map((q, i) => [i ? 1 : 0, q[0], q[1]]), {}, e, ctx);
+        if (e.isArrowheadEnabled !== false) {
+          const ds = this.dimStyleOf(e), k = ds.DIMSCALE > 0 ? ds.DIMSCALE : 1;
+          const L = (ds.DIMTSZ > 0 ? 0 : (ds.DIMASZ > 0 ? ds.DIMASZ : 2.5)) * k;
+          const dx = V[1].x - V[0].x, dy = V[1].y - V[0].y, n = Math.hypot(dx, dy) || 1;
+          if (L > 0 && n > L) this.arrow(V[0], dx / n, dy / n, L, e, ctx);   // ok, ilk parçadan kısaysa çizilmez (AutoCAD gibi)
+        }
         break;
       }
       case 'MULTILEADER': case 'MLEADER': {
+        if (!e.leaderSections && !e.textContent && !e.blockContent && e.graphicsData) { this.proxy(e, ctx); break; }   // DXF: yalnız 92/310 önizleme grafiği (dwg2dxf çıktısı)
         const st = this.style(e, ctx);
         const info = ctx.info || this.info(e, st);
         const c2 = { ...ctx, info };
@@ -616,6 +673,9 @@ export class SceneBuilder {
             const ops = [[0, vs[0].x, vs[0].y]];
             for (let i = 1; i < vs.length; i++) ops.push([1, vs[i].x, vs[i].y]);
             this.addPath(ops, {}, e, c2);
+            const L = (e.arrowheadSize > 0 ? e.arrowheadSize : 0) * (e.scale > 0 ? e.scale : 1);
+            const dx = vs[1].x - vs[0].x, dy = vs[1].y - vs[0].y, n = Math.hypot(dx, dy) || 1;
+            if (L > 0 && n > L) this.arrow(vs[0], dx / n, dy / n, L, e, c2);
           }
         }
         if (e.textContent && e.textHeight > 0) {
@@ -685,7 +745,8 @@ export class SceneBuilder {
         const c = e.viewportCenter, dc = e.displayCenter || { x: 0, y: 0 };
         const vh = e.viewHeight > 0 ? e.viewHeight : e.height;
         this.viewports.push({ x0: c.x - e.width / 2, y0: c.y - e.height / 2, x1: c.x + e.width / 2, y1: c.y + e.height / 2,
-          cx: dc.x, cy: dc.y, scale: e.height / vh, twist: e.viewTwistAngle || 0, on: !((e.statusBitFlags || 0) & 131072), handle: e.handle });
+          cx: dc.x, cy: dc.y, scale: e.height / vh, twist: e.viewTwistAngle || 0, on: !((e.statusBitFlags || 0) & 131072), handle: e.handle,
+          frozen: (e.frozenLayers || []).map(v => this.layerNameOf(v)).filter(Boolean) });
         break;
       }
       default: break;
@@ -693,8 +754,177 @@ export class SceneBuilder {
   }
 
   dimTextHeight(e) {
-    const ds = this.db.tables.DIMSTYLE && this.db.tables.DIMSTYLE.entries.find(d => d.name === e.styleName);
-    return ds && ds.DIMTXT > 0 ? ds.DIMTXT * (ds.DIMSCALE || 1) : 2.5;
+    const ds = this.dimStyleOf(e);
+    return ds.DIMTXT > 0 ? ds.DIMTXT * (ds.DIMSCALE > 0 ? ds.DIMSCALE : 1) : 2.5;
+  }
+
+  /**
+   * Etkin ölçü stili: DIMSTYLE tablosu (yoksa başlık DIM* değişkenleri) + varlığın ACAD XDATA'sındaki
+   * DSTYLE geçersiz kılmaları (1070 değişken kodu, ardından 1070/1040 değeri). DIMSCALE 0 → 1.
+   */
+  dimStyleOf(e) {
+    const h = this.db.header || {};
+    const tbl = this.db.tables.DIMSTYLE && this.db.tables.DIMSTYLE.entries;
+    const want = (e.styleName || '').toUpperCase();
+    const src = (tbl && (tbl.find(d => (d.name || '').toUpperCase() === want) || (want === '' ? tbl.find(d => /^(STANDARD|ISO-25)$/i.test(d.name || '')) : null))) || h;
+    const num = (k, d) => (typeof src[k] === 'number' && isFinite(src[k])) ? src[k] : (typeof h[k] === 'number' && isFinite(h[k]) ? h[k] : d);
+    const ds = { DIMSCALE: num('DIMSCALE', 1), DIMASZ: num('DIMASZ', 2.5), DIMEXO: num('DIMEXO', 0.625), DIMEXE: num('DIMEXE', 1.25), DIMTXT: num('DIMTXT', 2.5),
+      DIMGAP: num('DIMGAP', 0.625), DIMTSZ: num('DIMTSZ', 0), DIMTAD: num('DIMTAD', 0), DIMSE1: !!num('DIMSE1', 0), DIMSE2: !!num('DIMSE2', 0), DIMSD1: !!num('DIMSD1', 0), DIMSD2: !!num('DIMSD2', 0) };
+    const CODES = { 40: 'DIMSCALE', 41: 'DIMASZ', 42: 'DIMEXO', 44: 'DIMEXE', 140: 'DIMTXT', 147: 'DIMGAP', 142: 'DIMTSZ', 77: 'DIMTAD', 75: 'DIMSE1', 76: 'DIMSE2', 281: 'DIMSD1', 282: 'DIMSD2' };
+    for (const x of e.xdata || []) {
+      if (String(x.appName || x.app_name || '').toUpperCase() !== 'ACAD') continue;
+      const vals = (x.value || x.values || []).map(v => (v && typeof v === 'object') ? v : { code: 0, value: v });
+      let inDs = false;
+      for (let i = 0; i < vals.length; i++) {
+        const v = vals[i];
+        if (v.code === 1000) { inDs = String(v.value).toUpperCase() === 'DSTYLE'; continue; }
+        if (!inDs || v.code !== 1070) continue;
+        const key = CODES[v.value | 0], nx = vals[i + 1];
+        if (!key || !nx || (nx.code !== 1070 && nx.code !== 1040)) continue;
+        const val = parseFloat(nx.value);
+        if (!isFinite(val)) continue;
+        ds[key] = typeof ds[key] === 'boolean' ? !!val : val; i++;
+      }
+    }
+    if (!(ds.DIMSCALE > 0)) ds.DIMSCALE = 1;
+    return ds;
+  }
+
+  /** kapalı dolu ok başı: p ucu, (ux,uy) ok yönü, L uzunluk (DIMASZ×DIMSCALE); L ≤ 0 ise çizilmez */
+  arrow(p, ux, uy, L, e, ctx) {
+    if (!(L > 0)) return;
+    const w = L / 6, bx = p.x + ux * L, by = p.y + uy * L;
+    this.addPath([[0, p.x, p.y], [1, bx - uy * w, by + ux * w], [1, bx + uy * w, by - ux * w]], { closed: true, fill: true, alpha: 1 }, e, ctx);
+  }
+
+  /**
+   * Anonim *D bloğu olmayan DIMENSION: ölçü çizgisi, uzatma çizgileri, ok başları ve yazı stil değerlerinden
+   * yeniden üretilir. Doğrusal/dönük (0), hizalı (1) tam; açısal (2/5), çap (3), yarıçap (4), ordinat (6) temel.
+   */
+  dimFallback(e, ctx) {
+    const ds = this.dimStyleOf(e), k = ds.DIMSCALE;
+    const type = (e.dimensionType | 0) & 15;
+    const P = (q) => q && typeof q.x === 'number' ? q : null;
+    const p1 = P(e.subDefinitionPoint1), p2 = P(e.subDefinitionPoint2), d = P(e.definitionPoint), tp = P(e.textPoint);
+    const asz = (ds.DIMTSZ > 0 ? 0 : ds.DIMASZ) * k, tsz = ds.DIMTSZ * k;
+    const line = (a, b) => this.addPath([[0, a.x, a.y], [1, b.x, b.y]], {}, e, ctx);
+    const head = (p, ux, uy) => {
+      if (tsz > 0) { const t = tsz / Math.SQRT2; this.addPath([[0, p.x - t * (ux - uy), p.y - t * (uy + ux)], [1, p.x + t * (ux - uy), p.y + t * (uy + ux)]], {}, e, ctx); }
+      else this.arrow(p, ux, uy, asz, e, ctx);
+    };
+    const angular = type === 2 || type === 5;
+    const meas = e.measurement == null ? '' : angular ? String(Math.round(e.measurement * 180 / Math.PI * 100) / 100) + '°' : String(Math.round(e.measurement * 1000) / 1000);   // açısal ölçüm radyan saklanır
+    const txt = e.text && e.text !== '<>' ? e.text.replace(/<>/g, meas) : meas;
+    const text = (x, y, rot) => { if (txt) this.pushText(x, y, this.dimTextHeight(e), rot, mtextLines(txt), 1, 2, 1, e, ctx); };
+    if ((type === 0 || type === 1) && p1 && p2 && d) {
+      const ang = type === 0 ? (e.rotationAngle || 0) : Math.atan2(p2.y - p1.y, p2.x - p1.x);
+      const ux = Math.cos(ang), uy = Math.sin(ang), nx = -uy, ny = ux;
+      const off = (d.x - p1.x) * nx + (d.y - p1.y) * ny, sg = Math.sign(off) || 1;        // ölçü çizgisinin uzatma yönündeki uzaklığı
+      const a = { x: p1.x + nx * off, y: p1.y + ny * off }, b = { x: p2.x + nx * ((d.x - p2.x) * nx + (d.y - p2.y) * ny), y: p2.y + ny * ((d.x - p2.x) * nx + (d.y - p2.y) * ny) };
+      const exo = ds.DIMEXO * k * sg, exe = ds.DIMEXE * k * sg;
+      if (!ds.DIMSE1) line({ x: p1.x + nx * exo, y: p1.y + ny * exo }, { x: a.x + nx * exe, y: a.y + ny * exe });
+      if (!ds.DIMSE2) line({ x: p2.x + nx * exo, y: p2.y + ny * exo }, { x: b.x + nx * exe, y: b.y + ny * exe });
+      const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy);
+      if (L > 0) {
+        const ex = dx / L, ey = dy / L, inside = L > 2 * asz;   // oklar araya sığmıyorsa dışa çizilir
+        if (!ds.DIMSD1 || !ds.DIMSD2) line(a, b);
+        head(a, inside ? ex : -ex, inside ? ey : -ey); head(b, inside ? -ex : ex, inside ? -ey : ey);
+        const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        let rot = e.textRotation || 0;
+        if (!rot) { rot = Math.atan2(ey, ex); if (rot > Math.PI / 2 + 1e-9 || rot <= -Math.PI / 2 + 1e-9) rot += Math.PI; }
+        const gap = ds.DIMTAD ? ds.DIMGAP * k + this.dimTextHeight(e) / 2 : 0;   // DIMTAD: yazı çizginin üstünde
+        const tx = tp && (tp.x || tp.y) ? tp : { x: mid.x + nx * sg * gap, y: mid.y + ny * sg * gap };
+        text(tx.x, tx.y, rot);
+      }
+      return;
+    }
+    const cp = P(e.centerPoint);
+    if ((type === 3 || type === 4) && d && cp) {                 // çap: tanım noktası (10) ↔ karşı çevre noktası (15); yarıçap: merkez (10) → çevre noktası (15)
+      const a = d, b = cp;
+      const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
+      line(a, b);
+      head(b, -ux, -uy); if (type === 3) head(a, ux, uy);
+      const tx = tp && (tp.x || tp.y) ? tp : { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      let rot = Math.atan2(uy, ux); if (rot > Math.PI / 2 + 1e-9 || rot <= -Math.PI / 2 + 1e-9) rot += Math.PI;
+      text(tx.x, tx.y, e.textRotation || rot);
+      return;
+    }
+    if (type === 6 && d && p1 && p2) {                          // ordinat: özellik noktası (13) → çağrı ucu (14), L kırığıyla
+      const vert = ((e.dimensionType | 0) & 64) !== 0;           // 64: X ordinatı (düşey çağrı)
+      const mid = vert ? { x: p1.x, y: (p1.y + p2.y) / 2 } : { x: (p1.x + p2.x) / 2, y: p1.y };
+      const mid2 = vert ? { x: p2.x, y: (p1.y + p2.y) / 2 } : { x: (p1.x + p2.x) / 2, y: p2.y };
+      this.addPath([[0, p1.x, p1.y], [1, mid.x, mid.y], [1, mid2.x, mid2.y], [1, p2.x, p2.y]], {}, e, ctx);
+      const tx = tp && (tp.x || tp.y) ? tp : p2;
+      text(tx.x, tx.y, e.textRotation || (vert ? Math.PI / 2 : 0));
+      return;
+    }
+    if ((type === 2 || type === 5) && d) {                      // açısal: iki kenar çizgisi + yay noktasından (10 / 16) geçen yay
+      let cen = null, e1 = null, e2 = null;
+      if (type === 5) { cen = cp; e1 = p1; e2 = p2; }            // 3 nokta: 15 merkez, 13/14 uçlar
+      else {                                                     // 2 çizgi: 13→14 ve 15→centerPoint(10); kesişim merkezdir
+        const l1s = P(e.xline1Start) || p1, l1e = P(e.xline1End) || p2, l2s = P(e.xline2Start), l2e = cp;
+        if (l1s && l1e && l2s && l2e) {
+          const den = (l1e.x - l1s.x) * (l2e.y - l2s.y) - (l1e.y - l1s.y) * (l2e.x - l2s.x);
+          if (Math.abs(den) > 1e-12) { const t = ((l2s.x - l1s.x) * (l2e.y - l2s.y) - (l2s.y - l1s.y) * (l2e.x - l2s.x)) / den; cen = { x: l1s.x + t * (l1e.x - l1s.x), y: l1s.y + t * (l1e.y - l1s.y) }; }
+          e1 = l1e; e2 = l2e;
+        }
+      }
+      if (cen && e1 && e2) {
+        const r = Math.hypot(d.x - cen.x, d.y - cen.y);
+        const a1 = Math.atan2(e1.y - cen.y, e1.x - cen.x), a2 = Math.atan2(e2.y - cen.y, e2.x - cen.x);
+        const ad = Math.atan2(d.y - cen.y, d.x - cen.x);
+        const norm = (v) => ((v % TAU) + TAU) % TAU;
+        const ccw = norm(ad - a1) <= norm(a2 - a1) + 1e-9;      // tanım noktası a1→a2 yayı üstünde mi
+        const s0 = ccw ? a1 : a2, s1 = ccw ? a2 : a1;
+        if (r > 0) {
+          this.addPath([[0, cen.x + r * Math.cos(s0), cen.y + r * Math.sin(s0)], [2, cen.x, cen.y, r, s0, s1]], {}, e, ctx);
+          const ext = (p, ang) => { const rp = Math.hypot(p.x - cen.x, p.y - cen.y); if (rp < r) line(p, { x: cen.x + (r + ds.DIMEXE * k) * Math.cos(ang), y: cen.y + (r + ds.DIMEXE * k) * Math.sin(ang) }); };
+          ext(e1, a1); ext(e2, a2);
+          const t0 = { x: cen.x + r * Math.cos(s0), y: cen.y + r * Math.sin(s0) }, t1 = { x: cen.x + r * Math.cos(s1), y: cen.y + r * Math.sin(s1) };
+          head(t0, -Math.sin(s0), Math.cos(s0)); head(t1, Math.sin(s1), -Math.cos(s1));
+          const am = s0 + norm(s1 - s0) / 2;
+          const tx = tp && (tp.x || tp.y) ? tp : { x: cen.x + r * Math.cos(am), y: cen.y + r * Math.sin(am) };
+          text(tx.x, tx.y, e.textRotation || 0);
+          return;
+        }
+      }
+      // merkez bulunamadı (çizgi uçları eksik ya da paralel): en azından ölçü yazısı
+    }
+    if (tp) text(tp.x, tp.y, e.textRotation || 0);            // bilinmeyen tür: en azından ölçü yazısı
+  }
+
+  /**
+   * Değişken (konik) genişlikli LWPOLYLINE/POLYLINE2D: her parça başlangıç→bitiş genişliğiyle dolu şerit
+   * olarak çizilir (ok başı polyline'ları üçgen kalır). Genişlik tek düzeyse false döner, normal yol çizilir.
+   */
+  varWidthPoly(e, vs, closed, z, sgn, ctx) {
+    if (e.constantWidth > 0 || vs.length < 2) return false;
+    const n = vs.length, segs = closed ? n : n - 1;
+    const sw0 = e.type === 'POLYLINE2D' ? (e.startWidth || 0) : 0, ew0 = e.type === 'POLYLINE2D' ? (e.endWidth || 0) : 0;
+    const W = vs.map(v => [v.startWidth || sw0, v.endWidth || ew0]);
+    let variable = false, any = false;
+    for (let i = 0; i < segs; i++) { const [a, b] = W[i]; if (a > 0 || b > 0) any = true; if (Math.abs(a - b) > 1e-12 || Math.abs(a - W[0][0]) > 1e-12) variable = true; }
+    if (!any || !variable) return false;
+    for (let i = 0; i < segs; i++) {
+      const a = vs[i], b = vs[(i + 1) % n], sw = W[i][0] / 2, ew = W[i][1] / 2;
+      const ax = sgn * a.x, bx = sgn * b.x, bulge = (a.bulge || 0) * sgn;
+      let pts;
+      if (bulge) { const ops = [[0, ax, a.y, z]]; bulgeArc(ax, a.y, bx, b.y, bulge, ops, z); pts = flatten(ops); }
+      else pts = [[ax, a.y], [bx, b.y]];
+      if (pts.length < 2) continue;
+      if (!(sw > 0) && !(ew > 0)) { this.addPath(pts.map((q, j) => [j ? 1 : 0, q[0], q[1], z]), {}, e, ctx); continue; }
+      const cum = [0]; for (let j = 1; j < pts.length; j++) cum.push(cum[j - 1] + Math.hypot(pts[j][0] - pts[j - 1][0], pts[j][1] - pts[j - 1][1]));
+      const L = cum[cum.length - 1] || 1, left = [], right = [];
+      for (let j = 0; j < pts.length; j++) {
+        const p0 = pts[Math.max(0, j - 1)], p1 = pts[Math.min(pts.length - 1, j + 1)];
+        const dx = p1[0] - p0[0], dy = p1[1] - p0[1], d = Math.hypot(dx, dy) || 1, nx = -dy / d, ny = dx / d;
+        const h = sw + (ew - sw) * cum[j] / L;
+        left.push([pts[j][0] + nx * h, pts[j][1] + ny * h]); right.push([pts[j][0] - nx * h, pts[j][1] - ny * h]);
+      }
+      const poly = left.concat(right.reverse());
+      this.addPath(poly.map((q, j) => [j ? 1 : 0, q[0], q[1], z]), { closed: true, fill: true, alpha: 1 }, e, ctx);
+    }
+    return true;
   }
 
   wrapMText(e) {
@@ -731,7 +961,7 @@ export class SceneBuilder {
     if (T === 'LWPOLYLINE' || T === 'POLYLINE2D') {
       let vs = e.vertices || []; if (T === 'POLYLINE2D') { const hasSpline = vs.some(v => v.flag & 8); vs = vs.filter(v => hasSpline ? (v.flag & 8) : !(v.flag & 16)); }
       if (vs.length < 1) return true;
-      const closed = !!(e.flag & 1), z = e.elevation || 0, ops = [[0, vs[0].x, vs[0].y, z]];
+      const closed = T === 'LWPOLYLINE' ? !!(e.flag & 512) : !!(e.flag & 1), z = e.elevation || 0, ops = [[0, vs[0].x, vs[0].y, z]];
       for (let i = 0; i < vs.length - 1; i++) { const b = vs[i].bulge || 0; if (b) bulgeArc(vs[i].x, vs[i].y, vs[i + 1].x, vs[i + 1].y, b, ops, z); else ops.push([1, vs[i + 1].x, vs[i + 1].y, z]); }
       if (closed && vs.length > 1) { const l = vs[vs.length - 1], b = l.bulge || 0; if (b) bulgeArc(l.x, l.y, vs[0].x, vs[0].y, b, ops, z); else ops.push([1, vs[0].x, vs[0].y, z]); }
       this.addPath(opsToWcs(ops, z, ocs), { closed }, e, ctx); return true;
@@ -909,8 +1139,8 @@ export class SceneBuilder {
       if (!t.faces && !(t.tris && t.tris.length)) d.errors.push((e.type || '') + ' ' + (e.handle || '') + ': yüzey yok (' + (t.records || 0) + ' kayıt)');
     } else if (err) d.errors.push((e.type || '') + ' ' + (e.handle || '') + ': ' + (err.message || err));
   }
-  solid(e, ctx) {
-    const raw = (this.db.raw3d && this.db.raw3d[e.handle]) || (e.acisText ? { acis: e.acisText } : null);
+  solid(e, ctx, rawOverride) {
+    const raw = rawOverride || (this.db.raw3d && this.db.raw3d[e.handle]) || (e.acisText ? { acis: e.acisText } : null);
     const st = this.style(e, ctx), info = ctx.info || this.info(e, st);
     const edges = [], tris = [];
     if (raw && raw.mesh) {
@@ -969,11 +1199,13 @@ export class SceneBuilder {
           continue;
         }
         const zs = e.zScale || 1, bz = (blk.basePoint && blk.basePoint.z) || 0;
-        const sub = { m, zs: (ctx.zs || 1) * zs, zo: (ctx.zo || 0) + (ctx.zs || 1) * ((ip.z || 0) - zs * bz), layer: st.lay, color: st.col, lt: e.lineType, lts: (ctx.lts || 1) * (e.lineTypeScale || 1), lw: st.lw, depth: ctx.depth + 1, top: ctx.top, info };
+        const sub = { m, zs: (ctx.zs || 1) * zs, zo: (ctx.zo || 0) + (ctx.zs || 1) * ((ip.z || 0) - zs * bz), layer: st.lay, color: st.col, lt: st.ltName, lts: (ctx.lts || 1) * (e.lineTypeScale || 1), lw: st.lw, depth: ctx.depth + 1, top: ctx.top, info };
         if (blk.entities) this.block(blk, sub);
       }
     }
-    for (const a of e.attribs || []) this.entity(a, { ...ctx, layer: st.lay, color: st.col, info });
+    // -Z ekstrüzyonlu INSERT bağlam matrisiyle aynalandı (_flipped); aynı OCS'deki ATTRIB'ler ikinci kez aynalanmaz
+    const unflip = (a) => e._flipped && a && a.extrusionDirection && a.extrusionDirection.z < -0.5 ? { ...a, extrusionDirection: null } : a;
+    for (const a of e.attribs || []) this.entity(unflip(a), { ...ctx, layer: st.lay, color: st.col, info });
   }
 
   block(blk, ctx) {
@@ -1031,7 +1263,78 @@ export class SceneBuilder {
     }
     if (!ops.length) return;
     const solid = e.solidFill === 1 || (e.patternName || '').toUpperCase() === 'SOLID';
+    if (!solid && this.hatchPattern(e, ops, ctx)) return;
     this.addPath(ops, { closed: true, fill: true, alpha: solid ? 0.85 : 0.18 }, e, ctx);
+  }
+
+  /**
+   * Desenli tarama: tanım satırlarından (açı, taban, offset, çizgi-boşluk listesi) sınırla kırpılmış çizgiler.
+   * Değerler dosyada ölçek ve açı uygulanmış hâldedir (DXF 53/43-46/49, DWG deflines) — yeniden ölçeklenmez.
+   * Üst sınır HATCH_MAX_SEG parça; aşılırsa false döner ve düz dolguya düşülür.
+   */
+  hatchPattern(e, ops, ctx) {
+    const defs = e.definitionLines || e.patternLines || [];
+    if (!defs.length) return false;
+    if ((this._hatchSegs || 0) >= HATCH_SCENE_MAX_SEG) return false;   // sahne bütçesi doldu
+    const loops = []; let cur = null;
+    for (const o of ops) { if (o[0] === 0) { cur = [o]; loops.push(cur); } else if (cur) cur.push(o); }
+    const polys = loops.map(l => flatten(l)).filter(l => l.length >= 3);
+    if (!polys.length) return false;
+    const bb = [Infinity, Infinity, -Infinity, -Infinity];
+    for (const pl of polys) for (const q of pl) { if (q[0] < bb[0]) bb[0] = q[0]; if (q[1] < bb[1]) bb[1] = q[1]; if (q[0] > bb[2]) bb[2] = q[0]; if (q[1] > bb[3]) bb[3] = q[1]; }
+    const diag = Math.hypot(bb[2] - bb[0], bb[3] - bb[1]);
+    if (!(diag > 0)) return false;
+    const corners = [[bb[0], bb[1]], [bb[2], bb[1]], [bb[2], bb[3]], [bb[0], bb[3]]];
+    const npts = polys.reduce((t, l) => t + l.length, 0);
+    const out = []; let segs = 0, lines = 0;
+    for (const dl of defs) {
+      const a = dl.angle || 0, ux = Math.cos(a), uy = Math.sin(a), nx = -uy, ny = ux;
+      const base = dl.base || { x: 0, y: 0 }, off = dl.offset || { x: 0, y: 0 };
+      const step = (off.x || 0) * nx + (off.y || 0) * ny;             // ardışık çizgiler arası dik uzaklık (işaretli)
+      if (!(Math.abs(step) > 1e-12)) continue;
+      const dashes = (dl.dashLengths || []).filter(v => typeof v === 'number' && isFinite(v));
+      const period = dashes.reduce((t, v) => t + Math.abs(v), 0);
+      let dmin = Infinity, dmax = -Infinity;
+      for (const c of corners) { const d = (c[0] - base.x) * nx + (c[1] - base.y) * ny; if (d < dmin) dmin = d; if (d > dmax) dmax = d; }
+      const i0 = Math.floor(Math.min(dmin / step, dmax / step)) - 1, i1 = Math.ceil(Math.max(dmin / step, dmax / step)) + 1;
+      lines += i1 - i0 + 1;
+      if (lines > HATCH_MAX_SEG || lines * npts > 4e6 || (period > 0 && lines * (diag / period) * dashes.length > HATCH_MAX_SEG * 4)) return false;   // kırpma maliyeti de sınırlı
+      for (let i = i0; i <= i1; i++) {
+        const ox = base.x + off.x * i, oy = base.y + off.y * i;
+        const ts = [];
+        for (const pl of polys) {
+          for (let j = 0, m = pl.length; j < m; j++) {
+            const p = pl[j], q = pl[(j + 1) % m];
+            const den = (q[0] - p[0]) * nx + (q[1] - p[1]) * ny;
+            if (Math.abs(den) < 1e-15) continue;
+            const sPar = ((ox - p[0]) * nx + (oy - p[1]) * ny) / den;
+            if (sPar < 0 || sPar >= 1) continue;
+            ts.push((p[0] + sPar * (q[0] - p[0]) - ox) * ux + (p[1] + sPar * (q[1] - p[1]) - oy) * uy);
+          }
+        }
+        if (ts.length < 2) continue;
+        ts.sort((x, y) => x - y);
+        for (let j = 0; j + 1 < ts.length; j += 2) {
+          const t0 = ts[j], t1 = ts[j + 1];
+          if (!(t1 - t0 > 1e-12)) continue;
+          if (!(period > 0)) { out.push([0, ox + ux * t0, oy + uy * t0], [1, ox + ux * t1, oy + uy * t1]); segs++; continue; }
+          let t = Math.floor(t0 / period) * period, di = 0;               // çizgi-boşluk dizisi çizginin kendi başlangıcından (i. taban) sayılır
+          while (t < t1) {
+            const v = dashes[di], len = Math.abs(v);
+            if (v >= 0) {
+              const s0 = Math.max(t0, t), s1 = v === 0 ? Math.min(t1, t + diag * 1e-4) : Math.min(t1, t + len);
+              if (s1 > s0) { out.push([0, ox + ux * s0, oy + uy * s0], [1, ox + ux * s1, oy + uy * s1]); segs++; }
+            }
+            t += len; di = (di + 1) % dashes.length;
+            if (segs > HATCH_MAX_SEG) return false;
+          }
+        }
+      }
+    }
+    if (!out.length) return false;
+    this._hatchSegs = (this._hatchSegs || 0) + segs;
+    this.addPath(out, {}, e, ctx);
+    return true;
   }
 
   infinite(e, ctx, ext) {

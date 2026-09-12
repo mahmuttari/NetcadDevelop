@@ -6,8 +6,9 @@
  *
  * Desteklenen geometri: plane / cone(silindir, koni) / sphere / torus yüzeyleri; straight / ellipse kenarları.
  * intcurve (kesişim) kenarları uç noktalar arasında kiriş olarak; spline yüzeyler yalnız kenarlarıyla.
- * Düzlem ve koni yüzeyleri sınır döngülerinden (delikli çokgen, kulak kesme) üçgenlenir; küre ve torus
- * parametre ızgarasıyla (kırpma dikkate alınmadan) çizilir. Amaç mühendislik katılarının (plaka, boru,
+ * Düzlem yüzleri sınır döngülerinden (delikli çokgen, kulak kesme) üçgenlenir; koni, küre ve torus yüzleri
+ * döngüleriyle parametre düzleminde kırpılır (tam tur atan halkalar dikişle kapatılır) ve ızgara hücrelerine
+ * bölünerek üçgenlenir; döngüsüz küre/torus tam ızgaradır. Amaç mühendislik katılarının (plaka, boru,
  * flanş, kutu, silindir) 3B'de yüzeyli görünmesi; tam ACIS uyumu değildir.
  */
 
@@ -59,8 +60,10 @@ function tokenizeSab(u8) {
   let p = 15;
   const i32 = () => { const v = dv.getInt32(p, true); p += 4; return v; };
   const f64 = () => { const v = dv.getFloat64(p, true); p += 8; return v; };
-  const str8 = () => { const n = u8[p++]; const s = latin(u8, p, n); p += n; return s; };
-  const str32 = () => { const n = dv.getUint32(p, true); p += 4; const s = latin(u8, p, n); p += n; return s; };
+  // dizgi/blok uzunluğu tampon dışına taşarsa akış bozuktur: tek bozuk bayt gigabaytlık dizgi kurdurmasın (bellek tükenmesi)
+  const need = (n) => { if (!(n >= 0) || p + n > u8.length) throw new Error('SAB bozuk: dizgi/blok uzunluğu tampon dışında (' + n + ' @' + p + ')'); };
+  const str8 = () => { const n = u8[p++]; need(n); const s = latin(u8, p, n); p += n; return s; };
+  const str32 = () => { const n = dv.getUint32(p, true); p += 4; need(n); const s = latin(u8, p, n); p += n; return s; };
   const version = i32(); i32(); i32(); i32();          // sürüm, kayıt sayısı, gövde sayısı, bayraklar
   // ürün / sürüm / tarih dizgileri ve birim/toleranslar jeton olarak gelir; ilk kayıt başlığına (0x0d/0x0e) kadar atlanır
   const records = [], unknown = [];
@@ -76,7 +79,7 @@ function tokenizeSab(u8) {
       case 0x06: { const v = f64(); if (cur) cur.tok.push({ t: 'n', v }); break; }               // double
       case 0x07: { const s = str8(); if (cur) cur.tok.push({ t: 's', v: s }); break; }           // kısa dizgi
       case 0x08: { const s = str32(); if (cur) cur.tok.push({ t: 's', v: s }); break; }          // uzun dizgi
-      case 0x09: { const n = dv.getUint32(p, true); p += 4 + n; break; }                        // ikili blok
+      case 0x09: { const n = dv.getUint32(p, true); p += 4; need(n); p += n; break; }           // ikili blok
       case 0x0a: cur && cur.tok.push({ t: 'e', v: 'true' }); break;
       case 0x0b: cur && cur.tok.push({ t: 'e', v: 'false' }); break;
       case 0x0c: { const v = i32(); if (cur) cur.tok.push({ t: 'p', v }); break; }               // işaretçi (kayıt dizini)
@@ -172,11 +175,11 @@ function pointInTri(px, py, a, b, c) {
   const d = (c[0] - b[0]) * (py - b[1]) - (c[1] - b[1]) * (px - b[0]);
   return d === 0 || (d < 0) === (s + t <= 0);
 }
-/** dış halka (herhangi yön) + delikler → üçgen indeks üçlüleri (pts dizisine göre) */
-export function triangulate(outer, holes = []) {
-  // yönleri düzelt: dış CCW, delikler CW
-  let ring = outer.slice(); if (area2(ring) > 0) ring.reverse();
-  const hs = holes.map(h => { const r = h.slice(); if (area2(r) < 0) r.reverse(); return r; });
+/** delikleri dış halkaya köprüler → tek halka (dış CCW, delikler CW) */
+function bridge(outer, holes = []) {
+  // area2 > 0 ⇔ CCW; kulak kesme dış halkayı CCW (dışbükey köşede cr > 0), delikleri CW ister
+  let ring = outer.slice(); if (area2(ring) < 0) ring.reverse();
+  const hs = holes.map(h => { const r = h.slice(); if (area2(r) > 0) r.reverse(); return r; });
   // delikleri en sağdaki noktadan köprüle (basit ve yeterli)
   hs.sort((a, b) => Math.max(...b.map(p => p[0])) - Math.max(...a.map(p => p[0])));
   for (const h of hs) {
@@ -189,28 +192,82 @@ export function triangulate(outer, holes = []) {
     const rot = h.slice(hi).concat(h.slice(0, hi + 1));
     ring = ring.slice(0, best + 1).concat(rot, ring.slice(best));
   }
+  return ring;
+}
+/** dış halka (herhangi yön) + delikler → üçgen indeks üçlüleri (ring dizisine göre) */
+export function triangulate(outer, holes = []) {
+  const ring = bridge(outer, holes);
+  return { ring, tris: earClip(ring) };
+}
+/** kulak kesme: köprülenmiş CCW halka → üçgen indeks üçlüleri */
+function earClip(ring) {
   const n = ring.length, idx = []; for (let i = 0; i < n; i++) idx.push(i);
   const tris = [];
+  // her adımda en kısa köşegenli kulak kesilir: ilk kulağı kesmek tek köşeden yelpaze üretir, en kısa köşegen şerit
+  // biçimli halkalarda (silindir yanı) fermuar gibi ilerler. Adaylar köşegene göre sıralanır, içinde nokta olmayan ilki alınır.
   let guard = 0;
   while (idx.length > 3 && guard++ < n * n) {
-    let cut = false;
-    for (let i = 0; i < idx.length; i++) {
-      const i0 = idx[(i + idx.length - 1) % idx.length], i1 = idx[i], i2 = idx[(i + 1) % idx.length];
-      const a = ring[i0], b = ring[i1], c = ring[i2];
+    const m = idx.length, cand = [];
+    for (let i = 0; i < m; i++) {
+      const a = ring[idx[(i + m - 1) % m]], b = ring[idx[i]], c = ring[idx[(i + 1) % m]];
       const cr = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
       if (cr <= 1e-14 * (1 + Math.abs(a[0]) + Math.abs(a[1]))) continue;     // dışbükey değil
+      cand.push([(a[0] - c[0]) ** 2 + (a[1] - c[1]) ** 2, i]);
+    }
+    cand.sort((x, y) => x[0] - y[0]);
+    let cut = -1;
+    for (const [, i] of cand) {
+      const i0 = idx[(i + m - 1) % m], i1 = idx[i], i2 = idx[(i + 1) % m];
+      const a = ring[i0], b = ring[i1], c = ring[i2];
       let inside = false;
       for (const j of idx) { if (j === i0 || j === i1 || j === i2) continue; const q = ring[j]; if ((q[0] === a[0] && q[1] === a[1]) || (q[0] === b[0] && q[1] === b[1]) || (q[0] === c[0] && q[1] === c[1])) continue; if (pointInTri(q[0], q[1], a, b, c)) { inside = true; break; } }
-      if (inside) continue;
-      tris.push([i0, i1, i2]); idx.splice(i, 1); cut = true; break;
+      if (!inside) { cut = i; break; }
     }
-    if (!cut) { // dejenere: yelpaze
+    if (cut < 0) { // dejenere: yelpaze
       for (let i = 1; i < idx.length - 1; i++) tris.push([idx[0], idx[i], idx[i + 1]]);
       break;
     }
+    tris.push([idx[(cut + m - 1) % m], idx[cut], idx[(cut + 1) % m]]); idx.splice(cut, 1);
   }
   if (idx.length === 3) tris.push([idx[0], idx[1], idx[2]]);
-  return { ring, tris };
+  return tris;
+}
+/** dışbükey çokgeni [x0,x1]×[y0,y1] dikdörtgenine kırpar (Sutherland–Hodgman; dışbükey girdide sonuç kesindir) */
+function clipRect(poly, x0, x1, y0, y1) {
+  let out = poly;
+  const pass = (ax, lo, bound) => {
+    const inp = out; out = [];
+    const ins = (q) => lo ? q[ax] >= bound : q[ax] <= bound;
+    const cut = (a, b) => { const t = (bound - a[ax]) / (b[ax] - a[ax]); const q = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; q[ax] = bound; return q; };
+    for (let i = 0, j = inp.length - 1; i < inp.length; j = i++) { const a = inp[j], b = inp[i], ia = ins(a), ib = ins(b); if (ib) { if (!ia) out.push(cut(a, b)); out.push(b); } else if (ia) out.push(cut(a, b)); }
+    return out.length;
+  };
+  if (!pass(0, true, x0) || !pass(0, false, x1) || !pass(1, true, y0) || !pass(1, false, y1)) return [];
+  return out;
+}
+/** parametre düzlemindeki çokgeni (dış halka + delikler) üçgenler, sonra her üçgeni en çok dx×dy boyutlu ızgara
+ *  hücrelerine kırpıp (dışbükey parça → yelpaze) yayar: kirişler hücre genişliğini aşmaz, eğri yüzeyde iç kısımdan
+ *  geçen uzun kirişler oluşmaz. dx/dy = 0: o yönde bölme yok. emit(a, b, c): 2B köşeler. */
+function gridTriangulate(outer, holes, dx, dy, emit) {
+  const { ring, tris: T } = triangulate(outer, holes);
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const q of ring) { x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); y0 = Math.min(y0, q[1]); y1 = Math.max(y1, q[1]); }
+  if (!(x1 > x0) || !(y1 > y0)) return;
+  const nx = dx > 0 ? Math.max(1, Math.min(512, Math.ceil((x1 - x0) / dx - 1e-9))) : 1, ny = dy > 0 ? Math.max(1, Math.min(512, Math.ceil((y1 - y0) / dy - 1e-9))) : 1;
+  const sx = (x1 - x0) / nx, sy = (y1 - y0) / ny, tiny = 1e-9 * sx * sy;
+  const cell = (v, o, s, n) => Math.max(0, Math.min(n - 1, Math.floor((v - o) / s)));
+  for (const t of T) {
+    const tri = [ring[t[0]], ring[t[1]], ring[t[2]]];
+    if (Math.abs(area2(tri)) < tiny) continue;
+    const i0 = cell(Math.min(tri[0][0], tri[1][0], tri[2][0]), x0, sx, nx), i1 = cell(Math.max(tri[0][0], tri[1][0], tri[2][0]), x0, sx, nx);
+    const j0 = cell(Math.min(tri[0][1], tri[1][1], tri[2][1]), y0, sy, ny), j1 = cell(Math.max(tri[0][1], tri[1][1], tri[2][1]), y0, sy, ny);
+    if (i0 === i1 && j0 === j1) { emit(tri[0], tri[1], tri[2]); continue; }
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+      const piece = clipRect(tri, x0 + i * sx, x0 + (i + 1) * sx, y0 + j * sy, y0 + (j + 1) * sy);
+      if (piece.length < 3 || Math.abs(area2(piece)) < tiny) continue;
+      for (let k = 1; k + 1 < piece.length; k++) emit(piece[0], piece[k], piece[k + 1]);
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------------
@@ -225,8 +282,10 @@ export function tessellate(parsed, opts = {}) {
   // gövde dönüşümü
   let xf = null;
   for (const r of R) if (A.kind(r) === 'body') { const t = A.ref(r, 'transform'); if (t) { const n = A.nums(t); if (n.length >= 12) xf = n; } }
-  const X = (p) => xf ? [n_(xf, 0, p) + xf[9], n_(xf, 3, p) + xf[10], n_(xf, 6, p) + xf[11]] : p;
-  function n_(m, o, p) { return m[o] * p[0] + m[o + 1] * p[1] + m[o + 2] * p[2]; }
+  // ACIS dönüşüm kaydı satır-vektör kuralıyla yazılır (p' = p·M + t): ilk üç sayı matrisin ilk SATIRIdır,
+  // x' = m0·x + m3·y + m6·z + m9; 13. sayı düzgün ölçek katsayısıdır (dönme kısmı dik matristir)
+  const xs = xf && xf.length >= 13 && xf[12] > 0 && Number.isFinite(xf[12]) ? xf[12] : 1;
+  const X = (p) => xf ? [(xf[0] * p[0] + xf[3] * p[1] + xf[6] * p[2]) * xs + xf[9], (xf[1] * p[0] + xf[4] * p[1] + xf[7] * p[2]) * xs + xf[10], (xf[2] * p[0] + xf[5] * p[1] + xf[8] * p[2]) * xs + xf[11]] : p;
   // nokta / köşe
   const pointOf = (vr) => { if (!vr) return null; const pr = A.ref(vr, 'point'); if (!pr) return null; const n = A.nums(pr); return n.length >= 3 ? [n[0], n[1], n[2]] : null; };
   // kenar örnekleme (dünya koordinatı, dönüşümsüz)
@@ -236,7 +295,6 @@ export function tessellate(parsed, opts = {}) {
     const vs = A.refs(er, 'vertex');
     const p0 = pointOf(vs[0]), p1 = pointOf(vs[1] || vs[0]);
     const cr = A.curveOf(er);
-    const nums = A.nums(er);
     let pts = null;
     if (cr && A.kind(cr) === 'ellipse') {
       const n = A.nums(cr);
@@ -246,11 +304,12 @@ export function tessellate(parsed, opts = {}) {
         const ang = (p) => { const d = sub(p, c); return Math.atan2(dot(d, v) / (rmaj * ratio || 1), dot(d, u) / (rmaj || 1)); };
         let a0 = ang(p0), a1 = ang(p1);
         const closed = len(sub(p0, p1)) < 1e-9 * (1 + rmaj);
-        if (closed) { a1 = a0 + TAU; }
-        else { // parametre aralığı: start_param/end_param varsa yönü belirler
-          if (nums.length >= 2 && nums[1] < nums[0]) { if (a1 > a0) a1 -= TAU; } else if (a1 <= a0) a1 += TAU;
-          if (A.sense(er) === false) { /* sense edge yönü — noktalar zaten başlangıç/bitiş */ }
-        }
+        // kenar yönü: 'forward' kenar eğriyi kendi yönünde (normal etrafında CCW) izler, 'reversed' ters (CW) —
+        // uç noktalar zaten kenarın başlangıç/bitişidir; param aralığı (v ≥ 700) kenar yönünde yazıldığından yön vermez
+        const fwd = A.sense(er);
+        if (closed) a1 = a0 + (fwd ? TAU : -TAU);
+        else if (fwd) { if (a1 <= a0) a1 += TAU; }
+        else if (a1 >= a0) a1 -= TAU;
         const k = Math.max(2, Math.ceil(Math.abs(a1 - a0) / TAU * segs));
         pts = [];
         for (let i = 0; i <= k; i++) { const a = a0 + (a1 - a0) * i / k; pts.push(add(c, add(mul(u, rmaj * Math.cos(a)), mul(v, rmaj * ratio * Math.sin(a))))); }
@@ -307,6 +366,75 @@ export function tessellate(parsed, opts = {}) {
     return out;
   }
   function pushTri(a, b, c) { a = X(a); b = X(b); c = X(c); tris.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]); }
+  /** açıyı önceki değere göre sürekli kılar (dikiş geçişi) */
+  const cont = (x, prev) => { while (x - prev > Math.PI) x -= TAU; while (prev - x > Math.PI) x += TAU; return x; };
+  /** halkanın d yönündeki tur sayısı: kapanış kenarındaki 2π atlaması */
+  const winding = (P, d) => Math.round((cont(P[0][d], P[P.length - 1][d]) - P[0][d]) / TAU);
+  /** halkayı d yönünde +yönlü kılar (kopya) */
+  const forward = (P, d) => winding(P, d) < 0 ? P.slice().reverse() : P.slice();
+  /**
+   * Çevrimli yüzey (koni / küre / tor) üçgenleme. Döngüler (s,t) parametre düzlemine açılır; s (torda t de)
+   * çevrimlidir. Tam tur atan halkalar (silindirin iki ucu, borunun iki kesiti) ikişer ikişer dikişle tek çokgene
+   * kapatılır; tek kalan halka yüzeyin tekil noktasına (koni tepesi, küre kutbu) bağlanır. Çokgen delikleriyle
+   * ızgara hücrelerine kırpılıp hücre hücre üçgenlenir; böylece kirişler hücre genişliğini aşmaz.
+   *   par(p) → [s,t] (tekil noktada s = NaN), at(s,t) → 3B nokta
+   *   o = { ss, ts: yay boyu ölçekleri; ds, dt: hücre adımı (rad ya da uzunluk; 0 = tek şerit); tPer: t çevrimli mi;
+   *         singular(P, d, w): tek halkanın eşleneceği t (ya da s) değeri, yoksa null }
+   */
+  function curvedFace(loops, par, at, o) {
+    // döngüleri aç: tekil noktaların açısı komşudan, sonra süreklilik
+    const rings = loops.map(l => {
+      const P = l.map(par);
+      for (let d = 0; d < 2; d++) {
+        if (d === 1 && !o.tPer) continue;
+        let last = NaN; for (const q of P) { if (Number.isNaN(q[d])) q[d] = last; else last = q[d]; }
+        last = NaN; for (let i = P.length - 1; i >= 0; i--) { if (Number.isNaN(P[i][d])) P[i][d] = last; else last = P[i][d]; }
+        for (const q of P) if (Number.isNaN(q[d])) q[d] = 0;
+        for (let i = 1; i < P.length; i++) P[i][d] = cont(P[i][d], P[i - 1][d]);
+      }
+      return P;
+    });
+    const plain = [], per = [[], []];
+    for (const P of rings) {
+      const ws = winding(P, 0), wt = o.tPer ? winding(P, 1) : 0;
+      if (Math.abs(ws) === 1 && wt === 0) per[0].push(P); else if (Math.abs(wt) === 1 && ws === 0) per[1].push(P); else plain.push(P);
+    }
+    const seams = [];
+    for (let d = 0; d < 2; d++) {
+      const e = 1 - d, L = per[d];
+      L.sort((P, Q) => P.reduce((s, q) => s + q[e], 0) / P.length - Q.reduce((s, q) => s + q[e], 0) / Q.length);
+      for (let i = 0; i < L.length; i += 2) {
+        const P = forward(L[i], d), s0 = P[0][d];
+        const shift = (q, k) => { const r = q.slice(); r[d] += k; return r; };
+        const poly = P.concat([shift(P[0], TAU)]);
+        if (i + 1 < L.length) {
+          // eş halka: P'nin başlangıcına en yakın noktasından başlatılıp geriye izlenir; iki dikiş kenarı aynı 3B doğruya düşer
+          let Q = forward(L[i + 1], d), j = 0, bd = Infinity;
+          for (let k = 0; k < Q.length; k++) { const x = Q[k][d] - s0, dd = Math.abs(x - Math.round(x / TAU) * TAU); if (dd < bd) { bd = dd; j = k; } }
+          Q = Q.slice(j).concat(Q.slice(0, j)).map(q => q.slice());
+          for (let k = 1; k < Q.length; k++) Q[k][d] = cont(Q[k][d], Q[k - 1][d]);
+          const k0 = Math.round((s0 - Q[0][d]) / TAU) * TAU;
+          poly.push(shift(Q[0], k0 + TAU)); for (let k = Q.length - 1; k >= 0; k--) poly.push(shift(Q[k], k0));
+        } else {
+          const tv = o.singular ? o.singular(P, d, winding(L[i], d)) : null;
+          if (tv == null) { plain.push(L[i]); continue; }         // eşlenemeyen halka: olduğu gibi çokgen
+          // tekil kenar halkanın s değerleriyle örneklenir: fermuar üçgenleri tek hücrede kalır (uzun kirişsiz yelpaze)
+          for (let k = P.length; k >= 0; k--) { const q = k === P.length ? shift(P[0], TAU) : P[k].slice(); q[e] = tv; poly.push(q); }
+        }
+        seams.push(poly);
+      }
+    }
+    const sc = (P) => P.map(q => [q[0] * o.ss, q[1] * o.ts]);
+    let outer, holes;
+    if (seams.length) { outer = sc(seams[0]); holes = seams.slice(1).concat(plain).map(sc); }
+    else {
+      let oi = 0, oa = 0; plain.forEach((r, i) => { const a = Math.abs(area2(r)); if (a > oa) { oa = a; oi = i; } });
+      if (!(oa > 0)) return false;
+      outer = sc(plain[oi]); holes = plain.filter((_, i) => i !== oi).map(sc);
+    }
+    gridTriangulate(outer, holes, o.ds * o.ss, o.dt * o.ts, (a, b, c) => pushTri(at(a[0] / o.ss, a[1] / o.ts), at(b[0] / o.ss, b[1] / o.ts), at(c[0] / o.ss, c[1] / o.ts)));
+    return true;
+  }
   // kenarlar (tümü)
   for (const r of R) if (A.kind(r) === 'edge') { const pts = edgePts(r); if (pts.length > 1) edgesOut.push(pts.map(X)); }
   // yüzler
@@ -338,30 +466,42 @@ export function tessellate(parsed, opts = {}) {
       const root = [n[0], n[1], n[2]], axis = norm([n[3], n[4], n[5]]), maj = [n[6], n[7], n[8]], ratio = n[9] || 1, sinA = n[10], cosA = n[11];
       const rmaj = len(maj) || 1e-9, u = norm(maj), v = cross(axis, u);
       const tan = cosA !== 0 ? sinA / cosA : 0;
-      // parametre uzayı: (açı, eksen boyu)
-      const par = (p) => { const d = sub(p, root); const h = dot(d, axis); const rad = dot(d, u), rad2 = dot(d, v) / ratio; return [Math.atan2(rad2, rad), h]; };
+      // parametre uzayı: (açı, eksen boyu); eksen üzerindeki nokta (tepe) açısız
+      const par = (p) => { const d = sub(p, root); const h = dot(d, axis); const rad = dot(d, u), rad2 = dot(d, v) / ratio; return [Math.hypot(rad, rad2) > 1e-9 * (1 + rmaj) ? Math.atan2(rad2, rad) : NaN, h]; };
       const at = (a, h) => { const r = rmaj + h * tan; return add(add(root, mul(axis, h)), add(mul(u, r * Math.cos(a)), mul(v, r * ratio * Math.sin(a)))); };
-      // her döngüde açıyı sürekli aç (dikiş geçişi)
-      const rings = loops.map(l => { let prev = null; const out = []; for (const p of l) { let [a, h] = par(p); if (prev != null) { while (a - prev > Math.PI) a -= TAU; while (prev - a > Math.PI) a += TAU; } prev = a; out.push([a * rmaj, h]); } return out; });
-      // yüz tam çevre mi (dış halka açı aralığı ≈ 2π)? → açı yönünde ızgara ile üçgenle (kiriş hatası azalsın)
-      let oi = 0, oa = 0; rings.forEach((r, i) => { const a = Math.abs(area2(r)); if (a > oa) { oa = a; oi = i; } });
-      const outer = rings[oi], holes = rings.filter((_, i) => i !== oi);
-      const { ring, tris: T } = triangulate(outer, holes);
-      for (const t of T) { const a = ring[t[0]], b = ring[t[1]], c = ring[t[2]]; pushTri(at(a[0] / rmaj, a[1]), at(b[0] / rmaj, b[1]), at(c[0] / rmaj, c[1])); }
+      // tek tam tur halka (koni kapağı): eşi tepe noktasıdır (r = 0 olan h); silindirde tepe yok
+      const singular = (P, d) => d === 0 && tan !== 0 ? -rmaj / tan : null;
+      if (!curvedFace(loops, par, at, { ss: rmaj, ts: 1, ds: TAU / segs, dt: 0, tPer: false, singular })) { skipped++; continue; }
       faceCount++;
     } else if (sk === 'sphere') {
-      const n = A.nums(sr); if (n.length < 4) { skipped++; continue; }
-      const c = [n[0], n[1], n[2]], r = n[3]; const [u, v] = basis([0, 0, 1]); const w = [0, 0, 1];
-      const N = segs, M = Math.max(4, segs / 2);
+      const n = A.nums(sr); if (n.length < 4 || !(Math.abs(n[3]) > 0)) { skipped++; continue; }
+      // kayıt: merkez, yarıçap (eksi = normal içeri), u yönü, kutup yönü
+      const c = [n[0], n[1], n[2]], r = Math.abs(n[3]); const w = n.length >= 10 && len([n[7], n[8], n[9]]) > 1e-9 ? norm([n[7], n[8], n[9]]) : [0, 0, 1]; const [u, v] = basis(w);
       const at = (a, b) => add(c, add(mul(u, r * Math.cos(b) * Math.cos(a)), add(mul(v, r * Math.cos(b) * Math.sin(a)), mul(w, r * Math.sin(b)))));
-      for (let i = 0; i < N; i++) for (let j = 0; j < M; j++) { const a0 = i / N * TAU, a1 = (i + 1) / N * TAU, b0 = -Math.PI / 2 + j / M * Math.PI, b1 = -Math.PI / 2 + (j + 1) / M * Math.PI; pushTri(at(a0, b0), at(a1, b0), at(a1, b1)); pushTri(at(a0, b0), at(a1, b1), at(a0, b1)); }
+      if (loops.length) {
+        const par = (p) => { const d = sub(p, c); const x = dot(d, u), y = dot(d, v); return [Math.hypot(x, y) > 1e-9 * r ? Math.atan2(y, x) : NaN, Math.asin(Math.max(-1, Math.min(1, dot(d, w) / r)))]; };
+        // tek tam tur halka (küre kapağı): yüz, halkanın solunda kalır (yüz normali yukarı) → kutup, halka yönü × yüz duyusu × yarıçap işaretiyle
+        const fwd = A.sense(fr) ? 1 : -1, rs = n[3] > 0 ? 1 : -1;
+        const singular = (P, d, wnd) => d === 0 ? (wnd * fwd * rs > 0 ? Math.PI / 2 : -Math.PI / 2) : null;
+        if (!curvedFace(loops, par, at, { ss: r, ts: r, ds: TAU / segs, dt: TAU / segs, tPer: false, singular })) { skipped++; continue; }
+      } else {
+        const N = segs, M = Math.max(4, segs / 2);
+        for (let i = 0; i < N; i++) for (let j = 0; j < M; j++) { const a0 = i / N * TAU, a1 = (i + 1) / N * TAU, b0 = -Math.PI / 2 + j / M * Math.PI, b1 = -Math.PI / 2 + (j + 1) / M * Math.PI; pushTri(at(a0, b0), at(a1, b0), at(a1, b1)); pushTri(at(a0, b0), at(a1, b1), at(a0, b1)); }
+      }
       faceCount++;
     } else if (sk === 'torus') {
       const n = A.nums(sr); if (n.length < 8) { skipped++; continue; }
-      const c = [n[0], n[1], n[2]], axis = norm([n[3], n[4], n[5]]), R0 = n[6], r0 = Math.abs(n[7]); const [u, v] = basis(axis);
-      const N = segs, M = Math.max(6, segs / 2);
+      // kayıt: merkez, eksen, büyük yarıçap, küçük yarıçap, u yönü
+      const c = [n[0], n[1], n[2]], axis = norm([n[3], n[4], n[5]]), R0 = n[6], r0 = Math.abs(n[7]);
+      const uu = n.length >= 11 ? [n[8], n[9], n[10]] : null; const u = uu && Math.abs(dot(uu, axis)) < 1e-6 && len(uu) > 1e-9 ? norm(uu) : basis(axis)[0], v = cross(axis, u);
       const at = (a, b) => { const ring = add(mul(u, Math.cos(a)), mul(v, Math.sin(a))); return add(c, add(mul(ring, R0 + r0 * Math.cos(b)), mul(axis, r0 * Math.sin(b)))); };
-      for (let i = 0; i < N; i++) for (let j = 0; j < M; j++) { const a0 = i / N * TAU, a1 = (i + 1) / N * TAU, b0 = j / M * TAU, b1 = (j + 1) / M * TAU; pushTri(at(a0, b0), at(a1, b0), at(a1, b1)); pushTri(at(a0, b0), at(a1, b1), at(a0, b1)); }
+      if (loops.length && r0 > 0) {
+        const par = (p) => { const d = sub(p, c); const x = dot(d, u), y = dot(d, v), rad = Math.hypot(x, y); return [rad > 1e-9 * (Math.abs(R0) + r0) ? Math.atan2(y, x) : NaN, Math.atan2(dot(d, axis), rad - R0)]; };
+        if (!curvedFace(loops, par, at, { ss: Math.abs(R0) + r0, ts: r0, ds: TAU / segs, dt: 2 * TAU / segs, tPer: true, singular: null })) { skipped++; continue; }
+      } else {
+        const N = segs, M = Math.max(6, segs / 2);
+        for (let i = 0; i < N; i++) for (let j = 0; j < M; j++) { const a0 = i / N * TAU, a1 = (i + 1) / N * TAU, b0 = j / M * TAU, b1 = (j + 1) / M * TAU; pushTri(at(a0, b0), at(a1, b0), at(a1, b1)); pushTri(at(a0, b0), at(a1, b1), at(a0, b1)); }
+      }
       faceCount++;
     } else if (loops.length) {
       // spline / desteklenmeyen yüzey: sınır döngüleri en uygun düzleme (Newell normali) izdüşürülüp üçgenlenir —

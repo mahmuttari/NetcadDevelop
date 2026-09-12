@@ -14,13 +14,14 @@
 import { ToolManager, TOOLS } from './tools.js';
 import { EditDoc, writeDxf, newId } from './edit.js';
 import { View3D } from './view3d.js';
-import { openView3DOptions, buildViewCube, openCameraBookmarks, renderStyle, renderZScale, renderClip, renderPresets } from './view3d_panel.js';
+import { openView3DOptions, buildViewCube, openCameraBookmarks, renderZScale, renderClip } from './view3d_panel.js';
 import { FG, ACI } from './scene.js';
 import { toScreen, toWorld, fmt, store } from './state.js';
 import { bgColor, fgColor } from './render.js';
 import { t, getLang, applyI18n, addStrings } from './i18n.js';
 import { TAU } from './geom.js';
 import * as D from './display.js';
+import { askText } from './dialog.js';
 
 const $ = (id) => document.getElementById(id);
 const tt = (k, tr) => { const v = t(k); return v === k ? tr : v; };
@@ -76,7 +77,7 @@ const T = (act, icon, tr, en, htr, hen) => ({ act, icon, tr, en, htr: htr || '',
 const TABS = [
   { id: 'view', i18n: 'tabView', icon: 'i-eye', groups: [
     { cap: 'grpNav', items: [T('extents', 'i-fit', 'Sığdır', 'Fit', 'Çizimin tamamını ekrana sığdırır', 'Zoom to the drawing extents'), T('zoomwin', 'i-zoom-window', 'Pencere', 'Window', 'Sürüklenen dikdörtgene yakınlaştırır', 'Zoom into a dragged rectangle'), T('prevview', 'i-prev', 'Önceki', 'Previous', 'Önceki görünüme döner', 'Previous view'), T('nextview', 'i-next', 'Sonraki', 'Next', 'Sonraki görünüme geçer', 'Next view'), T('goto', 'i-goto', 'Koordinat', 'Go to', 'X,Y ya da enlem/boylam girerek gider', 'Go to X,Y or lat/lon'), T('home', 'i-home', 'Ana görünüm', 'Home', 'Kaydedilmiş ana görünüme döner', 'Saved home view')] },
-    { cap: 'grpPanels', items: [T('layers', 'i-layers', 'Katmanlar', 'Layers', 'Katman görünürlüğü, izolasyon, soldurma', 'Layer visibility, isolate, fade'), T('search', 'i-search', 'Ara', 'Search', 'Yazı, katman, blok, öznitelik ara', 'Find text, layers, blocks'), T('info', 'i-info', 'Bilgi', 'Info', 'Çizim bilgisi', 'Drawing info'), T('views', 'i-bookmark', 'Görünümler', 'Views', 'Kayıtlı görünümler ve yer imleri', 'Saved views'), T('layouts', 'i-layout', 'Sayfalar', 'Layouts', 'Model / kâğıt sayfa düzenleri', 'Model / paper layouts'), T('notes', 'i-pen', 'Notlar', 'Notes', 'Kırmızı kalem notları', 'Redline notes'), T('gps', 'i-gps', 'GPS', 'GPS', 'Konumu çizimde gösterir', 'Show position on the drawing'), T('basemap', 'i-map', 'Altlık', 'Basemap', 'Harita altlığı', 'Map basemap'), T('compare', 'i-compare', 'Karşılaştır', 'Compare', 'İki revizyonu karşılaştırır', 'Compare two revisions'), T('drive', 'i-map', 'Drive', 'Drive', 'Google Drive: dosya aç, yükle', 'Google Drive: open and upload files'), T('display', 'i-sliders', 'Ekran ayarları', 'Display options', 'Tema, ön ayarlar, süzgeçler, çizgiler, ızgara…', 'Theme, presets, filters, lines, grid…')] },
+    { cap: 'grpPanels', items: [T('layers', 'i-layers', 'Katmanlar', 'Layers', 'Katman görünürlüğü, izolasyon, soldurma', 'Layer visibility, isolate, fade'), T('search', 'i-search', 'Ara', 'Search', 'Yazı, katman, blok, öznitelik ara', 'Find text, layers, blocks'), T('info', 'i-info', 'Bilgi', 'Info', 'Çizim bilgisi', 'Drawing info'), T('views', 'i-bookmark', 'Görünümler', 'Views', 'Kayıtlı görünümler ve yer imleri', 'Saved views'), T('layouts', 'i-layout', 'Sayfalar', 'Layouts', 'Model / kâğıt sayfa düzenleri', 'Model / paper layouts'), T('notes', 'i-pen', 'Notlar', 'Notes', 'Kırmızı kalem notları', 'Redline notes'), T('gps', 'i-gps', 'GPS', 'GPS', 'Konumu çizimde gösterir', 'Show position on the drawing'), T('basemap', 'i-map', 'Altlık', 'Basemap', 'Harita altlığı', 'Map basemap'), T('compare', 'i-compare', 'Karşılaştır', 'Compare', 'İki revizyonu karşılaştırır', 'Compare two revisions'), T('drive', 'i-drive', 'Drive', 'Drive', 'Google Drive: dosya aç, yükle', 'Google Drive: open and upload files'), T('display', 'i-sliders', 'Ekran ayarları', 'Display options', 'Tema, ön ayarlar, süzgeçler, çizgiler, ızgara…', 'Theme, presets, filters, lines, grid…')] },
     { cap: 'grpOut', items: [T('pdf', 'i-pdf', 'PDF', 'PDF', 'Ölçekli PDF oluşturur', 'Create a scaled PDF'), T('png', 'i-image', 'PNG', 'PNG', 'Görünümü resim olarak kaydeder', 'Save the view as an image'), T('savedxf', 'i-save', 'DXF kaydet', 'Save DXF', 'Düzenlenmiş çizimi DXF olarak kaydeder', 'Save the edited drawing as DXF'), T('savedelta', 'i-export', 'Değişiklikler', 'Changes', 'Yalnız değişen nesneleri DXF olarak kaydeder', 'Save only changed objects')] },
     { cap: 'grpHist', items: [T('undo', 'i-undo', 'Geri al', 'Undo'), T('redo', 'i-redo', 'Yinele', 'Redo'), T('more', 'i-more', 'Diğer', 'More', 'Diğer işlevler menüsü', 'More functions')] } ] },
   { id: 'display', i18n: 'tabDisplay', icon: 'i-sliders', groups: [] },   // satır içeriği 2B/3B'ye göre üretilir
@@ -96,7 +97,7 @@ const TABS = [
   { id: '3d', i18n: 'tab3d', icon: 'i-cube', groups: [
     { cap: 'grpView3', items: [T('3d', 'i-3d', '3B aç/kapat', '3D on/off', 'Tek parmak döndürür, iki parmak kaydırır / yakınlaştırır', 'One finger orbits, two fingers pan / zoom'), T('fit3', 'i-fit', 'Sığdır', 'Fit'), T('v:iso', 'i-iso', 'İzometrik', 'Isometric'), T('v:top', 'i-top', 'Üst', 'Top'), T('v:front', 'i-front', 'Ön', 'Front'), T('v:left', 'i-left', 'Sol', 'Left'), T('v:right', 'i-right', 'Sağ', 'Right'), T('v:back', 'i-back', 'Arka', 'Back'), T('v:bottom', 'i-bottom', 'Alt', 'Bottom')] },
     { cap: 'grpCam3', items: [T('persp', 'i-eye', 'Perspektif', 'Perspective', 'Perspektif / ortografik', 'Perspective / orthographic'), T('zscale', 'i-zscale', 'Z abartı', 'Z scale', 'Düşey abartı çarpanı', 'Vertical exaggeration'), T('cam3', 'i-camera', 'Yer imleri', 'Bookmarks', 'Kamera konumlarını kaydeder', 'Save camera positions'), T('turn3', 'i-turn', 'Döner tabla', 'Turntable')] },
-    { cap: 'grpStyle3', items: [T('vstyle', 'i-vs-wireframe', 'Görsel stil', 'Visual style', 'Tel kafes, gizli çizgi, gölgeli, gerçekçi, kavramsal, gri, eskiz, röntgen', 'Wireframe, hidden, shaded, realistic, conceptual, gray, sketchy, x-ray'), T('edges3', 'i-edges', 'Kenarlar', 'Edges', 'Yüzey kenar çizgilerini aç/kapat (stilin varsayılanını geçersiz kılar)', 'Toggle face edge lines (overrides the style default)'), T('color3', 'i-palette', 'Renk', 'Color', 'Nesne, katman, kot, tek renk', 'Entity, layer, elevation, mono'), T('clip3', 'i-clip', 'Kesit', 'Clip', 'Z aralığı ve kesit kutusu', 'Z range and clip box'), T('display', 'i-sliders', 'Ekran ayarları', 'Display options')] },
+    { cap: 'grpStyle3', items: [T('vstyle', 'i-vs-wireframe', 'Görsel stil', 'Visual style', 'Tel kafes, gizli çizgi, gölgeli, gerçekçi, kavramsal, gri, eskiz, röntgen', 'Wireframe, hidden, shaded, realistic, conceptual, gray, sketchy, x-ray'), T('edges3', 'i-edges', 'Kenarlar', 'Edges', 'Yüzey kenar çizgilerini aç/kapat (stilin varsayılanını geçersiz kılar)', 'Toggle face edge lines (overrides the style default)'), T('color3', 'i-palette', 'Renk', 'Color', 'Nesne, katman, kot, tek renk', 'Entity, layer, elevation, mono'), T('clip3', 'i-clip', 'Kesit', 'Clip', 'Z aralığı ve kesit kutusu', 'Z range and clip box')] },
     { cap: 'grpTools3', items: [T('3:select', 'i-select', 'Seç', 'Select'), T('3:dist', 'i-dist', '3B mesafe', '3D distance', 'Köşeler arası eğik mesafe, ΔZ, eğim', 'Slope distance between vertices'), T('3:move', 'i-move', 'Taşı (3B)', 'Move (3D)'), T('3:pline', 'i-pline3d', '3B Polyline', '3D Polyline'), T('3:setz', 'i-z', 'Kot ata', 'Set Z'), T('3:del', 'i-trash', 'Sil', 'Delete'), T('undo', 'i-undo', 'Geri al', 'Undo')] } ] },
 ];
 const DISPLAY_2D = [
@@ -107,7 +108,7 @@ const DISPLAY_2D = [
 ];
 const DISPLAY_3D = [
   { cap: 'grpStyle3', items: [T('vstyle', 'i-vs-wireframe', 'Görsel stil', 'Visual style'), T('edges3', 'i-edges', 'Kenarlar', 'Edges'), T('color3', 'i-palette', 'Renk', 'Color'), T('light3', 'i-light', 'Işık', 'Light', 'Gölgeli stilde aydınlatma', 'Lighting in shaded styles'), T('display', 'i-sliders', 'Ekran ayarları', 'Display options')] },
-  { cap: 'grpHelpers', items: [T('grid3', 'i-grid', 'Izgara', 'Grid'), T('axes3', 'i-axes', 'Eksenler', 'Axes'), T('cube3', 'i-3d', 'Küp', 'Cube', 'Görünüm küpü', 'View cube'), T('hud3', 'i-info', 'Bilgi', 'HUD', 'Kamera bilgisi', 'Camera info'), T('shadow3', 'i-sun', 'Gölge', 'Shadow', 'Zemin gölgesi', 'Ground shadow'), T('sil3', 'i-cube', 'Siluet', 'Silhouette', 'Siluet kenarları', 'Silhouette edges')] },
+  { cap: 'grpHelpers', items: [T('grid3', 'i-grid', 'Izgara', 'Grid'), T('axes3', 'i-axes', 'Eksenler', 'Axes'), T('cube3', 'i-viewcube', 'Küp', 'Cube', 'Görünüm küpü', 'View cube'), T('hud3', 'i-info', 'Bilgi', 'HUD', 'Kamera bilgisi', 'Camera info'), T('shadow3', 'i-sun', 'Gölge', 'Shadow', 'Zemin gölgesi', 'Ground shadow'), T('sil3', 'i-cube', 'Siluet', 'Silhouette', 'Siluet kenarları', 'Silhouette edges')] },
   { cap: 'grpCam3', items: [T('zscale', 'i-zscale', 'Z abartı', 'Z scale'), T('clip3', 'i-clip', 'Kesit', 'Clip'), T('turn3', 'i-turn', 'Döner tabla', 'Turntable'), T('persp', 'i-eye', 'Perspektif', 'Perspective')] },
 ];
 const TILE = {};
@@ -117,6 +118,7 @@ function registerTiles() {
   for (const tab of TABS) for (const g of tab.groups) for (const it of g.items) reg(it);
   for (const g of DISPLAY_2D) for (const it of g.items) reg(it);
   for (const g of DISPLAY_3D) for (const it of g.items) reg(it);
+  tr.perspShort = 'Persp'; en.perspShort = 'Persp'; tr.orthoShort = 'Paralel'; en.orthoShort = 'Ortho';
   addStrings(tr, en);
 }
 registerTiles();
@@ -158,7 +160,7 @@ export function initEditor(a) {
   bindSideTabs();
   D.setRender3d((body) => v3 ? openView3DOptions(v3, body, host3()) : null);
   window.addEventListener('dwg:display', () => { refreshTiles(); syncQuick(); });
-  window.addEventListener('dwg:view3d', (ev) => { refreshTiles(); if (ev.detail && ['cube', 'hud', 'hudPos'].includes(ev.detail.key)) syncCube(); statusMode3D(); });
+  window.addEventListener('dwg:view3d', (ev) => { refreshTiles(); if (ev.detail && ['cube', 'hud', 'hudPos'].includes(ev.detail.key)) syncCube(); if (ev.detail && ev.detail.key === 'context' && ev.detail.value === 'restored' && ed.is3D()) { overlay3D(); api.toast(tt('ctx3Restored', '3B görünüm yeniden kuruldu'), 1500); } statusMode3D(); });
   window.addEventListener('dwg:viewhist', () => refreshTiles());
   landscapeMq.addEventListener('change', () => { applyCollapse(); closePop(); });
   wideMq.addEventListener('change', () => dockDisplay());
@@ -186,7 +188,7 @@ export function onScene() {
   });
   ed.doc = doc;
   const n = doc.load();
-  if (n) api.toast(`${n} kayıtlı düzenleme uygulandı`);
+  if (n) api.toast(n + ' ' + t('editsApplied'));
   refreshUndo();
   updateLayerButton();
   if (ed.is3D()) exit3D();
@@ -271,7 +273,7 @@ function setTab(id) {
 function collapse(on) {
   ui.tbCollapsed[orient()] = !!on;
   applyUi();
-  api && api.toast(tt(on ? 'collapsed' : 'expanded', on ? 'Araç çubuğu katlandı' : 'Araç çubuğu açıldı'), 1200);
+  api && api.toast(on ? t('collapsed') : t('expanded'), 1200);
 }
 function applyCollapse() { const tb = $('toolbar'); if (tb) tb.classList.toggle('collapsed', !!ui.tbCollapsed[orient()]); }
 function markActive(name) {
@@ -285,8 +287,8 @@ function refreshTiles() {
     on.lw = !!S.lw; on.mono = S.colorMode === 'mono'; on.ltype = S.show.ltype; on.grid = S.grid.on; on.crosshair = S.crosshair !== 'off'; on.rulers = !!S.rulers; on.fade = S.fade.on;
     on.osnap = S.snapModes && S.snapModes.size > 0; on['3d'] = ed.is3D();
   }
-  if (v3) { const o = v3.opts; on.grid3 = o.grid; on.axes3 = o.axes; on.cube3 = o.cube; on.hud3 = o.hud; on.light3 = o.light; on.turn3 = o.turntable; on.persp = v3.cam.persp; on.clip3 = !!o.clip; on.shadow3 = o.shadow; on.sil3 = o.silhouette; on.edges3 = !!v3._styleFx().edges; }
-  document.querySelectorAll('#toolbar [data-act]').forEach(b => { const k = b.dataset.act; if (k in on) { b.classList.toggle('on', !!on[k]); b.setAttribute('aria-pressed', String(!!on[k])); } });
+  if (v3) { const o = v3.opts; on.grid3 = o.grid; on.axes3 = o.axes; on.cube3 = o.cube; on.hud3 = o.hud; on.light3 = o.light; on.turn3 = o.turntable; on.persp = v3.cam.persp; on.clip3 = !!o.clip; on.shadow3 = o.shadow; on.sil3 = !!v3._styleFx().silhouette; on.edges3 = !!v3._styleFx().edges; }
+  document.querySelectorAll('#toolbar [data-act]').forEach(b => { const k = b.dataset.act; if (k in on) { b.classList.toggle('on', !!on[k]); b.setAttribute('aria-pressed', String(!!on[k])); } if (!FREE.has(k) && !HIST.has(k)) b.disabled = !(S && S.hasDoc); });
   const vh = api && api.viewHistory;
   document.querySelectorAll('#toolbar [data-act="prevview"]').forEach(b => { b.disabled = !(vh && vh.canBack && vh.canBack()); });
   document.querySelectorAll('#toolbar [data-act="nextview"]').forEach(b => { b.disabled = !(vh && vh.canForward && vh.canForward()); });
@@ -361,7 +363,7 @@ function closePop() {
   popState = null; pop.hidden = true; pop.innerHTML = '';
   document.removeEventListener('pointerdown', onDocDown, true);
 }
-/** 3B seçenek bölümünü açılır kutuda gösterir (zscale / style3 / clip3 / color3) */
+/** 3B seçenek bölümünü açılır kutuda gösterir (zscale / clip3) */
 function optionPop(btn, renderFn, title) {
   if (!v3) { api.toast(tt('v3NotOpen', '3B görünüm açık değil.')); return; }
   const pop = openPop(btn, `<div class="pop-title">${esc(title)}</div><div class="pop-body"></div>`);
@@ -373,11 +375,15 @@ function optionPop(btn, renderFn, title) {
   if (!landscapeMq.matches) { const hh = pop.offsetHeight; let y = ar.top - pr.top - hh - 10; if (y < 8) y = 8; pop.style.top = y + 'px'; }
 }
 function needDoc() { if (!S.hasDoc) { api.toast(t('openFirst')); return false; } return true; }
-function needModel() { if (!needDoc()) return false; if (!S.scene.layouts[S.layoutIndex].isModel) { api.toast('Düzenleme yalnız model uzayında yapılır.'); return false; } return true; }
+/** belge açık olmadan da çalışan karolar; HIST kendi kapalılığını yönetir (refreshUndo / görünüm geçmişi) */
+const FREE = new Set(['more', 'display', 'drive', 'undo', 'redo', 'gps', 'basemap', 'theme', 'sun']);
+const HIST = new Set(['undo', 'redo', 'prevview', 'nextview']);
+function needModel() { if (!needDoc()) return false; if (!S.scene.layouts[S.layoutIndex].isModel) { api.toast(t('modelOnly')); return false; } return true; }
 function act(name, btn) {
+  if (!FREE.has(name) && !needDoc()) return;
   if (name.startsWith('t:')) { if (!needModel()) return; if (ed.is3D()) exit3D(); const tn = name.slice(2); if (tools.active === tn) { tools.cancel(); markActive(null); } else { tools.start(tn); markActive(name); } return; }
   if (name.startsWith('v:')) { if (!v3 || !ed.is3D()) { if (!needModel()) return; enter3D(); } if (v3) { v3.preset(name.slice(2), { animate: !ui.reduceMotion }); v3.render(); overlay3D(); } return; }
-  if (name.startsWith('3:')) { if (!needModel()) return; if (!ed.is3D()) enter3D(); start3DTool(name.slice(2)); markActive(name); return; }
+  if (name.startsWith('3:')) { if (!needModel()) return; if (!ed.is3D()) enter3D(); void start3DTool(name.slice(2)); markActive(name); return; }
   const tog = { text: 'showText', hatch: 'showHatch', dim: 'showDim', points: 'showPoint', images: 'showImage', lw: 'lw', mono: 'colorMode', ltype: 'showLtype', grid: 'grid', crosshair: 'crosshair', rulers: 'rulers', fade: 'fade', sun: 'sun', theme: 'theme' };
   if (tog[name]) { D.toggleDisplay(tog[name]); haptic('toggle'); refreshTiles(); return; }
   switch (name) {
@@ -390,8 +396,8 @@ function act(name, btn) {
     case 'layers': case 'search': case 'notes': case 'gps': case 'pdf': case 'png': case 'more': case 'profile': case 'info': case 'views': case 'layouts': case 'basemap': case 'compare': case 'drive': api.action(name); break;
     case 'osnap': toggleOsnap(); break;
     case 'display': call(api.openDisplayOptions, { seg: ed.is3D() ? '3d' : '2d' }); break;
-    case 'undo': if (doc && doc.undo()) { refreshUndo(); api.requestRender(); if (ed.is3D()) { refresh3D(); v3.render(); } api.toast('Geri alındı'); } break;
-    case 'redo': if (doc && doc.redo()) { refreshUndo(); api.requestRender(); if (ed.is3D()) { refresh3D(); v3.render(); } api.toast('Yinelendi'); } break;
+    case 'undo': if (doc && doc.undo()) { refreshUndo(); api.requestRender(); if (ed.is3D()) { refresh3D(); v3.render(); } api.toast(t('undone')); } break;
+    case 'redo': if (doc && doc.redo()) { refreshUndo(); api.requestRender(); if (ed.is3D()) { refresh3D(); v3.render(); } api.toast(t('redone')); } break;
     case 'savedxf': saveDxf(false); break;
     case 'savedelta': saveDxf(true); break;
     case 'layer': pickLayer(); break;
@@ -400,7 +406,6 @@ function act(name, btn) {
     case '3d': if (!needModel()) return; if (ed.is3D()) exit3D(); else enter3D(); break;
     case 'persp': if (v3) { v3.set('persp', !v3.cam.persp); overlay3D(); api.toast(v3.cam.persp ? tt('perspective', 'Perspektif') : tt('orthographic', 'Ortografik'), 1200); } break;
     case 'zscale': optionPop(btn, renderZScale, tt('zscaleTitle', 'Düşey abartı')); break;
-    case 'style3': optionPop(btn, renderStyle, tt('styleTitle', 'Stil')); break;
     case 'vstyle': vstylePop(btn); break;
     case 'clip3': optionPop(btn, renderClip, tt('clipTitle', 'Kesit')); break;
     case 'color3': call(api.openDisplayOptions, { seg: '3d', focus: 'colorMode' }); break;
@@ -409,10 +414,10 @@ function act(name, btn) {
     case 'edges3': if (v3) { const onNow = v3._styleFx().edges; v3.set('edges', onNow ? 'none' : 'facet'); api.toast(onNow ? tt('edgesOff', 'Kenarlar kapalı') : tt('edgesOn', 'Kenarlar açık'), 1200); } break;
     case 'axes3': if (v3) v3.set('axes', !v3.opts.axes); break;
     case 'cube3': if (v3) { v3.set('cube', !v3.opts.cube); syncCube(); } break;
-    case 'hud3': if (v3) { v3.set('hud', !v3.opts.hud); syncCube(); overlay3D(); } break;
+    case 'hud3': if (v3) { v3.set('hud', !v3.opts.hud); syncCube(); } break;
     case 'turn3': if (v3) v3.set('turntable', !v3.opts.turntable); break;
     case 'shadow3': if (v3) v3.set('shadow', !v3.opts.shadow); break;
-    case 'sil3': if (v3) v3.set('silhouette', !v3.opts.silhouette); break;
+    case 'sil3': if (v3) { const st = View3D.STYLES[v3.opts.style]; if (st && st.silhouette) { api.toast(tt('silByStyle', 'Bu stil siluet içerir; kapatmak için başka stil seçin'), 1500); break; } v3.set('silhouette', !v3.opts.silhouette); } break;
     case 'cam3': showBookmarks(); break;
     case 'fit3': if (v3) { v3.fit({ animate: !ui.reduceMotion }); overlay3D(); } break;
     default: break;
@@ -424,7 +429,7 @@ function toggleOsnap() {
   if (S.snapModes.size) { osnapBackup = [...S.snapModes]; S.snapModes.clear(); api.toast(t('osnapOff'), 1200); }
   else { for (const m of (osnapBackup && osnapBackup.length ? osnapBackup : ['end', 'mid', 'cen', 'int', 'ins', 'node'])) S.snapModes.add(m); api.toast(t('osnapOn'), 1200); }
   document.querySelectorAll('[data-snap]').forEach(cb => { cb.checked = S.snapModes.has(cb.dataset.snap); });
-  if (api.settings) { api.settings.snap = [...S.snapModes]; }
+  if (api.settings) { api.settings.snap = [...S.snapModes]; call(api.saveSettings); }
   haptic('toggle'); syncQuick(); refreshTiles();
 }
 
@@ -449,8 +454,8 @@ function syncQuick() {
 let mode3Text = null, modeText = null;
 function statusMode(text) { modeText = text || null; renderMode(); }
 function statusMode3D() {
-  mode3Text = ed.is3D() && v3 ? v3.hudText() : null;
-  if (mode3Text && /Yüzey yok/.test(mode3Text)) { const d = S && S.scene && S.scene.solidDiag; if (d && d.solids) mode3Text += ` (${d.solids} katı: ${d.errors[0] ? d.errors[0].replace(/^\S+ \S+: /, '') : 'yüzey çözülemedi'})`; else { const c = S && S.counts || {}; mode3Text += ` (katı/yüzey varlığı yok; ${Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k, v]) => k + ' ' + v).join(', ')})`; } }
+  // kısa çip: ayrıntı (yaw / pitch / ızgara) HUD kutusunda; 'Yüzey yok' tanısı noFaces kartında
+  mode3Text = ed.is3D() && v3 ? tt('mode3d', '3B') + ' · ' + (v3.cam.persp ? tt('perspShort', 'Persp') : tt('orthoShort', 'Paralel')) : null;
   renderMode();
 }
 function renderMode() {
@@ -462,7 +467,7 @@ function renderMode() {
 // ---------------------------------------------------------------------------------
 // Komut satırı
 // ---------------------------------------------------------------------------------
-const BTN = { finish: ['✓ Bitir', () => tools.finish()], close: ['Kapat', () => tools.close()], back: ['↶ Geri', () => tools.back()], selall: ['Tümü', () => tools.selectAll()], cancel: ['✕ İptal', () => { tools.cancel(); markActive(null); ed.sel.clear(); api.drawOverlay(); }] };
+const BTN = { finish: ['finishBtn', () => tools.finish()], close: ['close', () => tools.close()], back: ['backBtn', () => tools.back()], selall: ['layersAll', () => tools.selectAll()], cancel: ['cancelBtn', () => { tools.cancel(); markActive(null); ed.sel.clear(); api.drawOverlay(); }] };
 function showPrompt(text, opts = {}) {
   const bar = $('cmdBar');
   if (!text) { bar.hidden = true; markActive(null); return; }
@@ -470,11 +475,15 @@ function showPrompt(text, opts = {}) {
   $('cmdText').textContent = text;
   const inp = $('cmdInput');
   inp.hidden = !opts.input;
-  inp.placeholder = opts.input === 'number' ? 'sayı' : 'x,y | @dx,dy | @L<açı';
+  inp.placeholder = opts.input === 'number' ? t('numberPh') : t('coordPh');
   inp.type = 'text'; inp.value = '';
-  $('cmdBtns').innerHTML = (opts.buttons || []).map(k => `<button type="button" data-cmd="${k}">${BTN[k][0]}</button>`).join('');
+  $('cmdBtns').innerHTML = (opts.buttons || []).map(k => `<button type="button" data-cmd="${k}">${esc(t(BTN[k][0]))}</button>`).join('');
 }
 function bindCmdBar() {
+  const bar = $('cmdBar'), vp = $('viewport');
+  const syncCmd = () => { document.body.classList.toggle('cmd-open', !bar.hidden); if (!bar.hidden && vp) vp.style.setProperty('--cmd-h', bar.offsetHeight + 'px'); };
+  new MutationObserver(syncCmd).observe(bar, { attributes: true, attributeFilter: ['hidden'] });
+  if (typeof ResizeObserver === 'function') new ResizeObserver(syncCmd).observe(bar);
   $('cmdBtns').addEventListener('click', (ev) => { const b = ev.target.closest('[data-cmd]'); if (b && BTN[b.dataset.cmd]) BTN[b.dataset.cmd][1](); });
   const submit = () => { const v = $('cmdInput').value; if (!v) return; $('cmdInput').value = ''; if (ed.m3) typed3D(v); else tools.typed(v); };
   $('cmdEnter').addEventListener('click', submit);
@@ -482,7 +491,7 @@ function bindCmdBar() {
 }
 function showResult(rows, onCopy) {
   const html = api.kv(rows);
-  api.openDoc('Ölçüm', html);
+  api.openDoc(t('measureResult'), html);
   if (onCopy) { const b = $('tCopy'); if (b) b.onclick = onCopy; }
 }
 
@@ -493,38 +502,38 @@ function updateLayerButton() { const b = $('tbLayer'); if (b) b.querySelector('.
 function layerSelectHtml(id, cur) { return `<select id="${id}">${[...S.layers.keys()].sort((a, b) => a.localeCompare(b, 'tr')).map(n => `<option ${n === cur ? 'selected' : ''}>${api.esc(n)}</option>`).join('')}</select>`; }
 function pickLayer() {
   if (!needDoc()) return;
-  api.openDoc('Geçerli katman', api.kv([['Katman', layerSelectHtml('eLayer', ed.curLayer), 1], ['Yeni katman', `<input id="eNewLayer" placeholder="ad"> <input id="eNewColor" type="number" min="1" max="255" placeholder="renk 1-255" style="width:110px">`, 1],
-    [`<div class="full btns"><button class="btn primary small" id="eLayerOk">Tamam</button><button class="btn small" id="eLayerNew">Katman oluştur</button></div>`]]));
+  api.openDoc(t('curLayerSet'), api.kv([[t('layer'), layerSelectHtml('eLayer', ed.curLayer), 1], [t('newLayer'), `<input id="eNewLayer" placeholder="${esc(t('layerNamePh'))}"> <input id="eNewColor" type="number" min="1" max="255" placeholder="${esc(t('colorPh'))}" style="width:110px">`, 1],
+    [`<div class="full btns"><button class="btn primary small" id="eLayerOk">${esc(t('ok'))}</button><button class="btn small" id="eLayerNew">${esc(t('createLayer'))}</button></div>`]]));
   $('eLayerOk').onclick = () => { ed.curLayer = $('eLayer').value; updateLayerButton(); api.hide('docPanel'); };
   $('eLayerNew').onclick = () => {
     const name = $('eNewLayer').value.trim(); if (!name) return;
     const c = parseInt($('eNewColor').value, 10);
-    if (doc.run({ op: 'layer', name, color: c >= 1 && c <= 255 ? c : -1 })) { ed.curLayer = name; updateLayerButton(); api.buildLayerList(); refreshUndo(); api.toast('Katman oluşturuldu: ' + name); api.hide('docPanel'); }
-    else api.toast('Katman zaten var');
+    if (doc.run({ op: 'layer', name, color: c >= 1 && c <= 255 ? c : -1 })) { ed.curLayer = name; updateLayerButton(); api.buildLayerList(); refreshUndo(); api.toast(t('layerCreated') + ': ' + name); api.hide('docPanel'); }
+    else api.toast(t('layerExists'));
   };
 }
 function colorSwatches(sel) {
   const ids = [256, 1, 2, 3, 4, 5, 6, 7, 8, 9, 30, 40, 50, 90, 130, 150, 170, 190, 210, 230, 250, 252, 254];
-  return `<div class="swatches">${ids.map(i => `<button type="button" data-ci="${i}" class="${i === sel ? 'active' : ''}" style="background:${i === 256 ? 'transparent' : i === 7 ? '#ffffff' : '#' + (ACI[i] & 0xffffff).toString(16).padStart(6, '0')}" title="${i === 256 ? 'Katmandan' : i}">${i === 256 ? 'K' : ''}</button>`).join('')}</div>`;
+  return `<div class="swatches">${ids.map(i => `<button type="button" data-ci="${i}" class="${i === sel ? 'active' : ''}" style="background:${i === 256 ? 'transparent' : i === 7 ? '#ffffff' : '#' + (ACI[i] & 0xffffff).toString(16).padStart(6, '0')}" title="${i === 256 ? esc(t('fromLayer')) : i}">${i === 256 ? 'K' : ''}</button>`).join('')}</div>`;
 }
 function pickColor() {
   if (!needDoc()) return;
-  api.openDoc('Geçerli renk', `<div class="full">${colorSwatches(ed.curColor)}</div><div class="full muted">K = katmandan (ByLayer). ACI numarası: <input id="eCi" type="number" min="1" max="255" style="width:90px" value="${ed.curColor === 256 ? '' : ed.curColor}"> <button class="btn small" id="eCiOk">Tamam</button></div>`);
-  $('docBody').onclick = (ev) => { const b = ev.target.closest('[data-ci]'); if (b) { ed.curColor = Number(b.dataset.ci); api.hide('docPanel'); api.toast('Renk: ' + (ed.curColor === 256 ? 'katmandan' : ed.curColor)); } };
+  api.openDoc(t('curColor'), `<div class="full">${colorSwatches(ed.curColor)}</div><div class="full muted">${esc(t('colorHint'))} <input id="eCi" type="number" min="1" max="255" style="width:90px" value="${ed.curColor === 256 ? '' : ed.curColor}"> <button class="btn small" id="eCiOk">${esc(t('ok'))}</button></div>`);
+  $('docBody').onclick = (ev) => { const b = ev.target.closest('[data-ci]'); if (b) { ed.curColor = Number(b.dataset.ci); api.hide('docPanel'); api.toast(t('color') + ': ' + (ed.curColor === 256 ? t('fromLayerLc') : ed.curColor)); } };
   $('eCiOk').onclick = () => { const c = parseInt($('eCi').value, 10); if (c >= 1 && c <= 255) { ed.curColor = c; api.hide('docPanel'); } };
 }
 function showProps() {
   if (!needModel()) return;
-  if (!ed.sel.size) { api.toast('Önce "Seç" ile nesne seçin.'); return; }
+  if (!ed.sel.size) { api.toast(t('selectFirstQ')); return; }
   const first = [...ed.sel][0];
-  api.openDoc(`Özellikler (${ed.sel.size} nesne)`, api.kv([['Katman', layerSelectHtml('pLayer', first.lay), 1], ['Renk', colorSwatches(first.info ? first.info.ci : 256), 1],
-    [`<div class="full btns"><button class="btn primary small" id="pOk">Uygula</button></div>`]]));
+  api.openDoc(`${t('propsTitle')} (${ed.sel.size} ${t('objectsN')})`, api.kv([[t('layer'), layerSelectHtml('pLayer', first.lay), 1], [t('color'), colorSwatches(first.info ? first.info.ci : 256), 1],
+    [`<div class="full btns"><button class="btn primary small" id="pOk">${esc(t('apply'))}</button></div>`]]));
   let ci = null;
   $('docBody').onclick = (ev) => { const b = ev.target.closest('[data-ci]'); if (b) { ci = Number(b.dataset.ci); document.querySelectorAll('#docBody [data-ci]').forEach(x => x.classList.toggle('active', x === b)); } };
   $('pOk').onclick = () => {
     const cmd = { op: 'props', keys: [...ed.sel].map(p => p.key), layer: $('pLayer').value };
     if (ci != null) cmd.color = ci;
-    doc.run(cmd); refreshUndo(); api.requestRender(); api.hide('docPanel'); api.toast('Özellikler uygulandı');
+    doc.run(cmd); refreshUndo(); api.requestRender(); api.hide('docPanel'); api.toast(t('propsApplied'));
   };
 }
 
@@ -535,7 +544,7 @@ const UNIT_CODE = { mm: 4, cm: 5, m: 6, km: 7, dm: 14, 'inç': 1, ft: 2 };
 function saveDxf(onlyEdited) {
   if (!needDoc()) return;
   const model = S.scene.layouts[0];
-  if (onlyEdited && !(doc && doc.dirty)) { api.toast('Kaydedilecek değişiklik yok.'); return; }
+  if (onlyEdited && !(doc && doc.dirty)) { api.toast(t('noChanges')); return; }
   const text = writeDxf(model.prims, S.layers, { onlyEdited, ltypes: S.ltypes, units: UNIT_CODE[S.units] || 0 });
   const name = api.baseName() + (onlyEdited ? '_degisiklikler' : '_duzenlenmis') + '.dxf';
   const bytes = new TextEncoder().encode(text);
@@ -543,7 +552,7 @@ function saveDxf(onlyEdited) {
   const b64 = btoa(bin);
   const drv = window.dwgApp && window.dwgApp.drive;
   const driveAct = drv && drv.signedIn && drv.signedIn() ? { label: tt('driveUpload', "Drive'a yükle"), fn: () => drv.uploadWithPicker({ b64, name, mime: 'application/dxf' }) } : undefined;
-  if (window.Android && window.Android.saveFile) { const r = window.Android.saveFile(b64, name, 'application/dxf', true); api.toast(r ? 'DXF kaydedildi: ' + r : 'DXF kaydedilemedi', { type: r ? 'ok' : 'error', ms: 6000, action: r ? driveAct : undefined }); }
+  if (window.Android && window.Android.saveFile) { const r = window.Android.saveFile(b64, name, 'application/dxf', true); api.toast(r ? t('dxfSaved') + ': ' + r : t('dxfFail'), { type: r ? 'ok' : 'error', ms: 6000, action: r ? driveAct : undefined }); }
   else { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/dxf' })); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000); if (driveAct) api.toast('DXF', { type: 'ok', action: driveAct }); }
 }
 /** DXF metnini base64 olarak verir (Drive yüklemesi için); {b64, name} */
@@ -601,15 +610,15 @@ function host3() { return { toast: (m, o) => api.toast(m, o), esc, fmt, units: S
 function enter3D() {
   const cv = $('cv3d');
   if (!v3) {
-    try { v3 = new View3D(cv); } catch (e) { api.toast('3B görünüm açılamadı: ' + e.message, { type: 'error' }); return; }
+    try { v3 = new View3D(cv); } catch (e) { api.toast(t('v3Fail') + ': ' + e.message, { type: 'error' }); return; }
     bind3D(cv);
     v3.onChange = () => { overlay3D(); statusMode3D(); };
   }
   tools.cancel(); markActive(null);
-  cv.hidden = false;
+  cv.hidden = false; document.body.classList.add('mode3d');
   resize3D();
   refresh3D();
-  v3.fit({ animate: false }); v3.preset('iso', { animate: false }); v3.render(); overlay3D();
+  v3.fit({ animate: false }); v3.preset('iso', { animate: false }); v3.render();
   if (!cube) { try { cube = buildViewCube($('cube3d'), v3, host3()); } catch (e) { console.warn(e); cube = null; } }
   syncCube();
   api.toast(tileHint('3d'), 2200);
@@ -617,7 +626,7 @@ function enter3D() {
   D.refreshNav();
 }
 export function exit3D() {
-  $('cv3d').hidden = true; ed.m3 = null; showPrompt(null);
+  $('cv3d').hidden = true; document.body.classList.remove('mode3d'); ed.m3 = null; showPrompt(null);
   if (v3) v3.stopTurntable();
   const c3 = $('cube3d'); if (c3) c3.hidden = true;
   closePop();
@@ -626,7 +635,7 @@ export function exit3D() {
   api.drawOverlay();
   D.refreshNav();
 }
-function syncCube() { const c3 = $('cube3d'); if (!c3) return; c3.hidden = !(ed.is3D() && v3 && v3.opts.cube && cube); if (v3) c3.classList.toggle('below-hud', !!(v3.opts.hud && v3.opts.hudPos === 'tl')); if (!c3.hidden && cube) cube.update(); }
+function syncCube() { const c3 = $('cube3d'); if (!c3) return; c3.hidden = !(ed.is3D() && v3 && v3.opts.cube && cube); if (v3) c3.classList.toggle('below-hud', !!(v3.opts.hud && v3.opts.hudPos === 'tl')); if (!c3.hidden && cube) cube.update(); if (ed.is3D() && v3) overlay3D(); }
 function resize3D() { const cv = $('cv3d'); const r = cv.getBoundingClientRect(); cv.width = Math.round(r.width * S.dpr); cv.height = Math.round(r.height * S.dpr); }
 function refresh3D() {
   if (!v3) return;
@@ -635,8 +644,13 @@ function refresh3D() {
   v3.setSelection(ed.sel);
   if (!v3.counts.tris && typeof api.noFaces === 'function' && ed._noFaceKey !== S.fileKey) { ed._noFaceKey = S.fileKey; try { api.noFaces(); } catch (_) { /* geç */ } }
 }
-function render3D() { if (v3 && ed.is3D()) { v3.render(); overlay3D(); } }
-export function onResize() { if (ed.is3D()) { resize3D(); v3.render(); overlay3D(); } }
+function render3D() { if (v3 && ed.is3D()) { v3.render(); overlay3D(); statusMode3D(); if (cube) cube.update(); } }
+export function onResize() {
+  if (!ed.is3D()) return;
+  const k0 = v3._fitK(); resize3D(); const k1 = v3._fitK();
+  if (k0 > 0 && isFinite(k1 / k0)) v3.cam.dist *= k1 / k0;   // dar kenar değişince sığdırma çarpanını taşı (döndürme)
+  v3.render(); overlay3D();
+}
 export function onTheme() { if (ed.is3D()) { refresh3D(); v3.render(); overlay3D(); } }
 const p3 = { pointers: new Map(), last: null, d0: 0, mid0: null, ang0: 0, moved: false, snap: null, pts: [], lastTap: 0, lastTapAt: null };
 /** 3B dokunma: 1 parmak döndür/kaydır · 2 parmak yakınlaştır + kaydır (ya da döndür) · 3 parmak kaydır/döndür · çift dokunuş sığdır/yakınlaştır · tekerlek yakınlaştır */
@@ -703,54 +717,55 @@ function tap3D(sx, sy) {
   }
   const m = ed.m3;
   if (m.name === 'select') { if (hit) { if (ed.sel.has(hit.prim)) ed.sel.delete(hit.prim); else ed.sel.add(hit.prim); prompt3D(); haptic('snap'); } v3.setSelection(ed.sel); v3.render(); overlay3D(); return; }
-  if (!hit) { api.toast('Bir köşeye dokunun (köşeler yakalanır)'); return; }
+  if (!hit) { api.toast(t('tapVertex')); return; }
   p3.snap = hit.p; haptic('snap');
   m.pts.push(hit.p);
   if (m.name === 'dist' && m.pts.length === 2) {
     const [a, b] = m.pts; const dh = Math.hypot(b[0] - a[0], b[1] - a[1]), dz = b[2] - a[2], d3 = Math.hypot(dh, dz), u = S.units ? ' ' + S.units : '';
-    showResult([['3B mesafe', fmt(d3) + u], ['Yatay', fmt(dh) + u], ['ΔZ', fmt(dz) + u], ['Eğim', dh > 0 ? fmt(dz / dh * 100, 2) + ' %  (' + fmt(dz / dh * 1000, 1) + ' ‰)' : '–'], ['1. nokta', a.map(v => fmt(v)).join(' ; ')], ['2. nokta', b.map(v => fmt(v)).join(' ; ')]]);
+    showResult([[t('dist3'), fmt(d3) + u], [t('horizontal'), fmt(dh) + u], ['ΔZ', fmt(dz) + u], [t('slope'), dh > 0 ? fmt(dz / dh * 100, 2) + ' %  (' + fmt(dz / dh * 1000, 1) + ' ‰)' : '–'], [t('point1'), a.map(v => fmt(v)).join(' ; ')], [t('point2'), b.map(v => fmt(v)).join(' ; ')]]);
     m.pts = [];
   } else if (m.name === 'move' && m.pts.length === 2) {
     const [a, b] = m.pts; const keys = [...ed.sel].map(p => p.key);
-    if (keys.length) { doc.run({ op: 'xform', keys, m: [1, 0, 0, 1, b[0] - a[0], b[1] - a[1]], dz: b[2] - a[2] }); refreshUndo(); api.toast('Taşındı'); }
+    if (keys.length) { doc.run({ op: 'xform', keys, m: [1, 0, 0, 1, b[0] - a[0], b[1] - a[1]], dz: b[2] - a[2] }); refreshUndo(); api.toast(t('moved')); }
     ed.sel.clear(); ed.m3 = null; showPrompt(null); markActive(null);
+    if (keys.length) refresh3D(); else v3.setSelection(ed.sel);   // sahne yalnız taşıma bitince yeniden kurulur
   } else if (m.name === 'pline') { /* Bitir ile tamamlanır */ }
   prompt3D();
-  refresh3D(); v3.render(); overlay3D();
+  v3.render(); overlay3D();
 }
-function start3DTool(name) {
+async function start3DTool(name) {
   ed.m3 = { name, pts: [] };
   if (name === 'setz') {
-    if (!ed.sel.size) { api.toast('Önce nesne seçin (3B › Seç).'); ed.m3 = null; return; }
-    const v = prompt('Kot (Z):', ''); const z = parseFloat(String(v || '').replace(',', '.'));
-    if (isFinite(z)) { doc.run({ op: 'setz', keys: [...ed.sel].map(p => p.key), z }); refreshUndo(); refresh3D(); v3.render(); api.toast('Kot atandı'); }
+    if (!ed.sel.size) { api.toast(t('select3First')); ed.m3 = null; return; }
+    const v = await askText(t('zPrompt'), '', { type: 'number' }); const z = parseFloat(String(v || '').replace(',', '.'));
+    if (isFinite(z)) { doc.run({ op: 'setz', keys: [...ed.sel].map(p => p.key), z }); refreshUndo(); refresh3D(); v3.render(); api.toast(t('zSet')); }
     ed.m3 = null; markActive(null); return;
   }
   if (name === 'del') {
-    if (!ed.sel.size) { api.toast('Önce nesne seçin (3B › Seç).'); ed.m3 = null; return; }
-    doc.run({ op: 'delete', keys: [...ed.sel].map(p => p.key) }); ed.sel.clear(); refreshUndo(); refresh3D(); v3.render(); overlay3D(); api.toast('Silindi'); ed.m3 = null; markActive(null); return;
+    if (!ed.sel.size) { api.toast(t('select3First')); ed.m3 = null; return; }
+    doc.run({ op: 'delete', keys: [...ed.sel].map(p => p.key) }); ed.sel.clear(); refreshUndo(); refresh3D(); v3.render(); overlay3D(); api.toast(t('deleted')); ed.m3 = null; markActive(null); return;
   }
-  if (name === 'move' && !ed.sel.size) { api.toast('Önce nesne seçin (3B › Seç).'); ed.m3 = null; return; }
+  if (name === 'move' && !ed.sel.size) { api.toast(t('select3First')); ed.m3 = null; return; }
   prompt3D();
 }
 function prompt3D() {
   const m = ed.m3; if (!m) return;
-  const txt = { select: `Seç: köşelere dokunun [${ed.sel.size} seçili]`, dist: m.pts.length ? '3B mesafe: ikinci köşe' : '3B mesafe: birinci köşe', move: m.pts.length ? 'Taşı: hedef köşe' : 'Taşı: taban köşesi', pline: `3B Polyline: köşelere dokunun ya da x,y,z yazın [${m.pts.length} nokta] · Bitir` }[m.name];
+  const txt = { select: `${t('p3Select')} [${ed.sel.size} ${t('selCount')}]`, dist: m.pts.length ? t('p3Dist2') : t('p3Dist1'), move: m.pts.length ? t('p3Move2') : t('p3Move1'), pline: `${t('p3Pline')} [${m.pts.length} ${t('pointsN')}] · ${t('finish')}` }[m.name];
   $('cmdBar').hidden = false; $('cmdText').textContent = txt;
   $('cmdInput').hidden = m.name !== 'pline'; $('cmdInput').placeholder = 'x,y,z';
-  $('cmdBtns').innerHTML = (m.name === 'pline' ? `<button type="button" data-cmd3="finish">✓ Bitir</button>` : '') + (m.pts.length ? `<button type="button" data-cmd3="back">↶ Geri</button>` : '') + `<button type="button" data-cmd3="cancel">✕ İptal</button>`;
+  $('cmdBtns').innerHTML = (m.name === 'pline' ? `<button type="button" data-cmd3="finish">${esc(t('finishBtn'))}</button>` : '') + (m.pts.length ? `<button type="button" data-cmd3="back">${esc(t('backBtn'))}</button>` : '') + `<button type="button" data-cmd3="cancel">${esc(t('cancelBtn'))}</button>`;
   $('cmdBtns').onclick = (ev) => {
     const b = ev.target.closest('[data-cmd3]'); if (!b) return;
     const k = b.dataset.cmd3;
     if (k === 'cancel') { ed.m3 = null; showPrompt(null); markActive(null); overlay3D(); }
     else if (k === 'back') { m.pts.pop(); prompt3D(); overlay3D(); }
-    else if (k === 'finish') { if (m.pts.length >= 2) { doc.run({ op: 'add', ents: [{ type: 'POLYLINE3D', pts: m.pts.slice(), id: newId(), layer: ed.curLayer, color: ed.curColor }] }); refreshUndo(); refresh3D(); v3.render(); api.toast('3B polyline eklendi'); } m.pts = []; ed.m3 = null; showPrompt(null); markActive(null); overlay3D(); }
+    else if (k === 'finish') { if (m.pts.length >= 2) { doc.run({ op: 'add', ents: [{ type: 'POLYLINE3D', pts: m.pts.slice(), id: newId(), layer: ed.curLayer, color: ed.curColor }] }); refreshUndo(); refresh3D(); v3.render(); api.toast(t('pline3Added')); } m.pts = []; ed.m3 = null; showPrompt(null); markActive(null); overlay3D(); }
   };
 }
 function typed3D(v) {
   const m = ed.m3; if (!m || m.name !== 'pline') return;
   const parts = v.split(/[;,\s]+/).map(x => parseFloat(x.replace(',', '.'))).filter(x => isFinite(x));
-  if (parts.length < 2) { api.toast('x,y,z yazın'); return; }
+  if (parts.length < 2) { api.toast(t('typeXyz')); return; }
   m.pts.push([parts[0], parts[1], parts[2] || 0]); prompt3D(); overlay3D();
 }
 /** 3B üstüne 2B kaplama: HUD (kamera, eksen etiketleri, lejant, pusula), toplanan noktalar, yakalama işareti */
@@ -896,6 +911,7 @@ function endTour() { const el = $('tour'); if (el) el.hidden = true; ui.hints.to
 // ---------------------------------------------------------------------------------
 ed.view3d = () => v3;
 ed.render3D = render3D;
+ed.overlay3D = overlay3D;   // app.drawOverlay 3B'de HUD'u silmek yerine yeniden çizer
 ed.statusMode = statusMode;
 ed.select = (prim) => { ed.sel.clear(); if (prim) ed.sel.add(prim); if (ed.is3D()) { v3.setSelection(ed.sel); render3D(); } else api.drawOverlay(); };
 ed.setCurLayer = (name) => { if (!name || !S.layers.has(name)) return false; ed.curLayer = name; updateLayerButton(); return true; };
@@ -910,7 +926,7 @@ ed.key = (ev) => {
   if (!S.hasDoc) return false;
   if ((ev.ctrlKey || ev.metaKey) && (k === 'z' || k === 'Z')) { if (ev.shiftKey) act('redo'); else act('undo'); return true; }
   if ((ev.ctrlKey || ev.metaKey) && (k === 'y' || k === 'Y')) { act('redo'); return true; }
-  if ((k === 'Delete' || k === 'Backspace') && ed.sel.size && doc && !tools.running) { doc.run({ op: 'delete', keys: [...ed.sel].map(p => p.key) }); ed.sel.clear(); refreshUndo(); api.requestRender(); if (ed.is3D()) { refresh3D(); render3D(); } api.toast('Silindi'); return true; }
+  if ((k === 'Delete' || k === 'Backspace') && ed.sel.size && doc && !tools.running) { doc.run({ op: 'delete', keys: [...ed.sel].map(p => p.key) }); ed.sel.clear(); refreshUndo(); api.requestRender(); if (ed.is3D()) { refresh3D(); render3D(); } api.toast(t('deleted')); return true; }
   if (k === 'Enter' && tools.running) { tools.finish(); return true; }
   return false;
 };

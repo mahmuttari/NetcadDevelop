@@ -10,6 +10,9 @@
 
     <application
         android:allowBackup="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:enableOnBackInvokedCallback="true"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -21,7 +24,7 @@
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode|density|locale|layoutDirection"
             android:windowSoftInputMode="adjustResize">
 
             <intent-filter>
@@ -90,7 +93,8 @@
                 <data android:pathPattern=".*\\..*\\.DXF" />
             </intent-filter>
 
-            <!-- PDF, Word, ZIP, RAR, resim ve metin dosyaları -->
+            <!-- PDF, Word, Excel, ZIP, RAR, KML/KMZ, GPX, GeoJSON, JSON, CSV ve düz metin
+                 (image/* ve text/* geneli bilerek yok: uygulama her resim seçicisinde görünmesin) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -100,11 +104,20 @@
                 <data android:mimeType="application/pdf" />
                 <data android:mimeType="application/msword" />
                 <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+                <data android:mimeType="application/vnd.ms-excel" />
                 <data android:mimeType="application/zip" />
                 <data android:mimeType="application/x-zip-compressed" />
                 <data android:mimeType="application/vnd.rar" />
                 <data android:mimeType="application/x-rar-compressed" />
                 <data android:mimeType="application/rar" />
+                <data android:mimeType="application/vnd.google-earth.kml+xml" />
+                <data android:mimeType="application/vnd.google-earth.kmz" />
+                <data android:mimeType="application/gpx+xml" />
+                <data android:mimeType="application/geo+json" />
+                <data android:mimeType="application/json" />
+                <data android:mimeType="text/csv" />
+                <data android:mimeType="text/plain" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -122,6 +135,21 @@
                 <data android:pathPattern=".*\\.ZIP" />
                 <data android:pathPattern=".*\\.rar" />
                 <data android:pathPattern=".*\\.RAR" />
+                <data android:pathPattern=".*\\.xlsx" />
+                <data android:pathPattern=".*\\.XLSX" />
+                <data android:pathPattern=".*\\.kml" />
+                <data android:pathPattern=".*\\.KML" />
+                <data android:pathPattern=".*\\.kmz" />
+                <data android:pathPattern=".*\\.KMZ" />
+                <data android:pathPattern=".*\\.gpx" />
+                <data android:pathPattern=".*\\.GPX" />
+                <data android:pathPattern=".*\\.geojson" />
+                <data android:pathPattern=".*\\.ncn" />
+                <data android:pathPattern=".*\\.NCN" />
+                <data android:pathPattern=".*\\.nct" />
+                <data android:pathPattern=".*\\.NCT" />
+                <data android:pathPattern=".*\\.csv" />
+                <data android:pathPattern=".*\\.txt" />
             </intent-filter>
 
             <!-- Google ile giriş: OAuth yönlendirmesi (şema istemci kimliğinden türetilir) -->

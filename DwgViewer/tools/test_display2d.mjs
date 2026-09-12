@@ -1,30 +1,24 @@
 // display2d modülü sınaması (kabul listesi A.5–A.20 + regresyon 1).
-// Kullanım: PLAYWRIGHT_PKG=/opt/node22/lib/node_modules/ node tools/test_display2d.mjs <outdir> <samples> [port]
-import { createRequire } from 'node:module';
-const { chromium } = createRequire(process.env.PLAYWRIGHT_PKG || '/opt/node22/lib/node_modules/')('playwright');
-import { spawn } from 'node:child_process';
-import fs from 'node:fs';
-const out = process.argv[2] || '/tmp/ui_display2d', SM = process.argv[3] || '/home/user/NetcadDevelop/DwgViewer/samples';
-const port = Number(process.argv[4] || (8920 + Math.floor(Math.random() * 70)));
-fs.mkdirSync(out, { recursive: true });
-const srv = spawn(process.execPath, ['/home/user/NetcadDevelop/DwgViewer/tools/serve.mjs', String(port)], { stdio: 'ignore' });
-await new Promise(r => setTimeout(r, 700));
-let fails = 0, passes = 0;
-const ok = (name, cond, extra = '') => { if (cond) { passes++; console.log('PASS', name, extra); } else { fails++; console.log('FAIL', name, extra); } };
+// Kullanım: PLAYWRIGHT_PKG=<node_modules> node tools/test_display2d.mjs [çıktı] [örnekler]
+import { args, startServer, launchBrowser, openFile, onDialog, noUpdate, checker, PHONE } from './harness.mjs';
+const { out, samples: SM } = args(import.meta.url);
+const srv = await startServer();
+const C = checker(), ok = C.ok;
 const near = (a, b, eps = 1e-6) => Math.abs(a - b) <= eps * Math.max(1, Math.abs(b));
-const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'] });
-const ctx = await browser.newContext({ viewport: { width: 412, height: 915 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true, acceptDownloads: true });
+const browser = await launchBrowser();
+const ctx = await browser.newContext(PHONE);
+await noUpdate(ctx);
 const page = await ctx.newPage();
 const errors = [];
 page.on('pageerror', e => { errors.push(e.message); console.log('[pageerror]', e.message); });
 page.on('console', m => { if (m.type() === 'error') { errors.push(m.text()); console.log('[console.error]', m.text().slice(0, 200)); } });
-page.on('dialog', async d => { await d.accept('5'); });
+onDialog(page, async d => { await d.accept('5'); });
 const shot = (n) => page.screenshot({ path: `${out}/${n}.png` });
 const ev = (fn, arg) => page.evaluate(fn, arg);
 const vpBox = async () => page.locator('#viewport').boundingBox();
 
 // ---- 1. yükleme, boş durum -----------------------------------------------------------------
-await page.goto(`http://localhost:${port}/index.html`);
+await page.goto(srv.url + 'index.html');
 await page.waitForSelector('#btnOpen2');
 await page.waitForTimeout(300);
 ok('1 boş sayfa hatasız', errors.length === 0 && await page.locator('#empty').isVisible(), errors.join(' | ').slice(0, 200));
@@ -40,7 +34,7 @@ await page.reload(); await page.waitForSelector('#btnOpen2'); await page.waitFor
 await ev(() => { localStorage.clear(); });
 await page.reload(); await page.waitForSelector('#btnOpen2');
 
-const load = async (f) => { await page.setInputFiles('#fileInput', f); await page.waitForFunction(() => window.dwgApp && window.dwgApp.state.hasDoc && document.getElementById('loading').hidden, null, { timeout: 120000 }); await page.waitForTimeout(400); await ev(() => { document.getElementById('toast').hidden = true; }); };
+const load = async (f) => { await openFile(page, f, { settle: 400 }); await ev(() => { document.getElementById('toast').hidden = true; }); };
 await load(`${SM}/example_2000.dwg`);
 await ev(() => window.dwgApp.zoomExtents());
 await shot('d_loaded');
@@ -351,7 +345,6 @@ await ev(() => window.dwgApp.display.openDisplayOptions()); await page.waitForTi
   ok('46 dokunma hedefleri (360×640)', bad.length === 0, bad.join(' | ').slice(0, 300));
 }
 await ev(() => window.dwgApp.onBack());
-console.log(`\nSONUÇ: ${passes} geçti, ${fails} kaldı; sayfa hataları: ${errors.length}`);
-for (const e of errors) console.log('  err:', e.slice(0, 200));
+C.summary(errors);
 await browser.close(); srv.kill();
-process.exit(fails ? 1 : 0);
+C.exit();

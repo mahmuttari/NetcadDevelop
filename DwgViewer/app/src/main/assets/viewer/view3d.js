@@ -10,6 +10,7 @@
  * seçenekler `store 'view3d'` anahtarında tutulur (clip, clipBox, turntable ve zScale hariç).
  */
 import { TAU, arcPts, ellipsePts } from './geom.js';
+import { t } from './i18n.js';
 import { FG } from './scene.js';
 import { store, fmt as fmtNum } from './state.js';
 
@@ -34,9 +35,11 @@ vec3 ramp(float t) {
 }
 void main() {
   vec3 p3 = vec3(aPos.x, aPos.y, aPos.z * uZ);
+  // düşey abartıda normal ters-devrikle döner: (nx·s, ny·s, nz); uZ=1 iken değişmez
+  vec3 nS = length(aNrm) > 0.0 ? normalize(vec3(aNrm.x * uZ, aNrm.y * uZ, aNrm.z)) : vec3(0.0, 0.0, 1.0);
   if (uFlat == 1) p3.z = uFlatZ;                       // zemin gölgesi: yüzeyler zemine yatırılır
   if (uHull > 0.0) {                                   // siluet: kameradan uzak yöne şişirilmiş kabuk
-    vec3 n = normalize(aNrm); if (dot(n, uEye - p3) > 0.0) n = -n;
+    vec3 n = nS; if (dot(n, uEye - p3) > 0.0) n = -n;
     p3 += n * uHull;
   }
   vec4 p = uMVP * vec4(p3, 1.0);
@@ -47,7 +50,7 @@ void main() {
     p.xy += (vec2(h1, h2) - 0.5) * uJitter * p.w;
   }
   gl_Position = p; gl_PointSize = uPointSize;
-  vNrm = aNrm; vPos = p3;
+  vNrm = nS; vPos = p3;
   vClip = (aPos - uClipMin) * uClipInv;
   vFade = clamp((distance(p3, uEye) - uFadeRange.x) / max(uFadeRange.y - uFadeRange.x, 1e-6), 0.0, 1.0);
   vec3 rgb = aCol.rgb;
@@ -126,7 +129,7 @@ class Grow {
   push4(x, y, z, w) { if (this.n + 4 > this.a.length) this.grow(); const a = this.a, n = this.n; a[n] = x; a[n + 1] = y; a[n + 2] = z; a[n + 3] = w; this.n += 4; }
   push1(x) { if (this.n + 1 > this.a.length) this.grow(); this.a[this.n++] = x; }
   grow() { const b = new Float32Array(Math.max(1024, this.a.length * 2)); b.set(this.a); this.a = b; }
-  out() { return this.a.subarray(0, this.n); }
+  out() { return this.a.slice(0, this.n); }   // kopya: kapasite fazlası ölü bellek taşınmaz (setScene tek seferlik)
 }
 
 const PRESET_ANGLES = {
@@ -187,24 +190,20 @@ export class View3D {
     const gl = canvas.getContext('webgl', { antialias: true, alpha: false, preserveDrawingBuffer: true });
     if (!gl) throw new Error('WebGL yok');
     this.gl = gl;
-    const sh = (t, src) => { const s = gl.createShader(t); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
-    const prog = gl.createProgram(); gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS)); gl.linkProgram(prog);
-    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
-    this.prog = prog; gl.useProgram(prog);
-    this.aPos = gl.getAttribLocation(prog, 'aPos'); this.aCol = gl.getAttribLocation(prog, 'aCol'); this.aNrm = gl.getAttribLocation(prog, 'aNrm');
-    this.u = {};
-    for (const n of ['uMVP', 'uZ', 'uPointSize', 'uOff', 'uColorMode', 'uFg', 'uZmin', 'uZmax', 'uClipMin', 'uClipInv', 'uEye', 'uFadeRange', 'uAlpha', 'uOverride', 'uClip', 'uLit', 'uLightDir', 'uAmbient', 'uIntensity', 'uFade', 'uBg', 'uJitter', 'uSeed', 'uHull', 'uFlat', 'uFlatZ', 'uShade', 'uGray']) this.u[n] = gl.getUniformLocation(prog, n);
+    this._lost = false;
+    this._initGL();
     // tamponlar: her ad için konum (pos) + renk (col) (+ normal) ayrı
     this.bufs = {};
     this._n = { lines: 0, edges: 0, tris: 0, pts: 0, txt: 0, grid: 0, axes: 0, sel: 0, clipBox: 0, bgq: 0 };
     this.counts = { lines: 0, tris: 0, pts: 0, grid: 0, axes: 0, sel: 0 };
-    this.src = {};            // yeniden renklendirme kaynakları
+    this.src = {};            // yeniden renklendirme / yeniden yükleme kaynakları (konum, renk, katman, normal)
     this.layerNames = []; this.layerRGB = new Float32Array(0); this.layerIdx = new Map();
     this.cam = { yaw: -Math.PI / 4, pitch: 0.6, dist: 100, target: [0, 0, 0], persp: false };   // AutoCAD gibi varsayılan paralel izdüşüm
     this.zScale = 1;
     this.center = [0, 0, 0]; this.radius = 1; this.origin = [0, 0, 0];
     this.bb = null; this.zrange = [0, 1];
-    this.vertices = [];  // yakalama için [x,y,z,prim]
+    // yakalama köşeleri: xyz (Float64, ölçüm hassasiyeti için) + ilkel dizisi; `vertices` görünümü istenince kurulur
+    this.vertXYZ = new Float64Array(0); this.vertPrim = []; this._vertsView = null;
     this.dark = true;
     this.fg = [0.95, 0.96, 0.97]; this.bgTheme = [0.11, 0.13, 0.16]; this.selColor = [1, 0.62, 0.04];
     this.units = ''; this.gridStep = 1;
@@ -217,7 +216,43 @@ export class View3D {
     this.opts = JSON.parse(JSON.stringify(View3D.DEFAULTS));
     this._loadOpts();
     this._bindStop();
+    this._bindContext();
     this._uploadBgQuad();
+  }
+  /** program, öznitelik ve uniform konumları — kurucuda ve bağlam geri geldiğinde */
+  _initGL() {
+    const gl = this.gl;
+    const sh = (t, src) => { const s = gl.createShader(t); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS) && !gl.isContextLost()) throw new Error(gl.getShaderInfoLog(s)); return s; };
+    const prog = gl.createProgram(); gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS)); gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS) && !gl.isContextLost()) throw new Error(gl.getProgramInfoLog(prog));
+    this.prog = prog; gl.useProgram(prog);
+    this.aPos = gl.getAttribLocation(prog, 'aPos'); this.aCol = gl.getAttribLocation(prog, 'aCol'); this.aNrm = gl.getAttribLocation(prog, 'aNrm');
+    this.u = {};
+    for (const n of ['uMVP', 'uZ', 'uPointSize', 'uOff', 'uColorMode', 'uFg', 'uZmin', 'uZmax', 'uClipMin', 'uClipInv', 'uEye', 'uFadeRange', 'uAlpha', 'uOverride', 'uClip', 'uLit', 'uLightDir', 'uAmbient', 'uIntensity', 'uFade', 'uBg', 'uJitter', 'uSeed', 'uHull', 'uFlat', 'uFlatZ', 'uShade', 'uGray']) this.u[n] = gl.getUniformLocation(prog, n);
+  }
+  /** WebGL bağlam kaybı: preventDefault ile geri verilmesi istenir; geri gelince her şey yeniden kurulur */
+  _bindContext() {
+    this.cv.addEventListener('webglcontextlost', (e) => { e.preventDefault(); this._lost = true; this._anim = null; if (this._turn) this.setTurntable(false); });
+    this.cv.addEventListener('webglcontextrestored', () => {
+      this._lost = false;
+      try { this._initGL(); } catch (_) { return; }
+      this.bufs = {}; this._smoothReady = false;
+      this._uploadBgQuad();
+      this._reupload();
+      this.render();
+      this._emit('context', 'restored');
+    });
+  }
+  /** sahne tamponlarını `src`ten, yardımcı tamponları (ızgara, eksen, kesit kutusu, seçim) üreticilerinden yeniden yükler */
+  _reupload() {
+    for (const n of ['lines', 'edges', 'tris', 'pts', 'txt']) {
+      const s = this.src[n]; if (!s || !s.pos) continue;
+      this.uploadPos(n, s.pos); if (s.nrm) this.uploadNrm(n, s.nrm);
+    }
+    this._applyOverhang();
+    this.recolor();
+    this.buildGrid(); this.buildAxes(); this.buildClipBox();
+    this.setSelection(this._lastSel || []);
   }
 
   // ---------------------------------------------------------------------------------
@@ -314,7 +349,9 @@ export class View3D {
     const est = Math.min(1 << 18, Math.max(4096, prims.length * 8));
     const B = {};
     for (const n of ['lines', 'edges', 'tris', 'pts', 'txt']) B[n] = { pos: new Grow(n === 'lines' ? est * 3 : 4096), rgb: new Grow(n === 'lines' ? est * 3 : 4096), lay: new Grow(n === 'lines' ? est : 1024), nrm: n === 'tris' ? new Grow(4096) : null };
-    const verts = [];
+    // yakalama köşeleri: xyz düz Float64 + ilkel dizisi (JS dizisi başına ~70 bayt yerine 32)
+    let vxyz = new Float64Array(Math.max(3 * 1024, prims.length * 6)), vn = 0; const vprim = [];
+    const vert = (x, y, z, p) => { if (vn + 3 > vxyz.length) { const b = new Float64Array(vxyz.length * 2); b.set(vxyz); vxyz = b; } vxyz[vn] = x; vxyz[vn + 1] = y; vxyz[vn + 2] = z; vn += 3; vprim.push(p); };
     let bb = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
     const fg = this.fg;
     const col = (c) => c === FG || c == null ? fg : [((c >> 16) & 255) / 255, ((c >> 8) & 255) / 255, (c & 255) / 255];
@@ -334,7 +371,7 @@ export class View3D {
       const lay = layers.get(p.lay); if (lay && !lay.visible) continue;
       li = idx.has(p.lay) ? idx.get(p.lay) : unk;
       c = col(p.col);
-      if (p.k === 2) { push(B.pts, p.x, p.y, p.z || 0); verts.push([p.x, p.y, p.z || 0, p]); continue; }
+      if (p.k === 2) { push(B.pts, p.x, p.y, p.z || 0); vert(p.x, p.y, p.z || 0, p); continue; }
       if (p.k === 1) { push(B.txt, p.x, p.y, p.z || 0); continue; }
       const isFace = !!(p.face || (p.closed && FACE_ETS.has(p.et)) || p.fill);
       const LB = isFace ? B.edges : B.lines;
@@ -353,14 +390,14 @@ export class View3D {
         cur = null;
       };
       for (const o of p.ops) {
-        if (o[0] === 0) { flush(); cur = [[o[1], o[2], o[3] || 0]]; verts.push([o[1], o[2], o[3] || 0, p]); }
-        else if (o[0] === 1) { if (!cur) cur = []; cur.push([o[1], o[2], o[3] || 0]); verts.push([o[1], o[2], o[3] || 0, p]); }
+        if (o[0] === 0) { flush(); cur = [[o[1], o[2], o[3] || 0]]; vert(o[1], o[2], o[3] || 0, p); }
+        else if (o[0] === 1) { if (!cur) cur = []; cur.push([o[1], o[2], o[3] || 0]); vert(o[1], o[2], o[3] || 0, p); }
         else if (o[0] === 2 || o[0] === -2) {
           const z = o[6] != null ? o[6] : (cur && cur.length ? cur[cur.length - 1][2] : 0);
           const q = []; if (o[0] === 2) arcPts(o[1], o[2], o[3], o[4], o[5], q); else { arcPts(o[1], o[2], o[3], o[5], o[4], q); q.reverse(); }
           if (!cur) cur = [];
           for (let i = 0; i < q.length; i++) cur.push([q[i][0], q[i][1], z]);
-          verts.push([o[1], o[2], z, p]); verts.push([q[q.length - 1][0], q[q.length - 1][1], z, p]);
+          vert(o[1], o[2], z, p); vert(q[q.length - 1][0], q[q.length - 1][1], z, p);
         } else { const z = cur && cur.length ? cur[cur.length - 1][2] : 0; const q = []; ellipsePts(o[1], o[2], o[3], o[4], o[5], o[6], o[7], q); if (!cur) cur = []; for (const r of q) cur.push([r[0], r[1], z]); }
       }
       flush();
@@ -372,13 +409,13 @@ export class View3D {
     this.origin = this.center.slice();
     this.radius = Math.max(1e-6, Math.hypot(bb[3] - bb[0], bb[4] - bb[1], (bb[5] - bb[2])) / 2);
     this.zrange = [bb[2], bb[5]];
-    this.vertices = verts;
+    this.vertXYZ = vxyz.length === vn ? vxyz : vxyz.slice(0, vn); this.vertPrim = vprim; this._vertsView = null;
     // tamponlar: konumlar merkeze göre
     for (const n of ['lines', 'edges', 'tris', 'pts', 'txt']) {
       const b = B[n], pos = b.pos.out(), o = this.origin;
       for (let i = 0; i < pos.length; i += 3) { pos[i] -= o[0]; pos[i + 1] -= o[1]; pos[i + 2] -= o[2]; }
-      this.src[n] = { rgb: b.rgb.out(), lay: b.lay.out(), alpha: n === 'txt' ? 0.6 : 1, pos: (n === 'edges' || n === 'tris') ? pos : null, nrm: b.nrm ? b.nrm.out() : null, smooth: null };
-      this.uploadPos(n, pos); if (b.nrm) this.uploadNrm(n, b.nrm.out());
+      this.src[n] = { rgb: b.rgb.out(), lay: b.lay.out(), alpha: n === 'txt' ? 0.6 : 1, pos, nrm: b.nrm ? b.nrm.out() : null, smooth: null };   // pos: bağlam kaybında yeniden yükleme
+      this.uploadPos(n, pos); if (b.nrm) this.uploadNrm(n, this.src[n].nrm);
       this._n[n] = pos.length / 3;
     }
     this._smoothReady = false;
@@ -388,6 +425,11 @@ export class View3D {
     this.buildGrid(); this.buildAxes(); this.buildClipBox();
     if (bbChanged || !this._sceneOnce) { this._sceneOnce = true; this.fit({ animate: false }); }
     this.setSelection(this._lastSel || []);
+  }
+  /** yakalama köşeleri [x,y,z,prim] görünümü (uyumluluk; istenince kurulur, sahne değişince düşer) */
+  get vertices() {
+    if (!this._vertsView) { const a = this.vertXYZ, P = this.vertPrim, out = new Array(P.length); for (let i = 0; i < P.length; i++) out[i] = [a[i * 3], a[i * 3 + 1], a[i * 3 + 2], P[i]]; this._vertsView = out; }
+    return this._vertsView;
   }
   /** renk tamponlarını geçerli renk moduna (nesne/katman) ve solgunluğa göre yeniden kurar */
   recolor() {
@@ -662,17 +704,18 @@ export class View3D {
     const aspect = cv.width / Math.max(1, cv.height);
     const e = this._eye(c), tgt = e[3], eye = [e[0], e[1], e[2]];
     const view = lookAt(eye, tgt, [0, 0, 1]);
-    const near = Math.max(1e-4, c.dist * 0.01), far = c.dist * 10 + this.radius * 10;
+    // yakın düzlem model yarıçapına değil uzaklığa bağlı: km ölçekli paftada ayrıntıya inilebilsin (24 bit derinlik yeter, uzak z-savaşı polygonOffset ile örtülü)
+    const near = Math.max(this.radius * 1e-6, c.dist * 0.002), far = c.dist * 10 + this.radius * 10;
     const fov = clamp(this.opts.fov, 10, 120) * Math.PI / 180;
     const hh = c.dist * Math.tan(fov / 2);
     const proj = c.persp ? perspective(fov, aspect, near, far) : ortho(-hh * aspect, hh * aspect, -hh, hh, -far, far);
     return mul4(proj, view);
   }
-  /** hedef uzaklığında bir ekran pikselinin dünya birimi karşılığı (paralelde tam, perspektifte hedef düzleminde) */
+  /** hedef uzaklığında bir CSS pikselinin dünya birimi karşılığı (paralelde tam, perspektifte hedef düzleminde) */
   _worldPerPixel(c) {
     const fov = clamp(this.opts.fov, 10, 120) * Math.PI / 180;
     const hh = c.dist * Math.tan(fov / 2);
-    return (2 * hh) / Math.max(1, this.cv.height);
+    return (2 * hh) / Math.max(1, this.cv.clientHeight);
   }
   _bgColor() {
     const b = this.opts.bg;
@@ -687,8 +730,9 @@ export class View3D {
   _fgFor(bg) { return lum(bg) > 0.5 ? [0.07, 0.07, 0.07] : [0.95, 0.96, 0.97]; }
   render() {
     const gl = this.gl, cv = this.cv, o = this.opts;
+    if (this._lost || gl.isContextLost()) return;   // bağlam kayıp: geri gelince webglcontextrestored yeniden kurar
     // tuval boyutu CSS boyutuyla uyuşmuyorsa (döndürme, panel, klavye) düzelt — en-boy oranı bozulmasın
-    { const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1)); const w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr); if (w > 0 && h > 0 && (cv.width !== w || cv.height !== h)) { cv.width = w; cv.height = h; } }
+    { const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1)); const w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr); if (w > 0 && h > 0 && (cv.width !== w || cv.height !== h)) { const k0 = this._fitK(); cv.width = w; cv.height = h; const k1 = this._fitK(); if (k0 > 0 && isFinite(k1 / k0)) this.cam.dist *= k1 / k0; } }   // sığdırma çarpanı yeni en-boy oranına taşınır
     if (!cv.width || !cv.height) return;
     gl.viewport(0, 0, cv.width, cv.height);
     const bg = this._bgColor();
@@ -735,7 +779,7 @@ export class View3D {
     gl.uniform1f(u.uPointSize, 1);
     gl.uniform1f(u.uJitter, 0); gl.uniform1f(u.uSeed, 0); gl.uniform1f(u.uHull, 0); gl.uniform1i(u.uFlat, 0); gl.uniform1f(u.uFlatZ, 0); gl.uniform1i(u.uShade, 0); gl.uniform1f(u.uGray, 0);
     const fx = this._styleFx();
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = window.devicePixelRatio || 1, dprS = Math.max(1, Math.min(3, Math.round(dpr)));   // çizgi ofsetleri cihaz pikselidir; kalınlık CSS px'e göre seçilir
     // ızgara ve eksenler: renk özniteliğinden, kesitsiz
     gl.uniform1i(u.uColorMode, 0); gl.uniform1i(u.uClip, 0);
     if (o.grid) this._draw('grid', gl.LINES, 0.6);
@@ -793,7 +837,8 @@ export class View3D {
     // çizgiler (kalınlık: NDC ofsetli tekrar); kenarlar: renk geçersiz kılma, eskiz titremesi
     const segs = (this._n.lines + this._n.edges) / 2;
     const lw = segs > 300000 ? 'thin' : o.lineWidth;
-    const offs = lw === 'thick' ? THICK_OFFS : lw === 'normal' ? NORMAL_OFFS : THIN_OFFS;
+    // ince: 1 cihaz px; normal: ~1 CSS px (dpr cihaz px); kalın: bir kademe daha (dpr 1'de eski 2 px görünüm)
+    const offs = lw === 'thick' ? LINE_OFFS[Math.min(4, dprS + 1)] : lw === 'normal' ? LINE_OFFS[dprS] : LINE_OFFS[1];
     const edgeCol = o.edgeColor === 'black' ? [0, 0, 0] : o.edgeColor === 'white' ? [1, 1, 1] : o.edgeColor === 'fg' ? fgEff : (fx.shade || fx.gray || fx.faces === 'lit' && o.style !== 'shadedEdges' ? darkEdge : null);
     const jitterAmt = fx.jitter ? fx.jitter * 1.6 * px : 0;
     for (let i = 0; i < offs.length; i++) {
@@ -814,7 +859,8 @@ export class View3D {
     // seçim, kesit kutusu: derinlik testi kapalı, kesitsiz
     gl.disable(gl.DEPTH_TEST);
     gl.uniform1i(u.uColorMode, 0); gl.uniform1i(u.uClip, 0); gl.uniform1f(u.uFade, 0);
-    for (let i = 0; i < NORMAL_OFFS2.length; i++) { gl.uniform2f(u.uOff, NORMAL_OFFS2[i][0] * px, NORMAL_OFFS2[i][1] * py); this._draw('sel', gl.LINES, 1); }
+    const selOffs = LINE_OFFS[Math.min(4, dprS + 1)];
+    for (let i = 0; i < selOffs.length; i++) { gl.uniform2f(u.uOff, selOffs[i][0] * px, selOffs[i][1] * py); this._draw('sel', gl.LINES, 1); }
     gl.uniform2f(u.uOff, 0, 0);
     if (o.clipBox && cl) this._draw('clipBox', gl.LINES, 0.9);
     gl.enable(gl.DEPTH_TEST);
@@ -847,15 +893,17 @@ export class View3D {
     let best = null, bd = tol;
     const cl = this.opts.clip;
     const m = this.lastMvp || this.mvp(), W = this.cv.clientWidth, H = this.cv.clientHeight, zs = this.zScale;
-    for (const v of this.vertices) {
-      if (cl && (v[0] < cl[0] || v[1] < cl[1] || v[2] < cl[2] || v[0] > cl[3] || v[1] > cl[4] || v[2] > cl[5])) continue;
-      const x = v[0], y = v[1], z = v[2] * zs;
-      const w = m[3] * x + m[7] * y + m[11] * z + m[15];
-      const pz = (m[2] * x + m[6] * y + m[10] * z + m[14]) / w;
+    const A = this.vertXYZ, n = this.vertPrim.length;
+    for (let i = 0; i < n; i++) {
+      const vx = A[i * 3], vy = A[i * 3 + 1], vz = A[i * 3 + 2];
+      if (cl && (vx < cl[0] || vy < cl[1] || vz < cl[2] || vx > cl[3] || vy > cl[4] || vz > cl[5])) continue;
+      const z = vz * zs;
+      const w = m[3] * vx + m[7] * vy + m[11] * z + m[15];
+      const pz = (m[2] * vx + m[6] * vy + m[10] * z + m[14]) / w;
       if (pz < -1 || pz > 1) continue;
-      const px = ((m[0] * x + m[4] * y + m[8] * z + m[12]) / w + 1) / 2 * W, py = (1 - (m[1] * x + m[5] * y + m[9] * z + m[13]) / w) / 2 * H;
+      const px = ((m[0] * vx + m[4] * vy + m[8] * z + m[12]) / w + 1) / 2 * W, py = (1 - (m[1] * vx + m[5] * vy + m[9] * z + m[13]) / w) / 2 * H;
       const d = Math.hypot(px - sx, py - sy);
-      if (d < bd) { bd = d; best = { p: [v[0], v[1], v[2]], prim: v[3] }; }
+      if (d < bd) { bd = d; best = { p: [vx, vy, vz], prim: this.vertPrim[i] }; }
     }
     return best;
   }
@@ -865,11 +913,12 @@ export class View3D {
     const t = this.opts.touch, k = 0.01 * (t.sensitivity || 1), inv = t.invertY ? -1 : 1;
     this.cam.yaw -= dx * k; this.cam.pitch = Math.max(-1.5, Math.min(1.55, this.cam.pitch + inv * dy * k));
   }
-  zoom(f) { this._stopAnim(); this.cam.dist = Math.max(this.radius * 0.01, Math.min(this.radius * 50, this.cam.dist / f)); }
+  /** yakınlaşma sınırı: perspektifte yakın düzlem, paralelde float32 hassasiyeti belirler (km paftasında cm ayrıntısı) */
+  zoom(f) { this._stopAnim(); const lo = this.radius * (this.cam.persp ? 1e-4 : 1e-5); this.cam.dist = Math.max(lo, Math.min(this.radius * 50, this.cam.dist / f)); }
   pan(dx, dy) {
     this._stopAnim();
-    const c = this.cam, W = this.cv.clientWidth || 1;
-    const k = c.dist * 1.0 / W;
+    const c = this.cam;
+    const k = this._worldPerPixel(c);   // CSS px → dünya: izdüşüm yüksekliğe göre kurulur, parmak modeli birebir izler
     const rx = [-Math.sin(c.yaw), Math.cos(c.yaw), 0];
     const up = [-Math.sin(c.pitch) * Math.cos(c.yaw), -Math.sin(c.pitch) * Math.sin(c.yaw), Math.cos(c.pitch)];
     c.target[0] += (-dx * rx[0] + dy * up[0]) * k; c.target[1] += (-dx * rx[1] + dy * up[1]) * k; c.target[2] += (dy * up[2]) * k / this.zScale;
@@ -927,8 +976,8 @@ export class View3D {
   /** durum çubuğu / HUD metni */
   hudText() {
     const c = this.cam, u = this.units ? ' ' + this.units : '';
-    let s = `Yaw ${fmtNum(c.yaw * 180 / Math.PI, 0)}°  Pitch ${fmtNum(c.pitch * 180 / Math.PI, 0)}°  Z×${fmtNum(this.zScale, 2)}  Izgara ${fmtNum(this.gridStep)}${u}  ${c.persp ? 'Persp.' : 'Paralel'}`;
-    if (!this._n.tris) s += ' · Yüzey yok';
+    let s = `${t('hudYaw')} ${fmtNum(c.yaw * 180 / Math.PI, 0)}°  ${t('hudPitch')} ${fmtNum(c.pitch * 180 / Math.PI, 0)}°  Z×${fmtNum(this.zScale, 2)}  ${t('hudGrid')} ${fmtNum(this.gridStep)}${u}  ${c.persp ? t('hudPersp') : t('hudOrtho')}`;
+    if (!this._n.tris) s += ' · ' + t('hudNoFaces');
     return s;
   }
   /**
@@ -961,13 +1010,18 @@ export class View3D {
       const bb = this.bb, cl = o.clip;
       const l2 = cl ? `Z: ${f(cl[2])} … ${f(cl[5])}` : bb ? `Z: ${f(bb[2])} … ${f(bb[5])}` : '';
       const lh = Math.round(14 * fs), pad = 5;
-      const w = Math.max(c.measureText(l1).width, c.measureText(l2).width) + pad * 2, h = lh * (l2 ? 2 : 1) + pad * 2;
+      // dar tuvalde (360 px) kamera satırı sığmazsa çift boşluktan ikiye bölünür
+      let top = [l1];
+      if (c.measureText(l1).width + pad * 2 > W - 16) { const parts = l1.split('  '); const mid = Math.ceil(parts.length / 2); top = [parts.slice(0, mid).join('  '), parts.slice(mid).join('  ')]; }
+      const lines = l2 ? [...top, l2] : top;
+      const w = Math.max(...lines.map(s => c.measureText(s).width)) + pad * 2, h = lh * lines.length + pad * 2;
       const x = 8, y = o.hudPos === 'bl' ? H - 8 - h : 8;
+      this._hudBox = { x, y, w, h };   // pusula bu kutudan kaçınır
       c.fillStyle = boxBg; c.beginPath();
       if (c.roundRect) c.roundRect(x, y, w, h, 6); else c.rect(x, y, w, h);
       c.fill();
-      c.fillStyle = fg; c.fillText(l1, x + pad, y + pad);
-      if (l2) { c.fillStyle = cl ? accent : fg; c.fillText(l2, x + pad, y + pad + lh); }
+      c.fillStyle = fg; top.forEach((s, i) => c.fillText(s, x + pad, y + pad + lh * i));
+      if (l2) { c.fillStyle = cl ? accent : fg; c.fillText(l2, x + pad, y + pad + lh * top.length); }
     }
     // kot lejantı (sağda dikey)
     if (o.colorMode === 'elevation') {
@@ -985,7 +1039,12 @@ export class View3D {
       let left = false; try { left = document.body.classList.contains('left-hand'); } catch (_) { /* geç */ }
       const ce = document.getElementById('cube3d'); const cubeOn = o.cube && !!(ce && !ce.hidden);
       const cubeBottom = cubeOn ? ce.offsetTop + ce.offsetHeight : 0;
-      const r = 16, cx = left ? 8 + 42 : W - 8 - 42, cy = cubeBottom + 8 + r + 6;
+      const r = 16;
+      // küp açıkken pusula küpün altında ve onunla aynı hizada (yatayda küp FAB sütununun solundadır); küp yokken HUD kutusunun altına iner
+      const cx = cubeOn ? ce.offsetLeft + ce.offsetWidth / 2 : left ? 8 + 42 : W - 8 - 42;
+      let cy = cubeBottom + 8 + r + 6;
+      const hb = o.hud && o.hudPos === 'tl' ? this._hudBox : null;
+      if (hb && !cubeOn && hb.x + hb.w > cx - r - 6 && hb.y + hb.h > cy - r - 6) cy = Math.max(cy, hb.y + hb.h + r + 10);
       let swap = false; try { swap = !!(window.dwgApp && window.dwgApp.state && window.dwgApp.state.geo && window.dwgApp.state.geo.swap); } catch (_) { /* geç */ }
       // ekranda kuzey (+Y) yönü: kamera yaw'ına göre
       const ang = this.cam.yaw + Math.PI / 2 + (swap ? Math.PI / 2 : 0);
@@ -999,23 +1058,29 @@ export class View3D {
       c.textAlign = 'left';
     }
     // kot etiketleri
-    if (o.elevLabels !== 'off' && !host.gestureActive && this.vertices.length) {
+    if (o.elevLabels !== 'off' && !host.gestureActive && this.vertPrim.length) {
       c.font = sans;
-      const seen = new Set(); const items = [];
-      const cl = o.clip;
-      if (o.elevLabels === 'sel' && host.sel && host.sel.size) {
-        for (const v of this.vertices) { if (!host.sel.has(v[3])) continue; if (cl && (v[2] < cl[2] || v[2] > cl[5])) continue; const s = this.project(v[0], v[1], v[2]); if (s[2] < -1 || s[2] > 1) continue; items.push([s[0], s[1], v[2], 0]); }
-      } else if (o.elevLabels === 'visible') {
-        for (const v of this.vertices) {
-          if (cl && (v[0] < cl[0] || v[1] < cl[1] || v[2] < cl[2] || v[0] > cl[3] || v[1] > cl[4] || v[2] > cl[5])) continue;
-          const s = this.project(v[0], v[1], v[2]); if (s[2] < -1 || s[2] > 1 || s[0] < 0 || s[1] < 0 || s[0] > W || s[1] > H) continue;
-          items.push([s[0], s[1], v[2], Math.hypot(s[0] - W / 2, s[1] - H / 2)]);
+      const cl = o.clip, A = this.vertXYZ, P = this.vertPrim, nv = P.length, m = this.lastMvp || this.mvp(), zs = this.zScale;
+      // satır içi izdüşüm (project() tahsisi yok); 8 px hücre başına merkeze en yakın tek aday
+      const cols = Math.ceil(W / 8) + 1, cell = new Map();   // hücre → [sx, sy, z, merkez uzaklığı]
+      const mode = o.elevLabels;
+      const selOnly = mode === 'sel';
+      if (!selOnly || (host.sel && host.sel.size)) {
+        for (let i = 0; i < nv; i++) {
+          if (selOnly && !host.sel.has(P[i])) continue;
+          const vx = A[i * 3], vy = A[i * 3 + 1], vz = A[i * 3 + 2];
+          if (cl && (selOnly ? (vz < cl[2] || vz > cl[5]) : (vx < cl[0] || vy < cl[1] || vz < cl[2] || vx > cl[3] || vy > cl[4] || vz > cl[5]))) continue;
+          const z = vz * zs, w = m[3] * vx + m[7] * vy + m[11] * z + m[15];
+          const pz = (m[2] * vx + m[6] * vy + m[10] * z + m[14]) / w; if (pz < -1 || pz > 1) continue;
+          const sx = ((m[0] * vx + m[4] * vy + m[8] * z + m[12]) / w + 1) / 2 * W, sy = (1 - (m[1] * vx + m[5] * vy + m[9] * z + m[13]) / w) / 2 * H;
+          if (sx < 0 || sy < 0 || sx > W || sy > H) continue;   // ekran dışı etiket çizilmez (hücre anahtarı da negatif olmaz)
+          const k = Math.round(sy / 8) * cols + Math.round(sx / 8), d = selOnly ? 0 : Math.hypot(sx - W / 2, sy - H / 2);
+          const cur = cell.get(k); if (!cur) cell.set(k, [sx, sy, vz, d]); else if (d < cur[3]) { cur[0] = sx; cur[1] = sy; cur[2] = vz; cur[3] = d; }
         }
-        items.sort((a, b) => a[3] - b[3]);
       }
+      const items = [...cell.values()]; if (!selOnly) items.sort((a, b) => a[3] - b[3]);
       let n = 0;
       for (const it of items) {
-        const k = (Math.round(it[0] / 8) * 8) + ',' + (Math.round(it[1] / 8) * 8); if (seen.has(k)) continue; seen.add(k);
         const txt = f(it[2]); const w = c.measureText(txt).width + 6;
         c.fillStyle = boxBg; c.fillRect(it[0] + 4, it[1] - 16, w, 15); c.fillStyle = fg; c.fillText(txt, it[0] + 7, it[1] - 15);
         c.fillStyle = accent; c.fillRect(it[0] - 2, it[1] - 2, 4, 4);
@@ -1026,7 +1091,5 @@ export class View3D {
   }
 }
 const IDENT4 = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
-const THIN_OFFS = [[0, 0]];
-const NORMAL_OFFS = [[0, 0]];
-const NORMAL_OFFS2 = [[0, 0], [1, 0], [0, 1]];
-const THICK_OFFS = [[0, 0], [1, 0], [0, 1], [1, 1]];
+// çizgi kalınlığı: NDC ofsetli tekrar geçişler, dizin = cihaz pikseli genişlik (1..4)
+const LINE_OFFS = { 1: [[0, 0]], 2: [[0, 0], [1, 0], [0, 1], [1, 1]], 3: [[0, 0], [1, 0], [0, 1], [1, 1], [2, 0], [0, 2]], 4: [[0, 0], [1, 0], [0, 1], [1, 1], [2, 0], [0, 2], [3, 0], [0, 3]] };

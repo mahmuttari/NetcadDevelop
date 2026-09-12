@@ -4,19 +4,28 @@
  *
  * İstek : { id, cmd:'parse', bytes:ArrayBuffer, name }               → { id, ok, scene }
  *         { id, cmd:'xref',  bytes, name, inserts:[{m,layer,color}], prefix } → { id, ok, xref:{prims,layers,ltypes,ext} }
- * İlerleme: { id, stage:'lib'|'parse'|'scene' }
+ * İlerleme: { id, stage:'lib'|'parse'|'scene', pct? }   (pct: DXF okuma ve sahne kurma yüzdesi)
  */
 import * as LW from './lib/dist/libredwg-web.js';
-const { LibreDwg, Dwg_File_Type } = LW;
+const { LibreDwg } = LW;
 import { SceneBuilder } from './scene.js';
 import { parseDxf, isDxf } from './dxf.js';
 import { readAcDs, mapAsmToHandles, isR2004Family } from './acds.js';
+import { installTextDecoder } from './codepage.js';
+
+installTextDecoder(self);   // DOS857/DOS850: sarmalayıcı convert() sırasında new TextDecoder(encoding) çağırır, tarayıcı bu etiketleri tanımaz
 
 let lib = null;
+const msgOf = (e) => String((e && e.message) || e);
+/** Emscripten abort / bellek hatası: modül bir daha kullanılamaz, lib sıfırlanıp yeniden kurulur */
+const isAbort = (e) => (typeof WebAssembly !== 'undefined' && e instanceof WebAssembly.RuntimeError) || /abort|unreachable|memory access|out of memory|RangeError|WebAssembly\.Memory/i.test(msgOf(e));
+const isMem = (e) => /memory|bellek|OUTOFMEM|RangeError/i.test(msgOf(e));
+const memMsg = (n) => `Dosya cihaz belleğine sığmadı (${(n / 1048576).toFixed(1)} MB). Çizimi PURGE/AUDIT ile küçültüp ya da parçalayıp yeniden deneyin.`;
+const countEntities = (db) => { let n = (db.entities || []).length; for (const r of ((db.tables && db.tables.BLOCK_RECORD && db.tables.BLOCK_RECORD.entries) || [])) n += (r.entities || []).length; return n; };
 
 async function readDb(bytes, id) {
   const u8 = new Uint8Array(bytes);
-  if (isDxf(u8)) { postMessage({ id, stage: 'parse' }); return parseDxf(u8); }
+  if (isDxf(u8)) { postMessage({ id, stage: 'parse' }); return parseDxf(u8, { onProgress: (p) => postMessage({ id, stage: 'parse', pct: Math.round(p * 100) }) }); }
   const head = String.fromCharCode(...u8.slice(0, 6));
   if (!/^AC10\d\d$/.test(head)) {
     if (u8.length === 0) throw new Error('Dosya boş.');
@@ -24,17 +33,64 @@ async function readDb(bytes, id) {
   }
   if (head < 'AC1012') throw new Error('Çok eski DWG sürümü (' + head + '). R13 ve sonrası açılabilir.');
   postMessage({ id, stage: 'lib' });
-  if (!lib) lib = await LibreDwg.create();
+  if (!lib) {
+    try { lib = await LibreDwg.create(); }
+    catch (e) { lib = null; throw new Error(isMem(e) ? memMsg(u8.length) : 'Çözümleyici başlatılamadı: ' + msgOf(e)); }
+  }
   postMessage({ id, stage: 'parse' });
-  let dwg;
-  try { dwg = lib.dwg_read_data(u8, Dwg_File_Type.DWG); } catch (e) { throw new Error('LibreDWG dosyayı çözemedi: ' + (e.message || e)); }
-  if (!dwg) throw new Error('LibreDWG dosyayı çözemedi (bozuk ya da şifreli olabilir).');
-  let db;
-  try { db = lib.convert(dwg); db.raw3d = collectRaw3D(lib, dwg, db); } finally { try { lib.dwg_free(dwg); } catch (_) { /* yoksay */ } }
+  // sarmalayıcının dwg_read_data'sı hata kodunu yutar (yalnız OUTOFMEM fırlatır); dosya doğrudan okunur, kod değerlendirilir
+  const W = lib.wasmInstance, ERR = LW.Dwg_Error;
+  let res = null;
+  try {
+    try { W.FS.unlink('/tmp.dwg'); } catch (_) { /* yok */ }
+    W.FS.createDataFile('/', 'tmp.dwg', u8, true, false, true);   // canOwn: MEMFS baytları kopyalamaz
+    res = W.dwg_read_file('tmp.dwg');
+  } catch (e) {
+    if (isAbort(e)) lib = null;
+    throw new Error(isMem(e) ? memMsg(u8.length) : 'LibreDWG dosyayı çözemedi: ' + msgOf(e));
+  } finally { try { W.FS.unlink('/tmp.dwg'); } catch (_) { /* yok */ } }
+  const code = res ? (res.error | 0) : ERR.INVALIDDWG;
+  if (!res || !res.data || (code & ERR.OUTOFMEM)) {
+    try { if (res && res.data) W.dwg_abandon(res.data); } catch (_) { /* yoksay */ }
+    throw new Error((code & ERR.OUTOFMEM) ? memMsg(u8.length) : `LibreDWG dosyayı çözemedi (bozuk ya da şifreli olabilir; hata kodu ${code}).`);
+  }
+  const dwg = res.data;
+  const critical = code >= ERR.CLASSESNOTFOUND ? code : 0;   // DWG_ERR_CRITICAL: CLASSESNOTFOUND (128) ve üstü; sağlam dosyalarda 64/68 kalır
+  const suspect = critical || ((code & ERR.WRONGCRC) ? code : 0);   // CRC hatası: dosya açılır ama nesneler eksik olabilir (bozuk kopya) → uyarı
+  let db, cp = 0;
+  try { try { cp = lib.dwg_get_codepage(dwg) | 0; } catch (_) { cp = 0; } db = lib.convert(dwg); db.raw3d = collectRaw3D(lib, dwg, db); }
+  catch (e) {
+    if (isAbort(e)) lib = null;
+    throw new Error(isMem(e) ? memMsg(u8.length) : (critical ? `DWG bozuk ya da kesik (LibreDWG hata kodu ${code}): ` : 'LibreDWG dosyayı çözemedi: ') + msgOf(e));
+  } finally { try { if (lib) lib.dwg_free(dwg); } catch (_) { /* yoksay */ } }
+  if (critical && !countEntities(db)) throw new Error(`DWG bozuk ya da kesik (LibreDWG hata kodu ${code}); dosyayı yeniden kopyalayın ya da AutoCAD RECOVER ile onarın.`);
+  db.readWarn = suspect;                                        // kritik kod ya da CRC hatası + varlık var: çizim eksik olabilir, ana iş parçacığı uyarır
   if (head >= 'AC1027') attachAcDs(u8, db);
   db.header = db.header || {};
   db.header.ACADVER = head;
+  if (head < 'AC1021') fixMleaderText(db, cp);
   return db;
+}
+
+/**
+ * R2007 öncesi dosyalarda MULTILEADER metni (MLEADER_Content_MText.default_text) wasm tarafında sürüm bilgisi olmadan
+ * UTF-16 gibi okunur: 8 bitlik kod sayfası baytları ikişer ikişer birleşir ('LEADER' → '䕌䑁剅'). Kod birimleri bayta
+ * ayrılıp dosyanın kod sayfasıyla yeniden çözülür; yalnız 0xFF üstü karakter içeren (yani birleşmiş) metinlere dokunulur.
+ */
+function fixMleaderText(db, cp) {
+  let dec = null;
+  try { dec = new TextDecoder(LW.dwgCodePageToEncoding(cp) || 'windows-1254'); } catch (_) { try { dec = new TextDecoder('windows-1254'); } catch (__) { dec = null; } }
+  if (!dec) return;
+  const fix = (s) => {
+    if (typeof s !== 'string' || !s) return s;
+    let hi = false; for (let i = 0; i < s.length; i++) if (s.charCodeAt(i) > 0xff) { hi = true; break; }
+    if (!hi) return s;
+    const b = []; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); b.push(c & 0xff, c >> 8); }
+    return dec.decode(new Uint8Array(b)).replace(/\0+$/, '');
+  };
+  const walk = (list) => { for (const e of list || []) if (e && (e.type === 'MULTILEADER' || e.type === 'MLEADER')) e.textContent = fix(e.textContent); };
+  walk(db.entities);
+  for (const r of ((db.tables && db.tables.BLOCK_RECORD && db.tables.BLOCK_RECORD.entries) || [])) walk(r.entities);
 }
 
 /**
@@ -258,8 +314,9 @@ self.onmessage = async (ev) => {
     if (cmd === 'parse') {
       const db = await readDb(ev.data.bytes, id);
       postMessage({ id, stage: 'scene' });
-      const scene = new SceneBuilder(db).build();
+      const scene = new SceneBuilder(db, { onProgress: (i, n) => postMessage({ id, stage: 'scene', pct: n ? Math.round(100 * i / n) : 0 }) }).build();
       scene.version = db.header.ACADVER || '';
+      scene.readWarn = db.readWarn || 0;
       if (scene.solidDiag) { scene.solidDiag.acds = db.acdsInfo || null; scene.solidDiag.samples = rawSamples(db.raw3d); }
       scene.census = db.census || null;
       postMessage({ id, ok: true, scene });

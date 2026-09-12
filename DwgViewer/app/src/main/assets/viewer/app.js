@@ -11,8 +11,9 @@ import { DISPLAY_DEFAULTS, setDisplay, getDisplay, toggleDisplay, primVisible, i
 import * as editorMod from './editor.js';
 import { setTileCallback, basemapAttribution } from './tiles.js';
 import { notes, loadNotes, saveNotes, addNote, removeNote, hitNote, drawNotes } from './notes.js';
-import { CRS, GeoRef, BASEMAPS } from './proj.js';
+import { CRS, GeoRef, BASEMAPS, nameOf } from './proj.js';
 import { t, setLang, getLang, applyI18n } from './i18n.js';
+import { askText, askConfirm, isOpen as askOpen, cancel as askCancel } from './dialog.js';
 import { initEditor, onScene as editorScene, tap as editorTap, back as editorBack, overlay as editorOverlay, onResize as editorResize, onTheme as editorTheme, editor } from './editor.js';
 import * as Docs from './docs.js';
 import * as Drive from './drive.js';
@@ -26,7 +27,8 @@ const haptic = (kind) => { try { if (typeof editorMod.haptic === 'function') edi
 const uiPrefs = () => { try { return editorMod.ui || {}; } catch (_) { return {}; } };
 const glove = () => !!uiPrefs().glove;
 const edCall = (name, ...a) => { try { const f = editor[name]; return typeof f === 'function' ? f.apply(editor, a) : undefined; } catch (e) { console.warn(e); return undefined; } };
-const VERSION_URL = 'https://raw.githubusercontent.com/mahmuttari/NetcadDevelop/main/DwgViewer/release/version.json';
+/** sürüm dosyası: Android köprüsü derlendiği dalın adresini verir (Bridge.updateUrl); tarayıcıda main */
+const VERSION_URL = (A() && A().updateUrl) ? A().updateUrl() : 'https://raw.githubusercontent.com/mahmuttari/NetcadDevelop/main/DwgViewer/release/version.json';
 
 // ---------------------------------------------------------------------------
 // Ayarlar
@@ -36,13 +38,13 @@ const settings = Object.assign({ lang: 'tr', dark: true, lwScale: 3, crs: 'NONE'
 function showNoFaces() {
   const c = S.counts || {}, cen = (S.scene && S.scene.census) || {}, d = S.scene && S.scene.solidDiag;
   const list = (o) => Object.entries(o).sort((a, b) => b[1] - a[1]).slice(0, 30).map(([k, v]) => `${k} <b>${v}</b>`).join(', ') || '—';
-  const rows = [['Durum', 'Bu çizimde 3B yüzey bulunamadı; yalnız çizgiler çiziliyor. Görsel stiller (gölgeli, gerçekçi…) yüzey gerektirir.'],
+  const rows = [[t('status'), t('noFacesMsg')],
     [t('entityTypes'), list(c)], [t('dwgTypes'), list(cen)],
-    ['Sürüm', `${S.version} · uygulama ${A() && A().versionCode ? 'v' + A().versionCode() : 'tarayıcı'}`]];
-  if (d) rows.push([t('solidDiag'), `${d.solids} katı · ${d.faces} yüzey · ${d.skipped} atlandı` + (d.errors.length ? ' · ' + d.errors.slice(0, 3).join('; ') : '')]);
+    [t('version'), `${S.version} · ${t('appLc')} ${A() && A().versionCode ? 'v' + A().versionCode() : t('browser')}`]];
+  if (d) rows.push([t('solidDiag'), `${d.solids} ${t('solidsN')} · ${d.faces} ${t('facesN')} · ${d.skipped} ${t('skippedN')}` + (d.errors.length ? ' · ' + d.errors.slice(0, 3).join('; ') : '')]);
   rows.push([`<div class="full btns"><button class="btn small" id="btnNoFaceShare">${t('solidDiagShare')}</button></div>`]);
-  openDoc('3B yüzey bulunamadı', kv(rows));
-  const b = $('btnNoFaceShare'); if (b) b.onclick = () => { const txt = solidDiagText(); if (A() && A().shareText) A().shareText('DWG Görüntüleyici katı tanılaması', txt); else copyText(txt); };
+  openDoc(t('noFacesTitle'), kv(rows));
+  const b = $('btnNoFaceShare'); if (b) b.onclick = () => { const txt = solidDiagText(); if (A() && A().shareText) A().shareText(t('solidDiagTitle'), txt); else copyText(txt); };
 }
 /** katı tanılama metni: sürümler, AcDs özeti, katı başına ham veri boyutu ve ilk katıların base64 örneği */
 function solidDiagText() {
@@ -89,24 +91,39 @@ function applyGeo() {
 // ---------------------------------------------------------------------------
 // İşçi (worker)
 // ---------------------------------------------------------------------------
-const worker = new Worker('./worker.js', { type: 'module' });
+// Tek işçi; çökünce, yanıt vermeyince ya da kullanıcı vazgeçince sonlandırılıp yeniden kurulur (bekleyen işler reddedilir).
+let worker = null;
 const jobs = new Map();
 let jobSeq = 0;
-worker.onmessage = (ev) => {
+function onWorkerMsg(ev) {
   const j = jobs.get(ev.data.id);
   if (!j) return;
-  if (ev.data.stage) { if (j.onStage) j.onStage(ev.data.stage); return; }
+  if (ev.data.stage) { if (j.onStage) j.onStage(ev.data.stage, ev.data.pct); return; }
   jobs.delete(ev.data.id);
   if (ev.data.ok) j.resolve(ev.data); else j.reject(new Error(ev.data.error));
-};
-worker.onerror = (e) => { console.error('worker', e); for (const j of jobs.values()) j.reject(new Error(e.message || 'işçi hatası')); jobs.clear(); };
+}
+function onWorkerErr(e) { console.error('worker', e); rejectJobs(new Error(e.message || 'işçi hatası')); try { worker.terminate(); } catch (_) { /* geç */ } worker = null; }   // bir sonraki runWorker yeniden kurar (yükleme hatasında döngü olmasın)
+function spawnWorker() {
+  if (worker) { try { worker.terminate(); } catch (_) { /* geç */ } }
+  worker = new Worker('./worker.js', { type: 'module' });
+  worker.onmessage = onWorkerMsg; worker.onerror = onWorkerErr;
+}
+function rejectJobs(err) { const list = [...jobs.values()]; jobs.clear(); for (const j of list) j.reject(err); }
+/** bekleyen işleri iptal eder ve işçiyi yeniden kurar; hata nesnesi cancelled bayrağı taşır (fail() sessiz geçer) */
+function cancelJobs(reason) { if (!jobs.size && worker) return; rejectJobs(Object.assign(new Error(reason || tt('cancelled', 'İptal edildi')), { cancelled: true })); spawnWorker(); }
 function runWorker(msg, onStage) {
+  if (msg.cmd === 'parse' && jobs.size) cancelJobs(tt('loadCancelledPrev', 'Önceki yükleme iptal edildi'));   // yeni dosya eskisini beklemez
+  if (!worker) spawnWorker();
+  const mb = msg.bytes ? msg.bytes.byteLength / 1048576 : 0;
+  const timeoutMs = Math.min(15 * 60000, Math.max(120000, 60000 + 10000 * mb));
   return new Promise((resolve, reject) => {
     const id = ++jobSeq;
-    jobs.set(id, { resolve, reject, onStage });
+    const tm = setTimeout(() => { if (jobs.has(id)) { const err = new Error(tt('parseTimeout', 'Çözümleyici yanıt vermedi (zaman aşımı)')); jobs.delete(id); reject(err); rejectJobs(err); spawnWorker(); } }, timeoutMs);   // işçi sonlandırılır: aynı işçideki öteki işler de sonuçsuz kalmasın
+    jobs.set(id, { resolve: (v) => { clearTimeout(tm); resolve(v); }, reject: (e) => { clearTimeout(tm); reject(e); }, onStage });
     worker.postMessage({ ...msg, id }, msg.bytes ? [msg.bytes] : []);
   });
 }
+spawnWorker();
 
 // ---------------------------------------------------------------------------
 // Tuval / çizim döngüsü
@@ -251,7 +268,7 @@ function drawOverlay() {
   c.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);
   c.clearRect(0, 0, S.W, S.H);
   if (!S.hasDoc) return;
-  if (editor.is3D()) return;
+  if (editor.is3D()) { if (typeof editor.overlay3D === 'function') editor.overlay3D(); return; }   // 3B HUD / pusula silinmesin
   const acc = S.selColor || '#ff9f0a', fg = fgColor();
   editorOverlay(c);
   if (S.selected) {
@@ -592,7 +609,7 @@ function longPressMenu(sx, sy) {
       case 'hide': { const L = S.layers.get(hit.lay); if (L) { L.visible = false; S.cacheValid = false; buildLayerList(); requestRender(); toast(t('layer') + ' ' + hit.lay + ': ' + tt('hidden', 'gizlendi'), { action: { label: tt('undoAction', 'Geri al'), fn: () => { L.visible = true; S.cacheValid = false; buildLayerList(); requestRender(); } } }); } break; }
       case 'copy': copyText(coordTxt); break;
       case 'measure': setMode('measure'); S.measure.push([w[0], w[1], undefined]); updateMeasure(); drawOverlay(); break;
-      case 'note': toggleNotes(true); S.noteTool = 'text'; document.querySelectorAll('#notesBar [data-tool]').forEach(x => x.classList.toggle('active', x.dataset.tool === 'text')); noteTap(sx, sy, w); break;
+      case 'note': toggleNotes(true); S.noteTool = 'text'; document.querySelectorAll('#notesBar [data-tool]').forEach(x => x.classList.toggle('active', x.dataset.tool === 'text')); void noteTap(sx, sy, w); break;
       case 'goto': gotoCoord(); break;
       default: break;
     }
@@ -623,18 +640,18 @@ function doSnap(w) {
   return sn;
 }
 
-function onTap(sx, sy) {
+async function onTap(sx, sy) {
   updateStatus(sx, sy);
   const w = toWorld(sx, sy);
   S.lastPoint = [w[0], w[1]];
   if (editorTap(w, sx, sy)) return;
-  if (S.notesOn) { noteTap(sx, sy, w); return; }
+  if (S.notesOn) { await noteTap(sx, sy, w); return; }
   if (S.mode === 'measure' || S.mode === 'profile') {
     const sn = doSnap(w);
     const p = sn ? sn.p.slice() : [w[0], w[1], undefined];
     if (S.mode === 'profile') {
       if (p[2] == null || !isFinite(p[2]) || p[2] === 0) {
-        const v = prompt(`${S.measure.length + 1}. ${t('enterElev')} (m):`, '');
+        const v = await askText(`${S.measure.length + 1}. ${t('enterElev')} (m):`, '', { type: 'number' });
         if (v === null) return;
         p[2] = parseFloat(String(v).replace(',', '.'));
         if (!isFinite(p[2])) return;
@@ -672,7 +689,7 @@ function toast(msg, opts) {
   el.setAttribute('aria-live', 'polite');
   const o = typeof opts === 'number' ? { ms: opts } : (opts || {});
   const type = ['ok', 'warn', 'error'].includes(o.type) ? o.type : '';
-  el.className = 'toast' + (type ? ' ' + type : '');
+  el.className = 'toast hud' + (type ? ' ' + type : '');   // hud: görüntü alanı hareket işleyicisi dokunuşu yakalamasın
   tx.textContent = msg;
   if (o.action && typeof o.action.fn === 'function') { act.hidden = false; act.textContent = o.action.label || tt('undoAction', 'Geri al'); act.onclick = (ev) => { ev.stopPropagation(); el.hidden = true; clearTimeout(toastTimer); try { o.action.fn(); } catch (e) { console.warn(e); } }; }
   else { act.hidden = true; act.onclick = null; }
@@ -701,7 +718,12 @@ const TYPE_TR = { LINE: 'Çizgi', LWPOLYLINE: 'Polyline', POLYLINE2D: 'Polyline 
   POINT: 'Nokta', SOLID: 'Dolgu', '3DFACE': '3B yüzey', LEADER: 'Kılavuz çizgi', MULTILEADER: 'Çoklu kılavuz', MLINE: 'Çoklu çizgi',
   XLINE: 'Sonsuz çizgi', RAY: 'Işın', ATTRIB: 'Öznitelik', ATTDEF: 'Öznitelik tanımı', WIPEOUT: 'Maske', IMAGE: 'Resim', ACAD_TABLE: 'Tablo',
   TOLERANCE: 'Tolerans', '3DSOLID': '3B katı', REGION: 'Bölge', VIEWPORT: 'Görünüm penceresi', TRACE: 'İz' };
-const trType = (x) => getLang() === 'tr' ? (TYPE_TR[x] || x) : x;
+const TYPE_EN = { LINE: 'Line', LWPOLYLINE: 'Polyline', POLYLINE2D: 'Polyline (2D)', POLYLINE3D: 'Polyline (3D)', POLYFACE: 'Polyface mesh', CIRCLE: 'Circle', ARC: 'Arc',
+  ELLIPSE: 'Ellipse', SPLINE: 'Spline', TEXT: 'Text', MTEXT: 'Multiline text', INSERT: 'Block', HATCH: 'Hatch', DIMENSION: 'Dimension',
+  POINT: 'Point', SOLID: 'Solid fill', '3DFACE': '3D face', LEADER: 'Leader', MULTILEADER: 'Multileader', MLINE: 'Multiline',
+  XLINE: 'Construction line', RAY: 'Ray', ATTRIB: 'Attribute', ATTDEF: 'Attribute definition', WIPEOUT: 'Wipeout', IMAGE: 'Image', ACAD_TABLE: 'Table',
+  TOLERANCE: 'Tolerance', '3DSOLID': '3D solid', REGION: 'Region', VIEWPORT: 'Viewport', TRACE: 'Trace' };
+const trType = (x) => (getLang() === 'tr' ? TYPE_TR[x] : TYPE_EN[x]) || x;
 const zTxt = (z) => (z != null && isFinite(z) && z !== 0) ? ' ; Z ' + fmt(z) : '';
 let infoPrim = null;
 function showInfo(p) {
@@ -718,7 +740,7 @@ function showInfo(p) {
   if (top === 'DIMENSION') { rows.push([t('measVal'), inf.meas != null ? fmt(inf.meas) + u : null]); if (inf.text && inf.text !== '<>') rows.push([t('measText'), inf.text]); rows.push([t('dimStyle'), inf.style]); }
   rows.push([t('layer'), p.lay]);
   const L = S.layers.get(p.lay);
-  const colTxt = p.col === FG ? '7 (' + (S.dark ? 'beyaz' : 'siyah') + ')' : rgbCss(p.col, '');
+  const colTxt = p.col === FG ? '7 (' + (S.dark ? t('white') : t('black')).toLocaleLowerCase(getLang() === 'tr' ? 'tr' : 'en') + ')' : rgbCss(p.col, '');
   rows.push([t('color'), (inf.ci === 256 ? t('fromLayer') + ' ' : inf.ci === 0 ? t('fromBlock') + ' ' : '') + colTxt]);
   rows.push([t('ltype'), p.lt || (L ? L.lt : 'Continuous')]);
   if (p.lw != null) rows.push([t('lweight'), fmt(p.lw / 100, 2) + ' mm']);
@@ -801,13 +823,13 @@ function updateMeasure() {
   if (S.mode === 'profile') {
     const k = S.unitToM || 1;
     let cum = 0;
-    rows.push(['1', `${fmt(m[0][0])} ; ${fmt(m[0][1])}   ${t('elev')} ${fmt(m[0][2], 2)} m${m[0].manual ? ' (elle)' : ''}`]);
+    rows.push(['1', `${fmt(m[0][0])} ; ${fmt(m[0][1])}   ${t('elev')} ${fmt(m[0][2], 2)} m${m[0].manual ? ' ' + t('manualElev') : ''}`]);
     for (let i = 1; i < m.length; i++) {
       const L = Math.hypot(m[i][0] - m[i - 1][0], m[i][1] - m[i - 1][1]) * k; cum += L;
       const dh = m[i][2] - m[i - 1][2];
       const slope = L > 0 ? dh / L * 1000 : 0;
       rows.push([`${i} → ${i + 1}`, `L ${fmt(L, 2)} m   Δh ${fmt(dh, 3)} m   ${t('slope')} ${fmt(slope, 2)} ‰ (${fmt(slope / 10, 3)} %)   Σ ${fmt(cum, 2)} m`]);
-      rows.push([`${i + 1}`, `${fmt(m[i][0])} ; ${fmt(m[i][1])}   ${t('elev')} ${fmt(m[i][2], 2)} m${m[i].manual ? ' (elle)' : ''}`]);
+      rows.push([`${i + 1}`, `${fmt(m[i][0])} ; ${fmt(m[i][1])}   ${t('elev')} ${fmt(m[i][2], 2)} m${m[i].manual ? ' ' + t('manualElev') : ''}`]);
     }
     if (m.length > 1) rows.push([t('total'), `${fmt(cum, 2)} m   Δh ${fmt(m[m.length - 1][2] - m[0][2], 3)} m   ${t('slope')} ${fmt((m[m.length - 1][2] - m[0][2]) / cum * 1000, 2)} ‰`]);
   } else {
@@ -919,7 +941,7 @@ function dockLayers() {
   if (wide.matches) { if (panel.parentElement !== side) side.appendChild(panel); side.hidden = panel.hidden; }
   else { if (panel.parentElement === side) $('app').appendChild(panel); side.hidden = true; }
 }
-$('btnLayers').addEventListener('click', () => { if ($('layerPanel').hidden) { buildLayerList(); show('layerPanel'); } else hide('layerPanel'); dockLayers(); });
+$('btnLayers').addEventListener('click', () => { if (!S.hasDoc) { toast(t('openFirst')); return; } if ($('layerPanel').hidden) { buildLayerList(); show('layerPanel'); } else hide('layerPanel'); dockLayers(); });
 document.querySelector('[data-close="layerPanel"]').addEventListener('click', dockLayers);
 wide.addEventListener('change', dockLayers);
 
@@ -994,7 +1016,7 @@ $('moreMenu').addEventListener('click', (ev) => { const b = ev.target.closest('[
 
 function showDocInfo() {
   const c = S.counts;
-  const rows = [[t('file'), S.fileName], [t('version'), S.version], [t('unit'), S.units || 'tanımsız'], [t('entityCount'), S.entityCount], [t('primCount'), S.prims.length],
+  const rows = [[t('file'), S.fileName], [t('version'), S.version], [t('unit'), S.units || t('undefinedUnit')], [t('entityCount'), S.entityCount], [t('primCount'), S.prims.length],
     [t('layerN'), S.layers.size], [t('blockN'), S.blockCount], [t('layouts'), S.scene.layouts.map(l => l.name).join(', ')],
     [t('xRange'), S.ext ? fmt(S.ext[0]) + ' … ' + fmt(S.ext[2]) : ''], [t('yRange'), S.ext ? fmt(S.ext[1]) + ' … ' + fmt(S.ext[3]) : ''],
     [t('size'), S.ext ? fmt(S.ext[2] - S.ext[0]) + ' × ' + fmt(S.ext[3] - S.ext[1]) + (S.units ? ' ' + S.units : '') : '']];
@@ -1002,24 +1024,28 @@ function showDocInfo() {
     const cen = S.scene && S.scene.census; if (cen) { const l2 = Object.entries(cen).sort((a, b) => b[1] - a[1]).slice(0, 24).map(([k, v]) => k + ' ' + v).join(', '); if (l2) rows.push([t('dwgTypes'), l2]); } }
   { const d = S.scene && S.scene.solidDiag; if (d) {
     const surf = Object.entries(d.surfaces || {}).map(([k, v]) => k + ' ' + v).join(', ');
-    rows.push([t('solidDiag'), `${d.solids} katı · ${d.faces} yüzey${d.approx ? ' (' + d.approx + ' yaklaşık)' : ''} · ${d.skipped} atlandı` + (surf ? ' · ' + surf : '') + (d.versions.length ? ' · ACIS ' + d.versions.join('/') : '') + (d.unknownTags.length ? ' · bilinmeyen etiket ' + d.unknownTags.join(' ') : '') + (d.errors.length ? ' · ' + d.errors.join('; ') : '')]);
+    rows.push([t('solidDiag'), `${d.solids} ${t('solidsN')} · ${d.faces} ${t('facesN')}${d.approx ? ' (' + d.approx + ' ' + t('approxN') + ')' : ''} · ${d.skipped} ${t('skippedN')}` + (surf ? ' · ' + surf : '') + (d.versions.length ? ' · ACIS ' + d.versions.join('/') : '') + (d.unknownTags.length ? ' · ' + t('unknownTag') + ' ' + d.unknownTags.join(' ') : '') + (d.errors.length ? ' · ' + d.errors.join('; ') : '')]);
   } }
-  if (S.geo.active && S.ext) { const ll = S.geo.toLonLat((S.ext[0] + S.ext[2]) / 2, (S.ext[1] + S.ext[3]) / 2); if (ll) rows.push([t('crs'), S.geo.crs.name + ` (merkez φ ${ll[1].toFixed(5)}, λ ${ll[0].toFixed(5)})`]); }
+  if (S.geo.active && S.ext) { const ll = S.geo.toLonLat((S.ext[0] + S.ext[2]) / 2, (S.ext[1] + S.ext[3]) / 2); if (ll) rows.push([t('crs'), S.geo.crs.name + ` (${t('centerLbl')} φ ${ll[1].toFixed(5)}, λ ${ll[0].toFixed(5)})`]); }
   rows.push(['<strong>' + t('types') + '</strong>']);
   for (const k of Object.keys(c).sort((a, b) => c[b] - c[a])) rows.push([trType(k), c[k]]);
   openDoc(t('info'), kv(rows));
 }
+/** derleme kimliği (kısa git SHA; Bridge.buildId) — Hakkında satırına ve hata kaydı başlığına eklenir */
+function buildIdText() { try { return A() && A().buildId ? ' · ' + A().buildId() : ''; } catch (_) { return ''; } }
 function showAbout() {
-  const ver = A() && A().appVersion ? A().appVersion() : 'web';
-  const rows = [['Uygulama', 'DWG Görüntüleyici ' + ver], ['Çözümleyici', 'LibreDWG (GNU GPL v3) – WebAssembly, @mlightcad/libredwg-web 0.7.10; DXF: yerleşik çözümleyici'],
-    ['Desteklenen', 'DWG R13 – 2018 (AC1012 … AC1032), ASCII DXF; yalnız görüntüleme'],
-    ['Desteklenmeyen', '3B katılar (3DSOLID/REGION), OLE, ikili DXF, SHX yazı tipleri (sistem yazı tipi kullanılır)'],
-    ['Kullanım', 'Tek parmak: kaydır · İki parmak: yakınlaştır · Çift dokunma: 2× · Dokunma: nesne bilgisi'],
-    ['Lisans', 'Uygulama kaynak kodu GNU GPL v3 ile dağıtılır (LibreDWG gereği).'],
+  const ver = (A() && A().appVersion ? A().appVersion() : 'web') + (A() && A().versionCode ? ` (${A().versionCode()})` : '') + buildIdText();
+  const rows = [[t('aboutApp'), t('welcomeTitle') + ' ' + ver], [t('aboutParser'), t('aboutParserText')],
+    [t('aboutSupported'), t('aboutSupportedText')],
+    [t('aboutLimits'), t('aboutLimitsText')],
+    [t('aboutUsage'), t('aboutUsageText')],
+    [t('aboutKeys'), t('aboutKeysText')],
+    [t('aboutThirdParty'), t('aboutThirdPartyText')],
+    [t('aboutLicense'), t('aboutLicenseText')],
     [`<div class="full btns"><button class="btn small" id="btnErrLog">${t('errorLog')}</button>${S.scene ? `<button class="btn small" id="btnSolidDiag">${t('solidDiagShare')}</button>` : ''}<button class="btn small" id="btnUpdate">${t('update')}?</button></div>`]];
   openDoc(t('about'), kv(rows));
-  { const b = $('btnSolidDiag'); if (b) b.onclick = () => { const txt = solidDiagText(); if (A() && A().shareText) A().shareText('DWG Görüntüleyici katı tanılaması', txt); else copyText(txt); }; }
-  $('btnErrLog').onclick = () => { const log = A() && A().getErrorLog ? A().getErrorLog() : (store.get('errlog') || ''); if (!log) { toast(t('noError')); return; } if (A() && A().shareText) A().shareText('DWG Görüntüleyici hata kaydı', log); else copyText(log); };
+  { const b = $('btnSolidDiag'); if (b) b.onclick = () => { const txt = solidDiagText(); if (A() && A().shareText) A().shareText(t('solidDiagTitle'), txt); else copyText(txt); }; }
+  $('btnErrLog').onclick = () => { const log = A() && A().getErrorLog ? A().getErrorLog() : (store.get('errlog') || ''); if (!log) { toast(t('noError')); return; } if (A() && A().shareText) A().shareText(t('errLogTitle') + buildIdText(), log); else copyText(log); };
   $('btnUpdate').onclick = () => checkUpdate(true);
 }
 
@@ -1041,7 +1067,7 @@ function setLayout(i) {
 }
 function showLayouts() {
   const ls = S.scene.layouts;
-  openDoc(t('layouts'), `<div class="full list">` + ls.map((l, i) => `<div class="item" data-i="${i}">${esc(l.name)}${i === S.layoutIndex ? ' ✓' : ''}<small>${l.prims.length} ilkel · ${l.viewports.length} görünüm penceresi</small></div>`).join('') + `</div>`);
+  openDoc(t('layouts'), `<div class="full list">` + ls.map((l, i) => `<div class="item" data-i="${i}">${esc(l.name)}${i === S.layoutIndex ? ' ✓' : ''}<small>${l.prims.length} ${t('prims')} · ${l.viewports.length} ${t('viewportsN')}</small></div>`).join('') + `</div>`);
   $('docBody').onclick = (ev) => { const it = ev.target.closest('.item'); if (it) { setLayout(Number(it.dataset.i)); hide('docPanel'); } };
 }
 
@@ -1063,9 +1089,9 @@ $('notesBar').addEventListener('click', (ev) => {
 });
 $('noteColor').addEventListener('input', (ev) => { S.noteColor = ev.target.value; });
 let pendingPhotoPoint = null;
-function noteTap(sx, sy, w) {
+async function noteTap(sx, sy, w) {
   if (S.noteTool === 'text') {
-    const txt = prompt(t('notePrompt'), '');
+    const txt = await askText(t('notePrompt'), '', { multiline: true });
     if (txt) addNote({ type: 'text', pts: [w], color: S.noteColor, text: txt });
   } else if (S.noteTool === 'photo') {
     pendingPhotoPoint = w;
@@ -1073,7 +1099,7 @@ function noteTap(sx, sy, w) {
   } else {
     selectedNote = hitNote(sx, sy);
     if (selectedNote && selectedNote.type === 'photo' && selectedNote.photo) openPhoto(selectedNote);
-    else if (selectedNote && selectedNote.type === 'text') { const txt = prompt(t('notePrompt'), selectedNote.text || ''); if (txt !== null) { selectedNote.text = txt; saveNotes(); } }
+    else if (selectedNote && selectedNote.type === 'text') { const txt = await askText(t('notePrompt'), selectedNote.text || '', { multiline: true }); if (txt !== null) { selectedNote.text = txt; saveNotes(); } }
   }
   drawOverlay();
 }
@@ -1123,15 +1149,15 @@ function gpsGoto() {
   S.view.cx = d[0]; S.view.cy = d[1];
   const e = S.ext, ew = e[2] - e[0], eh = e[3] - e[1];
   const inside = d[0] >= e[0] - ew && d[0] <= e[2] + ew && d[1] >= e[1] - eh && d[1] <= e[3] + eh;
-  if (!inside) toast('Konum çizimin dışında: ' + fmt(d[0]) + ' ; ' + fmt(d[1]) + ' — koordinat sistemi / birim ayarını denetleyin.', 6000);
+  if (!inside) toast(t('gpsOutside') + ': ' + fmt(d[0]) + ' ; ' + fmt(d[1]) + ' — ' + t('gpsCheckCrs'), 6000);
   requestRender();
 }
 $('gpsBtn').addEventListener('click', () => { if (!S.gps.on) gpsToggle(true); else gpsGoto(); });
 function showGps() {
   const rows = [[t('crs'), S.geo.active ? S.geo.crs.name : t('gpsNoCrs')],
-    ['Konum', S.gps.lat != null ? `φ ${S.gps.lat.toFixed(6)}  λ ${S.gps.lon.toFixed(6)}  ±${fmt(S.gps.acc, 0)} m` : (S.gps.on ? t('gpsWait') : t('gpsOff'))]];
-  if (S.gps.lat != null && S.geo.active) { const d = S.geo.toDrawing(S.gps.lon, S.gps.lat); if (d) rows.push(['Çizim koordinatı', fmt(d[0]) + ' ; ' + fmt(d[1])]); }
-  rows.push([`<div class="full btns"><button class="btn small" id="gOn">${S.gps.on ? t('gpsOff') : 'GPS aç'}</button><button class="btn small" id="gGo">${t('gpsHere')}</button><label class="chk"><input type="checkbox" id="gFollow" ${S.gps.follow ? 'checked' : ''}> ${t('gpsFollow')}</label><button class="btn small" id="gSet">${t('settings')}</button></div>`]);
+    [t('positionLbl'), S.gps.lat != null ? `φ ${S.gps.lat.toFixed(6)}  λ ${S.gps.lon.toFixed(6)}  ±${fmt(S.gps.acc, 0)} m` : (S.gps.on ? t('gpsWait') : t('gpsOff'))]];
+  if (S.gps.lat != null && S.geo.active) { const d = S.geo.toDrawing(S.gps.lon, S.gps.lat); if (d) rows.push([t('drawingCoord'), fmt(d[0]) + ' ; ' + fmt(d[1])]); }
+  rows.push([`<div class="full btns"><button class="btn small" id="gOn">${S.gps.on ? t('gpsOff') : t('gpsOn')}</button><button class="btn small" id="gGo">${t('gpsHere')}</button><label class="chk"><input type="checkbox" id="gFollow" ${S.gps.follow ? 'checked' : ''}> ${t('gpsFollow')}</label><button class="btn small" id="gSet">${t('settings')}</button></div>`]);
   openDoc(t('gps'), kv(rows));
   $('gOn').onclick = () => { gpsToggle(!S.gps.on); showGps(); };
   $('gGo').onclick = () => { if (!S.gps.on) gpsToggle(true); gpsGoto(); };
@@ -1143,16 +1169,16 @@ function showGps() {
 function showSettings() {
   const g = S.fileKey ? (store.json('geo:' + S.fileKey, null) || {}) : {};
   const cur = { crs: g.crs || settings.crs, unit: g.unit || settings.unit, swap: g.swap != null ? g.swap : settings.swap, dx: g.dx || settings.dx || 0, dy: g.dy || settings.dy || 0 };
-  const unitOpts = [['auto', 'Çizimden (INSUNITS' + (S.units ? ': ' + S.units : '') + ')'], ['0.001', 'mm'], ['0.01', 'cm'], ['1', 'm'], ['0.1', 'dm'], ['1000', 'km']];
+  const unitOpts = [['auto', t('unitFromDrawing') + (S.units ? ': ' + S.units : '') + ')'], ['0.001', 'mm'], ['0.01', 'cm'], ['1', 'm'], ['0.1', 'dm'], ['1000', 'km']];
   const html = kv([
     [t('language'), `<select id="sLang"><option value="tr" ${settings.lang === 'tr' ? 'selected' : ''}>Türkçe</option><option value="en" ${settings.lang === 'en' ? 'selected' : ''}>English</option></select>`, 1],
-    [t('crs'), `<select id="sCrs">${CRS.map(c => `<option value="${c.id}" ${c.id === cur.crs ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>`, 1],
+    [t('crs'), `<select id="sCrs">${CRS.map(c => `<option value="${c.id}" ${c.id === cur.crs ? 'selected' : ''}>${esc(nameOf(c))}</option>`).join('')}</select>`, 1],
     [t('drawingUnit'), `<select id="sUnit">${unitOpts.map(o => `<option value="${o[0]}" ${String(cur.unit) === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('')}</select>`, 1],
-    [t('axisSwap'), `<label class="chk"><input type="checkbox" id="sSwap" ${cur.swap ? 'checked' : ''}> X = Kuzey (sağa değer), Y = Doğu</label>`, 1],
+    [t('axisSwap'), `<label class="chk"><input type="checkbox" id="sSwap" ${cur.swap ? 'checked' : ''}> ${esc(t('axisSwapHint'))}</label>`, 1],
     [t('offset') + ' X', `<input id="sDx" type="number" step="any" value="${cur.dx}">`, 1],
     [t('offset') + ' Y', `<input id="sDy" type="number" step="any" value="${cur.dy}">`, 1],
     [t('lwScale'), `<input id="sLw" type="number" step="0.5" min="1" max="10" value="${S.lwScale}">`, 1],
-    [`<div class="full muted">${S.fileKey ? 'Koordinat ayarları bu dosya için ayrıca saklanır; dosya açık değilken girilenler varsayılan olur. ' : ''}ED50 dönüşümü ülke ortalaması parametreleriyle yapılır (±2-5 m).</div>`],
+    [`<div class="full muted">${S.fileKey ? esc(t('geoPerFile')) + ' ' : ''}${esc(t('ed50Note'))}</div>`],
     [`<div class="full btns"><button class="btn primary small" id="sSave">${t('save')}</button><button class="btn small" id="sDisplay">${tt('dispTitle', 'Ekran ayarları')}</button></div>`]]);
   let a11y = null;
   try { if (typeof editorMod.accessibilitySection === 'function') a11y = editorMod.accessibilitySection(); } catch (e) { console.warn(e); a11y = null; }
@@ -1171,7 +1197,7 @@ function showSettings() {
 // ---- harita altlığı -----------------------------------------------------------------------
 function showBasemap() {
   const html = kv([
-    [t('basemap'), `<select id="bmSel">${BASEMAPS.map(b => `<option value="${b.id}" ${b.id === S.basemap.id ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select>`, 1],
+    [t('basemap'), `<select id="bmSel">${BASEMAPS.map(b => `<option value="${b.id}" ${b.id === S.basemap.id ? 'selected' : ''}>${esc(nameOf(b))}</option>`).join('')}</select>`, 1],
     ['XYZ', `<input id="bmUrl" placeholder="https://…/{z}/{x}/{y}.png" value="${esc(S.basemap.url)}">`, 1],
     ['WMS', `<input id="bmWms" placeholder="https://sunucu/wms?LAYERS=katman" value="${esc(S.basemap.wms)}">`, 1],
     [t('basemapOpacity'), `<input id="bmOp" type="range" min="0.1" max="1" step="0.05" value="${S.basemap.opacity}" oninput="window.dwgApp.display.setDisplay('basemapOpacity', Number(this.value), {fast:true})">`, 1],
@@ -1192,7 +1218,7 @@ function showViews() {
   const html = `<div class="full btns"><button class="btn primary small" id="vSave">${t('viewSave')}</button><button class="btn small" id="vHome">${tt('setHome', 'Ana görünüm yap')}</button>${home ? `<button class="btn small" id="vGoHome">${tt('homeView', 'Ana görünüm')}</button>` : ''}</div><div class="full list">` +
     (views.length ? views.map((v, i) => `<div class="item" data-i="${i}">${esc(v.name)}<small>${esc(v.layout || 'Model')} · 1 px = ${fmt(1 / v.view.scale)} · <a href="#" data-del="${i}">${t('delete')}</a></small></div>`).join('') : `<div class="muted">${t('noViews')}</div>`) + `</div><div class="full" id="vBookmarks3d"></div>`;
   openDoc(t('views'), html);
-  $('vSave').onclick = () => { const name = prompt(t('viewName'), 'Görünüm ' + (views.length + 1)); if (!name) return; views.push({ name, view: { ...S.view }, layout: S.scene.layouts[S.layoutIndex].name, li: S.layoutIndex }); store.set('views:' + S.fileKey, JSON.stringify(views)); showViews(); };
+  $('vSave').onclick = async () => { const name = await askText(t('viewName'), t('viewDefault') + ' ' + (views.length + 1)); if (!name) return; views.push({ name, view: { ...S.view }, layout: S.scene.layouts[S.layoutIndex].name, li: S.layoutIndex }); store.set('views:' + S.fileKey, JSON.stringify(views)); showViews(); };
   $('vHome').onclick = () => { D.setHome(); showViews(); };
   if ($('vGoHome')) $('vGoHome').onclick = () => { D.gotoHome(); hide('docPanel'); };
   import('./view3d_panel.js').then(m => {
@@ -1212,9 +1238,9 @@ function showViews() {
 /** Koordinata git (X/Y ya da φ/λ) */
 function gotoCoord() {
   if (!S.hasDoc) { toast(t('openFirst')); return; }
-  const swap = !!S.geo.swap, lx = swap ? 'Y (Kuzey)' : 'X', ly = swap ? 'X (Doğu)' : 'Y';
+  const swap = !!S.geo.swap, lx = swap ? t('yNorth') : 'X', ly = swap ? t('xEast') : 'Y';
   const rows = [[lx, `<input id="gotoX" type="text" inputmode="decimal" placeholder="412345.67">`, 1], [ly, `<input id="gotoY" type="text" inputmode="decimal" placeholder="4512345.89">`, 1]];
-  if (S.geo.active) rows.push(['φ (enlem)', `<input id="gotoLat" type="text" inputmode="decimal" placeholder="40.7654 ya da 40°45'55.4&quot;">`, 1], ['λ (boylam)', `<input id="gotoLon" type="text" inputmode="decimal" placeholder="29.9408">`, 1]);
+  if (S.geo.active) rows.push([t('latLbl'), `<input id="gotoLat" type="text" inputmode="decimal" placeholder="40.7654 ya da 40°45'55.4&quot;">`, 1], [t('lonLbl'), `<input id="gotoLon" type="text" inputmode="decimal" placeholder="29.9408">`, 1]);
   rows.push([`<div class="full btns"><button class="btn primary small" id="gotoGo">${tt('go', 'Git')}</button><button class="btn small" id="gotoMark">${tt('markPoint', 'İşaretle')}</button><button class="btn small" id="gotoPaste">${tt('paste', 'Yapıştır')}</button></div>`]);
   openDoc(tt('gotoCoord', 'Koordinata git'), kv(rows));
   const num = (s) => { s = String(s || '').trim().replace(',', '.'); const m = /^(-?)(\d+(?:\.\d+)?)[°\s]+(\d+(?:\.\d+)?)?['\s]*(\d+(?:\.\d+)?)?"?\s*([NSEWKDGB])?$/i.exec(s); if (m && (m[3] != null || m[4] != null)) { let v = Number(m[2]) + (Number(m[3]) || 0) / 60 + (Number(m[4]) || 0) / 3600; if (m[1] === '-' || /[SWB]/i.test(m[5] || '')) v = -v; return v; } const v = parseFloat(s); return isFinite(v) ? v : NaN; };
@@ -1254,7 +1280,7 @@ function showCompare() {
 async function setCompare(buf, name) {
   setLoading(t('loading'), name);
   try {
-    const res = await runWorker({ cmd: 'parse', bytes: buf, name }, st => setLoading(STAGES[st] || st, name));
+    const res = await runWorker({ cmd: 'parse', bytes: buf, name }, st => setLoading(stageText(st), name));
     const B = res.scene.layouts[0].prims.filter(p => p.k !== 4);
     const Aprims = S.scene.layouts[0].prims;
     const sigB = new Set(), sigA = new Set();
@@ -1274,9 +1300,9 @@ async function setCompare(buf, name) {
 // ---- xref ve resimler ------------------------------------------------------------------------
 function showXrefs() {
   const xr = S.scene.xrefs || [], im = S.scene.images || [];
-  if (!xr.length && !im.length) { openDoc(t('xrefs'), `<div class="full muted">Bu çizimde harici referans ya da resim altlığı yok.</div>`); return; }
+  if (!xr.length && !im.length) { openDoc(t('xrefs'), `<div class="full muted">${esc(t('noXrefs'))}</div>`); return; }
   let html = '';
-  if (xr.length) html += `<div class="full"><strong>XREF</strong></div>` + xr.map((x, i) => `<div class="k">${esc(x.name)}</div><div class="v">${x.loaded ? '✓ yüklendi' : `<button class="btn small" data-xref="${i}">${t('pickXref')}</button> <span class="muted">${x.inserts.length} ekleme</span>`}</div>`).join('');
+  if (xr.length) html += `<div class="full"><strong>XREF</strong></div>` + xr.map((x, i) => `<div class="k">${esc(x.name)}</div><div class="v">${x.loaded ? '✓ ' + t('loadedMark') : `<button class="btn small" data-xref="${i}">${t('pickXref')}</button> <span class="muted">${x.inserts.length} ${t('insertsN')}</span>`}</div>`).join('');
   if (im.length) html += `<div class="full"><strong>${t('imgMissing')}</strong></div>` + im.map((x, i) => `<div class="k">${esc((x.fileName || x.handle).replace(/^.*[\\/]/, ''))}</div><div class="v">${S.images.has(x.handle) && S.images.get(x.handle).ok ? '✓' : `<button class="btn small" data-img="${i}">${t('pickXref')}</button>`}</div>`).join('');
   openDoc(t('xrefs'), html);
   $('docBody').onclick = (ev) => {
@@ -1289,7 +1315,7 @@ async function loadXref(idx, buf, name) {
   const x = S.scene.xrefs[idx];
   setLoading(t('loading'), name);
   try {
-    const res = await runWorker({ cmd: 'xref', bytes: buf, name, inserts: x.inserts, prefix: x.name }, st => setLoading(STAGES[st] || st, name));
+    const res = await runWorker({ cmd: 'xref', bytes: buf, name, inserts: x.inserts, prefix: x.name }, st => setLoading(stageText(st), name));
     const model = S.scene.layouts[0];
     for (const l of res.xref.layers) if (!S.layers.has(l.name)) S.layers.set(l.name, { ...l });
     Object.assign(S.ltypes, res.xref.ltypes);
@@ -1305,7 +1331,7 @@ async function loadXref(idx, buf, name) {
 function loadImageFile(handle, src) {
   const rec = { img: new Image(), ok: false };
   rec.img.onload = () => { rec.ok = true; S.cacheValid = false; requestRender(); };
-  rec.img.onerror = () => toast('Resim yüklenemedi');
+  rec.img.onerror = () => toast(t('imgLoadFail'));
   rec.img.src = src;
   S.images.set(handle, rec);
 }
@@ -1348,7 +1374,7 @@ async function fetchIndex(url) {
     }
     list.innerHTML = files.length ? `<div class="list">` + files.map((f, i) => `<div class="item" data-f="${i}">${esc(f.name)}<small>${esc(f.url)}</small></div>`).join('') + `</div>` : `<div class="muted">${t('noResult')}</div>`;
     list.onclick = (ev) => { const it = ev.target.closest('[data-f]'); if (it) { const f = files[Number(it.dataset.f)]; downloadDwg(f.url, f.name); } };
-  } catch (e) { list.innerHTML = `<div class="muted">Hata: ${esc(e.message)}</div>`; }
+  } catch (e) { list.innerHTML = `<div class="muted">${esc(t('error'))}: ${esc(e.message)}</div>`; }
 }
 async function downloadDwg(url, name) {
   setLoading(t('download'), name);
@@ -1369,11 +1395,11 @@ const bufToB64 = (buf) => new Promise((res) => { const fr = new FileReader(); fr
 // ---- QR -------------------------------------------------------------------------------------
 let qrStream = null, qrTimer = 0;
 async function startQr() {
-  if (!navigator.mediaDevices || !window.jsQR) { toast('Kamera erişimi yok'); return; }
+  if (!navigator.mediaDevices || !window.jsQR) { toast(t('noCamera')); return; }
   try {
     if (A() && A().requestCamera) A().requestCamera();
     qrStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-  } catch (e) { toast('Kamera açılamadı: ' + e.message); return; }
+  } catch (e) { toast(t('cameraFail') + ': ' + e.message); return; }
   const video = $('qrVideo'); video.srcObject = qrStream; show('qrPanel');
   const c = document.createElement('canvas');
   qrTimer = setInterval(() => {
@@ -1396,7 +1422,7 @@ function onQr(text) {
     return;
   }
   const m = /^dwg:\/\/(.+?)(?:#(.+))?$/i.exec(text);
-  if (m) { toast('Pafta: ' + m[1] + (m[2] ? ' · ' + m[2] : '')); if (m[2] && S.hasDoc) searchAndZoom(m[2]); return; }
+  if (m) { toast(t('sheet') + ': ' + m[1] + (m[2] ? ' · ' + m[2] : '')); if (m[2] && S.hasDoc) searchAndZoom(m[2]); return; }
   if (S.hasDoc) searchAndZoom(text);
 }
 function searchAndZoom(q) { show('searchPanel'); $('searchInput').value = q; doSearch(); const first = $('searchBody').querySelector('.item'); if (first) first.click(); }
@@ -1420,7 +1446,7 @@ function savePng(dataUrl, name) {
     if (!data) {
       const c = document.createElement('canvas'); c.width = cv.width; c.height = cv.height;
       const g = c.getContext('2d'); g.drawImage(cv, 0, 0); g.drawImage(ov, 0, 0);
-      try { data = c.toDataURL('image/png'); } catch (e) { toast('PNG alınamadı (harita altlığı CORS engeli). Altlığı kapatıp yeniden deneyin.', { ms: 5000, type: 'error' }); return; }
+      try { data = c.toDataURL('image/png'); } catch (e) { toast(t('pngFail'), { ms: 5000, type: 'error' }); return; }
     }
   }
   if (A() && A().savePng) A().savePng(data.split(',')[1], name);
@@ -1474,7 +1500,7 @@ async function makePdf(title, paper, orient, scaleN, dpi) {
     g.fillStyle = '#000'; g.textBaseline = 'middle';
     g.font = `bold ${Math.round(4.5 * pxPerMm)}px sans-serif`; g.fillText(title || baseName(), margin + 3 * pxPerMm, y0 + tb * 0.32);
     g.font = `${Math.round(3 * pxPerMm)}px sans-serif`;
-    const info = [`${t('file')}: ${S.fileName}`, S.scene.layouts[S.layoutIndex].name, scaleN ? `Ölçek 1:${scaleN}` : '', S.units ? `Birim: ${S.units}` : '', S.geo.active ? S.geo.crs.name : '', new Date().toLocaleString('tr-TR')].filter(Boolean).join('   ·   ');
+    const info = [`${t('file')}: ${S.fileName}`, S.scene.layouts[S.layoutIndex].name, scaleN ? `${t('pdfScale')}${scaleN}` : '', S.units ? `${t('drawingUnit')}: ${S.units}` : '', S.geo.active ? S.geo.crs.name : '', new Date().toLocaleString('tr-TR')].filter(Boolean).join('   ·   ');
     g.fillText(info, margin + 3 * pxPerMm, y0 + tb * 0.72);
     const nx = W - margin - 8 * pxPerMm, ny = y0 + tb / 2;
     g.beginPath(); g.moveTo(nx, ny - 5 * pxPerMm); g.lineTo(nx + 2.5 * pxPerMm, ny + 4 * pxPerMm); g.lineTo(nx, ny + 2 * pxPerMm); g.lineTo(nx - 2.5 * pxPerMm, ny + 4 * pxPerMm); g.closePath(); g.fill();
@@ -1532,11 +1558,13 @@ function buildPdf(jpegB64, pw, ph, wmm, hmm, title) {
 // Yükleme
 // ---------------------------------------------------------------------------
 function setLoading(text, sub) { if (text == null) { hide('loading'); return; } $('loadingText').textContent = text; $('loadingSub').textContent = sub || ''; show('loading'); }
+{ const b = $('loadingCancel'); if (b) b.addEventListener('click', () => { cancelJobs(tt('cancelled', 'İptal edildi')); setLoading(null); toast(tt('cancelled', 'İptal edildi')); }); }
 function fail(err) {
+  if (err && err.cancelled) { console.warn(err.message); return; }   // iptal: yeni yükleme sürüyor, modal ona ait
   console.error(err);
   setLoading(null);
   const msg = (err && err.message) || String(err);
-  toast('Hata: ' + msg, 6000);
+  toast(t('error') + ': ' + msg, 6000);
   logError(msg + '\n' + (err && err.stack ? err.stack : ''));
 }
 function logError(text) {
@@ -1546,39 +1574,55 @@ function logError(text) {
 window.addEventListener('error', (ev) => logError((ev.message || '') + ' @' + (ev.filename || '') + ':' + (ev.lineno || '')));
 window.addEventListener('unhandledrejection', (ev) => logError('promise: ' + ((ev.reason && ev.reason.message) || ev.reason)));
 
-const STAGES = { lib: 'Çözümleyici yükleniyor (LibreDWG WebAssembly)…', parse: 'Dosya çözümleniyor…', scene: 'Çizim hazırlanıyor (bloklar açılıyor, geometri düzleştiriliyor)…' };
+const STAGES = { lib: 'stageLib', parse: 'stageParse', scene: 'stageScene' };   // i18n anahtarları
+const stageText = (st) => STAGES[st] ? t(STAGES[st]) : st;
+const BIG_FILE_MB = 80;   // bu boyutun üstünde açmadan önce onay istenir (bellek / süre)
+let loadSeq = 0;
 async function loadBytes(buf, name, size) {
   const t0 = performance.now();
-  const mb = fmt((size || buf.byteLength) / 1024 / 1024, 2) + ' MB';
+  const bytes = size || buf.byteLength;
+  const mb = fmt(bytes / 1024 / 1024, 2) + ' MB';
+  if (bytes > BIG_FILE_MB * 1048576 && !(await askConfirm(`${name} · ${mb}. ${t('bigFileAsk')}`))) { setLoading(null); return; }
+  const my = ++loadSeq;
   setLoading(t('loading'), name + ' · ' + mb);
   try {
-    const res = await runWorker({ cmd: 'parse', bytes: buf, name }, st => setLoading(STAGES[st] || st, name + ' · ' + mb));
-    setScene(res.scene, name, size || buf.byteLength);
+    let res = await runWorker({ cmd: 'parse', bytes: buf, name }, (st, pct) => setLoading(stageText(st), name + ' · ' + mb + (pct != null ? ' · %' + pct : '')));
+    const scene = res.scene; res = null;   // yapısal klon: büyük dosyada referansı erken düşür
+    await setScene(scene, name, bytes);
+    // özet toast'ından sonra (toast tek satırdır, hemen üstüne yazılırsa görünmez)
+    if (scene.readWarn) setTimeout(() => toast(`${tt('readWarn', 'Dosya eksik/bozuk okunmuş olabilir')} (LibreDWG ${scene.readWarn}); ${tt('readWarnSub', 'çizim eksik olabilir.')}`, { type: 'warn', ms: 8000 }), 1200);
     const ms = Math.round(performance.now() - t0);
     const hidden = [...S.layers.values()].filter(l => !l.visible).length;
-    toast(`${name} · ${S.entityCount} ${t('entity')} · ${ms} ms` + (hidden ? ` · ${hidden} katman dondurulmuş/kapalı` : ''));
-    if (!S.prims.length) toast('Model uzayında çizilebilir nesne bulunamadı.', 5000);
-    if (S.scene.xrefs.length || S.scene.images.length) setTimeout(() => toast(t('xrefMissing') + ': ' + [...S.scene.xrefs.map(x => x.name), ...S.scene.images.map(i => (i.fileName || '').split(/[\\/]/).pop())].filter(Boolean).join(', ') + ' — Diğer › Referans dosyaları', 6000), 3000);
+    toast(`${name} · ${S.entityCount} ${t('entity')} · ${ms} ms` + (hidden ? ` · ${hidden} ${t('layersHiddenN')}` : ''));
+    if (!S.prims.length) toast(t('noModelPrims'), 5000);
+    if (S.scene.xrefs.length || S.scene.images.length) setTimeout(() => toast(t('xrefMissing') + ': ' + [...S.scene.xrefs.map(x => x.name), ...S.scene.images.map(i => (i.fileName || '').split(/[\\/]/).pop())].filter(Boolean).join(', ') + ' — ' + t('seeXrefs'), 6000), 3000);
   } catch (e) { fail(e); }
-  setLoading(null);
+  if (my === loadSeq) setLoading(null);   // iptal edilen eski yükleme yenisinin modalını kapatmasın
 }
-function setScene(scene, name, size) {
+/** R-ağacı: büyük sahnede önce bir kare bırakılır ki 'İndeks kuruluyor' yazısı çizilsin ve dokunma/geri tuşu işlensin */
+async function buildTree(prims) {
+  if (prims.length < 100000) return new RTree(prims, p => p.bb);
+  setLoading(tt('indexing', 'İndeks kuruluyor…'), prims.length + ' ' + tt('prims', 'ilkel'));
+  await new Promise(r => setTimeout(r));
+  return new RTree(prims, p => p.bb);
+}
+async function setScene(scene, name, size) {
+  S.modelTree = await buildTree(scene.layouts[0].prims);
   S.scene = scene; S.fileName = name; S.fileKey = (name + '_' + size).replace(/[^\w.-]+/g, '_');
   S.layers = new Map(scene.layers.map(l => [l.name, l]));
   S.ltypes = scene.ltypes; S.styles = scene.styles; S.counts = scene.counts; S.entityCount = scene.entityCount; S.blockCount = scene.blockCount;
-  { const d = scene.solidDiag; if (d && d.solids > 0 && !d.faces) setTimeout(() => toast(`${d.solids} katı modelin yüzeyleri çözülemedi (${(d.errors[0] || '').slice(0, 80)}). Dosya bilgisi › Katı tanılamasını paylaş`, { type: 'warn', ms: 9000 }), 800); }
+  { const d = scene.solidDiag; if (d && d.solids > 0 && !d.faces) setTimeout(() => toast(`${d.solids} ${t('solidsUnresolved')} (${(d.errors[0] || '').slice(0, 80)}). ${t('seeSolidDiag')}`, { type: 'warn', ms: 9000 }), 800); }
   S.version = ({ AC1012: 'R13', AC1014: 'R14', AC1015: 'AutoCAD 2000', AC1018: 'AutoCAD 2004', AC1021: 'AutoCAD 2007', AC1024: 'AutoCAD 2010', AC1027: 'AutoCAD 2013', AC1032: 'AutoCAD 2018' })[scene.version] || scene.version || '';
   if (/\.dxf$/i.test(name)) S.version = 'DXF ' + S.version;
   const iu = scene.header.INSUNITS;
   S.units = UNITS[iu] || ''; S.unitToM = UNIT_TO_M[iu] || 0;
   S.images = new Map(); S.compare = null; S.selected = null; S.cacheValid = false;
-  S.modelTree = new RTree(scene.layouts[0].prims, p => p.bb);
   S.hasDoc = true;
   Docs.suspend();
   if (S.mode !== 'view') setMode('view');
   if (S.notesOn) toggleNotes(false);
   hide('empty'); hide('infoPanel'); hide('docPanel'); hide('searchPanel');
-  $('fileName').textContent = name; $('fileName').title = name;
+  showFileName(name);
   $('stCount').textContent = S.entityCount + ' ' + t('entity') + ' · ' + S.layers.size + ' ' + t('layerCount');
   { const sub = $('fileSub'); if (sub) sub.textContent = [S.entityCount + ' ' + t('entity'), S.units || null, S.version || null].filter(Boolean).join(' · '); }
   document.body.classList.add('hasdoc');
@@ -1594,6 +1638,8 @@ function setScene(scene, name, size) {
   refreshNav();
   setTimeout(saveThumb, 400);
 }
+/** üst çubuk dosya adı: dar başlıkta ortadan kısaltılır, uzantı görünür kalır */
+function showFileName(name) { $('fileName').textContent = name.length > 22 ? name.slice(0, 10) + '…' + name.slice(-10) : name; $('fileName').title = name; }
 function saveThumb() {
   if (!S.hasDoc || !A() || !A().saveThumb) return;
   try {
@@ -1607,11 +1653,16 @@ async function fetchFile(id) {
   if (!r.ok) throw new Error('dosya okunamadı (HTTP ' + r.status + ')');
   return r.arrayBuffer();
 }
+let loadingKey = null;   // Android'den aynı dosya iki kez gelirse (intent + onResume) ikincisi yok sayılır
 async function loadCurrent(name, size) {
+  const key = name + '|' + (size || 0);
+  if (loadingKey === key) return;
+  loadingKey = key;
   try {
     if (!Docs.isCad(name) && Docs.kindOf(name) !== 'other') { setLoading(t('loading'), name); const ok = await Docs.openCurrent(name, size); setLoading(null); if (ok) return; }
     setLoading(t('loading'), name); await loadBytes(await fetchFile('current'), name, size);
   } catch (e) { fail(e); }
+  finally { if (loadingKey === key) loadingKey = null; }
 }
 /** Android dosya seçici sonucu */
 async function onFilePicked(purpose, id, name, size) {
@@ -1622,7 +1673,7 @@ async function onFilePicked(purpose, id, name, size) {
     if (purpose.startsWith('xref:')) { await loadXref(Number(purpose.slice(5)), await fetchFile(id), name); return; }
     if (purpose.startsWith('img:')) { loadImageFile(purpose.slice(4), '/file/' + id); return; }
     if (purpose === 'photo' && pendingPhotoPoint) {
-      const txt = prompt(t('notePrompt'), '') || '';
+      const txt = (await askText(t('notePrompt'), '', { multiline: true })) || '';
       addNote({ type: 'photo', pts: [pendingPhotoPoint], color: S.noteColor, photo: id, text: txt });
       loadPhoto(id); pendingPhotoPoint = null; drawOverlay();
     }
@@ -1640,7 +1691,7 @@ function pickFile(purpose, mime) {
     else if (purpose === 'photo' && pendingPhotoPoint) {
       const id = 'blob_' + Date.now();
       loadPhoto(id, URL.createObjectURL(f));
-      addNote({ type: 'photo', pts: [pendingPhotoPoint], color: S.noteColor, photo: id, text: prompt(t('notePrompt'), '') || '' });
+      addNote({ type: 'photo', pts: [pendingPhotoPoint], color: S.noteColor, photo: id, text: (await askText(t('notePrompt'), '', { multiline: true })) || '' });
       pendingPhotoPoint = null; drawOverlay();
     }
   };
@@ -1663,6 +1714,7 @@ function buildRecent() {
 
 // ---- geri tuşu --------------------------------------------------------------------------------
 function onBack() {
+  if (askOpen()) { askCancel(); return true; }
   if (!$('qrPanel').hidden) { stopQr(); return true; }
   if (!$('moreMenu').hidden) { closeMenu(); return true; }
   if (zoomWin) { cancelZoomWindow(); return true; }
@@ -1680,6 +1732,8 @@ function onBack() {
 
 // ---- sürüm denetimi ---------------------------------------------------------------------------
 async function checkUpdate(manual) {
+  if (window.__noUpdate) return;                                   // sınama bayrağı (tools/harness.mjs)
+  if (!manual && !(A() && A().versionCode)) return;                // otomatik denetim yalnız Android'de: tarayıcıda confirm açılmasın
   try {
     const ctrl = new AbortController(); setTimeout(() => ctrl.abort(), 6000);
     const r = await fetch(VERSION_URL, { cache: 'no-store', signal: ctrl.signal });
@@ -1687,16 +1741,18 @@ async function checkUpdate(manual) {
     const j = await r.json();
     const mine = A() && A().versionCode ? Number(A().versionCode()) : 0;
     if (j.versionCode > mine) {
-      if (manual || confirm(`${t('update')}: ${j.versionName}. İndirme sayfası açılsın mı?`)) { if (A() && A().openUrl) A().openUrl(j.url); else window.open(j.url, '_blank'); }
-    } else if (manual) toast('Güncel sürüm.');
-  } catch (e) { if (manual) toast('Sürüm denetlenemedi: ' + e.message); }
+      if (manual || await askConfirm(`${t('update')}: ${j.versionName}. ${t('updateAsk')}`)) { if (A() && A().openUrl) A().openUrl(j.url); else window.open(j.url, '_blank'); }
+    } else if (manual) toast(t('upToDate'));
+  } catch (e) { if (manual) toast(t('updateFail') + ': ' + e.message); }
 }
 
 // ---------------------------------------------------------------------------
 // Başlangıç
 // ---------------------------------------------------------------------------
 window.dwgApp = { loadCurrent, onFilePicked, onLocation, onBack, loadBytes, zoomExtents, render, toScreen, toWorld, state: S, notes, editor, setMode, setLayout, refreshRecent: buildRecent,
-  onLocationError: (m) => toast('GPS: ' + m),
+  onQr: (text) => { try { const s = String(text || '').trim(); if (s) onQr(s); } catch (e) { console.warn(e); } },   // Android ACTION_SEND / EXTRA_TEXT
+  onLocationError: (m) => { const perm = /kalıcı olarak reddedildi|permanently denied/i.test(String(m)); const openSet = A() && A().openAppSettings ? () => A().openAppSettings() : null;
+    toast('GPS: ' + m, perm && openSet ? { ms: 8000, action: { label: tt('settings', 'Ayarlar'), fn: openSet } } : undefined); },
   display: D, toast, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, savePng, getSettings: () => settings, requestRender, openDisplayOptions,
   docs: Docs, drive: Drive, onGoogle: (ok, json) => Drive.onGoogle(ok, json), onDrive: (id, ok, json) => Drive.onDrive(id, ok, json), onDriveProgress: (id, d, tot) => Drive.onProgress(id, d, tot), openDrive: () => Drive.open() };
 ensureStatusChips();
@@ -1704,7 +1760,7 @@ D.initDisplay({ requestRender, drawOverlay, toast, openDoc, show, hide, buildLay
 mountNavFabs(vp);
 initEditor({ S, requestRender, drawOverlay, toast, noFaces: showNoFaces, pick: (w) => pick(w, TOL.pick / S.view.scale), snap: doSnap, showInfo, openDoc, hide, show, esc, kv, copyText, buildLayerList, fmt, store, RTree, baseName, zoomExtents, tracePath,
   action: (a) => { if (a === 'layers') $('btnLayers').click(); else if (a === 'search') $('btnSearch').click(); else if (a === 'more') $('btnMore').click(); else menuAction(a); },
-  savePng, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, isolateLayers, unisolate, settings, stamp, haptic, openDisplayOptions, setDisplay, getDisplay, toggleDisplay, display: D });
+  savePng, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, isolateLayers, unisolate, settings, saveSettings, stamp, haptic, openDisplayOptions, setDisplay, getDisplay, toggleDisplay, display: D });
 $('stScale').addEventListener('click', showScalePicker);
 // belgeler (PDF / Word / ZIP / RAR) ve Google Drive
 Docs.initDocs({ toast, loadBytes, openDoc, hide, show, esc, kv, driveAvailable: () => Drive.signedIn(), driveUpload: (d) => { if (d && d.id) Drive.uploadWithPicker({ fileId: d.id, name: d.name, mime: 'application/octet-stream' }); }, driveConvert: (d) => Drive.convertToPdf(d),

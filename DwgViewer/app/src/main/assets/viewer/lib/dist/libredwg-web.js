@@ -69,14 +69,14 @@ const encodings = [
   // 10
   "utf-8",
   // DOS English
-  "utf-8",
-  // 12 DOS Latin-1
+  "ibm850",
+  // 12 DOS Latin-1 (worker.js OEM TextDecoder sarmalayıcısı çözer)
   "utf-8",
   // DOS Central European
   "utf-8",
   // DOS Cyrillic
-  "utf-8",
-  // DOS Turkish
+  "ibm857",
+  // DOS Turkish (worker.js OEM TextDecoder sarmalayıcısı çözer)
   "utf-8",
   // DOS Portoguese
   "utf-8",
@@ -1600,7 +1600,9 @@ class LibreEntityConverter {
       subDefinitionPoint1: xline1Start ?? xline1End ?? vertexPoint ?? xline2End,
       subDefinitionPoint2: xline2Start ?? xline2End ?? vertexPoint ?? xline1End,
       centerPoint: vertexPoint ?? xline2Start ?? xline1End ?? xline2End,
-      arcPoint: xline2End ?? dimensionCommonAttrs.definitionPoint
+      arcPoint: xline2End ?? dimensionCommonAttrs.definitionPoint,
+      // iki çizginin uçları (DXF 13/14/15; ikinci çizginin ucu 10 = centerPoint): scene.js dimFallback kesişimden merkezi bulur
+      xline1Start, xline1End, xline2Start
     };
   }
   convertDiameterDimension(entity, commonAttrs) {
@@ -1921,7 +1923,7 @@ class LibreEntityConverter {
   convertLeader(entity, commonAttrs) {
     const libredwg = this.libredwg;
     const styleName = libredwg.dwg_entity_mtext_get_style_name(entity);
-    const isArrowheadEnabled = libredwg.dwg_dynapi_entity_data(entity, "arrowhead_type");
+    const isArrowheadEnabled = libredwg.dwg_dynapi_entity_data(entity, "arrowhead_on");   // DXF 71: ok başı açık (arrowhead_type ok tipidir, 0 = kapalı dolu)
     const isSpline = libredwg.dwg_dynapi_entity_data(entity, "path_type");
     const leaderCreationFlag = libredwg.dwg_dynapi_entity_data(entity, "annot_type");
     const isHooklineSameDirection = libredwg.dwg_dynapi_entity_data(entity, "hookline_dir");
@@ -1986,13 +1988,22 @@ class LibreEntityConverter {
     const num_bulges = libredwg.dwg_dynapi_entity_data(entity, "num_bulges");
     const bulges_ptr = libredwg.dwg_dynapi_entity_data(entity, "bulges");
     const bulges = libredwg.dwg_ptr_to_double_array(bulges_ptr, num_bulges);
+    // köşe genişlikleri: Dwg_LWPOLYLINE_width { BD start; BD end } dizisi = 2·num_widths double
+    let widths = [];
+    try {
+      const num_widths = libredwg.dwg_dynapi_entity_data(entity, "num_widths");
+      const widths_ptr = libredwg.dwg_dynapi_entity_data(entity, "widths");
+      if (num_widths > 0 && widths_ptr) widths = libredwg.dwg_ptr_to_double_array(widths_ptr, num_widths * 2);
+    } catch (_) { widths = []; }
     points.forEach((point, index) => {
-      vertices.push({
+      const v = {
         id: index,
         x: point.x,
         y: point.y,
         bulge: bulges.length > index ? bulges[index] : 0
-      });
+      };
+      if (widths.length > index * 2 + 1) { v.startWidth = widths[index * 2]; v.endWidth = widths[index * 2 + 1]; }
+      vertices.push(v);
     });
     return {
       type: "LWPOLYLINE",

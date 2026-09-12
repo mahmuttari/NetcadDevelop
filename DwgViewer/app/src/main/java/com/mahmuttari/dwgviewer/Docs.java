@@ -9,6 +9,8 @@ import android.os.ParcelFileDescriptor;
 import android.util.Log;
 
 import com.github.junrar.Archive;
+import com.github.junrar.exception.UnsupportedRarEncryptedException;
+import com.github.junrar.exception.UnsupportedRarV5Exception;
 import com.github.junrar.rarfile.FileHeader;
 
 import org.json.JSONArray;
@@ -55,6 +57,7 @@ public class Docs {
         return id;
     }
     public synchronized File file(String id) { return files.get(id); }
+    private synchronized boolean registered(File f) { return files.containsValue(f); }
     public synchronized String name(String id) { String n = names.get(id); return n == null ? "" : n; }
 
     public File cacheDir(String sub) {
@@ -93,9 +96,11 @@ public class Docs {
         pdfOpenId = id;
     }
     public void closePdf() {
-        try { if (pdf != null) pdf.close(); } catch (Exception ignored) { }
-        try { if (pdfFd != null) pdfFd.close(); } catch (Exception ignored) { }
-        pdf = null; pdfFd = null; pdfOpenId = null;
+        synchronized (pdfLock) { // süren bir sayfa çiziminin (pdfPage) ortasında kapatılmasın
+            try { if (pdf != null) pdf.close(); } catch (Exception ignored) { }
+            try { if (pdfFd != null) pdfFd.close(); } catch (Exception ignored) { }
+            pdf = null; pdfFd = null; pdfOpenId = null;
+        }
     }
     /** {pages, sizes:[[w,h],…] (nokta)} */
     public String pdfInfo(String id) {
@@ -146,8 +151,11 @@ public class Docs {
         try {
             JSONArray arr = new JSONArray();
             if (isRar(f)) {
+                if (isRar5(f)) return "{\"error\":\"" + RAR5_MSG + "\"}";
                 try (Archive a = new Archive(f)) {
                     if (a.isEncrypted()) return "{\"error\":\"Şifreli RAR desteklenmiyor\"}";
+                    // junrar yapıcısı RAR5/şifreli dışındaki hataları yutup boş liste döndürür
+                    if (a.getFileHeaders().isEmpty()) return "{\"error\":\"Arşiv okunamadı (bozuk ya da desteklenmeyen RAR)\"}";
                     for (FileHeader h : a.getFileHeaders()) {
                         JSONObject o = new JSONObject();
                         o.put("name", h.getFileName().replace('\\', '/')); o.put("size", h.getFullUnpackSize()); o.put("dir", h.isDirectory());
@@ -167,11 +175,13 @@ public class Docs {
                 }
             }
             return arr.toString();
+        } catch (UnsupportedRarV5Exception e) {
+            return "{\"error\":\"" + RAR5_MSG + "\"}";
+        } catch (UnsupportedRarEncryptedException e) {
+            return "{\"error\":\"Şifreli RAR desteklenmiyor\"}";
         } catch (Exception e) {
             Log.w(TAG, "arcList", e);
-            String m = String.valueOf(e.getMessage());
-            if (m.toLowerCase().contains("rar5") || m.contains("Unsupported")) m = "RAR5 biçimi desteklenmiyor (RAR4 olarak sıkıştırın)";
-            return "{\"error\":" + JSONObject.quote(m) + "}";
+            return "{\"error\":" + JSONObject.quote(msgOf(e)) + "}";
         }
     }
     /** Girdiyi önbelleğe çıkarır ve kaydeder; JSON {id,name,size,ext} */
@@ -183,6 +193,7 @@ public class Docs {
         File out = new File(cacheDir("extract"), id + "_" + safe(base));
         try {
             if (isRar(f)) {
+                if (isRar5(f)) return "{\"error\":\"" + RAR5_MSG + "\"}";
                 try (Archive a = new Archive(f)) {
                     for (FileHeader h : a.getFileHeaders()) {
                         if (h.getFileName().replace('\\', '/').equals(base)) {
@@ -201,15 +212,29 @@ public class Docs {
                 }
             }
             return "{\"error\":\"girdi bulunamadı\"}";
+        } catch (UnsupportedRarV5Exception e) {
+            return "{\"error\":\"" + RAR5_MSG + "\"}";
+        } catch (UnsupportedRarEncryptedException e) {
+            return "{\"error\":\"Şifreli RAR desteklenmiyor\"}";
         } catch (Exception e) {
             Log.w(TAG, "arcExtract", e);
-            return "{\"error\":" + JSONObject.quote(String.valueOf(e.getMessage())) + "}";
+            return "{\"error\":" + JSONObject.quote(msgOf(e)) + "}";
         }
     }
+    private static final String RAR5_MSG = "RAR5 biçimi desteklenmiyor; arşivi RAR4 ya da ZIP olarak yeniden sıkıştırın.";
+    /** İletisi olmayan istisnalar (junrar'ın UnsupportedRarV5Exception'ı gibi) 'null' yerine sınıf adıyla döner */
+    private static String msgOf(Exception e) { return e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage(); }
     private static boolean isRar(File f) {
         try (java.io.FileInputStream in = new java.io.FileInputStream(f)) {
             byte[] b = new byte[7]; int n = in.read(b);
             return n >= 6 && b[0] == 'R' && b[1] == 'a' && b[2] == 'r' && b[3] == '!' && b[4] == 0x1A && b[5] == 0x07;
+        } catch (IOException e) { return false; }
+    }
+    /** RAR5 imzası: "Rar!" 1A 07 01 00 (RAR4: "Rar!" 1A 07 00) */
+    private static boolean isRar5(File f) {
+        try (java.io.FileInputStream in = new java.io.FileInputStream(f)) {
+            byte[] b = new byte[8]; int n = in.read(b);
+            return n >= 8 && b[0] == 'R' && b[1] == 'a' && b[2] == 'r' && b[3] == '!' && b[4] == 0x1A && b[5] == 0x07 && b[6] == 0x01 && b[7] == 0x00;
         } catch (IOException e) { return false; }
     }
 
@@ -218,7 +243,7 @@ public class Docs {
         long cut = System.currentTimeMillis() - 7L * 24 * 3600 * 1000;
         for (String sub : new String[]{"docs", "extract", "drive"}) {
             File[] fs = cacheDir(sub).listFiles();
-            if (fs != null) for (File f : fs) if (f.lastModified() < cut && !files.containsValue(f)) f.delete();
+            if (fs != null) for (File f : fs) if (f.lastModified() < cut && !registered(f)) f.delete();
         }
     }
 }
