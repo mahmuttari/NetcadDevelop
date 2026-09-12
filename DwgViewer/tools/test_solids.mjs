@@ -149,6 +149,16 @@ for (const f of ['pface.dxf', 'pface_2000.dwg', 'pface_2018.dwg']) {
   ok('5 gerçekçi stil: üst yüz düz gölgeli (merkez ≈ köşeler, fark ≤ 6/255)', diff(r.c, r.k1) <= 6 && diff(r.c, r.k2) <= 6 && diff(r.c, r.k3) <= 6, JSON.stringify(r));
   ok('5 gerçekçi stil: yan yüz düz gölgeli', diff(r.side, r.sideK) <= 6, JSON.stringify([r.side, r.sideK]));
   ok('5 gerçekçi stil: üst ve yan yüz farklı tonda (aydınlatma çalışıyor)', diff(r.c, r.side) >= 8, JSON.stringify([r.c, r.side]));
+  // kavramsal stil: siluet kabuğu dik yüzleri karartmamalı (yüz merkezi siyah değil, Gooch tonunda)
+  const r2 = await page.evaluate(() => {
+    const v = window.dwgApp.editor.view3d(); v.set('style', 'conceptual'); v.preset('isoNE', { animate: false }); v.fit({ animate: false }); v.orbit(0, 60); v.render();   // dik açıyla yukarıdan bak
+    const cv = v.cv, c = document.createElement('canvas'); c.width = cv.width; c.height = cv.height; const gc = c.getContext('2d'); gc.drawImage(cv, 0, 0);
+    const dpr = cv.width / cv.clientWidth;
+    const px = (x, y, z) => { const p = v.project(x, y, z); const d = gc.getImageData(Math.round(p[0] * dpr), Math.round(p[1] * dpr), 1, 1).data; return [d[0], d[1], d[2]]; };
+    return { top: px(5, 5, 10), side: px(10, 5, 5), side2: px(5, 10, 5), pitch: v.cam.pitch };
+  });
+  const bright = (c) => c[0] + c[1] + c[2];
+  ok('5 kavramsal stil: dik yan yüzler siyah değil (siluet kabuğu yüzün arkasında)', bright(r2.side) > 90 && bright(r2.side2) > 90 && bright(r2.top) > 90, JSON.stringify(r2));
   await page.screenshot({ path: `${out}/realistic_cube.png` });
 }
 

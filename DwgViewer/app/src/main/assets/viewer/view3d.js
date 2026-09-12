@@ -761,7 +761,10 @@ export class View3D {
       this._ensureSmooth();
       gl.uniform1f(u.uHull, this._worldPerPixel(c) * o.silhouetteWidth);   // piksel cinsinden siluet kalınlığı (yakınlaşınca kalınlaşmaz)
       gl.uniform4f(u.uOverride, darkEdge[0], darkEdge[1], darkEdge[2], 1);
+      // kabuk derinlikte yüzlerin ARKASINA itilir: yüzler (1,1) ofsetiyle çizildiğinden dik yüzlerde kabuk öne geçip yüzü karartmasın
+      gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(4, 8);
       this._draw('tris', gl.TRIANGLES, 1, true, true);
+      gl.disable(gl.POLYGON_OFFSET_FILL);
       gl.uniform1f(u.uHull, 0); gl.uniform4f(u.uOverride, 0, 0, 0, 0);
     }
     if (fx.faces === 'bg') {
