@@ -22,6 +22,7 @@ import { t, getLang, applyI18n, addStrings } from './i18n.js';
 import { TAU } from './geom.js';
 import * as D from './display.js';
 import { askText } from './dialog.js';
+import { isPro, gate, PRO_ONLY } from './edition.js';
 
 const $ = (id) => document.getElementById(id);
 const tt = (k, tr) => { const v = t(k); return v === k ? tr : v; };
@@ -225,17 +226,22 @@ function tileHtml(it, tabId) {
 function groupHtml(g, tabId) {
   return `<div class="tb-group"><div class="tb-tiles">${g.items.map(it => tileHtml(it, tabId)).join('')}</div><div class="tb-caption" data-i18n="${esc(g.cap)}">${esc(t(g.cap))}</div></div>`;
 }
+/** Ücretsiz sürümde PRO_ONLY karolar çizilmez; boş kalan grup da çizilmez */
+function editionGroups(groups) {
+  if (isPro()) return groups;
+  return groups.map(g => ({ ...g, items: g.items.filter(it => !PRO_ONLY.has(it.act)) })).filter(g => g.items.length);
+}
 function rowGroups(tab) {
-  if (tab.id === 'display') return ed.is3D() ? DISPLAY_3D : DISPLAY_2D;
-  if (tab.id === 'fav') { const items = ui.favs.filter(a => TILE[a]).map(a => TILE[a]); return items.length ? [{ cap: 'grpFav', items }] : []; }
-  return tab.groups;
+  if (tab.id === 'display') return editionGroups(ed.is3D() ? DISPLAY_3D : DISPLAY_2D);
+  if (tab.id === 'fav') { const items = ui.favs.filter(a => TILE[a] && (isPro() || !PRO_ONLY.has(a))).map(a => TILE[a]); return items.length ? [{ cap: 'grpFav', items }] : []; }
+  return editionGroups(tab.groups);
 }
 function rowHtml(tab) {
   const gs = rowGroups(tab);
   const inner = gs.length ? gs.map(g => groupHtml(g, tab.id)).join('') : `<div class="tb-empty" data-i18n="favEmpty">${esc(t('favEmpty'))}</div>`;
   return `<div class="tb-row" data-for="${tab.id}" ${tab.id === ed.tab ? '' : 'hidden'}>${inner}</div>`;
 }
-function tabList() { return ui.favs.length ? [{ id: 'fav', i18n: 'tabFav', icon: 'i-star', groups: [] }, ...TABS] : TABS; }
+function tabList() { const tabs = isPro() ? TABS : TABS.filter(x => !PRO_ONLY.has(x.id)); return ui.favs.length ? [{ id: 'fav', i18n: 'tabFav', icon: 'i-star', groups: [] }, ...tabs] : tabs; }
 function buildToolbar() {
   const tb = $('toolbar');
   const tabs = tabList();
@@ -380,6 +386,7 @@ const FREE = new Set(['more', 'display', 'drive', 'undo', 'redo', 'gps', 'basema
 const HIST = new Set(['undo', 'redo', 'prevview', 'nextview']);
 function needModel() { if (!needDoc()) return false; if (!S.scene.layouts[S.layoutIndex].isModel) { api.toast(t('modelOnly')); return false; } return true; }
 function act(name, btn) {
+  if (!gate(name)) return;   // Ücretsiz sürümde Pro özelliği: yükseltme kutusu
   if (!FREE.has(name) && !needDoc()) return;
   if (name.startsWith('t:')) { if (!needModel()) return; if (ed.is3D()) exit3D(); const tn = name.slice(2); if (tools.active === tn) { tools.cancel(); markActive(null); } else { tools.start(tn); markActive(name); } return; }
   if (name.startsWith('v:')) { if (!v3 || !ed.is3D()) { if (!needModel()) return; enter3D(); } if (v3) { v3.preset(name.slice(2), { animate: !ui.reduceMotion }); v3.render(); overlay3D(); } return; }
@@ -485,7 +492,7 @@ function bindCmdBar() {
   new MutationObserver(syncCmd).observe(bar, { attributes: true, attributeFilter: ['hidden'] });
   if (typeof ResizeObserver === 'function') new ResizeObserver(syncCmd).observe(bar);
   $('cmdBtns').addEventListener('click', (ev) => { const b = ev.target.closest('[data-cmd]'); if (b && BTN[b.dataset.cmd]) BTN[b.dataset.cmd][1](); });
-  const submit = () => { const v = $('cmdInput').value; if (!v) return; $('cmdInput').value = ''; if (ed.m3) typed3D(v); else tools.typed(v); };
+  const submit = () => { const v = $('cmdInput').value; if (!v) return; $('cmdInput').value = ''; if (ed.m3) { if (!gate('3:' + ed.m3.name)) return; typed3D(v); } else { if (tools.active && !gate('t:' + tools.active)) return; tools.typed(v); } };
   $('cmdEnter').addEventListener('click', submit);
   $('cmdInput').addEventListener('keydown', (ev) => { if (ev.key === 'Enter') submit(); });
 }
@@ -733,6 +740,7 @@ function tap3D(sx, sy) {
   v3.render(); overlay3D();
 }
 async function start3DTool(name) {
+  if (!gate('3:' + name)) { markActive(null); return; }
   ed.m3 = { name, pts: [] };
   if (name === 'setz') {
     if (!ed.sel.size) { api.toast(t('select3First')); ed.m3 = null; return; }
@@ -917,6 +925,8 @@ ed.setCurLayer = (name) => { if (!name || !S.layers.has(name)) return false; ed.
 ed.openTab = (id) => { if ($('toolbar').classList.contains('collapsed')) collapse(false); setTab(id); };
 ed.collapse = (on) => collapse(!!on);
 ed.refreshTiles = refreshTiles;
+/** Karo eylemi (dolaylı yol: sınama, kabuk); Ücretsiz sürümde gate() uygulanır */
+ed.act = (name) => act(String(name || ''));
 /** Klavye: Esc geri, Del sil, Ctrl+Z / Ctrl+Y (Ctrl+Shift+Z), Enter bitir; true → işlendi */
 ed.key = (ev) => {
   if (!ev || typeof ev.key !== 'string') return false;
@@ -925,7 +935,7 @@ ed.key = (ev) => {
   if (!S.hasDoc) return false;
   if ((ev.ctrlKey || ev.metaKey) && (k === 'z' || k === 'Z')) { if (ev.shiftKey) act('redo'); else act('undo'); return true; }
   if ((ev.ctrlKey || ev.metaKey) && (k === 'y' || k === 'Y')) { act('redo'); return true; }
-  if ((k === 'Delete' || k === 'Backspace') && ed.sel.size && doc && !tools.running) { doc.run({ op: 'delete', keys: [...ed.sel].map(p => p.key) }); ed.sel.clear(); refreshUndo(); api.requestRender(); if (ed.is3D()) { refresh3D(); render3D(); } api.toast(t('deleted')); return true; }
+  if ((k === 'Delete' || k === 'Backspace') && ed.sel.size && doc && !tools.running) { if (!gate('t:del')) return true; doc.run({ op: 'delete', keys: [...ed.sel].map(p => p.key) }); ed.sel.clear(); refreshUndo(); api.requestRender(); if (ed.is3D()) { refresh3D(); render3D(); } api.toast(t('deleted')); return true; }
   if (k === 'Enter' && tools.running) { tools.finish(); return true; }
   return false;
 };

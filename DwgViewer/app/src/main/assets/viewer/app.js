@@ -18,6 +18,7 @@ import { initEditor, onScene as editorScene, tap as editorTap, back as editorBac
 import * as Docs from './docs.js';
 import * as Drive from './drive.js';
 import * as Open from './open.js';
+import * as Ed from './edition.js';
 
 const $ = (id) => document.getElementById(id);
 const A = () => window.Android || null;
@@ -803,6 +804,7 @@ $('infoCopy').addEventListener('click', () => {
 
 // ---- ölçü / profil --------------------------------------------------------------------
 function setMode(m) {
+  if (m === 'profile' && !Ed.gate('profile')) return;
   if (m !== 'view' && S.notesOn) toggleNotes(false);
   S.mode = m;
   $('btnMeasure').classList.toggle('active', m === 'measure' || m === 'profile');
@@ -981,6 +983,7 @@ $('btnMore').addEventListener('click', () => { $('moreMenu').hidden = !$('moreMe
 $('btnExtents').addEventListener('click', () => zoomExtents());
 function menuAction(act) {
   closeMenu();
+  if (!Ed.gate(act)) return;   // Ücretsiz sürümde Pro eylemi (notes / profile / compare / pdf): yükseltme kutusu
   const needDoc = ['info', 'layouts', 'notes', 'profile', 'compare', 'xrefs', 'views', 'png', 'pdf'];
   if (needDoc.includes(act) && !S.hasDoc) { toast(t('openFirst')); return; }
   switch (act) {
@@ -1010,6 +1013,7 @@ function menuAction(act) {
     case 'qr': startQr(); break;
     case 'settings': showSettings(); break;
     case 'about': showAbout(); break;
+    case 'pro': Ed.goPro(); break;
     default: break;
   }
 }
@@ -1035,7 +1039,7 @@ function showDocInfo() {
 /** derleme kimliği (kısa git SHA; Bridge.buildId) — Hakkında satırına ve hata kaydı başlığına eklenir */
 function buildIdText() { try { return A() && A().buildId ? ' · ' + A().buildId() : ''; } catch (_) { return ''; } }
 function showAbout() {
-  const ver = (A() && A().appVersion ? A().appVersion() : 'web') + (A() && A().versionCode ? ` (${A().versionCode()})` : '') + buildIdText();
+  const ver = (A() && A().appVersion ? A().appVersion() : 'web') + (A() && A().versionCode ? ` (${A().versionCode()})` : '') + buildIdText() + ' · ' + (Ed.isPro() ? t('editionPro') : t('editionFree'));
   const rows = [[t('aboutApp'), t('welcomeTitle') + ' ' + ver], [t('aboutParser'), t('aboutParserText')],
     [t('aboutSupported'), t('aboutSupportedText')],
     [t('aboutLimits'), t('aboutLimitsText')],
@@ -1074,6 +1078,7 @@ function showLayouts() {
 
 // ---- notlar -----------------------------------------------------------------------------
 function toggleNotes(on) {
+  if (on && !Ed.gate('notes')) return;
   S.notesOn = on;
   $('notesBar').hidden = !on;
   refreshNav();
@@ -1446,7 +1451,7 @@ function savePng(dataUrl, name) {
   if (A() && A().savePng) A().savePng(data.split(',')[1], name);
   else { const a = document.createElement('a'); a.href = data; a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 1000); }
   lastPng = { b64: data.split(',')[1], name };
-  toast(tt('pngSaved', 'PNG kaydedildi'), { type: 'ok', action: Drive.signedIn() ? { label: tt('driveUpload', "Drive'a yükle"), fn: () => Drive.uploadWithPicker({ b64: lastPng.b64, name: lastPng.name, mime: 'image/png' }) } : undefined });
+  toast(tt('pngSaved', 'PNG kaydedildi'), { type: 'ok', action: Drive.signedIn() && Ed.isPro() ? { label: tt('driveUpload', "Drive'a yükle"), fn: () => Drive.uploadWithPicker({ b64: lastPng.b64, name: lastPng.name, mime: 'image/png' }) } : undefined });
 }
 let lastPng = null;
 const baseName = () => (S.fileName || 'cizim').replace(/\.(dwg|dxf)$/i, '');
@@ -1510,7 +1515,7 @@ async function makePdf(title, paper, orient, scaleN, dpi) {
     const jpeg = page.toDataURL('image/jpeg', 0.92).split(',')[1];
     const pdf = buildPdf(jpeg, W, H, wmm, hmm, title || baseName());
     const name = baseName() + '_' + stamp() + '.pdf';
-    const driveAct = Drive.signedIn() ? { label: tt('driveUpload', "Drive'a yükle"), fn: () => Drive.uploadWithPicker({ b64: pdf, name, mime: 'application/pdf' }) } : undefined;
+    const driveAct = Drive.signedIn() && Ed.isPro() ? { label: tt('driveUpload', "Drive'a yükle"), fn: () => Drive.uploadWithPicker({ b64: pdf, name, mime: 'application/pdf' }) } : undefined;
     if (A() && A().saveFile) { const r = A().saveFile(pdf, name, 'application/pdf', true); toast(r ? t('pdfDone') + ': ' + r : t('pdfFail'), { type: r ? 'ok' : 'error', ms: 6000, action: r ? driveAct : undefined }); }
     else { const a = document.createElement('a'); a.href = 'data:application/pdf;base64,' + pdf; a.download = name; a.click(); toast(t('pdfDone'), { type: 'ok', action: driveAct }); }
     hide('docPanel');
@@ -1631,6 +1636,7 @@ async function setScene(scene, name, size) {
   if (!$('layerPanel').hidden) buildLayerList();
   refreshNav();
   setTimeout(saveThumb, 400);
+  Ed.onDocOpen();   // ücretsiz sürüm: açılış reklamı
 }
 /** üst çubuk dosya adı: dar başlıkta ortadan kısaltılır, uzantı görünür kalır */
 function showFileName(name) { $('fileName').textContent = name.length > 22 ? name.slice(0, 10) + '…' + name.slice(-10) : name; $('fileName').title = name; }
@@ -1766,8 +1772,10 @@ window.dwgApp = { loadCurrent, onFilePicked, onLocation, onBack, loadBytes, zoom
     toast('GPS: ' + m, perm && openSet ? { ms: 8000, action: { label: tt('settings', 'Ayarlar'), fn: openSet } } : undefined); },
   display: D, toast, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, savePng, getSettings: () => settings, requestRender, openDisplayOptions,
   docs: Docs, drive: Drive, onGoogle: (ok, json) => Drive.onGoogle(ok, json), onDrive: (id, ok, json) => Drive.onDrive(id, ok, json), onDriveProgress: (id, d, tot) => Drive.onProgress(id, d, tot), openDrive: () => Drive.open(),
-  open: Open, openCenter: (tab) => Open.open(tab), onFsRoot: (obj) => Open.onFsRoot(obj), onFs: (id, ok, json) => Open.onFs(id, ok, json) };
+  open: Open, openCenter: (tab) => Open.open(tab), onFsRoot: (obj) => Open.onFsRoot(obj), onFs: (id, ok, json) => Open.onFs(id, ok, json),
+  edition: () => Ed.edition(), isPro: () => Ed.isPro(), goPro: () => Ed.goPro(), onAd: (reason, shown) => Ed.onAd(String(reason || ''), !!shown), __ads: Ed.__ads };
 ensureStatusChips();
+Ed.initEdition({ toast });   // Ücretsiz / Pro: menü, karşılama kartı, Drive düğmeleri; reklam zamanlayıcısı
 D.initDisplay({ requestRender, drawOverlay, toast, openDoc, show, hide, buildLayerList, settings, saveSettings, editorTheme, zoomExtents, zoomBy, fitPrims, viewHistory, setLayout, editor, ui: uiPrefs(), basemaps: BASEMAPS, haptic });
 mountNavFabs(vp);
 initEditor({ S, requestRender, drawOverlay, toast, noFaces: showNoFaces, pick: (w) => pick(w, TOL.pick / S.view.scale), snap: doSnap, showInfo, openDoc, hide, show, esc, kv, copyText, buildLayerList, fmt, store, RTree, baseName, zoomExtents, tracePath, worldTransform, strokeWorldRect,

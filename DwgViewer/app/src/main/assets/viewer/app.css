@@ -88,6 +88,8 @@ body.compact-status #stCount { display: none; }
 .empty h1 { font-size: calc(20px * var(--fs)); margin: 12px 0 6px; }
 .empty h3 { font-size: calc(14px * var(--fs)); margin: 14px 0 6px; text-align: left; color: var(--muted); }
 .empty p { color: var(--muted); margin: 6px 0; }
+.empty .pro-line { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin: 8px 0 10px; padding: 8px 10px; border: 1px dashed var(--line); border-radius: 10px; font-size: calc(12.5px * var(--fs)); }
+.empty .pro-line .btn { white-space: nowrap; }
 .hint { font-size: calc(12px * var(--fs)); }
 .row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 .recent { display: flex; flex-direction: column; gap: 6px; }
@@ -170,6 +172,8 @@ body.glove .ask-field .opt-text { min-height: 52px; }
 .menu button { border: 0; background: transparent; color: var(--fg); text-align: left; padding: 10px 14px; font-size: calc(14px * var(--fs)); display: flex; align-items: center; gap: 12px; min-height: 44px; }
 .menu button:active { background: var(--btn); }
 .menu button svg.ic { color: var(--muted); }
+.menu button.accent { color: var(--accent); font-weight: 600; }
+.menu button.accent svg.ic { color: var(--accent); }
 .notesbar { position: absolute; left: 8px; right: 8px; bottom: 44px; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; padding: 6px; background: var(--panel);
   border: 1px solid var(--line); border-radius: 12px; z-index: 6; }
 .notesbar button { width: 40px; height: 40px; border: 0; border-radius: 8px; background: var(--btn); color: var(--fg); flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; padding: 0; }

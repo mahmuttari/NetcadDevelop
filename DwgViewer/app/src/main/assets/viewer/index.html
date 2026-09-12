@@ -142,6 +142,7 @@
           <div class="empty-logo">DWG</div>
           <h1 data-i18n="welcomeTitle">DWG Görüntüleyici</h1>
           <p data-i18n="welcomeText"></p>
+          <p id="proLine" class="pro-line" hidden><span data-i18n="freeLine"></span> <button id="btnGoPro" class="btn small primary" type="button"><svg class="ic" aria-hidden="true"><use href="#i-star"/></svg><span data-i18n="goPro">Pro sürüme geç</span></button></p>
           <button id="btnOpen2" class="btn primary big" data-i18n="pickFile" type="button">📂 DWG / DXF dosyası seç</button>
           <input id="fileInput" type="file" accept=".dwg,.dxf,.pdf,.docx,.doc,.xlsx,.zip,.rar,.png,.jpg,.jpeg,.txt,.csv,application/acad,application/x-dwg,application/dxf,application/pdf,application/zip,application/octet-stream" hidden>
           <div class="row">
@@ -347,6 +348,7 @@
 
   <!-- Diğer menüsü -->
   <div id="moreMenu" class="menu" hidden>
+    <button data-act="pro" type="button" class="accent" hidden><svg class="ic" aria-hidden="true"><use href="#i-star"/></svg><span data-i18n="goPro">Pro sürüme geç</span></button>
     <button data-act="info" type="button"><svg class="ic" aria-hidden="true"><use href="#i-info"/></svg><span data-i18n="info">Çizim bilgisi</span></button>
     <button data-act="drive" type="button"><svg class="ic" aria-hidden="true"><use href="#i-drive"/></svg><span data-i18n="drive">Google Drive</span></button>
     <button data-act="layouts" type="button"><svg class="ic" aria-hidden="true"><use href="#i-layout"/></svg><span data-i18n="layouts">Sayfa düzenleri</span></button>

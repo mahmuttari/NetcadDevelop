@@ -9,3 +9,8 @@
 # junrar (RAR 2/3/4) yansıma ve slf4j kullanır; olduğu gibi kalır
 -keep class com.github.junrar.** { *; }
 -dontwarn org.slf4j.**
+
+# play-services-ads 23.6 (yalnız Ücretsiz çeşit) API 35 sınıfına başvurur; compileSdk 34'te R8 bulamaz, uyarı bastırılır.
+# Reklam SDK'sının kendi keep kuralları AAR ile gelir (consumer rules); ayrıca kural gerekmez.
+-dontwarn android.media.LoudnessCodecController
+-dontwarn android.media.LoudnessCodecController$OnLoudnessCodecUpdateListener

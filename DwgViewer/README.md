@@ -1,4 +1,4 @@
-# DWG Görüntüleyici (Android) — v6.7
+# DWG Görüntüleyici (Android) — v7.0
 
 AutoCAD **DWG** ve **DXF** çizimlerini telefonda açan, çevrimdışı çalışan
 Android uygulaması. Dosya cihazdan dışarı çıkmaz; çözümleme telefonun
@@ -8,17 +8,22 @@ notlar ve PDF çıktısı.
 
 ## Kurulum
 
-1. `release/DwgGoruntuleyici.apk` dosyasını telefona indirin. Geliştirme
-   dalı `claude/dwg-viewer-apk-ykjk7a` üzerindeki güncel nüsha:
+1. İki çeşit vardır (bkz. "Ücretsiz ve Pro sürüm"): **Pro**
+   `release/DwgGoruntuleyici.apk` (paket `com.mahmuttari.dwgviewer`; mevcut
+   kurulumlar bu çeşitle yerinde güncellenir) ve **Ücretsiz**
+   `release/DwgGoruntuleyici-Free.apk` (paket
+   `com.mahmuttari.dwgviewer.free`; ikisi aynı cihazda yan yana kurulabilir).
+   Geliştirme dalı `claude/dwg-viewer-apk-ykjk7a` üzerindeki güncel nüsha:
    https://github.com/mahmuttari/NetcadDevelop/raw/claude/dwg-viewer-apk-ykjk7a/DwgViewer/release/DwgGoruntuleyici.apk
    (GitHub Actions'taki *DwgGoruntuleyici-apk* çıktısı ve `v*` etiketli
-   sürümlerde GitHub Releases sayfası da aynı APK'yı verir).
+   sürümlerde GitHub Releases sayfası da aynı APK'ları verir).
 2. Dosyaya dokunun; Android "bilinmeyen kaynaklardan yükleme" izni
    isterse verin.
 3. Uygulama, dosya yöneticisi, e-posta ve WhatsApp'ta `.dwg` / `.dxf`
    dosyaları için "Birlikte aç" listesine kendiliğinden girer. Uygulama
    içindeki **sürüm denetimi** derlendiği dalın `release/version.json`
-   dosyasına bakar ve yeni sürüm varsa indirme bağlantısını açar.
+   (Pro) ya da `release/version-free.json` (Ücretsiz) dosyasına bakar ve
+   yeni sürüm varsa indirme bağlantısını açar.
 
 Gereksinim: Android 8.0 (API 26) ve güncel bir **Android System WebView**.
 İzinler: konum (GPS, isteğe bağlı), kamera (QR, isteğe bağlı), internet
@@ -29,6 +34,7 @@ verisi gönderilmez).
 
 | Alan | Özellik |
 |---|---|
+| **Ücretsiz ve Pro sürüm (v7.0)** | İki Gradle çeşidi (`productFlavors`, boyut `edition`): **Pro** — `com.mahmuttari.dwgviewer`, uygulama adı "DWG Görüntüleyici Pro", reklam yok, bütün özellikler; **Ücretsiz** — `com.mahmuttari.dwgviewer.free`, uygulama adı "DWG Görüntüleyici", yalnız görüntüleme + ölçme, AdMob **geçiş reklamı** (interstitial). İki çeşit aynı sürüm numarasını taşır (versionCode 23, versionName 7.0) ve aynı cihazda yan yana kurulabilir. `BuildConfig.EDITION` = `"pro"` / `"free"`; `BuildConfig.PRO_URL` (gradle.properties `PRO_URL`, boşsa deponun `release/DwgGoruntuleyici.apk` adresi) Ücretsiz'de "Pro sürüme geç" bağlantısıdır; `UPDATE_URL` çeşide göre `version.json` / `version-free.json`. Köprü: `Android.edition()`, `proUrl()`, `adsAvailable()`, `showAd(reason)` → `dwgApp.onAd(reason, shown)`. Arayüz (`edition.js`): `edition()` Android köprüsünden, tarayıcıda `window.__edition` (sınama) yoksa `pro`; `PRO_ONLY` kümesindeki özellikler Ücretsiz'de **hiç çizilmez** (Çiz ve Düzenle sekmeleri; Profil, 3B Taşı / Kot ata / Sil / 3B Polyline, DXF kaydet, Değişiklikler, PDF, Karşılaştır, Notlar, Geri al / Yinele karoları; Diğer menüsünde Notlar / Profil / Karşılaştır / PDF; belge ve Drive panelinde "Drive'a yükle"), `gate(id)` dolaylı yolları (komut satırı, klavye, `dwgApp` çağrıları) yükseltme kutusuyla keser ("Bu özellik Pro sürümde. Pro sürümü indirmek ister misiniz?" → Pro APK bağlantısı). Ücretsiz'de Diğer menüsünde **Pro sürüme geç**, Hakkında'da sürüm satırında "Ücretsiz" / "Pro", karşılama kartında açıklama satırı ve Pro düğmesi. Reklam düzeni (yalnız Ücretsiz): her belge açılışında `showAd('open')`; belge açıkken ve sayfa görünürken son gösterimden **5 dakika** sonra `showAd('interval')` (denetim 15 s'de bir; Java tarafı iki gösterim arasına en az 60 s koyar); sınama kancası `dwgApp.__ads.tick(now)` / `state()`. AdMob test kimlikleri `gradle.properties` içindedir; yayın öncesi gerçek uygulama ve reklam birimi kimlikleriyle değiştirilir. Google ile giriş: Ücretsiz çeşidin kendi OAuth istemcisi (`GOOGLE_CLIENT_ID_FREE`, paket adı `.free`) ve kendi yönlendirme şeması vardır — yan yana kurulumda Google'dan dönen intent yanlış uygulamaya gitmez |
 | Dosya | DWG R13 – 2018 (AC1012 … AC1032), ASCII DXF (kod sayfası çözümlemeli, Türkçe karakterler); son dosyalar listesi küçük resimle; sunucudan (JSON liste / dizin / doğrudan adres) indirme ve çevrimdışı kopya; QR ile pafta açma |
 | Gezinme | kaydırma, iki parmakla yakınlaştırma, çift dokunma, tümünü sığdır, **sayfa düzenleri** (layout sekmeleri, görünüm pencereleri kırpılarak model uzayı içeri çizilir), kayıtlı görünümler |
 | Görünüm | katman paneli (arama, toplu aç/kapa), koyu/açık arka plan, tek renk, **çizgi kalınlıkları**, çizgi tipleri, yazı stilleri (STYLE tablosu), yazı gizleme |
@@ -66,6 +72,21 @@ verisi gönderilmez).
 | **Ölçüm araçları** | mesafe (yatay, ΔX/ΔY/ΔZ, 3B, açı), alan (m², dekar, hektar; çevre), açı (3 nokta), yarıçap/çap/çevre, koordinat (XYZ + enlem/boylam + kopyalama) |
 | **3B görünüm (araçlar)** | 3B mesafe (yatay, ΔZ, eğim), seçim, 3B taşıma, kot atama, silme, 3B polyline (köşeye dokunarak ya da `x,y,z` yazarak); köşe yakalama. Görsel stiller, kamera, ızgara, kesit ve görünüm ön ayarları için "Ekran seçenekleri (3B)" satırına bakın |
 | **Kaydetme** | **DXF** (AC1015): tüm çizim (bloklar patlatılmış, katmanlar ve çizgi tipleri korunur) ya da yalnız değişiklikler; paylaşım menüsüyle e-posta/WhatsApp/Drive'a gönderme |
+
+Ücretsiz ve Pro sürüm özellik ayrımı:
+
+| Özellik | Ücretsiz | Pro |
+|---|---|---|
+| DWG / DXF / PDF / Word / Excel / ZIP / RAR açma (cihaz, Drive, sunucu, QR, arşiv), son dosyalar, Dosya Aç merkezi | ✓ | ✓ |
+| Katmanlar, arama, çizim bilgisi, kayıtlı görünümler, sayfa düzenleri, GPS, harita altlığı, xref ekleme, Ekran ayarları | ✓ | ✓ |
+| Ölçü: mesafe, alan, açı, yarıçap, koordinat; yakalama, ızgara, artı imleç | ✓ | ✓ |
+| PNG kaydetme | ✓ | ✓ |
+| 3B görüntüleme: görsel stiller, kamera, kesit, 3B mesafe ve seçim | ✓ | ✓ |
+| Çizim (çizgi, polyline, dikdörtgen, daire, yay, nokta, yazı, 3B polyline, 3B yüzey), geçerli katman / renk | – | ✓ |
+| Düzenleme (seç, taşı, kopyala, döndür, ölçekle, aynala, ofset, sil, kot ata, yazı düzenle, özellikler), geri al / yinele, 3B taşı / kot ata / sil | – | ✓ |
+| Profil / eğim, notlar (redline), revizyon karşılaştırma | – | ✓ |
+| DXF kaydetme (tümü / yalnız değişiklikler), PDF oluşturma, Drive'a yükleme | – | ✓ |
+| Reklam | açılışta + 5 dakikada bir geçiş reklamı | yok |
 
 Çizilen varlıklar: LINE, LWPOLYLINE, POLYLINE (2B/3B/çok yüzlü), CIRCLE,
 ARC, ELLIPSE, SPLINE, POINT, TEXT, MTEXT, ATTRIB, INSERT (iç içe, dizili,
@@ -146,7 +167,9 @@ tarafında da iptal eder.
 
 ```
 cd DwgViewer
-./gradlew assembleRelease        # app/build/outputs/apk/release/app-release.apk
+./gradlew assembleProRelease     # app/build/outputs/apk/pro/release/app-pro-release.apk  → release/DwgGoruntuleyici.apk
+./gradlew assembleFreeRelease    # app/build/outputs/apk/free/release/app-free-release.apk → release/DwgGoruntuleyici-Free.apk
+./gradlew assembleRelease        # iki çeşit birden
 ```
 
 JDK 17+, Android SDK (platform 34, build-tools 34.0.0), Gradle 8.14.3 ve
@@ -162,8 +185,10 @@ değişikliğinde sürüm eşitliğini denetler (`tools/release_check.mjs
 --no-apk`), tarayıcısız sınamayı koşturur, APK'yı derleyip *artifact*
 olarak yükler; `v*` etiketli push'ta APK'yı GitHub Release'e ekler.
 
-Yeni sürüm çıkarırken üç yer birlikte güncellenir: `app/build.gradle`
-(`versionCode`, `versionName`), `release/version.json` ve README başlığı;
+Yeni sürüm çıkarırken dört yer birlikte güncellenir: `app/build.gradle`
+(`versionCode`, `versionName`; iki çeşit de aynı numarayı taşır),
+`release/version.json` (Pro), `release/version-free.json` (Ücretsiz;
+`url` alanı `DwgGoruntuleyici-Free.apk`'ya işaret eder) ve README başlığı;
 `node tools/release_check.mjs` bunları ve `release/DwgGoruntuleyici.apk`
 içindeki görüntüleyici dosyalarının kaynakla bayt bayt aynı olduğunu
 doğrular.
@@ -201,6 +226,7 @@ satırıyla biter ve kalan varsa 1 ile çıkar.
 | `test_solids.mjs` | AcDs katıları (2013/2018), yüzey varlıkları, çok yüzlü ağlar, blok Z, 3B en-boy pikseli, görsel stil piksel ölçümleri |
 | `test_proxy.mjs` | proxy grafik akışı (tarayıcısız, sentetik) |
 | `test_docs.mjs` | ZIP/DOCX/XLSX/PDF, Drive köprü taklidi, 3B stiller ve parmak hareketleri |
+| `test_edition.mjs` | Ücretsiz / Pro sürüm: sahte Android köprüsüyle (edition, showAd, proUrl, openUrl) Ücretsiz'de sekme / karo / menü gizleme, karşılama kartı, gate() yükseltme kutusu (Vazgeç / kuyruklu hayır-evet), dolaylı yollar (act, setMode, menü, Ctrl+Z, Drive yükleme, 3B polyline), reklam zamanlaması (`__ads.tick`: açılış, 5 dk, onAd sonrası); Pro'da kısıt ve reklam olmaması; `edition()` önceliği (Android köprüsü > `window.__edition` > pro, geçersiz köprü değeri düşer) |
 | `test_open.mjs` | Dosya Aç merkezi: tarayıcıda sanal klasör ağacı, Son / sık kullanılan, süzgeç, sıralama, arama; sahte Android köprüsüyle kök / kırıntı / arama / fsOpen / fsSlot / çevrimdışı |
 
 RAR (junrar), gerçek Google Drive ve Android PdfRenderer yalnız cihazda
@@ -232,6 +258,7 @@ RAR (junrar), gerçek Google Drive ve Android PdfRenderer yalnız cihazda
 | 6.5 | 20 | 2026-09-12 | DWG XDATA (EED) doğrudan okunur, LEADER ölçü stili ve ok boyutu, kalınlıklar kapalıyken kılçık çizgi |
 | 6.6 | 21 | 2026-09-12 | Görsel simge seti: dolgulu piktogramlar, cetvelli ölçü simgeleri, telefonda simge + yazılı sekmeler, büyütülmüş kutucuk simgeleri |
 | 6.7 | 22 | 2026-09-12 | Dosya Aç merkezi: Son / Cihaz (kalıcı izinli klasörler, arama, süzgeç, sıralama) / Çevrimdışı sekmeleri, sık kullanılanlar, seçim kipi; Sunucu · Drive · QR çipleri |
+| 7.0 | 23 | 2026-09-12 | Ücretsiz ve Pro sürüm: iki Gradle çeşidi (`com.mahmuttari.dwgviewer` Pro, `.free` Ücretsiz), Ücretsiz'de yalnız görüntüleme + ölçme ve AdMob geçiş reklamı (açılışta + 5 dakikada bir), Pro'da bütün özellikler; `edition.js` kapısı, "Pro sürüme geç" bağlantısı, `version-free.json` |
 
 ## QR kod biçimi
 

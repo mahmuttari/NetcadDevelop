@@ -12,6 +12,7 @@ import { S, store, fmt } from './state.js';
 import { t } from './i18n.js';
 import { kindOf, iconFor } from './docs.js';
 import { askText, askConfirm } from './dialog.js';
+import { gate } from './edition.js';
 
 const $ = (id) => document.getElementById(id);
 const tt = (k, tr) => { const v = t(k); return v === k ? tr : v; };
@@ -127,7 +128,7 @@ async function onClick(ev) {
     else if (k === 'root') { nav.folder = b.dataset.id; nav.crumbs = []; nav.q = ''; const inp = $('driveSearch'); if (inp) inp.value = ''; load(); }
     else if (k === 'crumb') { const i = +b.dataset.i; const c = nav.crumbs[i]; nav.crumbs = nav.crumbs.slice(0, i + 1); nav.folder = c.id; load(); }
     else if (k === 'more') load(true);
-    else if (k === 'upload') uploadMenu();
+    else if (k === 'upload') { if (gate('driveUpload')) uploadMenu(); }
     else if (k === 'mkdir') { const name = await askText(tt('folderName', 'Klasör adı:'), ''); if (name) { try { await call('mkdir', { name, parent: nav.folder }); api.toast(tt('folderCreated', 'Klasör oluşturuldu'), { type: 'ok' }); load(); } catch (e) { api.toast(e.message, { type: 'error' }); } } }
     else if (k === 'refresh') load();
     else if (k === 'pickhere') { const p = nav.pick; nav.pick = null; if (p && p.fn) p.fn(nav.folder === 'shared' || nav.folder === 'recent' || nav.folder === 'starred' ? 'root' : nav.folder); }
@@ -175,6 +176,7 @@ function uploadMenu() {
 function mimeOf(name) { const e = String(name).toLowerCase().split('.').pop(); return { dwg: 'application/acad', dxf: 'application/dxf', pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', zip: 'application/zip' }[e] || 'application/octet-stream'; }
 /** args: { b64 | src:'current' | fileId, name, mime, folder } */
 export async function upload(args) {
+  if (!gate('driveUpload')) return null;
   api.toast(tt('uploading', 'Yükleniyor') + ': ' + args.name, 60000);
   try {
     const r = await call('upload', args);
@@ -185,6 +187,7 @@ export async function upload(args) {
 }
 /** Klasör seçtirerek yükler */
 export function uploadWithPicker(args) {
+  if (!gate('driveUpload')) return;
   const last = store.json('drive:last', null);
   open({ folder: last ? last.folder : 'root', crumbs: last ? last.crumbs : [], pick: { label: tt('pickFolderFor', 'Yükleme hedefi') + ': ' + args.name, fn: (folder) => { close(); upload({ ...args, folder }); } } });
 }

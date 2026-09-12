@@ -115,6 +115,8 @@ public class MainActivity extends Activity {
     // belgeler (PDF / Word / ZIP / RAR) ve Google Drive
     private Docs docs;
     private GoogleDrive google;
+    /** Reklam: Ücretsiz çeşitte AdMob geçiş reklamı, Pro'da boş sınıf (kaynak kümesine göre) */
+    private Ads ads;
     private final java.util.concurrent.ExecutorService bg = java.util.concurrent.Executors.newSingleThreadExecutor();
     /** Klasör gezgini (fsList/fsSearch) kendi yürütücüsünde: Drive yüklemesi ya da önbellek kopyasının arkasında sıraya girmez */
     private final java.util.concurrent.ExecutorService fsExec = java.util.concurrent.Executors.newSingleThreadExecutor();
@@ -137,6 +139,8 @@ public class MainActivity extends Activity {
         }
         docs = new Docs(this);
         google = new GoogleDrive(this);
+        ads = new Ads(this);
+        ads.init();
         bg.execute(() -> docs.sweep());
         createWebView();
 
@@ -814,6 +818,18 @@ public class MainActivity extends Activity {
         @JavascriptInterface public String updateUrl() { return BuildConfig.UPDATE_URL; }
         /** Derleme kimliği: kısa git commit numarası ('yok' ise git bulunamadı) */
         @JavascriptInterface public String buildId() { return BuildConfig.GIT_SHA; }
+        /** Sürüm çeşidi: "pro" | "free" (JS özellik kapılarını buna göre kurar) */
+        @JavascriptInterface public String edition() { return BuildConfig.EDITION; }
+        /** Ücretsiz sürümdeki "Pro sürüme geç" bağlantısı */
+        @JavascriptInterface public String proUrl() { return BuildConfig.PRO_URL; }
+        /** Ücretsiz çeşitte ve yüklü bir geçiş reklamı hazırsa true; Pro'da her zaman false */
+        @JavascriptInterface public boolean adsAvailable() { return ads != null && ads.ready(); }
+        /** Geçiş reklamı isteği (reason: "open" | "interval"); sonuç JS'e onAd(reason, shown) ile döner */
+        @JavascriptInterface
+        public void showAd(String reason) {
+            final String r = reason == null ? "" : reason;
+            runOnUiThread(() -> ads.show(r, shown -> js("window.dwgApp && window.dwgApp.onAd(" + JSONObject.quote(r) + "," + shown + ")")));
+        }
         /** Kalıcı izin reddinde uygulamanın sistem ayarları sayfası */
         @JavascriptInterface
         public void openAppSettings() {
@@ -1225,6 +1241,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         stopLocation();
+        if (ads != null) ads.destroy();
         if (docs != null) docs.closePdf();
         bg.shutdown();
         fsExec.shutdownNow();

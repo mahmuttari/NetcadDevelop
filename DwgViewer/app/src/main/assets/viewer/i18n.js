@@ -102,12 +102,16 @@ export const TR = {
   diameter: 'Çap', supplement: 'Tümleyen', arm1: 'Kol 1', arm2: 'Kol 2', snapLbl: 'Yakalama', latLon: 'Enlem / Boylam', keepOriginals: 'Orijinal nesneler kalsın mı?', offsetFail: 'Ofset uygulanamadı', applied: 'uygulandı', selEmpty: 'Seçim boş', cornersN: 'Köşe', areaM2: 'Alan (m²)', areaDa: 'Alan (da)', areaHa: 'Alan (ha)',
   // belgeler, Drive, projeksiyon
   blocksOfFirst: 'bloğun ilk', rowsOfFirst: 'satırın ilk', boolTrue: 'DOĞRU', boolFalse: 'YANLIŞ', gdocDoc: 'Google Dokümanlar', gdocSheet: 'Google E-Tablolar', gdocSlide: 'Google Slaytlar', crsNone: 'Tanımsız / yerel', wmsCustom: 'Özel WMS (EPSG:3857)', xyzCustom: 'Özel XYZ karo adresi', osmAttr: '© OpenStreetMap katkıda bulunanlar',
+  welcomeTextFree: 'AutoCAD DWG ve DXF çizimlerini telefonda açar (R13 – 2018+) ve ölçer; PDF, Word, Excel, ZIP ve RAR dosyalarını görüntüler; Google Drive\'dan dosya açar. Katmanlar, arama, GPS konumu, 3B görünüm.',
   // Dosya Aç merkezi (open.js)
   openCenter: 'Dosya Aç', openSystem: 'Sistem dosya seçici', openTabRecent: 'Son', openTabDevice: 'Cihaz', openTabOffline: 'Çevrimdışı', openTabServer: 'Sunucu', openSearchPh: 'Dosya ara…', openKind: 'Tür',
   openKindAll: 'Tümü', openKindCad: 'Çizim', openKindOffice: 'Ofis', openKindArchive: 'Arşiv', openKindImage: 'Resim', openSortTime: 'Tarihe göre', openSortSize: 'Boyuta göre', openGrid: 'Izgara görünümü', openList: 'Liste görünümü',
   openFavs: 'Sık kullanılanlar', openRemove: 'Listeden kaldır', openNoRecent: 'Henüz dosya açılmadı.', openRecentGone: 'Bu dosya bu oturumda artık yok.', openAllRecent: 'Tümü…', openFolder: 'Klasör', openPickRoot: 'Bir klasör seçin.',
   openAddFolder: 'Klasör ekle', openAddDownloads: 'İndirilenler\'den klasör ekle', openDlHint: 'Android 11 ve üstünde İndirilenler\'in kendisi seçilemez; içindeki bir alt klasörü seçin (Android/data seçilemez).', openNoRoots: 'Bir klasör ekleyin: erişim izni bir kez istenir ve kalıcıdır; klasördeki dosyalar kopyalanmadan buradan açılır.', openBrowserFolder: 'Tarayıcıda bir klasör seçin; dosyalar bu oturumda buradan açılır.',
   openRootGone: 'Erişim izni kaybolmuş', openRootGoneMsg: 'Bu klasörün erişim izni kaybolmuş (cihaz sıfırlama ya da izin kaldırma). Yeniden ekleyerek izni yenileyin.', openRenew: 'İzni yenile', openRemoveRoot: 'Klasörü listeden çıkar', openTruncated: 'Arama sonuçları kısaltıldı; daha belirgin bir ad yazın.', openEmptyDir: 'Klasör boş', openSearching: 'Aranıyor…',
+  // sürüm çeşidi (edition.js)
+  editionFree: 'Ücretsiz', editionPro: 'Pro', goPro: 'Pro sürüme geç', proOnly: 'Bu özellik Pro sürümde.', proAsk: 'Pro sürümü indirmek ister misiniz?',
+  freeLine: 'Ücretsiz sürüm: görüntüleme ve ölçme. Çizim, düzenleme, notlar, DXF/PDF çıktısı ve Drive\'a yükleme Pro sürümde.', proOpenFail: 'Pro sürüm bağlantısı açılamadı', proUrlCopied: 'Pro sürüm bağlantısı panoya kopyalandı',
   openOfflineAndroid: 'Çevrimdışı kopyalar Android uygulamasında tutulur: sunucudan indirilen paftalar ve "Çevrimdışı sakla" ile alınan belgeler burada listelenir.', openNoOffline: 'Çevrimdışı kopya yok.', openPickHint: 'Dosyaya dokunarak seçin', openOfflineLink: 'Çevrimdışı kopyalar → Dosya Aç',
 };
 export const EN = {
@@ -213,12 +217,16 @@ export const EN = {
   diameter: 'Diameter', supplement: 'Supplement', arm1: 'Arm 1', arm2: 'Arm 2', snapLbl: 'Snap', latLon: 'Lat / Lon', keepOriginals: 'Keep the original objects?', offsetFail: 'Offset could not be applied', applied: 'applied', selEmpty: 'Selection is empty', cornersN: 'Vertices', areaM2: 'Area (m²)', areaDa: 'Area (da)', areaHa: 'Area (ha)',
   // documents, Drive, projection
   blocksOfFirst: 'blocks, first', rowsOfFirst: 'rows, first', boolTrue: 'TRUE', boolFalse: 'FALSE', gdocDoc: 'Google Docs', gdocSheet: 'Google Sheets', gdocSlide: 'Google Slides', crsNone: 'Undefined / local', wmsCustom: 'Custom WMS (EPSG:3857)', xyzCustom: 'Custom XYZ tile URL', osmAttr: '© OpenStreetMap contributors',
+  welcomeTextFree: 'Opens AutoCAD DWG and DXF drawings on your phone (R13 – 2018+) and measures them; views PDF, Word, Excel, ZIP and RAR files; opens files from Google Drive. Layers, search, GPS position, 3D view.',
   // Open file center (open.js)
   openCenter: 'Open file', openSystem: 'System file picker', openTabRecent: 'Recent', openTabDevice: 'Device', openTabOffline: 'Offline', openTabServer: 'Server', openSearchPh: 'Search files…', openKind: 'Type',
   openKindAll: 'All', openKindCad: 'Drawing', openKindOffice: 'Office', openKindArchive: 'Archive', openKindImage: 'Image', openSortTime: 'By date', openSortSize: 'By size', openGrid: 'Grid view', openList: 'List view',
   openFavs: 'Favorites', openRemove: 'Remove from list', openNoRecent: 'No files opened yet.', openRecentGone: 'This file is no longer available in this session.', openAllRecent: 'All…', openFolder: 'Folder', openPickRoot: 'Pick a folder.',
   openAddFolder: 'Add folder', openAddDownloads: 'Add a folder under Downloads', openDlHint: 'On Android 11 and later the Downloads folder itself cannot be picked; pick a subfolder inside it (Android/data cannot be picked).', openNoRoots: 'Add a folder: access permission is asked once and kept; files in it open from here without copying.', openBrowserFolder: 'Pick a folder in the browser; its files open from here during this session.',
   openRootGone: 'Permission lost', openRootGoneMsg: 'Access to this folder was lost (device reset or permission revoked). Add it again to renew the permission.', openRenew: 'Renew permission', openRemoveRoot: 'Remove folder from list', openTruncated: 'Search results were truncated; type a more specific name.', openEmptyDir: 'Empty folder', openSearching: 'Searching…',
+  // edition (edition.js)
+  editionFree: 'Free', editionPro: 'Pro', goPro: 'Get the Pro version', proOnly: 'This feature is in the Pro version.', proAsk: 'Download the Pro version?',
+  freeLine: 'Free version: viewing and measuring. Drawing, editing, notes, DXF/PDF export and Drive upload are in the Pro version.', proOpenFail: 'Could not open the Pro version link', proUrlCopied: 'Pro version link copied to the clipboard',
   openOfflineAndroid: 'Offline copies are kept in the Android app: sheets downloaded from a server and documents saved with "Keep offline" are listed here.', openNoOffline: 'No offline copies.', openPickHint: 'Tap a file to pick it', openOfflineLink: 'Offline copies → Open file',
 };
 let dict = TR, lang = 'tr';

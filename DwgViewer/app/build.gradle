@@ -29,15 +29,19 @@ android {
         applicationId "com.mahmuttari.dwgviewer"
         minSdk 26
         targetSdk 34
-        versionCode 22
-        versionName "6.7"
+        versionCode 23
+        versionName "7.0"
 
         // Uygulama yalnız Türkçe ve İngilizce kaynak taşır (bağımlılıkların 85 dilde etiketi düşer)
         resourceConfigurations += ["tr", "en"]
 
-        // Sürüm denetimi derlendiği dalın version.json dosyasına bakar; derleme kimliği hata kaydında görünür
-        buildConfigField "String", "UPDATE_URL", "\"https://raw.githubusercontent.com/mahmuttari/NetcadDevelop/" + gitBranch + "/DwgViewer/release/version.json\""
+        // Derleme kimliği hata kaydında görünür (sürüm denetimi adresi UPDATE_URL çeşide göre aşağıda verilir)
         buildConfigField "String", "GIT_SHA", "\"" + gitSha + "\""
+
+        // Ücretsiz sürümün "Pro sürüme geç" bağlantısı: gradle.properties → PRO_URL; boşsa derlendiği daldaki Pro APK
+        def proUrl = (project.findProperty("PRO_URL") ?: "").toString().trim()
+        if (!proUrl) proUrl = "https://github.com/mahmuttari/NetcadDevelop/raw/" + gitBranch + "/DwgViewer/release/DwgGoruntuleyici.apk"
+        buildConfigField "String", "PRO_URL", "\"" + proUrl + "\""
 
         // Google ile giriş: gradle.properties → GOOGLE_CLIENT_ID (Android türü OAuth istemcisi).
         // Yönlendirme şeması istemci numarasından türetilir: com.googleusercontent.apps.<no>
@@ -46,6 +50,41 @@ android {
         buildConfigField "String", "GOOGLE_CLIENT_ID", "\"" + gcid + "\""
         buildConfigField "String", "GOOGLE_REDIRECT_SCHEME", "\"" + gscheme + "\""
         manifestPlaceholders = [googleRedirectScheme: gscheme]
+    }
+
+    // İki çeşit: Pro (mevcut paket adı, reklamsız, bütün özellikler) ve Ücretsiz (".free" eki, yalnız görüntüleme
+    // + ölçme, AdMob geçiş reklamı). Uygulama adı strings.xml'de değil burada verilir; sürüm denetimi her çeşidin
+    // kendi version*.json dosyasına bakar. Ads sınıfı src/free (AdMob) ve src/pro (boş) altında ayrı ayrı durur.
+    flavorDimensions "edition"
+    productFlavors {
+        pro {
+            dimension "edition"
+            isDefault true
+            buildConfigField "String", "EDITION", "\"pro\""
+            buildConfigField "String", "UPDATE_URL", "\"https://raw.githubusercontent.com/mahmuttari/NetcadDevelop/" + gitBranch + "/DwgViewer/release/version.json\""
+            resValue "string", "app_name", "DWG Görüntüleyici Pro"
+        }
+        free {
+            dimension "edition"
+            applicationIdSuffix ".free"
+            buildConfigField "String", "EDITION", "\"free\""
+            buildConfigField "String", "UPDATE_URL", "\"https://raw.githubusercontent.com/mahmuttari/NetcadDevelop/" + gitBranch + "/DwgViewer/release/version-free.json\""
+            resValue "string", "app_name", "DWG Görüntüleyici"
+            // AdMob kimlikleri gradle.properties'ten (boşsa Google'ın test kimlikleri; gerçek gelir üretmez)
+            def admobApp = (project.findProperty("ADMOB_APP_ID") ?: "").toString().trim() ?: "ca-app-pub-3940256099942544~3347511713"
+            def admobInt = (project.findProperty("ADMOB_INTERSTITIAL_ID") ?: "").toString().trim() ?: "ca-app-pub-3940256099942544/1033173712"
+            manifestPlaceholders += [admobAppId: admobApp]
+            buildConfigField "String", "ADMOB_INTERSTITIAL_ID", "\"" + admobInt + "\""
+            // Google ile giriş: Ücretsiz çeşidin KENDİ OAuth istemcisi (paket adı com.mahmuttari.dwgviewer.free) ve kendi
+            // yönlendirme şeması. İki çeşit aynı cihaza yan yana kurulabildiğinden şema Pro ile aynı olamaz: aynı şema
+            // Google'dan dönen intent'i iki uygulamaya da uydurur, kullanıcı ötekini seçerse kod PKCE doğrulayıcısı
+            // olmayan uygulamaya gider ve giriş kırılır.
+            def gcidF = (project.findProperty("GOOGLE_CLIENT_ID_FREE") ?: "").toString().trim()
+            def gschemeF = gcidF ? "com.googleusercontent.apps." + gcidF.split("\\.")[0] : "com.mahmuttari.dwgviewer.free.oauth"
+            buildConfigField "String", "GOOGLE_CLIENT_ID", "\"" + gcidF + "\""
+            buildConfigField "String", "GOOGLE_REDIRECT_SCHEME", "\"" + gschemeF + "\""
+            manifestPlaceholders += [googleRedirectScheme: gschemeF]
+        }
     }
 
     signingConfigs {
@@ -100,4 +139,6 @@ dependencies {
     implementation "androidx.core:core:1.13.1"
     // RAR arşivleri (RAR 2/3/4; RAR5 desteklenmez) — MIT lisanslı
     implementation "com.github.junrar:junrar:7.5.5"
+    // Yalnız Ücretsiz çeşit: AdMob geçiş reklamı ve UMP rıza formu (Pro APK'ya girmez)
+    freeImplementation "com.google.android.gms:play-services-ads:23.6.0"
 }
