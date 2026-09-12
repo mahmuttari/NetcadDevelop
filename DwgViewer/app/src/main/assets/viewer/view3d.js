@@ -425,14 +425,33 @@ export class View3D {
     }
     this.uploadPos('edges', out);
   }
-  /** yumuşak normaller: aynı konumu paylaşan üçgen normallerinin ortalaması (gerçekçi stil / yumuşak aydınlatma) */
+  /**
+   * Yumuşak normaller (gerçekçi stil / yumuşak aydınlatma): aynı konumu paylaşan üçgen normallerinin ortalaması,
+   * ama yalnız kırışıklık açısından (30°) küçük açı yapan komşular ortalanır — kutu köşelerinde dik yüzler
+   * birbirine karışmaz, düz yüzeyler düz kalır, silindir gibi kavisli yüzeyler yumuşar. Yön tutarsızlığı
+   * (ters sarım) için işaret hizalanır.
+   */
   _ensureSmooth() {
     const s = this.src.tris; if (!s || !s.pos || !s.nrm || this._smoothReady) return;
-    const pos = s.pos, nrm = s.nrm, n = pos.length / 3, acc = new Map(), keys = new Array(n);
-    const eps = Math.max(1e-9, this.radius * 1e-6);
-    for (let i = 0; i < n; i++) { const k = Math.round(pos[i * 3] / eps) + ',' + Math.round(pos[i * 3 + 1] / eps) + ',' + Math.round(pos[i * 3 + 2] / eps); keys[i] = k; let a = acc.get(k); if (!a) { a = [0, 0, 0]; acc.set(k, a); } const ref = a; const sgn = (ref[0] * nrm[i * 3] + ref[1] * nrm[i * 3 + 1] + ref[2] * nrm[i * 3 + 2]) < 0 ? -1 : 1; a[0] += sgn * nrm[i * 3]; a[1] += sgn * nrm[i * 3 + 1]; a[2] += sgn * nrm[i * 3 + 2]; }
+    const pos = s.pos, nrm = s.nrm, n = pos.length / 3, groups = new Map(), keys = new Array(n);
+    const eps = Math.max(1e-9, this.radius * 1e-6), cosT = Math.cos(30 * Math.PI / 180);
+    for (let i = 0; i < n; i++) { const k = Math.round(pos[i * 3] / eps) + ',' + Math.round(pos[i * 3 + 1] / eps) + ',' + Math.round(pos[i * 3 + 2] / eps); keys[i] = k; let g = groups.get(k); if (!g) { g = []; groups.set(k, g); } g.push(i); }
     const out = new Float32Array(n * 3);
-    for (let i = 0; i < n; i++) { const a = acc.get(keys[i]); const L = Math.hypot(a[0], a[1], a[2]) || 1; const sgn = (a[0] * nrm[i * 3] + a[1] * nrm[i * 3 + 1] + a[2] * nrm[i * 3 + 2]) < 0 ? -1 : 1; out[i * 3] = sgn * a[0] / L; out[i * 3 + 1] = sgn * a[1] / L; out[i * 3 + 2] = sgn * a[2] / L; }
+    for (let i = 0; i < n; i++) {
+      const nx = nrm[i * 3], ny = nrm[i * 3 + 1], nz = nrm[i * 3 + 2];
+      let ax = 0, ay = 0, az = 0;
+      const g = groups.get(keys[i]);
+      for (const j of g) {
+        const mx = nrm[j * 3], my = nrm[j * 3 + 1], mz = nrm[j * 3 + 2];
+        const d = nx * mx + ny * my + nz * mz;
+        if (Math.abs(d) < cosT) continue;                 // kırışıklık: farklı yüzey, ortalamaya girmez
+        const sg = d < 0 ? -1 : 1;                        // ters sarımlı komşu: işareti hizala
+        ax += sg * mx; ay += sg * my; az += sg * mz;
+      }
+      const L = Math.hypot(ax, ay, az);
+      if (L > 1e-12) { out[i * 3] = ax / L; out[i * 3 + 1] = ay / L; out[i * 3 + 2] = az / L; }
+      else { out[i * 3] = nx; out[i * 3 + 1] = ny; out[i * 3 + 2] = nz; }
+    }
     const gl = this.gl; gl.bindBuffer(gl.ARRAY_BUFFER, this._buf('tris', 'nrm2')); gl.bufferData(gl.ARRAY_BUFFER, out, gl.STATIC_DRAW);
     this._smoothReady = true;
   }
@@ -516,10 +535,12 @@ export class View3D {
   // kamera
   // ---------------------------------------------------------------------------------
   _fovK() { return Math.tan(26 * Math.PI / 180) / Math.tan(clamp(this.opts.fov, 10, 120) * Math.PI / 360); }
+  /** sığdırma çarpanı: izdüşüm yüksekliğe göre kurulduğundan dikey (dar) tuvalde genişliğe de sığması için uzaklık büyütülür */
+  _fitK() { const asp = this.cv.width / Math.max(1, this.cv.height); return this._fovK() * (asp > 0 && asp < 1 ? 1 / asp : 1); }
   /** sahneyi sığdırır (hedef = merkez) */
   fit({ animate = true } = {}) {
     this.pushHistory();
-    this._goto({ target: this.center.slice(), dist: this.radius * 2.2 * this._fovK() }, animate);
+    this._goto({ target: this.center.slice(), dist: this.radius * 2.2 * this._fitK() }, animate);
     this.pushHistory();
   }
   /** seçime sığdırır; seçim boşsa false */
@@ -540,7 +561,7 @@ export class View3D {
     if (!isFinite(bb[0])) return false;
     const r = Math.max(this.radius * 0.02, Math.hypot(bb[3] - bb[0], bb[4] - bb[1], bb[5] - bb[2]) / 2);
     this.pushHistory();
-    this._goto({ target: [(bb[0] + bb[3]) / 2, (bb[1] + bb[4]) / 2, (bb[2] + bb[5]) / 2], dist: r * 2.2 * this._fovK() }, animate);
+    this._goto({ target: [(bb[0] + bb[3]) / 2, (bb[1] + bb[4]) / 2, (bb[2] + bb[5]) / 2], dist: r * 2.2 * this._fitK() }, animate);
     this.pushHistory();
     return true;
   }

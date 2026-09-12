@@ -90,7 +90,7 @@ for (const f of ['example_2013.dwg', 'example_2018.dwg']) {
   const stylesDiffer = await page.evaluate(() => {
     const v = window.dwgApp.editor.view3d(); v.set('grid', false); v.set('axes', false); v.set('persp', false);
     const tris = window.dwgApp.state.scene.layouts[0].prims.filter(p => p.tri);
-    v.fitSelection(tris, { animate: false }); v.preset('iso', { animate: false });                      // katılara yaklaş: stil farkı ölçülebilsin
+    v.fitSelection(tris, { animate: false }); v.preset('iso', { animate: false }); v.zoom(1.6);         // katılara yaklaş: stil farkı ölçülebilsin (dikey tuvalde sığdırma geniş kalır)
     const snap = (st) => { v.set('style', st); v.render(); const c = document.createElement('canvas'); c.width = v.cv.width; c.height = v.cv.height; const g = c.getContext('2d'); g.drawImage(v.cv, 0, 0); return g.getImageData(0, 0, c.width, c.height).data; };
     const a = snap('wireframe'), b2 = snap('shaded'), c2 = snap('realistic'), d2 = snap('conceptual');
     const diff = (x, y) => { let n = 0; for (let k = 0; k < x.length; k += 16) if (Math.abs(x[k] - y[k]) + Math.abs(x[k + 1] - y[k + 1]) + Math.abs(x[k + 2] - y[k + 2]) > 30) n++; return n; };
@@ -127,6 +127,28 @@ for (const f of ['pface.dxf', 'pface_2000.dwg', 'pface_2018.dwg']) {
   ok(`4 ${f}: 3B yüzeyler var, HUD "Yüzey yok" demiyor`, i && i.tris >= 12 && !/Yüzey yok/.test(i.hud), i && `tris=${i.tris} ${i.hud}`);
   if (f.endsWith('.dxf')) ok(`4 ${f}: sınır kutusu küp + ağ (0..30, 0..10, 0..10)`, i && Math.abs(i.bb[0]) < 1e-6 && Math.abs(i.bb[3] - 30) < 1e-6 && Math.abs(i.bb[5] - 10) < 1e-6, i && i.bb.join(','));
   else ok(`4 ${f}: DWG çok yüzlü ağ üçgenleri (küp 12 + örnek 2), kenarlar kırışıklık süzgeciyle (küp 12, ağ sınırı 6)`, by['POLYLINE_PFACE:tri'] === 14 && by['POLYLINE_PFACE:path'] === 15 && by['POLYLINE_MESH:tri'] === 4 && by['POLYLINE_MESH:path'] === 6, JSON.stringify(by));
+}
+
+// ---- 5. yumuşak aydınlatma kırışıklık açısı: küpün düz yüzü gerçekçi stilde düz gölgelenmeli (köşe normalleri karışmaz) ----
+{
+  await open(path.join(out, 'kare.dxf'));
+  // kübü tek başına çizmek için DXF: 6 yüzlü 3DFACE küp
+  const cube = g(0, 'SECTION') + g(2, 'ENTITIES') + [[[0,0,0],[10,0,0],[10,10,0],[0,10,0]], [[0,0,10],[10,0,10],[10,10,10],[0,10,10]], [[0,0,0],[10,0,0],[10,0,10],[0,0,10]], [[10,0,0],[10,10,0],[10,10,10],[10,0,10]], [[10,10,0],[0,10,0],[0,10,10],[10,10,10]], [[0,10,0],[0,0,0],[0,0,10],[0,10,10]]].map(f => g(0, '3DFACE') + g(8, '0') + f.map((q, i) => g(10 + i, q[0]) + g(20 + i, q[1]) + g(30 + i, q[2])).join('')).join('') + g(0, 'ENDSEC') + g(0, 'EOF');
+  fs.writeFileSync(path.join(out, 'kup.dxf'), cube);
+  await open(path.join(out, 'kup.dxf'));
+  const r = await page.evaluate(() => {
+    const v = window.dwgApp.editor.view3d(); v.set('grid', false); v.set('axes', false); v.set('persp', false); v.set('style', 'realistic'); v.set('edges', 'none');
+    v.preset('isoNE', { animate: false }); v.fit({ animate: false }); v.render();
+    const cv = v.cv, c = document.createElement('canvas'); c.width = cv.width; c.height = cv.height; const gc = c.getContext('2d'); gc.drawImage(cv, 0, 0);
+    const dpr = cv.width / cv.clientWidth;
+    const px = (x, y, z) => { const p = v.project(x, y, z); const d = gc.getImageData(Math.round(p[0] * dpr), Math.round(p[1] * dpr), 1, 1).data; return [d[0], d[1], d[2]]; };
+    return { c: px(5, 5, 10), k1: px(1, 1, 10), k2: px(9, 9, 10), k3: px(9, 1, 10), side: px(10, 5, 5), sideK: px(10, 9.5, 9.5) };
+  });
+  const diff = (a, b) => Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]), Math.abs(a[2] - b[2]));
+  ok('5 gerçekçi stil: üst yüz düz gölgeli (merkez ≈ köşeler, fark ≤ 6/255)', diff(r.c, r.k1) <= 6 && diff(r.c, r.k2) <= 6 && diff(r.c, r.k3) <= 6, JSON.stringify(r));
+  ok('5 gerçekçi stil: yan yüz düz gölgeli', diff(r.side, r.sideK) <= 6, JSON.stringify([r.side, r.sideK]));
+  ok('5 gerçekçi stil: üst ve yan yüz farklı tonda (aydınlatma çalışıyor)', diff(r.c, r.side) >= 8, JSON.stringify([r.c, r.side]));
+  await page.screenshot({ path: `${out}/realistic_cube.png` });
 }
 
 console.log(`\nSONUÇ: ${pass} geçti, ${fail} kaldı; sayfa hataları: ${errors.length}`);
