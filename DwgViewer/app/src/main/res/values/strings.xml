@@ -6,6 +6,7 @@
     <string name="save_failed">Görüntü kaydedilemedi</string>
     <string name="open_failed">Dosya açılamadı</string>
     <string name="recent_gone">Dosya artık erişilebilir değil; listeden kaldırıldı</string>
+    <string name="folder_denied">Klasör erişim izni alınamadı</string>
     <string name="webview_restarted">Görüntüleyici yeniden başlatıldı (bellek yetmedi)</string>
     <string name="webview_crashed">Görüntüleyici çöktü ve yeniden başlatıldı</string>
     <string name="location_approx">Yaklaşık konum (kaba konum izni)</string>

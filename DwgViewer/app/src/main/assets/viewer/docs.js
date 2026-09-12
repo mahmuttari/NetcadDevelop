@@ -390,7 +390,7 @@ export function suspend() { if (!els || !els.view || els.view.hidden) return; el
 export function reopenLast() { const d = cur; if (d) show(d, { replace: true }); }
 export function lastArchive() { const all = [...stack, cur].filter(Boolean); return all.reverse().find(d => d.kind === 'zip' || d.kind === 'rar') || null; }
 function share(view) { if (cur && cur.id && A() && A().docShare) A().docShare(cur.id, !!view); }
-function keep() { if (cur && cur.id && A() && A().docKeep) { const r = A().docKeep(cur.id); api.toast(r ? tt('docKept', 'Çevrimdışı kopya alındı (Sunucudan indir › Çevrimdışı kopyalar)') : tt('docKeepFail', 'Kopyalanamadı')); } }
+function keep() { if (cur && cur.id && A() && A().docKeep) { const r = A().docKeep(cur.id); api.toast(r ? tt('docKept', 'Çevrimdışı kopya alındı (Dosya Aç › Çevrimdışı)') : tt('docKeepFail', 'Kopyalanamadı')); } }
 
 // ---- PDF -----------------------------------------------------------------------------
 async function showPdf(d) {

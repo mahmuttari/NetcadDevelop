@@ -19,6 +19,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 import android.provider.OpenableColumns;
 import android.provider.Settings;
@@ -52,6 +53,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -61,7 +63,8 @@ import java.util.Map;
  *  1. assets/viewer sayfasını sahte bir https kökünden sunar,
  *  2. seçilen / paylaşılan / indirilen dosyaları aynı kökte /file/<id> adresinde akıtır,
  *  3. dosya seçici, son dosyalar, pano, konum, kamera izni, PNG/PDF kaydetme ve
- *     paylaşma, indirme deposu, küçük resimler, ayar/not deposu ve hata kaydı için köprü sağlar.
+ *     paylaşma, indirme deposu, küçük resimler, ayar/not deposu ve hata kaydı için köprü sağlar,
+ *  4. SAF ağaç izniyle klasör gezgini (kökler, listeleme, arama, açma) köprüsü sunar.
  */
 public class MainActivity extends Activity {
 
@@ -69,9 +72,10 @@ public class MainActivity extends Activity {
     private static final String ORIGIN = "https://appassets.androidplatform.net";
     private static final String START_URL = ORIGIN + "/assets/viewer/index.html";
     private static final int REQ_PICK = 1001;
+    private static final int REQ_TREE = 1002;
     private static final int REQ_LOCATION = 2001;
     private static final int REQ_CAMERA = 2002;
-    private static final int RECENT_MAX = 12;
+    private static final int RECENT_MAX = 30;
     private static final String BUILD_ID = "v" + BuildConfig.VERSION_NAME + " (" + BuildConfig.VERSION_CODE + ", " + BuildConfig.GIT_SHA + ")";
 
     private static final Map<String, String> MIME = new HashMap<>();
@@ -112,6 +116,10 @@ public class MainActivity extends Activity {
     private Docs docs;
     private GoogleDrive google;
     private final java.util.concurrent.ExecutorService bg = java.util.concurrent.Executors.newSingleThreadExecutor();
+    /** Klasör gezgini (fsList/fsSearch) kendi yürütücüsünde: Drive yüklemesi ya da önbellek kopyasının arkasında sıraya girmez */
+    private final java.util.concurrent.ExecutorService fsExec = java.util.concurrent.Executors.newSingleThreadExecutor();
+    /** Son gönderilen fsSearch isteği; eskimiş bir arama her klasörden sonra buna bakıp vazgeçer (JS eski yanıtı zaten seq ile atar) */
+    private volatile String fsSearchLatest;
 
     // ---------------------------------------------------------------------------------------
     @Override
@@ -249,17 +257,23 @@ public class MainActivity extends Activity {
             }
         }
         if (uri == null) return false;
-        setCurrent(uri);
+        setCurrent(uri, false);
         return true;
     }
 
-    private void setCurrent(Uri uri) {
+    private void setCurrent(Uri uri, boolean underTree) { setCurrent(uri, underTree, null, -1); }
+
+    /**
+     * underTree=true: SAF ağaç izni altındaki belge — izin ağaçla yaşar; kalıcı izin denenmez, önbelleğe kopyalanmaz.
+     * knownName/knownSize verilmişse (klasör gezgini) sağlayıcı yeniden sorgulanmaz.
+     */
+    private void setCurrent(Uri uri, boolean underTree, String knownName, long knownSize) {
         currentUri = uri;
         currentFile = null;
-        currentName = queryName(uri);
-        currentSize = querySize(uri);
-        boolean persistable = false;
-        try {
+        currentName = knownName != null && !knownName.isEmpty() ? knownName : queryName(uri);
+        currentSize = knownSize >= 0 ? knownSize : querySize(uri);
+        boolean persistable = underTree;
+        if (!underTree) try {
             getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
             persistable = true;
         } catch (Exception ignored) { }
@@ -483,10 +497,16 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_TREE) {
+            // klasör seçimi (SAF ağaç izni); iptalde JS'e null döner
+            Uri tree = resultCode == RESULT_OK && data != null ? data.getData() : null;
+            if (tree == null) jsWhenReady("window.dwgApp && window.dwgApp.onFsRoot && window.dwgApp.onFsRoot(null)"); else onTreePicked(tree);
+            return;
+        }
         if (requestCode != REQ_PICK || resultCode != RESULT_OK || data == null || data.getData() == null) return;
         Uri uri = data.getData();
         if ("open".equals(pickPurpose)) {
-            setCurrent(uri);
+            setCurrent(uri, false);
             pushCurrentFile();
             return;
         }
@@ -548,6 +568,92 @@ public class MainActivity extends Activity {
     /** app.js ile aynı kural: ad_boyut, izin verilmeyen karakterler '_' */
     private static String fileKey(String name, long size) {
         return (name + "_" + size).replaceAll("[^\\w.-]+", "_");
+    }
+
+    // ---- klasör gezgini (SAF ağaç izni) ----------------------------------------------------
+    private static final Locale TR = new Locale("tr");
+    private static final String[] FS_PROJ = {DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE, DocumentsContract.Document.COLUMN_SIZE, DocumentsContract.Document.COLUMN_LAST_MODIFIED};
+
+    /** prefs "fs_roots": [{uri,name,time}] */
+    private JSONArray fsRootsLoad() { try { return new JSONArray(prefs().getString("fs_roots", "[]")); } catch (Exception e) { return new JSONArray(); } }
+    private void fsRootsSave(JSONArray a) { prefs().edit().putString("fs_roots", a.toString()).apply(); }
+
+    private JSONArray fsRootsWithout(String uri) throws org.json.JSONException {
+        JSONArray old = fsRootsLoad(), out = new JSONArray();
+        for (int i = 0; i < old.length(); i++) { JSONObject o = old.getJSONObject(i); if (!uri.equals(o.optString("uri"))) out.put(o); }
+        return out;
+    }
+
+    /** Ağaç kökünün görünen adı: ağaç belgesinin DISPLAY_NAME'i; yoksa kimliğin ':' sonrası son parçası; o da boşsa "Depolama" */
+    private String fsRootName(Uri tree) {
+        String id = null;
+        try {
+            id = DocumentsContract.getTreeDocumentId(tree);
+            Uri doc = DocumentsContract.buildDocumentUriUsingTree(tree, id);
+            try (Cursor c = getContentResolver().query(doc, new String[]{DocumentsContract.Document.COLUMN_DISPLAY_NAME}, null, null, null)) {
+                if (c != null && c.moveToFirst() && !c.isNull(0)) { String n = c.getString(0); if (n != null && !n.isEmpty()) return n; }
+            }
+        } catch (Exception e) { Log.w(TAG, "kök adı", e); }
+        if (id != null) {
+            String t = id.substring(id.lastIndexOf(':') + 1);           // "primary:Download" → "Download"
+            if (t.endsWith("/")) t = t.substring(0, t.length() - 1);
+            t = t.substring(t.lastIndexOf('/') + 1);
+            if (!t.isEmpty()) return t;
+        }
+        return "Depolama";
+    }
+
+    /** ACTION_OPEN_DOCUMENT_TREE sonucu: kalıcı izin alınır, prefs'e yazılır, JS'e kök nesnesi (ya da null) bildirilir */
+    private void onTreePicked(Uri tree) {
+        JSONObject me = null;
+        try {
+            getContentResolver().takePersistableUriPermission(tree, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            me = new JSONObject();
+            me.put("uri", tree.toString()); me.put("name", fsRootName(tree)); me.put("time", System.currentTimeMillis()); me.put("ok", true);
+            JSONArray out = new JSONArray(); out.put(me);   // aynı uri ikinci kez eklenmez, zamanı yenilenir
+            JSONArray rest = fsRootsWithout(tree.toString());
+            for (int i = 0; i < rest.length(); i++) out.put(rest.get(i));
+            fsRootsSave(out);
+        } catch (Exception e) {
+            Log.w(TAG, "ağaç izni", e);
+            me = null;
+            Toast.makeText(this, R.string.folder_denied, Toast.LENGTH_SHORT).show();
+        }
+        jsWhenReady("window.dwgApp && window.dwgApp.onFsRoot && window.dwgApp.onFsRoot(" + (me == null ? "null" : me.toString()) + ")");   // süreç öldürülüp yeniden yaratıldıysa sayfa henüz hazır değildir
+    }
+
+    /** Bir klasörün çocukları: [{id,name,dir,size,time,mime}]; gizli (.) girdiler atlanır; sıralama JS'te */
+    private JSONArray fsChildren(Uri root, String docId) throws Exception {
+        Uri kids = DocumentsContract.buildChildDocumentsUriUsingTree(root, docId);
+        JSONArray arr = new JSONArray();
+        try (Cursor c = getContentResolver().query(kids, FS_PROJ, null, null, null)) {
+            if (c == null) throw new IOException("klasör okunamadı");
+            // sütunlar adla bulunur: sağlayıcı projeksiyon sırasını korumak zorunda değildir (üçüncü taraf MatrixCursor)
+            int iId = c.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID), iName = c.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME);
+            int iMime = c.getColumnIndex(DocumentsContract.Document.COLUMN_MIME_TYPE), iSize = c.getColumnIndex(DocumentsContract.Document.COLUMN_SIZE), iTime = c.getColumnIndex(DocumentsContract.Document.COLUMN_LAST_MODIFIED);
+            while (c.moveToNext()) {
+                String name = c.isNull(iName) ? "" : c.getString(iName);
+                if (name.isEmpty() || name.startsWith(".")) continue;
+                String mime = iMime < 0 || c.isNull(iMime) ? "" : c.getString(iMime);
+                JSONObject o = new JSONObject();
+                o.put("id", c.getString(iId)); o.put("name", name); o.put("dir", DocumentsContract.Document.MIME_TYPE_DIR.equals(mime));
+                o.put("size", iSize < 0 || c.isNull(iSize) ? -1 : c.getLong(iSize)); o.put("time", iTime < 0 || c.isNull(iTime) ? 0 : c.getLong(iTime)); o.put("mime", mime);
+                arr.put(o);
+            }
+        }
+        return arr;
+    }
+
+    /** Eskimiş arama: JS'in bekleyen kaydı kapansın diye ok=false döner; JS o isteğin sırası geçtiği için yanıtı zaten atar */
+    private void fsCancelled(String reqId) {
+        js("window.dwgApp && window.dwgApp.onFs(" + JSONObject.quote(reqId) + ",false," + JSONObject.quote("iptal") + ")");
+    }
+
+    private String fsMessage(Throwable e) {
+        if (e instanceof SecurityException) return getString(R.string.folder_denied);
+        String m = e.getMessage();
+        return m == null || m.isEmpty() ? e.getClass().getSimpleName() : m;
     }
 
     // ---- konum -----------------------------------------------------------------------------
@@ -791,7 +897,8 @@ public class MainActivity extends Activity {
                     } else {
                         // erişilebilir mi?
                         try (InputStream in = getContentResolver().openInputStream(u)) { if (in == null) throw new IOException(); }
-                        setCurrent(u);
+                        // ağaç altındaki belge: izin ağaçla yaşar, kopya alınmaz
+                        setCurrent(u, DocumentsContract.isTreeUri(u));
                     }
                     pushCurrentFile();
                 } catch (Exception e) {
@@ -807,6 +914,126 @@ public class MainActivity extends Activity {
             try (FileOutputStream out = new FileOutputStream(new File(dir("thumbs"), safe(key) + ".png"))) {
                 out.write(Base64.decode(base64, Base64.DEFAULT));
             } catch (Exception e) { Log.w(TAG, "thumb", e); }
+        }
+
+        /** Son dosyalar kaydını siler; JS listeyi kendisi yeniden çizer */
+        @JavascriptInterface public void removeRecent(String uri) { MainActivity.this.removeRecent(uri); }
+
+        // ---- klasör gezgini (SAF ağaç izni) ---------------------------------------------
+        /** Kayıtlı kökler: [{uri,name,time,ok}] — ok=false: kalıcı izin kaybolmuş */
+        @JavascriptInterface
+        public String fsRoots() {
+            try {
+                java.util.Set<String> live = new java.util.HashSet<>();
+                for (android.content.UriPermission p : getContentResolver().getPersistedUriPermissions()) if (p.isReadPermission()) live.add(p.getUri().toString());
+                JSONArray a = fsRootsLoad();
+                for (int i = 0; i < a.length(); i++) { JSONObject o = a.getJSONObject(i); o.put("ok", live.contains(o.optString("uri"))); }
+                return a.toString();
+            } catch (Exception e) { return "[]"; }
+        }
+        /** Android API düzeyi: JS, İndirilenler açıklamasını (Android 11+ kökün kendisi seçilemez) yalnız ≥ 30'da gösterir */
+        @JavascriptInterface
+        public int sdkInt() { return Build.VERSION.SDK_INT; }
+        /** Klasör seçiciyi açar; sonuç dwgApp.onFsRoot(obj|null). hint 'download': seçici İndirilenler'de açılır.
+         *  Android 11+ (API 30) İndirilenler kökünün kendisini ve Android/data - Android/obb altını ACTION_OPEN_DOCUMENT_TREE ile
+         *  vermez; kullanıcı İndirilenler içindeki bir alt klasörü seçer. */
+        @JavascriptInterface
+        public void fsAddRoot(String hint) {
+            runOnUiThread(() -> {
+                Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+                i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+                if ("download".equals(hint)) // EXTRA_INITIAL_URI API 26+, minSdk 26
+                    i.putExtra(DocumentsContract.EXTRA_INITIAL_URI, Uri.parse("content://com.android.externalstorage.documents/document/primary%3ADownload"));
+                try { startActivityForResult(i, REQ_TREE); }
+                catch (Exception e) {
+                    Toast.makeText(MainActivity.this, R.string.open_failed, Toast.LENGTH_SHORT).show();
+                    js("window.dwgApp && window.dwgApp.onFsRoot && window.dwgApp.onFsRoot(null)");
+                }
+            });
+        }
+        /** Kökü bırakır: kalıcı izin geri verilir (hata yutulur), prefs'ten silinir */
+        @JavascriptInterface
+        public void fsRemoveRoot(String uri) {
+            try { getContentResolver().releasePersistableUriPermission(Uri.parse(uri), Intent.FLAG_GRANT_READ_URI_PERMISSION); } catch (Exception ignored) { }
+            try { fsRootsSave(fsRootsWithout(uri)); } catch (Exception ignored) { }
+        }
+        /** Klasör içeriği (arka planda); docId "" → ağaç kökü. Sonuç dwgApp.onFs(reqId, ok, {items:[…]} | "hata") */
+        @JavascriptInterface
+        public void fsList(String reqId, String rootUri, String docId) {
+            fsExec.execute(() -> {
+                String out; boolean ok = true;
+                try {
+                    Uri root = Uri.parse(rootUri);
+                    String id = docId == null || docId.isEmpty() ? DocumentsContract.getTreeDocumentId(root) : docId;
+                    JSONObject o = new JSONObject(); o.put("items", fsChildren(root, id)); out = o.toString();
+                } catch (Throwable e) { // OOM dâhil: uygulama kapanmaz, JS hata alır
+                    Log.w(TAG, "fsList", e); ok = false; out = JSONObject.quote(fsMessage(e));
+                }
+                js("window.dwgApp && window.dwgApp.onFs(" + JSONObject.quote(reqId) + "," + ok + "," + out + ")");
+            });
+        }
+        /** Özyinelemeli ad araması (BFS, derinlik ≤ 8, en çok 500 sonuç, 8 s). Sonuç {items:[…parent:"Klasör/Alt"], truncated} */
+        @JavascriptInterface
+        public void fsSearch(String reqId, String rootUri, String query) {
+            fsSearchLatest = reqId;
+            fsExec.execute(() -> {
+                if (!reqId.equals(fsSearchLatest)) { fsCancelled(reqId); return; } // kuyrukta beklerken yenisi geldi: hiç başlama
+                String out; boolean ok = true;
+                try {
+                    Uri root = Uri.parse(rootUri);
+                    String q = query == null ? "" : query.trim().toLowerCase(TR);
+                    JSONArray items = new JSONArray();
+                    boolean truncated = false;
+                    long deadline = System.currentTimeMillis() + 8000;
+                    java.util.ArrayDeque<Object[]> queue = new java.util.ArrayDeque<>(); // {docId, yol, derinlik}
+                    queue.add(new Object[]{DocumentsContract.getTreeDocumentId(root), "", 0});
+                    while (!queue.isEmpty() && !truncated) {
+                        if (!reqId.equals(fsSearchLatest)) { fsCancelled(reqId); return; } // eskimiş arama: yarıda kesilir
+                        if (System.currentTimeMillis() > deadline) { truncated = true; break; }
+                        Object[] cur = queue.poll();
+                        String path = (String) cur[1]; int depth = (Integer) cur[2];
+                        JSONArray kids;
+                        try { kids = fsChildren(root, (String) cur[0]); } catch (Exception e) { continue; } // erişilemeyen alt klasör atlanır
+                        for (int i = 0; i < kids.length(); i++) {
+                            JSONObject k = kids.getJSONObject(i);
+                            String name = k.getString("name");
+                            if (k.getBoolean("dir")) {
+                                if (depth < 8) queue.add(new Object[]{k.getString("id"), path.isEmpty() ? name : path + "/" + name, depth + 1});
+                                else truncated = true; // derinlik sınırı: sonuç eksik kalır
+                                continue;
+                            }
+                            if (!q.isEmpty() && !name.toLowerCase(TR).contains(q)) continue;
+                            k.put("parent", path);
+                            items.put(k);
+                            if (items.length() >= 500) { truncated = true; break; }
+                        }
+                    }
+                    JSONObject o = new JSONObject(); o.put("items", items); o.put("truncated", truncated); out = o.toString();
+                } catch (Throwable e) {
+                    Log.w(TAG, "fsSearch", e); ok = false; out = JSONObject.quote(fsMessage(e));
+                }
+                js("window.dwgApp && window.dwgApp.onFs(" + JSONObject.quote(reqId) + "," + ok + "," + out + ")");
+            });
+        }
+        /** Ağaç altındaki belgeyi geçerli dosya yapar (kopyalanmaz; izin ağaçla yaşar) ve JS'e yükletir */
+        @JavascriptInterface
+        public void fsOpen(String rootUri, String docId, String name, long size) {
+            runOnUiThread(() -> {
+                try {
+                    Uri u = DocumentsContract.buildDocumentUriUsingTree(Uri.parse(rootUri), docId);
+                    setCurrent(u, true, name, size);
+                    pushCurrentFile();
+                } catch (Exception e) {
+                    Log.w(TAG, "fsOpen", e);
+                    Toast.makeText(MainActivity.this, R.string.open_failed, Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
+        /** Ağaç altındaki belgeyi yuvaya koyar (karşılaştırma / xref / resim / yükleme); JS onFilePicked'i kendisi sürer */
+        @JavascriptInterface
+        public String fsSlot(String rootUri, String docId) {
+            Uri u = DocumentsContract.buildDocumentUriUsingTree(Uri.parse(rootUri), docId);
+            synchronized (slots) { String id = "slot_" + (++slotSeq); slots.put(id, u); return id; }
         }
 
         // indirme deposu
@@ -1000,6 +1227,7 @@ public class MainActivity extends Activity {
         stopLocation();
         if (docs != null) docs.closePdf();
         bg.shutdown();
+        fsExec.shutdownNow();
         if (Build.VERSION.SDK_INT >= 33 && backCallback != null) {
             getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback((android.window.OnBackInvokedCallback) backCallback);
             backCallback = null;

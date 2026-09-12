@@ -437,6 +437,48 @@ body.left-hand .cube { right: auto; left: 10px; }
 .drive-crumbs .chips { padding: 2px 0; }
 body.docmode #navFabs, body.docmode #dpad, body.docmode #cube3d { display: none !important; }
 
+/* --- Dosya Aç merkezi (open.js) --- */
+.open-panel { max-height: 70%; }
+.open-chips { padding: 6px 12px 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.open-chips::-webkit-scrollbar { display: none; }
+.open-chips .chip { flex: 0 0 auto; padding: 0 12px; }
+.open-tools { display: flex; gap: 6px; align-items: center; padding: 6px 12px 0; }
+.open-tools input[type=search] { flex: 1 1 90px; min-width: 0; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font-size: calc(14px * var(--fs)); min-height: 40px; }
+.open-tools select { flex: 0 1 auto; max-width: 30%; padding: 6px 4px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font-size: calc(12px * var(--fs)); min-height: 40px; }
+.open-tools .btn.icon.on { color: var(--accent); background: var(--btn-on); }
+.open-sec { font-weight: 700; font-size: calc(12px * var(--fs)); color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin: 8px 0 2px; }
+.open-roots { padding: 4px 0 6px; }
+.open-roots .chip { max-width: 100%; }
+.open-roots .chip.dim { opacity: .5; }
+.open-crumbs .chip { height: 40px; }   /* .doc-crumbs 36 px verir; dokunma hedefi ≥ 40 px */
+.open-crumbs .sp { flex: 1 1 auto; }
+.open-crumbs .lbtn { width: 40px; height: 40px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); }
+.open-item { min-height: 48px; }
+.open-item .nm { display: flex; flex-direction: column; line-height: 1.2; white-space: normal; }
+.open-item .nm > svg.ic { display: none; }
+.open-item.fav .nm > svg.ic { display: inline-block; width: 14px; height: 14px; color: var(--accent); position: absolute; }
+.open-item .nm { position: relative; }
+.open-item.fav .nm { padding-right: 18px; }
+.open-item.fav .nm > svg.ic { right: 0; top: 2px; }
+.open-meta { display: block; color: var(--muted); font-size: calc(11px * var(--fs)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.open-item.dim { opacity: .5; }
+.open-item .open-chev { transform: rotate(-90deg); color: var(--muted); }
+.open-thumb { width: 48px; height: 36px; border-radius: 6px; object-fit: cover; background: #0f141b; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; }
+.light .open-thumb, body[data-theme="sepia"] .open-thumb, body[data-theme="light"] .open-thumb { background: var(--btn); }
+.open-thumb.noimg svg.ic { color: var(--muted); }
+.open-acts { display: flex; gap: 6px; flex-wrap: wrap; padding: 6px 0 8px; border-bottom: 1px solid rgba(128,128,128,.12); }
+.open-acts .chip { height: 40px; }
+.open-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 8px; padding: 6px 0; }
+.open-tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 4px 8px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; min-height: 48px; }
+.open-tile .open-thumb { width: 96px; height: 72px; }
+.open-tile .nm, .open-tile .open-meta { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(11px * var(--fs)); }
+.open-tile > svg.ic { position: absolute; left: 6px; top: 6px; width: 14px; height: 14px; color: var(--accent); }
+.open-tile .lbtn { position: absolute; right: 0; top: 0; width: 40px; height: 40px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); }
+.open-tile.dim { opacity: .5; }
+.open-pick { margin: 6px 0 4px; }
+.open-warn { color: var(--accent); font-size: calc(12px * var(--fs)); padding: 2px 0 6px; }
+body.glove .open-item { min-height: 56px; }
+
 /* görsel stil ızgarası (açılır kutu) */
 .vs-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 4px 0 8px; }
 .vs-grid button { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 56px; min-height: 56px; border: 1px solid var(--line); border-radius: 10px; background: var(--btn); color: var(--fg); padding: 6px 2px; }

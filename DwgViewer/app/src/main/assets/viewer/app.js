@@ -17,6 +17,7 @@ import { askText, askConfirm, isOpen as askOpen, cancel as askCancel } from './d
 import { initEditor, onScene as editorScene, tap as editorTap, back as editorBack, overlay as editorOverlay, onResize as editorResize, onTheme as editorTheme, editor } from './editor.js';
 import * as Docs from './docs.js';
 import * as Drive from './drive.js';
+import * as Open from './open.js';
 
 const $ = (id) => document.getElementById(id);
 const A = () => window.Android || null;
@@ -1339,18 +1340,11 @@ function loadImageFile(handle, src) {
 // ---- sunucu / indirme --------------------------------------------------------------------
 function showServer() {
   const last = store.get('serverUrl') || '';
-  let html = kv([[t('serverUrl'), `<input id="srvUrl" value="${esc(last)}" placeholder="https://…/paftalar.json">`, 1], [`<div class="full btns"><button class="btn primary small" id="srvGo">${t('download')}</button></div>`], [`<div class="full" id="srvList"></div>`]]);
-  if (A() && A().listDownloads) {
-    let dl = [];
-    try { dl = JSON.parse(A().listDownloads() || '[]'); } catch (_) { dl = []; }
-    if (dl.length) html += `<div class="full"><strong>${t('cached')}</strong></div><div class="full list">` + dl.map(d => `<div class="item" data-dl="${esc(d.id)}">${esc(d.name)}<small>${fmt(d.size / 1024 / 1024, 2)} MB · ${new Date(d.time).toLocaleDateString('tr-TR')} · <a href="#" data-del="${esc(d.id)}">${t('delete')}</a></small></div>`).join('') + `</div>`;
-  }
+  const html = kv([[t('serverUrl'), `<input id="srvUrl" value="${esc(last)}" placeholder="https://…/paftalar.json">`, 1], [`<div class="full btns"><button class="btn primary small" id="srvGo">${t('download')}</button></div>`], [`<div class="full" id="srvList"></div>`],
+    [`<div class="full btns"><button type="button" class="btn small" id="srvOffline">${tt('openOfflineLink', 'Çevrimdışı kopyalar → Dosya Aç')}</button></div>`]]);   // çevrimdışı kopyalar artık Dosya Aç merkezinde (open.js)
   openDoc(t('server'), html);
   $('srvGo').onclick = () => fetchIndex($('srvUrl').value.trim());
-  $('docBody').onclick = (ev) => {
-    const del = ev.target.closest('[data-del]'); if (del) { ev.preventDefault(); A().deleteDownload(del.dataset.del); showServer(); return; }
-    const it = ev.target.closest('[data-dl]'); if (it) { A().openDownload(it.dataset.dl); hide('docPanel'); }
-  };
+  $('srvOffline').onclick = () => { hide('docPanel'); Open.open('offline'); };
 }
 async function fetchIndex(url) {
   if (!url) return;
@@ -1621,7 +1615,7 @@ async function setScene(scene, name, size) {
   Docs.suspend();
   if (S.mode !== 'view') setMode('view');
   if (S.notesOn) toggleNotes(false);
-  hide('empty'); hide('infoPanel'); hide('docPanel'); hide('searchPanel');
+  hide('empty'); hide('infoPanel'); hide('docPanel'); hide('searchPanel'); Open.close();
   showFileName(name);
   $('stCount').textContent = S.entityCount + ' ' + t('entity') + ' · ' + S.layers.size + ' ' + t('layerCount');
   { const sub = $('fileSub'); if (sub) sub.textContent = [S.entityCount + ' ' + t('entity'), S.units || null, S.version || null].filter(Boolean).join(' · '); }
@@ -1679,12 +1673,23 @@ async function onFilePicked(purpose, id, name, size) {
     }
   } catch (e) { fail(e); }
 }
+/** Dosya seçimi: fotoğraf doğrudan sistem seçicisine (kamera/galeri); ötekiler Android'de Dosya Aç merkezinin seçim kipine (köprü fsRoots varsa), tarayıcıda <input type=file> */
 function pickFile(purpose, mime) {
-  if (A() && A().pickFile) { A().pickFile(purpose, mime || '*/*'); return; }
+  if (A() && A().pickFile) {
+    if (purpose !== 'photo' && A().fsRoots) { Open.open('device', { pick: { purpose, mime: mime || '*/*' } }); return; }
+    A().pickFile(purpose, mime || '*/*'); return;
+  }
+  browserPick(purpose, mime);
+}
+function browserPick(purpose, mime) {
   const inp = document.createElement('input'); inp.type = 'file'; if (mime && mime !== '*/*') inp.accept = mime;
-  inp.onchange = async () => {
-    const f = inp.files && inp.files[0]; if (!f) return;
-    if (purpose === 'open') { if (Docs.isCad(f.name)) await loadBytes(await f.arrayBuffer(), f.name, f.size); else await Docs.openBlob(f); }
+  inp.onchange = () => { const f = inp.files && inp.files[0]; if (f) fileForPurpose(purpose, f); };
+  inp.click();
+}
+/** Tarayıcıda seçilen File nesnesini amacına göre işler (Android'deki onFilePicked karşılığı) */
+async function fileForPurpose(purpose, f) {
+  try {
+    if (purpose === 'open') { Open.noteFile(f); if (Docs.isCad(f.name) || Docs.kindOf(f.name) === 'other') await loadBytes(await f.arrayBuffer(), f.name, f.size); else await Docs.openBlob(f); }
     else if (purpose === 'compare') await setCompare(await f.arrayBuffer(), f.name);
     else if (purpose.startsWith('xref:')) await loadXref(Number(purpose.slice(5)), await f.arrayBuffer(), f.name);
     else if (purpose.startsWith('img:')) loadImageFile(purpose.slice(4), URL.createObjectURL(f));
@@ -1694,13 +1699,17 @@ function pickFile(purpose, mime) {
       addNote({ type: 'photo', pts: [pendingPhotoPoint], color: S.noteColor, photo: id, text: (await askText(t('notePrompt'), '', { multiline: true })) || '' });
       pendingPhotoPoint = null; drawOverlay();
     }
-  };
-  inp.click();
+  } catch (e) { fail(e); }
 }
-function openPicker() { if (A() && A().pickFile) A().pickFile('open', '*/*'); else $('fileInput').click(); }
-$('btnOpen').addEventListener('click', openPicker);
-$('btnOpen2').addEventListener('click', openPicker);
-$('fileInput').addEventListener('change', async (ev) => { const f = ev.target.files && ev.target.files[0]; if (!f) return; try { if (Docs.isCad(f.name) || Docs.kindOf(f.name) === 'other') await loadBytes(await f.arrayBuffer(), f.name, f.size); else await Docs.openBlob(f); } catch (e) { fail(e); } ev.target.value = ''; });
+/** Sistem dosya seçicisi (Dosya Aç merkezindeki düğme): Android'de Bridge.pickFile, tarayıcıda #fileInput ya da amaca özel <input> */
+function systemPick(purpose, mime) {
+  if (A() && A().pickFile) { A().pickFile(purpose || 'open', mime || '*/*'); return; }
+  if (!purpose || purpose === 'open') $('fileInput').click(); else browserPick(purpose, mime);
+}
+$('btnOpen').addEventListener('click', () => Open.open());
+$('btnOpen2').addEventListener('click', () => Open.open());
+{ const b = $('recentAll'); if (b) b.addEventListener('click', () => Open.open('recent')); }
+$('fileInput').addEventListener('change', async (ev) => { const f = ev.target.files && ev.target.files[0]; if (!f) return; await fileForPurpose('open', f); ev.target.value = ''; });
 
 // ---- son dosyalar --------------------------------------------------------------------------
 function buildRecent() {
@@ -1710,6 +1719,7 @@ function buildRecent() {
   $('recentWrap').hidden = !list.length;
   $('recentList').innerHTML = list.map((r, i) => `<div class="item" data-i="${i}">${r.thumb ? `<img src="/file/thumb_${esc(r.key)}?${r.time}">` : '<div class="noimg"></div>'}<div class="nm">${esc(r.name)}<div class="meta">${fmt(r.size / 1024 / 1024, 2)} MB · ${new Date(r.time).toLocaleString('tr-TR')}</div></div></div>`).join('');
   $('recentList').onclick = (ev) => { const it = ev.target.closest('.item'); if (it) A().openRecent(list[Number(it.dataset.i)].uri); };
+  Open.refresh();
 }
 
 // ---- geri tuşu --------------------------------------------------------------------------------
@@ -1719,6 +1729,7 @@ function onBack() {
   if (!$('moreMenu').hidden) { closeMenu(); return true; }
   if (zoomWin) { cancelZoomWindow(); return true; }
   if (!$('drivePanel').hidden) { Drive.close(); return true; }
+  if (Open.isOpen()) { Open.close(); return true; }
   if (Docs.isOpen()) { const open0 = openPanels(); if (open0.length) { for (const id of open0) hide(id); return true; } Docs.back(); return true; }
   if (S.gotoMarker) { S.gotoMarker = null; drawOverlay(); return true; }
   const open = openPanels();
@@ -1754,7 +1765,8 @@ window.dwgApp = { loadCurrent, onFilePicked, onLocation, onBack, loadBytes, zoom
   onLocationError: (m) => { const perm = /kalıcı olarak reddedildi|permanently denied/i.test(String(m)); const openSet = A() && A().openAppSettings ? () => A().openAppSettings() : null;
     toast('GPS: ' + m, perm && openSet ? { ms: 8000, action: { label: tt('settings', 'Ayarlar'), fn: openSet } } : undefined); },
   display: D, toast, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, savePng, getSettings: () => settings, requestRender, openDisplayOptions,
-  docs: Docs, drive: Drive, onGoogle: (ok, json) => Drive.onGoogle(ok, json), onDrive: (id, ok, json) => Drive.onDrive(id, ok, json), onDriveProgress: (id, d, tot) => Drive.onProgress(id, d, tot), openDrive: () => Drive.open() };
+  docs: Docs, drive: Drive, onGoogle: (ok, json) => Drive.onGoogle(ok, json), onDrive: (id, ok, json) => Drive.onDrive(id, ok, json), onDriveProgress: (id, d, tot) => Drive.onProgress(id, d, tot), openDrive: () => Drive.open(),
+  open: Open, openCenter: (tab) => Open.open(tab), onFsRoot: (obj) => Open.onFsRoot(obj), onFs: (id, ok, json) => Open.onFs(id, ok, json) };
 ensureStatusChips();
 D.initDisplay({ requestRender, drawOverlay, toast, openDoc, show, hide, buildLayerList, settings, saveSettings, editorTheme, zoomExtents, zoomBy, fitPrims, viewHistory, setLayout, editor, ui: uiPrefs(), basemaps: BASEMAPS, haptic });
 mountNavFabs(vp);
@@ -1764,12 +1776,14 @@ initEditor({ S, requestRender, drawOverlay, toast, noFaces: showNoFaces, pick: (
 $('stScale').addEventListener('click', showScalePicker);
 // belgeler (PDF / Word / ZIP / RAR) ve Google Drive
 Docs.initDocs({ toast, loadBytes, openDoc, hide, show, esc, kv, driveAvailable: () => Drive.signedIn(), driveUpload: (d) => { if (d && d.id) Drive.uploadWithPicker({ fileId: d.id, name: d.name, mime: 'application/octet-stream' }); }, driveConvert: (d) => Drive.convertToPdf(d),
-  onOpen: () => { closeMenu(); if (S.notesOn) toggleNotes(false); if (S.mode !== 'view') setMode('view'); hide('infoPanel'); }, onClose: () => { requestRender(); },
+  onOpen: () => { closeMenu(); Open.close(); if (S.notesOn) toggleNotes(false); if (S.mode !== 'view') setMode('view'); hide('infoPanel'); }, onClose: () => { requestRender(); },
   onCadFromArchive: () => { toast(tt('backToArchive', 'Arşive dön') + '?', { ms: 6000, action: { label: tt('backToArchive', 'Arşive dön'), fn: () => Docs.reopenLast() } }); } });
 Drive.initDrive({ toast, openDoc, hide, show, esc, kv, hideToast: () => { $('toast').hidden = true; }, openRegistered: (info) => Docs.openRegistered(info), openConverted: (info) => Docs.openConverted(info),
   dxfBytes: () => (editor.dxfBase64 ? editor.dxfBase64(false) : null), pngBytes: () => { savePng(); return lastPng; },
   pickForUpload: (folder) => pickFile('upload:' + folder, '*/*') });
 $('btnDrive').addEventListener('click', () => Drive.open());
+Open.initOpen({ toast, loadBytes, openBlob: (f) => Docs.openBlob(f), fileForPurpose, onFilePicked, showServer, startQr, openDrive: () => Drive.open(), systemPick, refreshRecent: buildRecent,
+  onOpen: () => { closeMenu(); Drive.close(); hide('docPanel'); } });
 // klavye (odak bir giriş alanında değilken): önce düzenleyici, sonra gezinti
 window.addEventListener('keydown', (ev) => {
   const tg = ev.target; if (tg && (tg.tagName === 'INPUT' || tg.tagName === 'TEXTAREA' || tg.tagName === 'SELECT' || tg.isContentEditable)) return;

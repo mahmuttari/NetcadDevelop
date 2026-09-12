@@ -112,6 +112,8 @@
     <symbol id="i-vs-gray" viewBox="0 0 24 24"><path d="M12 2l9 5-9 5-9-5z" fill-opacity="0.35"/><path d="M3 7l9 5v10l-9-5z" fill-opacity="0.55"/><path d="M21 7l-9 5v10l9-5z" fill-opacity="0.75"/><path d="M12 2l9 5v10l-9 5-9-5V7zM3 7l9 5 9-5M12 12v10" fill="none" stroke="currentColor" stroke-width="1"/></symbol>
     <symbol id="i-vs-sketchy" viewBox="0 0 24 24"><path d="M12 3.2l7.8 4.6v8.8L12.2 21 4.2 16.3V7.4zM4 7.5l8 4.5 8-4.5M12 12v9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M11.6 2.6l8.3 4.2-.2 9.4-7.6 4.7L3.7 16.7l.4-9.1zM4.6 7.9l7.7 4.6 7.5-4.9M11.7 11.6v9.2" fill="none" stroke="currentColor" stroke-width="2" opacity=".45"/></symbol>
     <symbol id="i-vs-xray" viewBox="0 0 24 24"><path d="M12 2l9 5v10l-9 5-9-5V7z" fill-opacity=".15"/><path d="M12 2l9 5v10l-9 5-9-5V7zM3 7l9 5 9-5M12 12v10M3 17l9-5 9 5M12 2v10" fill="none" stroke="currentColor" stroke-width="2" opacity=".65"/></symbol>
+    <symbol id="i-folder-add" viewBox="0 0 24 24"><path d="M2 4h7.5l2 2H22v4H2z"/><path fill-rule="evenodd" d="M2 11h20v9H2zm9 1.6v2.2H8.8v2h2.2V19h2v-2.2h2.2v-2H13v-2.2z"/></symbol>
+    <symbol id="i-sdcard" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M8.5 2H20v20H4V6.5zM7 4.5h1.6v4H7zm3.2 0h1.6v4h-1.6zm3.2 0H15v4h-1.6zm3.2 0h1.6v4h-1.6zM7 13v6h10v-6z"/></symbol>
     <symbol id="i-light" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2a7 7 0 0 0-4.5 12.4c.9.8 1.5 1.7 1.5 2.6h6c0-.9.6-1.8 1.5-2.6A7 7 0 0 0 12 2zm-1 4a4 4 0 0 0-3 3.3h1.8A2.3 2.3 0 0 1 11 7.8z"/><path d="M9 18.2h6v1.8H9zM10 21h4v1h-4z"/></symbol>
   </defs>
 </svg>
@@ -150,6 +152,7 @@
           <div id="recentWrap" hidden>
             <h3 data-i18n="recent">Son dosyalar</h3>
             <div id="recentList" class="recent"></div>
+            <button id="recentAll" class="btn small" data-i18n="openAllRecent" type="button">Tümü…</button>
           </div>
           <p class="hint" data-i18n="hint"></p>
         </div>
@@ -322,6 +325,24 @@
     <div class="drive-tools"><input id="driveSearch" type="search" data-i18n-ph="driveSearchPh" placeholder="Drive'da ara…"></div>
     <div id="driveCrumbs" class="drive-crumbs"></div>
     <div id="driveList" class="panel-body"></div>
+  </aside>
+
+  <!-- Dosya Aç merkezi (open.js): Son · Cihaz · Çevrimdışı; Sunucu / Drive / QR çipleri ilgili araca geçer -->
+  <aside id="openPanel" class="panel bottom open-panel" hidden role="dialog" aria-labelledby="openTitle">
+    <div class="panel-head">
+      <strong id="openTitle"><svg class="ic" aria-hidden="true"><use href="#i-open"/></svg> <span data-i18n="openCenter">Dosya Aç</span></strong>
+      <button type="button" class="btn icon" data-open="system" data-i18n-title="openSystem" data-i18n-aria="openSystem" aria-label="Sistem dosya seçici"><svg class="ic" aria-hidden="true"><use href="#i-export"/></svg></button>
+      <button type="button" class="btn icon close" data-open="close" data-i18n-aria="close" aria-label="Kapat"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
+    </div>
+    <div id="openChips" class="chips open-chips"></div>
+    <div class="open-tools">
+      <input id="openSearch" type="search" data-i18n-ph="openSearchPh" placeholder="Dosya ara…" autocomplete="off">
+      <select id="openKind" data-i18n-aria="openKind" aria-label="Tür"><option value="all" data-i18n="openKindAll">Tümü</option><option value="cad" data-i18n="openKindCad">Çizim</option><option value="pdf">PDF</option><option value="office" data-i18n="openKindOffice">Ofis</option><option value="archive" data-i18n="openKindArchive">Arşiv</option><option value="image" data-i18n="openKindImage">Resim</option></select>
+      <select id="openSort" data-i18n-aria="sortBy" aria-label="Sıralama"><option value="name" data-i18n="sortName">Ada göre</option><option value="time" data-i18n="openSortTime">Tarihe göre</option><option value="size" data-i18n="openSortSize">Boyuta göre</option></select>
+      <button type="button" class="btn icon" id="openGrid" data-open="grid" data-i18n-title="openGrid" data-i18n-aria="openGrid" aria-label="Izgara görünümü"><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg></button>
+    </div>
+    <div id="openBody" class="panel-body"></div>
+    <input id="folderInput" type="file" webkitdirectory multiple hidden>
   </aside>
 
   <!-- Diğer menüsü -->

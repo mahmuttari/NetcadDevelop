@@ -29,8 +29,8 @@ android {
         applicationId "com.mahmuttari.dwgviewer"
         minSdk 26
         targetSdk 34
-        versionCode 21
-        versionName "6.6"
+        versionCode 22
+        versionName "6.7"
 
         // Uygulama yalnız Türkçe ve İngilizce kaynak taşır (bağımlılıkların 85 dilde etiketi düşer)
         resourceConfigurations += ["tr", "en"]
