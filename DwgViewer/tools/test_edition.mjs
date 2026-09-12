@@ -81,9 +81,9 @@ const fakeBridge = (price) => {
     const ids = await ev(() => ({ undo: !!document.getElementById('tbUndo'), save: !!document.getElementById('tbSave'), layer: !!document.getElementById('tbLayer') }));
     ok('1i tbUndo / tbSave / tbLayer kimlikleri yok', !ids.undo && !ids.save && !ids.layer, JSON.stringify(ids));
   }
-  // Diğer menüsü
+  // Diğer menüsü (belge yokken ana ekran açıktır ve üst çubuk gizlidir: düğme programla tıklanır, menü ana ekranın üstünde açılır)
   {
-    await page.click('#btnMore'); await page.waitForTimeout(100);
+    await ev(() => document.getElementById('btnMore').click()); await page.waitForTimeout(100);
     const r = await ev(() => { const q = (a) => document.querySelector(`#moreMenu [data-act="${a}"]`); return { notes: q('notes').hidden, profile: q('profile').hidden, compare: q('compare').hidden, pdf: q('pdf').hidden, pro: q('pro').hidden, proVis: q('pro').offsetParent !== null, proText: q('pro').textContent.trim(), png: q('png').hidden, info: q('info').hidden, about: q('about').hidden }; });
     ok('1j Diğer menüsü: notes/profile/compare/pdf gizli, pro görünür', r.notes && r.profile && r.compare && r.pdf && !r.pro && r.proVis && r.proText === 'Pro sürüme geç' && !r.png && !r.info && !r.about, JSON.stringify(r));
     await shot('free_more_menu');

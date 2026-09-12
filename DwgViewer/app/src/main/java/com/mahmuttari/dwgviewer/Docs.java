@@ -69,8 +69,10 @@ public class Docs {
     public static String ext(String name) { int i = name.lastIndexOf('.'); return i < 0 ? "" : name.substring(i + 1).toLowerCase(); }
 
     /** Akışı önbelleğe kopyalar ve kaydeder; JSON {id,name,size,ext} döner */
-    public JSONObject importStream(InputStream in, String name) throws Exception {
-        File f = new File(cacheDir("docs"), System.currentTimeMillis() + "_" + safe(name));
+    public JSONObject importStream(InputStream in, String name) throws Exception { return importStream(in, name, "docs"); }
+    /** Aynısı, verilen önbellek alt dizinine (docs / webdav); alt dizin sweep listesinde olmalıdır */
+    public JSONObject importStream(InputStream in, String name, String sub) throws Exception {
+        File f = new File(cacheDir(sub), System.currentTimeMillis() + "_" + safe(name));
         try (OutputStream out = new FileOutputStream(f)) { copy(in, out); }
         return info(register(f, name));
     }
@@ -241,7 +243,7 @@ public class Docs {
     /** Eski önbellek dosyalarını temizler (7 günden eski) */
     public void sweep() {
         long cut = System.currentTimeMillis() - 7L * 24 * 3600 * 1000;
-        for (String sub : new String[]{"docs", "extract", "drive"}) {
+        for (String sub : new String[]{"docs", "extract", "drive", "webdav"}) {
             File[] fs = cacheDir(sub).listFiles();
             if (fs != null) for (File f : fs) if (f.lastModified() < cut && !registered(f)) f.delete();
         }

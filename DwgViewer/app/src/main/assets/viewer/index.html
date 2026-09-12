@@ -137,27 +137,6 @@
       <canvas id="ov"></canvas>
       <div id="gpsBtn" class="fab" hidden title="GPS" role="button" aria-label="GPS"><svg class="ic" aria-hidden="true"><use href="#i-gps"/></svg></div>
       <div id="cube3d" class="hud cube" hidden></div>
-      <div id="empty" class="empty">
-        <div class="empty-card">
-          <div class="empty-logo">DWG</div>
-          <h1 data-i18n="welcomeTitle">DWG Görüntüleyici</h1>
-          <p data-i18n="welcomeText"></p>
-          <p id="proLine" class="pro-line" hidden><span data-i18n="freeLine"></span> <button id="btnGoPro" class="btn small primary" type="button"><svg class="ic" aria-hidden="true"><use href="#i-star"/></svg><span data-i18n="goPro">Pro sürüme geç</span></button></p>
-          <button id="btnOpen2" class="btn primary big" data-i18n="pickFile" type="button">📂 DWG / DXF dosyası seç</button>
-          <input id="fileInput" type="file" accept=".dwg,.dxf,.pdf,.docx,.doc,.xlsx,.zip,.rar,.png,.jpg,.jpeg,.txt,.csv,application/acad,application/x-dwg,application/dxf,application/pdf,application/zip,application/octet-stream" hidden>
-          <div class="row">
-            <button id="btnServer" class="btn small" data-i18n="server" type="button">Sunucudan indir</button>
-            <button id="btnQr" class="btn small" data-i18n="qr" type="button">QR okut</button>
-            <button id="btnDrive" class="btn small" type="button"><svg class="ic" aria-hidden="true"><use href="#i-drive"/></svg><span data-i18n="drive">Google Drive</span></button>
-          </div>
-          <div id="recentWrap" hidden>
-            <h3 data-i18n="recent">Son dosyalar</h3>
-            <div id="recentList" class="recent"></div>
-            <button id="recentAll" class="btn small" data-i18n="openAllRecent" type="button">Tümü…</button>
-          </div>
-          <p class="hint" data-i18n="hint"></p>
-        </div>
-      </div>
       <div id="cmdBar" class="cmdbar" hidden>
         <span id="cmdText"></span>
         <span class="cmd-in"><input id="cmdInput" type="text" data-i18n-ph="coordPh" placeholder="x,y | @dx,dy | @L<açı" autocomplete="off" inputmode="text"><button id="cmdEnter" type="button" data-i18n-aria="enter" aria-label="Gir">↵</button></span>
@@ -199,6 +178,52 @@
           </div>
         </div>
       </div>
+    </div>
+    <!-- Ana ekran (home.js): çizim ya da belge açık değilken #viewport'un üstünde tam alan; Ev · Dosya · Bulut · Araçlar alt gezinmesi -->
+    <div id="home" class="home" hidden>
+      <div class="home-pages">
+        <section id="homeEv" class="home-page" data-page="ev">
+          <div class="home-brand"><span class="empty-logo">DWG</span><h1 data-i18n="welcomeTitle">DWG Görüntüleyici</h1></div>
+          <p class="home-text" data-i18n="welcomeText"></p>
+          <p id="proLine" class="pro-line" hidden><span data-i18n="freeLine"></span> <button id="btnGoPro" class="btn small primary" type="button"><svg class="ic" aria-hidden="true"><use href="#i-star"/></svg><span data-i18n="goPro">Pro sürüme geç</span></button></p>
+          <button id="btnOpen2" class="btn primary big" type="button"><svg class="ic" aria-hidden="true"><use href="#i-open"/></svg><span data-i18n="homeOpen">Dosya aç</span></button>
+          <input id="fileInput" type="file" accept=".dwg,.dxf,.pdf,.docx,.doc,.xlsx,.zip,.rar,.png,.jpg,.jpeg,.txt,.csv,application/acad,application/x-dwg,application/dxf,application/pdf,application/zip,application/octet-stream" hidden>
+          <div id="recentWrap" hidden>
+            <div class="home-sec"><h3 data-i18n="recent">Son dosyalar</h3><button id="recentAll" class="btn small" data-i18n="openAllRecent" type="button">Tümü…</button></div>
+            <div id="recentList" class="recent"></div>
+          </div>
+          <div class="home-sec"><h3 data-i18n="quickActions">Hızlı işlemler</h3></div>
+          <div class="row home-quick">
+            <button id="btnQr" class="btn small" type="button"><svg class="ic" aria-hidden="true"><use href="#i-qr"/></svg><span data-i18n="qr">QR okut</span></button>
+            <button id="btnServer" class="btn small" type="button"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg><span data-i18n="server">Sunucudan indir</span></button>
+            <button id="btnDrive" class="btn small" type="button"><svg class="ic" aria-hidden="true"><use href="#i-drive"/></svg><span data-i18n="drive">Google Drive</span></button>
+          </div>
+          <p class="hint" data-i18n="hint"></p>
+        </section>
+        <section id="homeFiles" class="home-page" data-page="files" hidden>
+          <div class="home-head"><h2 data-i18n="homeFiles">Dosya</h2></div>
+          <div id="filesSeg" class="home-seg"><button type="button" data-fseg="local" class="on" data-i18n="local">Yerel</button><button type="button" data-fseg="cloud" data-i18n="cloud">Bulut</button></div>
+          <div id="filesLocal" class="home-body">
+            <div class="row home-quick"><button type="button" class="btn small" data-home="system"><svg class="ic" aria-hidden="true"><use href="#i-export"/></svg><span data-i18n="openSystem">Sistem dosya seçici</span></button><button type="button" class="btn small" data-home="offline"><svg class="ic" aria-hidden="true"><use href="#i-save"/></svg><span data-i18n="cached">Çevrimdışı kopyalar</span></button></div>
+            <div id="filesDevice" class="open-mount"></div>
+          </div>
+          <div id="filesCloud" class="home-body" hidden></div>
+        </section>
+        <section id="homeCloud" class="home-page" data-page="cloud" hidden>
+          <div class="home-head"><h2 data-i18n="homeCloud">Bulut</h2></div>
+          <div id="cloudBody" class="home-body"></div>
+        </section>
+        <section id="homeTools" class="home-page" data-page="tools" hidden>
+          <div class="home-head"><h2 data-i18n="toolsTitle">Araçlar</h2></div>
+          <div id="toolsGrid" class="tools-grid"></div>
+        </section>
+      </div>
+      <nav id="homeNav" class="home-nav" data-i18n-aria="homeTab" aria-label="Ana ekran">
+        <button type="button" data-home-tab="ev" class="on"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg><span data-i18n="homeHome">Ev</span></button>
+        <button type="button" data-home-tab="files"><svg class="ic" aria-hidden="true"><use href="#i-open"/></svg><span data-i18n="homeFiles">Dosya</span></button>
+        <button type="button" data-home-tab="cloud"><svg class="ic" aria-hidden="true"><use href="#i-drive"/></svg><span data-i18n="homeCloud">Bulut</span></button>
+        <button type="button" data-home-tab="tools"><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg><span data-i18n="homeTools">Araçlar</span></button>
+      </nav>
     </div>
     <aside id="side" class="side" hidden>
       <div class="side-tabs" id="sideTabs">
@@ -358,6 +383,7 @@
   <!-- Diğer menüsü -->
   <div id="moreMenu" class="menu" hidden>
     <button data-act="pro" type="button" class="accent" hidden><svg class="ic" aria-hidden="true"><use href="#i-star"/></svg><span data-i18n="goPro">Pro sürüme geç</span></button>
+    <button data-act="home" type="button"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg><span data-i18n="homeTab">Ana ekran</span></button>
     <button data-act="info" type="button"><svg class="ic" aria-hidden="true"><use href="#i-info"/></svg><span data-i18n="info">Çizim bilgisi</span></button>
     <button data-act="drive" type="button"><svg class="ic" aria-hidden="true"><use href="#i-drive"/></svg><span data-i18n="drive">Google Drive</span></button>
     <button data-act="layouts" type="button"><svg class="ic" aria-hidden="true"><use href="#i-layout"/></svg><span data-i18n="layouts">Sayfa düzenleri</span></button>

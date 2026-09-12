@@ -188,12 +188,17 @@ export function applyEdition() {
   const pro = isPro();
   applied = pro ? 'pro' : 'free';
   document.body.classList.toggle('edition-free', !pro); document.body.classList.toggle('edition-pro', pro);
-  document.querySelectorAll('#moreMenu [data-act]').forEach(b => { const k = b.dataset.act; if (k === 'pro') b.hidden = pro; else if (PRO_ONLY.has(k)) b.hidden = !pro; });
+  // Diğer menüsü: yetki + belge kipi + belge varlığı TEK yerde birleşir (app.js refreshMenu); app.js bağlı değilse yalnız yetki kuralı
+  if (api && typeof api.refreshMenu === 'function') api.refreshMenu();
+  else document.querySelectorAll('#moreMenu [data-act]').forEach(b => { b.hidden = menuHiddenByEdition(b.dataset.act); });
   const pl = $('proLine'); if (pl) pl.hidden = pro;
   // karşılama metni sürüme göre (applyI18n dil değişiminde data-i18n anahtarını yeniden okur)
-  const w = document.querySelector('#empty [data-i18n="welcomeText"], #empty [data-i18n="welcomeTextFree"]'); if (w) { w.dataset.i18n = pro ? 'welcomeText' : 'welcomeTextFree'; w.textContent = t(w.dataset.i18n); }
+  const w = document.querySelector('#home [data-i18n="welcomeText"], #home [data-i18n="welcomeTextFree"]'); if (w) { w.dataset.i18n = pro ? 'welcomeText' : 'welcomeTextFree'; w.textContent = t(w.dataset.i18n); }
   document.querySelectorAll('[data-drive="upload"]').forEach(b => { b.hidden = !pro; });
+  try { window.dispatchEvent(new CustomEvent('dwg:edition', { detail: { edition: applied } })); } catch (_) { /* yok */ }
 }
+/** Diğer menüsü eylemi yetki gereği gizli mi? ('pro' Pro'da, PRO_ONLY eylemleri Ücretsiz'de) */
+export function menuHiddenByEdition(act) { const pro = isPro(); return act === 'pro' ? pro : PRO_ONLY.has(String(act)) ? !pro : false; }
 /** Java → yetki değişti (ya da satın alma / geri yükleme sonucu). ed: 'pro' | 'free'; reason: bkz. dosya başı */
 export function onEdition(ed, reason) {
   const e = ed === 'free' ? 'free' : 'pro';
@@ -213,7 +218,7 @@ export function onEdition(ed, reason) {
   // cancelled ve boş neden: sessiz
   return e;
 }
-/** app.js bağlar: api { toast, rebuildToolbar } */
+/** app.js bağlar: api { toast, rebuildToolbar, refreshMenu } */
 export function initEdition(a) {
   api = a || null;
   applyEdition();

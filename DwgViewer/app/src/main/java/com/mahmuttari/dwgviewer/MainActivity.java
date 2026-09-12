@@ -112,9 +112,10 @@ public class MainActivity extends Activity {
     private LocationListener locationListener;
     private PermissionRequest pendingCameraRequest;
 
-    // belgeler (PDF / Word / ZIP / RAR) ve Google Drive
+    // belgeler (PDF / Word / ZIP / RAR), Google Drive ve WebDAV
     private Docs docs;
     private GoogleDrive google;
+    private WebDav webdav;
     /** Reklam: AdMob geçiş reklamı; yalnız Pro yetkisi yokken başlatılır, Pro'ya geçince bırakılır */
     private Ads ads;
     /** Pro yetkisi (Play satın alması ya da lisans kodu; prefs "pro") ve Google Play Faturalandırma */
@@ -144,6 +145,7 @@ public class MainActivity extends Activity {
         }
         docs = new Docs(this);
         google = new GoogleDrive(this);
+        webdav = new WebDav(this);
         pro = new Pro(this);
         ads = new Ads(this);
         if (!isPro()) ads.init();
@@ -1314,6 +1316,43 @@ public class MainActivity extends Activity {
                     ok = false; out = JSONObject.quote(GoogleDrive.message(e));
                 }
                 js("window.dwgApp && window.dwgApp.onDrive(" + JSONObject.quote(reqId) + "," + ok + "," + out + ")");
+            });
+        }
+
+        // ---- WebDAV (Nextcloud / ownCloud / mod_dav) --------------------------------------
+        /** Kayıtlı hesaplar: [{id,name,url,user}] — parola dönmez */
+        @JavascriptInterface public String wdAccounts() { return webdav.accounts(); }
+        /** {id?,name,url,user,pass} kaydeder (id yoksa üretir; var olan hesapta boş pass eski parolayı korur); hesap id'sini döner, hatada "" */
+        @JavascriptInterface public String wdSave(String json) {
+            try { return webdav.save(json); }
+            catch (Exception e) { Log.w(TAG, "wdSave", e); final String m = WebDav.message(e); runOnUiThread(() -> Toast.makeText(MainActivity.this, m, Toast.LENGTH_LONG).show()); return ""; }
+        }
+        @JavascriptInterface public void wdRemove(String id) { webdav.remove(id); }
+        /**
+         * Asenkron WebDAV işlemi; sonuç dwgApp.onWebDav(reqId, ok, json). op: "list" {id,path} → {items:[{name,path,dir,size,time,mime}],path};
+         * "download" {id,path,name} → docs.info {id,name,size,ext} (ilerleme: dwgApp.onWebDavProgress(reqId, done, total));
+         * "test" {url,user,pass} → {ok:true,url}. Hatada ok=false, json = ileti (JSON dizesi).
+         */
+        @JavascriptInterface
+        public void wd(String reqId, String op, String argsJson) {
+            bg.execute(() -> {
+                String out; boolean ok = true;
+                try {
+                    JSONObject a = argsJson == null || argsJson.isEmpty() ? new JSONObject() : new JSONObject(argsJson);
+                    switch (op) {
+                        case "list": out = webdav.list(a.optString("id"), a.optString("path", "/")); break;
+                        case "download":
+                            out = webdav.download(a.optString("id"), a.getString("path"), a.optString("name", ""), docs,
+                                    (done, total) -> js("window.dwgApp && window.dwgApp.onWebDavProgress && window.dwgApp.onWebDavProgress(" + JSONObject.quote(reqId) + "," + done + "," + total + ")")).toString();
+                            break;
+                        case "test": out = webdav.test(a.optString("url"), a.optString("user"), a.optString("pass")); break;
+                        default: throw new IOException("bilinmeyen işlem: " + op);
+                    }
+                } catch (Throwable e) {
+                    Log.w(TAG, "webdav " + op, e);
+                    ok = false; out = JSONObject.quote(WebDav.message(e));
+                }
+                js("window.dwgApp && window.dwgApp.onWebDav && window.dwgApp.onWebDav(" + JSONObject.quote(reqId) + "," + ok + "," + out + ")");
             });
         }
 

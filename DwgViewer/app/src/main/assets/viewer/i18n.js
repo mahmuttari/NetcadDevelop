@@ -117,6 +117,13 @@ export const TR = {
   proActivated: 'Pro etkinleştirildi', proPending: 'Satın alma onay bekliyor; onaylanınca Pro açılır', proRevoked: 'Pro yetkisi kaldırıldı', proRestoreNone: 'Geri yüklenecek satın alım bulunamadı',
   proActiveVia: 'Pro etkin — kaynak', proSrcPlay: 'Google Play', proSrcLicense: 'Lisans', proExpires: 'bitiş', proBillingNA: 'Google Play kullanılamıyor', proBrowserOnly: 'Bu özellik Android uygulamasında satın alınır.',
   openOfflineAndroid: 'Çevrimdışı kopyalar Android uygulamasında tutulur: sunucudan indirilen paftalar ve "Çevrimdışı sakla" ile alınan belgeler burada listelenir.', openNoOffline: 'Çevrimdışı kopya yok.', openPickHint: 'Dosyaya dokunarak seçin', openOfflineLink: 'Çevrimdışı kopyalar → Dosya Aç',
+  // ana ekran (home.js) ve bulut (cloud.js)
+  homeTab: 'Ana ekran', homeHome: 'Ev', homeFiles: 'Dosya', homeCloud: 'Bulut', homeTools: 'Araçlar', local: 'Yerel', cloud: 'Bulut', homeOpen: 'Dosya aç', quickActions: 'Hızlı işlemler', signInShort: 'Oturum aç',
+  cloudServices: 'Bulut hizmetleri', cloudNone: 'Henüz oturum açılmış bulut hesabı yok. Dosya › Bulut bölümünden Google Drive ya da WebDAV hesabı ekleyin.', cloudGoFiles: 'Dosya › Bulut', cloudFiles: 'Bulut dosyaları', signedInAs: 'Oturum açık',
+  serverDir: 'Sunucu dizini', serverDirSub: 'paftalar.json ya da dizin listesi', openDrivePanel: 'Drive\'ı aç',
+  webdav: 'WebDAV / Nextcloud', webdavUrl: 'Sunucu adresi', webdavUser: 'Kullanıcı adı', webdavPass: 'Parola', webdavName: 'Görünen ad', webdavTest: 'Bağlantıyı sına', webdavSaved: 'WebDAV hesabı kaydedildi', webdavSaveFail: 'WebDAV hesabı kaydedilemedi', webdavFail: 'WebDAV bağlantısı kurulamadı', webdavOk: 'Bağlantı başarılı',
+  webdavAndroidOnly: 'WebDAV yalnız Android uygulamasında kullanılabilir.', webdavRemove: 'Hesabı kaldır', webdavAdd: 'Hesap ekle', webdavUrlHint: 'https://bulut.ornek.com/remote.php/dav/files/kullanici/', webdavNeedUrl: 'Sunucu adresi ve kullanıcı adı gerekli', webdavError: 'WebDAV hatası',
+  toolsTitle: 'Araçlar', toolPdf: 'PDF çıktısı', toolPng: 'PNG kaydet', toolDxf: 'DXF kaydet', toolDelta: 'Değişiklikleri kaydet', toolCompare: 'Karşılaştır', toolProfile: 'Profil', toolNotes: 'Notlar', toolViews: 'Görünümler', proBadge: 'PRO',
 };
 export const EN = {
   open: 'Open', noFile: 'No file', fit: 'Zoom extents', layers: 'Layers', measure: 'Measure', more: 'More', search: 'Search',
@@ -236,6 +243,13 @@ export const EN = {
   proActivated: 'Pro activated', proPending: 'Purchase is pending approval; Pro unlocks once approved', proRevoked: 'Pro entitlement removed', proRestoreNone: 'No purchase to restore',
   proActiveVia: 'Pro active — source', proSrcPlay: 'Google Play', proSrcLicense: 'License', proExpires: 'expires', proBillingNA: 'Google Play is not available', proBrowserOnly: 'This is purchased in the Android app.',
   openOfflineAndroid: 'Offline copies are kept in the Android app: sheets downloaded from a server and documents saved with "Keep offline" are listed here.', openNoOffline: 'No offline copies.', openPickHint: 'Tap a file to pick it', openOfflineLink: 'Offline copies → Open file',
+  // home screen (home.js) and cloud (cloud.js)
+  homeTab: 'Home screen', homeHome: 'Home', homeFiles: 'Files', homeCloud: 'Cloud', homeTools: 'Tools', local: 'Local', cloud: 'Cloud', homeOpen: 'Open file', quickActions: 'Quick actions', signInShort: 'Sign in',
+  cloudServices: 'Cloud services', cloudNone: 'No cloud account is signed in yet. Add a Google Drive or WebDAV account under Files › Cloud.', cloudGoFiles: 'Files › Cloud', cloudFiles: 'Cloud files', signedInAs: 'Signed in',
+  serverDir: 'Server directory', serverDirSub: 'paftalar.json or directory listing', openDrivePanel: 'Open Drive',
+  webdav: 'WebDAV / Nextcloud', webdavUrl: 'Server address', webdavUser: 'User name', webdavPass: 'Password', webdavName: 'Display name', webdavTest: 'Test connection', webdavSaved: 'WebDAV account saved', webdavSaveFail: 'WebDAV account could not be saved', webdavFail: 'WebDAV connection failed', webdavOk: 'Connection OK',
+  webdavAndroidOnly: 'WebDAV is available only in the Android app.', webdavRemove: 'Remove account', webdavAdd: 'Add account', webdavUrlHint: 'https://cloud.example.com/remote.php/dav/files/user/', webdavNeedUrl: 'Server address and user name are required', webdavError: 'WebDAV error',
+  toolsTitle: 'Tools', toolPdf: 'PDF export', toolPng: 'Save PNG', toolDxf: 'Save DXF', toolDelta: 'Save changes', toolCompare: 'Compare', toolProfile: 'Profile', toolNotes: 'Notes', toolViews: 'Views', proBadge: 'PRO',
 };
 let dict = TR, lang = 'tr';
 export function setLang(l) { lang = l === 'en' ? 'en' : 'tr'; dict = lang === 'en' ? EN : TR; try { document.documentElement.lang = lang; } catch (_) { /* işçi / Node */ } }   // lang: CSS uppercase'te i→İ dönüşümü dile uysun

@@ -39,7 +39,7 @@ const cadN = sampleFiles.filter(f => /\.(dwg|dxf)$/i.test(f)).length;
   ok('1c Son sekmesi boş açıklaması', await ev(() => document.querySelector('#openChips [data-open-tab="recent"]').classList.contains('on') && /Henüz dosya/.test(document.getElementById('openBody').textContent) && !document.getElementById('openGrid').hidden));
   await page.click('#openPanel [data-open="close"]'); await page.waitForTimeout(60);
   ok('1d kapat', await ev(() => document.getElementById('openPanel').hidden));
-  await page.click('#btnOpen'); await page.waitForTimeout(60);
+  await ev(() => document.getElementById('btnOpen').click()); await page.waitForTimeout(60);   // belge yokken üst çubuk gizli (ana ekran): programla tıklanır
   ok('1e üst çubuk düğmesi açar (son sekme hatırlanır)', await ev(() => !document.getElementById('openPanel').hidden && document.querySelector('#openChips [data-open-tab="recent"]').classList.contains('on')));
   // klasör girişi (Playwright dizin yükler)
   await page.click('#openChips [data-open-tab="device"]'); await page.waitForTimeout(60);
@@ -177,6 +177,7 @@ const cadN = sampleFiles.filter(f => /\.(dwg|dxf)$/i.test(f)).length;
   const ev = (fn, a) => page.evaluate(fn, a);
   const shot = (n) => page.screenshot({ path: `${out}/${n}.png` });
   const calls = () => ev(() => window.__calls);
+  const openBtn = () => ev(() => document.getElementById('btnOpen').click());   // köprü taklidinde hiç belge açılmaz: ana ekran açık, üst çubuk gizli → programla tıklanır
   const last = (name) => ev((n) => window.__calls.filter(c => c[0] === n).pop() || null, name);
   await page.goto(srv.url + 'index.html'); await page.waitForSelector('#btnOpen2');
   await ev(() => { localStorage.clear(); localStorage.setItem('ui', JSON.stringify({ hints: { tour: true } })); });
@@ -206,7 +207,7 @@ const cadN = sampleFiles.filter(f => /\.(dwg|dxf)$/i.test(f)).length;
   }
   await page.click('#openBody [data-open-recent][data-name="eski.pdf"]'); await page.waitForTimeout(60);
   ok('2c Son → openRecent(uri)', JSON.stringify(await last('openRecent')) === JSON.stringify(['openRecent', 'content://x/2']) && await ev(() => document.getElementById('openPanel').hidden));
-  await page.click('#btnOpen'); await page.waitForTimeout(60);
+  await openBtn(); await page.waitForTimeout(60);
   await page.click('#openBody [data-open-recent][data-name="eski.pdf"] [data-open="menu"]'); await page.click('#openBody [data-open-act="remove"]'); await page.waitForTimeout(60);
   ok('2d listeden kaldır → removeRecent', JSON.stringify(await last('removeRecent')) === JSON.stringify(['removeRecent', 'content://x/2']) && await ev(() => document.querySelectorAll('#openBody [data-open-recent]').length === 1 && document.querySelectorAll('#recentList .item').length === 1));
   // sık kullanılan Son listesinden düşünce (RECENT_MAX) soluk çizilir ama URI yaşadığı sürece Android'de açılır: openRecent(uri) çağrılır
@@ -215,11 +216,11 @@ const cadN = sampleFiles.filter(f => /\.(dwg|dxf)$/i.test(f)).length;
   ok('2d2 Son\'dan düşmüş sık kullanılan soluk satır', await ev(() => !!document.querySelector('#openBody .open-item.fav.dim[data-name="pafta1.dwg"]')));
   await page.click('#openBody [data-open-recent][data-name="pafta1.dwg"]'); await page.waitForTimeout(60);
   ok('2d3 soluk sık kullanılan → openRecent(uri)', JSON.stringify(await last('openRecent')) === JSON.stringify(['openRecent', 'content://x/1']) && await ev(() => document.getElementById('openPanel').hidden));
-  await page.click('#btnOpen'); await page.waitForTimeout(60);
+  await openBtn(); await page.waitForTimeout(60);
   await page.click('#openBody [data-open-recent][data-name="pafta1.dwg"] [data-open="menu"]'); await page.click('#openBody [data-open-act="open"]'); await page.waitForTimeout(60);
   ok('2d4 satır menüsü "Aç" → openRecent(uri)', await ev(() => window.__calls.filter(c => c[0] === 'openRecent').length === 3 && document.getElementById('openPanel').hidden));
   await ev(() => { localStorage.setItem('open:fav', '[]'); });
-  await page.click('#btnOpen'); await page.waitForTimeout(60);
+  await openBtn(); await page.waitForTimeout(60);
   // Cihaz: kökler
   await page.click('#openChips [data-open-tab="device"]'); await page.waitForTimeout(60);
   ok('2e kök çipleri (izinsiz kök soluk) + İndirilenler düğmesi', await ev(() => document.querySelectorAll('#openBody [data-open-root]').length === 2 && document.querySelector('#openBody [data-open-root="content://tree/B"]').classList.contains('dim') && !!document.querySelector('#openBody [data-open="adddl"]')));
@@ -256,7 +257,7 @@ const cadN = sampleFiles.filter(f => /\.(dwg|dxf)$/i.test(f)).length;
   await page.click('#openPanel [data-open="system"]'); await page.waitForTimeout(60);
   ok('2m seçim kipinde sistem seçicisi pickFile(purpose, mime)', JSON.stringify(await last('pickFile')) === JSON.stringify(['pickFile', 'compare', '*/*']) && await ev(() => document.getElementById('openPanel').hidden));
   // İndirilenler kökü ekle → onFsRoot → yeni kök seçilir
-  await page.click('#btnOpen'); await page.waitForTimeout(60);
+  await openBtn(); await page.waitForTimeout(60);
   await page.click('#openBody [data-open="adddl"]');
   await page.waitForFunction(() => !!document.querySelector('#openBody [data-open-root="content://tree/DL"].on') && /Klasör boş/.test(document.getElementById('openBody').textContent), null, { timeout: 5000 });
   ok('2n fsAddRoot("download") → onFsRoot → kök seçili, fsList(yeni kök)', JSON.stringify(await last('fsAddRoot')) === JSON.stringify(['fsAddRoot', 'download']) && JSON.stringify(await last('fsList')) === JSON.stringify(['fsList', 'content://tree/DL', '']) && await ev(() => /Klasör boş/.test(document.getElementById('openBody').textContent)));
@@ -277,7 +278,7 @@ const cadN = sampleFiles.filter(f => /\.(dwg|dxf)$/i.test(f)).length;
   await shot('a_offline');
   await page.click('#openBody [data-open-dl]'); await page.waitForTimeout(60);
   ok('2s aç → openDownload(id)', JSON.stringify(await last('openDownload')) === JSON.stringify(['openDownload', 'dl_1_pafta.dwg']) && await ev(() => document.getElementById('openPanel').hidden));
-  await page.click('#btnOpen'); await page.waitForTimeout(60);
+  await openBtn(); await page.waitForTimeout(60);
   await queueAnswers(page, true);
   await page.click('#openBody [data-open-dl] [data-open="deldl"]'); await page.waitForTimeout(150);
   ok('2t sil → deleteDownload(id)', JSON.stringify(await last('deleteDownload')) === JSON.stringify(['deleteDownload', 'dl_1_pafta.dwg']) && await ev(() => document.querySelectorAll('#openBody [data-open-dl]').length === 0));

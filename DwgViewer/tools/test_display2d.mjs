@@ -22,7 +22,7 @@ const vpBox = async () => page.locator('#viewport').boundingBox();
 await page.goto(srv.url + 'index.html');
 await page.waitForSelector('#btnOpen2');
 await page.waitForTimeout(300);
-ok('1 boş sayfa hatasız', errors.length === 0 && await page.locator('#empty').isVisible(), errors.join(' | ').slice(0, 200));
+ok('1 boş sayfa hatasız', errors.length === 0 && await page.locator('#home').isVisible(), errors.join(' | ').slice(0, 200));
 ok('13a #gpsBtn #navFabs içinde', await ev(() => !!document.querySelector('#navFabs #gpsBtn')));
 
 // ---- 6. eski ayar göçü ---------------------------------------------------------------------

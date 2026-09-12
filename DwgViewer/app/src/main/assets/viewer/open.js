@@ -11,6 +11,8 @@
  *    Son listesi oturum belleğindedir (File nesneleri aynı oturumda yeniden açılır).
  *  - Seçim kipi: open('device', { pick: { purpose, mime } }) — dosyaya dokununca fsSlot → api.onFilePicked(purpose, slotId, name, size);
  *    tarayıcıda api.fileForPurpose(purpose, File).
+ *  - Gömme: mount(hostEl, tab) aynı görünümü (Cihaz gezgini: kökler, kırıntı, liste, arama) ana ekranın Dosya › Yerel bölümüne
+ *    çizer; #openPanel alt sayfası çizim açıkken kullanılmaya devam eder. unmount() gömmeyi kaldırır. Kök / klasör durumu ortaktır.
  */
 import { store, fmt } from './state.js';
 import { t } from './i18n.js';
@@ -39,6 +41,9 @@ const dev = { roots: [], root: null, path: [], items: [], search: null, loading:
 const pending = new Map(); let reqSeq = 0;
 /** tarayıcı: oturum içi son dosyalar ve sanal klasör ağaçları */
 const session = { recent: [], vfs: new Map() };   // vfs: rootUri → { name, nodes: Map<id, {id,name,dir,size,time,file,parent}>, children: Map<id, id[]> }
+let mounted = null;   // { el, body, tab, q, qv } — ana ekrana gömülü görünüm (mount); qv gömülü aramanın sorgusu (panelin ui.q'sundan ayrı)
+let rtab = '';        // çizilmekte olan sekme (render sırasında; panel ui.tab, gömme mounted.tab)
+let rq = '';          // çizilmekte olan yüzeyin sorgusu (panel ui.q, gömme mounted.qv)
 let searchTimer = 0, pressTimer = 0, pressFired = false, suppressClick = false;   // uzun basış menüyü açtıysa parmak kalkınca gelen click (hedefi ne olursa olsun) yutulur
 
 export function initOpen(a) {
@@ -47,12 +52,14 @@ export function initOpen(a) {
   p.addEventListener('click', onClick);
   p.addEventListener('contextmenu', (ev) => { const it = ev.target.closest('[data-open-recent]'); if (!it) return; ev.preventDefault(); if (suppressClick) return; clearTimeout(pressTimer); pressTimer = 0; pressFired = true; suppressClick = true; toggleMenu(it.dataset.uri); });
   bindLongPress(p);
-  const q = $('openSearch'); if (q) q.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { ui.q = q.value.trim(); onQuery(); }, 250); });
+  const q = $('openSearch'); if (q) q.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { ui.q = q.value.trim(); onQuery('panel'); }, 250); });
   const k = $('openKind'); if (k) k.addEventListener('change', () => { ui.kind = k.value; render(); });
   const s = $('openSort'); if (s) s.addEventListener('change', () => { ui.sort[ui.tab] = s.value; render(); });
   const f = $('folderInput'); if (f) f.addEventListener('change', () => { const files = [...(f.files || [])]; f.value = ''; if (files.length) addBrowserRoot(files); });
 }
 export const isOpen = () => { const p = $('openPanel'); return !!p && !p.hidden; };
+export const isMounted = () => !!mounted;
+const active = () => isOpen() || !!mounted;
 /** open(tab?, { pick: { purpose, mime } }?) */
 export function open(tab, opts = {}) {
   const p = $('openPanel'); if (!p) return;
@@ -66,7 +73,22 @@ export function open(tab, opts = {}) {
 }
 export function close() { const p = $('openPanel'); if (!p || p.hidden) return false; p.hidden = true; ui.pick = null; ui.menu = null; return true; }
 /** geçerli sekmeyi yeniden çizer (Android son dosya listesi değişince de çağrılır) */
-export function refresh() { if (!isOpen()) return; if (ui.tab === 'device' && !dev.root) restoreLast(); renderChips(); renderTools(); render(); }
+export function refresh() { if (!active()) return; if ((ui.tab === 'device' || (mounted && mounted.tab === 'device')) && !dev.root) restoreLast(); renderChips(); renderTools(); render(); }
+/** Gömme: hostEl içine (arama kutusu + gövde) verilen sekmeyi çizer; tıklama ve uzun basış işleyicileri host'a bağlanır (bir kez) */
+export function mount(hostEl, tab) {
+  if (!hostEl) return;
+  if (mounted && mounted.el !== hostEl) unmount();
+  if (!mounted) {
+    hostEl.innerHTML = `<div class="open-tools"><input type="search" class="open-msearch" placeholder="${esc(tt('openSearchPh', 'Dosya ara…'))}" autocomplete="off"></div><div class="open-mbody"></div>`;
+    mounted = { el: hostEl, body: hostEl.querySelector('.open-mbody'), tab: TABS.includes(tab) ? tab : 'device', q: hostEl.querySelector('.open-msearch'), qv: '' };
+    if (!hostEl.dataset.openBound) { hostEl.dataset.openBound = '1'; hostEl.addEventListener('click', onClick); bindLongPress(hostEl); }
+    mounted.q.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { if (!mounted) return; mounted.qv = mounted.q.value.trim(); onQuery('mount'); }, 250); });
+  } else mounted.tab = TABS.includes(tab) ? tab : mounted.tab;
+  ui.menu = null;
+  if (mounted.tab === 'device') { loadRoots(); if (!dev.root) restoreLast(); }
+  render();
+}
+export function unmount() { if (!mounted) return; const el = mounted.el; mounted = null; el.innerHTML = ''; }
 /** Tarayıcı: #fileInput ile açılan dosyayı oturum "Son" listesine yazar */
 export function noteFile(file) {
   if (!file || A()) return;
@@ -138,7 +160,7 @@ function vfsSearch(root, q) {
 function vfsFile(root, id) { const v = session.vfs.get(root); const n = v && v.nodes.get(id); return n && n.file ? n.file : null; }
 
 // ---- veri --------------------------------------------------------------------------------
-function recentList() {
+export function recentList() {
   if (A() && A().getRecent) { try { return JSON.parse(A().getRecent() || '[]'); } catch (_) { return []; } }
   return session.recent.slice();
 }
@@ -187,22 +209,25 @@ async function runSearch(q) {
   catch (e) { if (seq !== dev.seq) return; dev.search = null; dev.error = e.message || String(e); }
   dev.loading = false; render();
 }
-function onQuery() {
-  if (ui.tab === 'device' && dev.root && dev.root.ok !== false) {
-    if (ui.q.length >= 3) { runSearch(ui.q); return; }
+/** Arama: yalnız sorgunun geldiği yüzeyin (panel: ui.tab / ui.q, gömme: mounted.tab / mounted.qv) sekmesi Cihaz ise cihaz taraması */
+function onQuery(src) {
+  const tab = src === 'mount' ? (mounted ? mounted.tab : '') : ui.tab;
+  const q = src === 'mount' ? (mounted ? mounted.qv : '') : ui.q;
+  if (tab === 'device' && dev.root && dev.root.ok !== false) {
+    if (q.length >= 3) { runSearch(q); return; }
     if (dev.search) { dev.search = null; dev.seq++; dev.loading = false; loadDir(); return; }
   }
   render();
 }
-/** tür süzgeci + ad süzgeci (klasörler süzülmez) */
+/** tür süzgeci + ad süzgeci (klasörler süzülmez); sorgu çizilen yüzeyinki (rq) */
 function passes(name, dir) {
-  if (dir) return !ui.q || ui.q.length >= 3 || name.toLocaleLowerCase('tr').includes(ui.q.toLocaleLowerCase('tr'));
+  if (dir) return !rq || rq.length >= 3 || name.toLocaleLowerCase('tr').includes(rq.toLocaleLowerCase('tr'));
   if (ui.kind !== 'all' && !KIND_OF[ui.kind].includes(kindOf(name))) return false;
-  if (ui.q && !(ui.tab === 'device' && dev.search) && !name.toLocaleLowerCase('tr').includes(ui.q.toLocaleLowerCase('tr'))) return false;
+  if (rq && !(rtab === 'device' && dev.search) && !name.toLocaleLowerCase('tr').includes(rq.toLocaleLowerCase('tr'))) return false;
   return true;
 }
 function sortItems(list) {
-  const s = ui.sort[ui.tab] || 'name';
+  const s = ui.sort[rtab] || 'name';
   const byName = (a, b) => String(a.name).localeCompare(String(b.name), 'tr');
   return list.sort((a, b) => (b.dir ? 1 : 0) - (a.dir ? 1 : 0) || (s === 'time' ? (b.time || 0) - (a.time || 0) : s === 'size' ? (b.size || 0) - (a.size || 0) : 0) || byName(a, b));
 }
@@ -223,11 +248,21 @@ function renderTools() {
   const q = $('openSearch'); if (q && q.value.trim() !== ui.q) q.value = ui.q;
 }
 function render() {
-  const body = $('openBody'); if (!body || !isOpen()) return;
-  let h = '';
-  if (ui.pick) h += `<div class="doc-card pick open-pick"><span>${esc(tt('openPickHint', 'Dosyaya dokunarak seçin'))}: <b>${esc(pickLabel(ui.pick.purpose))}</b></span><button type="button" class="btn small" data-open="close">${esc(t('cancel'))}</button></div>`;
-  h += ui.tab === 'device' ? renderDevice() : ui.tab === 'offline' ? renderOffline() : renderRecent();
-  body.innerHTML = h;
+  const body = $('openBody');
+  if (body && isOpen()) {
+    rtab = ui.tab; rq = ui.q;
+    let h = '';
+    if (ui.pick) h += `<div class="doc-card pick open-pick"><span>${esc(tt('openPickHint', 'Dosyaya dokunarak seçin'))}: <b>${esc(pickLabel(ui.pick.purpose))}</b></span><button type="button" class="btn small" data-open="close">${esc(t('cancel'))}</button></div>`;
+    h += ui.tab === 'device' ? renderDevice() : ui.tab === 'offline' ? renderOffline() : renderRecent();
+    body.innerHTML = h;
+  }
+  if (mounted) {
+    rtab = mounted.tab; rq = mounted.qv;
+    if (mounted.q.value.trim() !== mounted.qv) mounted.q.value = mounted.qv;
+    mounted.q.placeholder = tt('openSearchPh', 'Dosya ara…');   // dil değişince de yenilenir
+    mounted.body.innerHTML = mounted.tab === 'device' ? renderDevice() : mounted.tab === 'offline' ? renderOffline() : renderRecent();
+  }
+  rtab = ''; rq = '';
 }
 function pickLabel(p) { return p === 'compare' ? t('compare') : p.startsWith('xref:') ? t('xrefs') : p.startsWith('img:') ? t('imgMissing') : p.startsWith('upload:') ? t('driveUpload') : t('open'); }
 function metaOf(r) { return [fmtSize(r.size), fmtDate(r.time)].filter(Boolean).join(' · '); }
@@ -288,6 +323,8 @@ function renderOffline() {
 }
 
 // ---- etkileşim ---------------------------------------------------------------------------
+/** Klasör değişince arama sorguları sıfırlanır (panel ve gömme) */
+function clearQ() { ui.q = ''; if (mounted) mounted.qv = ''; }
 function toggleMenu(uri) { ui.menu = ui.menu === uri ? null : uri; render(); }
 async function onClick(ev) {
   // Uzun basış menüyü açınca alt sayfa büyür ve içerik parmağın altında kayar: bırakınca gelen click artık başka bir öğeye
@@ -299,7 +336,7 @@ async function onClick(ev) {
     if (b.dataset.openTab) { ui.tab = b.dataset.openTab; ui.menu = null; if (ui.tab === 'device') { loadRoots(); if (!dev.root) restoreLast(); } renderChips(); renderTools(); render(); return; }
     if (b.dataset.openGo) { const g = b.dataset.openGo; close(); if (g === 'drive') call(api.openDrive); else if (g === 'server') call(api.showServer); else if (g === 'qr') call(api.startQr); return; }
     if (b.dataset.openRoot) { selectRoot(dev.roots.find(r => r.uri === b.dataset.openRoot)); return; }
-    if (b.dataset.openCrumb != null) { const i = Number(b.dataset.openCrumb); dev.path = dev.path.slice(0, i + 1); ui.q = ''; renderTools(); loadDir(); return; }
+    if (b.dataset.openCrumb != null) { const i = Number(b.dataset.openCrumb); dev.path = dev.path.slice(0, i + 1); clearQ(); renderTools(); loadDir(); return; }
     if (b.dataset.openAct) { const acts = b.closest('[data-open-acts]'); const uri = acts ? acts.dataset.openActs : ui.menu; recentAction(b.dataset.openAct, uri); return; }
     const k = b.dataset.open;
     if (k === 'close') close();
@@ -325,7 +362,7 @@ function removeRoot(r) {
 function onEntry(d) {
   if (d.dir === '1') {
     if (dev.search) { dev.search = null; }
-    dev.path = dev.path.concat([{ id: d.id, name: d.name }]); ui.q = ''; renderTools(); loadDir(); return;
+    dev.path = dev.path.concat([{ id: d.id, name: d.name }]); clearQ(); renderTools(); loadDir(); return;
   }
   const root = dev.root.uri, size = Number(d.size) || 0;
   if (ui.pick) {
@@ -342,7 +379,7 @@ async function openBrowserFile(f) {
   noteFile(f);
   try { if (isCad(f.name) || kindOf(f.name) === 'other') await api.loadBytes(await f.arrayBuffer(), f.name, f.size); else await api.openBlob(f); } catch (e) { api.toast(t('error') + ': ' + (e.message || e), { type: 'error' }); }
 }
-function openRecent(uri) {
+export function openRecent(uri) {
   if (ui.pick) return;
   // sık kullanılan Son listesinden düşmüş olabilir (RECENT_MAX): Android'de URI yaşadığı sürece açılır — geçersiz URI'yi
   // Java tarafı (Bridge.openRecent) kendisi yakalayıp listeyi yeniler; "artık yok" yalnız tarayıcı yolunda (File nesnesi gitmiş) söylenir

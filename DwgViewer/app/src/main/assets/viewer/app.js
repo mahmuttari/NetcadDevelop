@@ -19,6 +19,8 @@ import * as Docs from './docs.js';
 import * as Drive from './drive.js';
 import * as Open from './open.js';
 import * as Ed from './edition.js';
+import * as Home from './home.js';
+import * as Cloud from './cloud.js';
 
 const $ = (id) => document.getElementById(id);
 const A = () => window.Android || null;
@@ -64,6 +66,7 @@ function saveSettings() { store.set('settings', JSON.stringify(settings)); }
 let displayApplied = false;
 function applySettings() {
   setLang(settings.lang); applyI18n();
+  try { window.dispatchEvent(new CustomEvent('dwg:lang', { detail: { lang: settings.lang } })); } catch (_) { /* yok */ }   // ana ekran (araç adları, bulut kartları) yeniden çizilir
   if (Ed.isProPanelOpen()) Ed.openProPanel();   // açık Pro paneli gövdesi (özellik listesi, fiyat, düğmeler) t() ile kurulur: dil değişince yeniden çizilir
   if (!S.hasDoc) $('fileName').textContent = t('noFile');
   S.basemap.id = settings.basemap || 'none'; S.basemap.url = settings.basemapUrl || ''; S.basemap.wms = settings.wms || '';
@@ -462,7 +465,7 @@ const clearLong = () => { if (longTimer) { clearTimeout(longTimer); longTimer = 
 
 vp.addEventListener('pointerdown', (ev) => {
   if (!S.hasDoc) return;
-  if (ev.target.closest && ev.target.closest('.notesbar, .fab, .empty, .cmdbar, .hud, .docview')) return; // görüntü alanı içindeki düğmeler
+  if (ev.target.closest && ev.target.closest('.notesbar, .fab, .home, .cmdbar, .hud, .docview')) return; // görüntü alanı içindeki düğmeler
   vp.setPointerCapture(ev.pointerId);
   pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
   if (pointers.size === 1) gestureView0 = { ...S.view, li: S.layoutIndex };
@@ -981,6 +984,19 @@ function doSearch() {
 
 // ---- diğer menüsü --------------------------------------------------------------------
 $('btnMore').addEventListener('click', () => { $('moreMenu').hidden = !$('moreMenu').hidden; });
+/** Belge kipinde (PDF / Word / Excel / arşiv / resim / metin) Diğer menüsünde yalnız genel eylemler kalır; çizim eylemleri gizlenir */
+const MENU_GENERAL = new Set(['drive', 'server', 'qr', 'settings', 'about', 'pro', 'home']);
+/** Diğer menüsü görünürlüğü TEK yerde: yetki (edition.js) + belge kipi + belge varlığı. edition.js applyEdition de buraya gelir. */
+function refreshMenu() {
+  const doc = document.body.classList.contains('docmode');
+  document.querySelectorAll('#moreMenu [data-act]').forEach(b => {
+    const k = b.dataset.act;
+    let hidden = Ed.menuHiddenByEdition(k);
+    if (doc && !MENU_GENERAL.has(k)) hidden = true;
+    if (k === 'home' && !S.hasDoc && !doc) hidden = true;   // zaten ana ekrandayken anlamsız
+    b.hidden = hidden;
+  });
+}
 $('btnExtents').addEventListener('click', () => zoomExtents());
 function menuAction(act) {
   closeMenu();
@@ -1015,9 +1031,12 @@ function menuAction(act) {
     case 'settings': showSettings(); break;
     case 'about': showAbout(); break;
     case 'pro': Ed.openProPanel(); break;
+    case 'home': goHome(); break;
     default: break;
   }
 }
+/** Diğer › Ana ekran: açık belge kapanır, çizim bellekte kalır (Son'dan yeniden açılır), ana ekran gösterilir */
+function goHome() { closeMenu(); if (Docs.isOpen()) Docs.close(); Home.show(); }
 $('moreMenu').addEventListener('click', (ev) => { const b = ev.target.closest('[data-act]'); if (b) menuAction(b.dataset.act); });
 
 function showDocInfo() {
@@ -1621,7 +1640,7 @@ async function setScene(scene, name, size) {
   Docs.suspend();
   if (S.mode !== 'view') setMode('view');
   if (S.notesOn) toggleNotes(false);
-  hide('empty'); hide('infoPanel'); hide('docPanel'); hide('searchPanel'); Open.close();
+  Home.hide(); hide('infoPanel'); hide('docPanel'); hide('searchPanel'); Open.close(); refreshMenu();
   showFileName(name);
   $('stCount').textContent = S.entityCount + ' ' + t('entity') + ' · ' + S.layers.size + ' ' + t('layerCount');
   { const sub = $('fileSub'); if (sub) sub.textContent = [S.entityCount + ' ' + t('entity'), S.units || null, S.version || null].filter(Boolean).join(' · '); }
@@ -1720,12 +1739,10 @@ $('fileInput').addEventListener('change', async (ev) => { const f = ev.target.fi
 
 // ---- son dosyalar --------------------------------------------------------------------------
 function buildRecent() {
-  if (!A() || !A().getRecent) return;
-  let list = [];
-  try { list = JSON.parse(A().getRecent() || '[]'); } catch (_) { list = []; }
+  const list = Open.recentList().slice(0, 8);   // Android: Bridge.getRecent; tarayıcı: oturum listesi
   $('recentWrap').hidden = !list.length;
-  $('recentList').innerHTML = list.map((r, i) => `<div class="item" data-i="${i}">${r.thumb ? `<img src="/file/thumb_${esc(r.key)}?${r.time}">` : '<div class="noimg"></div>'}<div class="nm">${esc(r.name)}<div class="meta">${fmt(r.size / 1024 / 1024, 2)} MB · ${new Date(r.time).toLocaleString('tr-TR')}</div></div></div>`).join('');
-  $('recentList').onclick = (ev) => { const it = ev.target.closest('.item'); if (it) A().openRecent(list[Number(it.dataset.i)].uri); };
+  $('recentList').innerHTML = list.map((r, i) => `<div class="item" data-i="${i}" data-name="${esc(r.name)}">${r.thumb ? `<img src="/file/thumb_${esc(r.key)}?${r.time}" alt="">` : `<div class="noimg">${Docs.iconFor(r.name)}</div>`}<div class="nm">${esc(r.name)}<div class="meta">${fmt(r.size / 1024 / 1024, 2)} MB · ${new Date(r.time).toLocaleString('tr-TR')}</div></div></div>`).join('');
+  $('recentList').onclick = (ev) => { const it = ev.target.closest('.item'); if (it) Open.openRecent(list[Number(it.dataset.i)].uri); };
   Open.refresh();
 }
 
@@ -1739,6 +1756,7 @@ function onBack() {
   if (!$('drivePanel').hidden) { Drive.close(); return true; }
   if (Open.isOpen()) { Open.close(); return true; }
   if (Docs.isOpen()) { const open0 = openPanels(); if (open0.length) { for (const id of open0) hide(id); return true; } Docs.back(); return true; }
+  if (Home.isShown()) { const open0 = openPanels(); if (open0.length) { for (const id of open0) hide(id); return true; } return Home.back(); }   // Ev'de false: uygulama kapanır
   if (S.gotoMarker) { S.gotoMarker = null; drawOverlay(); return true; }
   const open = openPanels();
   if (open.length) { for (const id of open) hide(id); dockLayers(); if (S.mode !== 'view') setMode('view'); return true; }
@@ -1775,9 +1793,10 @@ window.dwgApp = { loadCurrent, onFilePicked, onLocation, onBack, loadBytes, zoom
   display: D, toast, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, savePng, getSettings: () => settings, requestRender, openDisplayOptions,
   docs: Docs, drive: Drive, onGoogle: (ok, json) => Drive.onGoogle(ok, json), onDrive: (id, ok, json) => Drive.onDrive(id, ok, json), onDriveProgress: (id, d, tot) => Drive.onProgress(id, d, tot), openDrive: () => Drive.open(),
   open: Open, openCenter: (tab) => Open.open(tab), onFsRoot: (obj) => Open.onFsRoot(obj), onFs: (id, ok, json) => Open.onFs(id, ok, json),
+  home: Home, cloud: Cloud, onWebDav: (id, ok, json) => Cloud.onWebDav(id, ok, json), goHome, refreshMenu,
   edition: () => Ed.edition(), isPro: () => Ed.isPro(), openProPanel: () => Ed.openProPanel(), proInfo: () => Ed.proInfo(), onEdition: (ed, reason) => Ed.onEdition(String(ed || ''), String(reason || '')), onAd: (reason, shown) => Ed.onAd(String(reason || ''), !!shown), __ads: Ed.__ads };
 ensureStatusChips();
-Ed.initEdition({ toast, rebuildToolbar: () => editor.rebuild() });   // Ücretsiz / Pro: menü, karşılama kartı, Pro paneli, Drive düğmeleri; reklam zamanlayıcısı; onEdition → şerit yeniden kurulur
+Ed.initEdition({ toast, rebuildToolbar: () => editor.rebuild(), refreshMenu });   // Ücretsiz / Pro: menü, karşılama kartı, Pro paneli, Drive düğmeleri; reklam zamanlayıcısı; onEdition → şerit yeniden kurulur
 D.initDisplay({ requestRender, drawOverlay, toast, openDoc, show, hide, buildLayerList, settings, saveSettings, editorTheme, zoomExtents, zoomBy, fitPrims, viewHistory, setLayout, editor, ui: uiPrefs(), basemaps: BASEMAPS, haptic });
 mountNavFabs(vp);
 initEditor({ S, requestRender, drawOverlay, toast, noFaces: showNoFaces, pick: (w) => pick(w, TOL.pick / S.view.scale), snap: doSnap, showInfo, openDoc, hide, show, esc, kv, copyText, buildLayerList, fmt, store, RTree, baseName, zoomExtents, tracePath, worldTransform, strokeWorldRect,
@@ -1786,7 +1805,8 @@ initEditor({ S, requestRender, drawOverlay, toast, noFaces: showNoFaces, pick: (
 $('stScale').addEventListener('click', showScalePicker);
 // belgeler (PDF / Word / ZIP / RAR) ve Google Drive
 Docs.initDocs({ toast, loadBytes, openDoc, hide, show, esc, kv, driveAvailable: () => Drive.signedIn(), driveUpload: (d) => { if (d && d.id) Drive.uploadWithPicker({ fileId: d.id, name: d.name, mime: 'application/octet-stream' }); }, driveConvert: (d) => Drive.convertToPdf(d),
-  onOpen: () => { closeMenu(); Open.close(); if (S.notesOn) toggleNotes(false); if (S.mode !== 'view') setMode('view'); hide('infoPanel'); }, onClose: () => { requestRender(); },
+  onOpen: () => { closeMenu(); Open.close(); Home.hide(); if (S.notesOn) toggleNotes(false); if (S.mode !== 'view') setMode('view'); cancelZoomWindow(); for (const id of openPanels()) hide(id); dockLayers(); refreshMenu(); },   // belge kipi: çizime ait paneller, ölçü, notlar ve komut çubuğu kapanır
+  onClose: () => { refreshMenu(); if (!S.hasDoc) Home.show(); else requestRender(); },   // çizim yoksa ana ekran, varsa şerit ve durum çubuğu geri gelir
   onCadFromArchive: () => { toast(tt('backToArchive', 'Arşive dön') + '?', { ms: 6000, action: { label: tt('backToArchive', 'Arşive dön'), fn: () => Docs.reopenLast() } }); } });
 Drive.initDrive({ toast, openDoc, hide, show, esc, kv, hideToast: () => { $('toast').hidden = true; }, openRegistered: (info) => Docs.openRegistered(info), openConverted: (info) => Docs.openConverted(info),
   dxfBytes: () => (editor.dxfBase64 ? editor.dxfBase64(false) : null), pngBytes: () => { savePng(); return lastPng; },
@@ -1794,6 +1814,10 @@ Drive.initDrive({ toast, openDoc, hide, show, esc, kv, hideToast: () => { $('toa
 $('btnDrive').addEventListener('click', () => Drive.open());
 Open.initOpen({ toast, loadBytes, openBlob: (f) => Docs.openBlob(f), fileForPurpose, onFilePicked, showServer, startQr, openDrive: () => Drive.open(), systemPick, refreshRecent: buildRecent,
   onOpen: () => { closeMenu(); Drive.close(); hide('docPanel'); } });
+Home.initHome({ toast, openDoc, hide, kv, hideToast: () => { $('toast').hidden = true; }, menuAction, editorAct: (a) => edCall('act', a), click: (id) => { const b = $(id); if (b) b.click(); }, openProPanel: () => Ed.openProPanel(),
+  openCenter: (tab) => Open.open(tab), systemPick, openDrive: () => Drive.open(), showServer, openRegistered: (info) => Docs.openRegistered(info), refreshRecent: buildRecent,
+  onShow: () => { closeMenu(); Drive.close(); Open.close(); for (const id of openPanels()) hide(id); if (S.notesOn) toggleNotes(false); if (S.mode !== 'view') setMode('view'); cancelZoomWindow(); refreshMenu(); buildRecent(); },   // Son dosyalar ızgarası her gösterimde tazelenir (tarayıcıda oturum listesi)
+  onHide: () => { refreshMenu(); requestRender(); } });
 // klavye (odak bir giriş alanında değilken): önce düzenleyici, sonra gezinti
 window.addEventListener('keydown', (ev) => {
   const tg = ev.target; if (tg && (tg.tagName === 'INPUT' || tg.tagName === 'TEXTAREA' || tg.tagName === 'SELECT' || tg.isContentEditable)) return;
@@ -1814,6 +1838,7 @@ applySettings();
 applyGeo();
 resize();
 requestRender();
+Home.show();   // çizim / belge yokken ana ekran; setScene ve belge açılışı gizler
 buildRecent();
 if (A() && A().getPendingFile) {
   try { const pf = A().getPendingFile(); if (pf) { const o = JSON.parse(pf); loadCurrent(o.name, o.size); } } catch (e) { console.warn(e); }
