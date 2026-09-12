@@ -21,8 +21,10 @@ body.contrast.light, body.contrast[data-theme="light"], body.contrast[data-theme
 html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--fg);
   font: calc(14px * var(--fs))/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overscroll-behavior: none; }
 body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after { transition: none !important; animation-duration: .001s !important; }
-svg.ic { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; display: inline-block; vertical-align: middle; flex: 0 0 auto; }
+/* simgeler dolgulu piktogramdır: fill currentColor; çizgi gereken parçalar sembol içinde satır içi stroke taşır */
+svg.ic { width: 22px; height: 22px; fill: currentColor; stroke: none; stroke-linecap: round; stroke-linejoin: round; display: inline-block; vertical-align: middle; flex: 0 0 auto; }
 .btn svg.ic, .menu svg.ic { width: 20px; height: 20px; }
+.btn.icon svg.ic { width: 24px; height: 24px; }
 
 /* --- yerleşim ızgarası: dikeyde şerit altta; yatayda (alçak ekran) şerit sağda ray --- */
 #app { position: fixed; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto auto;
@@ -198,11 +200,11 @@ body.glove .ask-field .opt-text { min-height: 52px; }
 #toolbar { background: var(--bar); border-top: 1px solid var(--line); display: flex; flex-direction: column; min-width: 0; }
 .tb-tabs { display: flex; flex: 0 0 auto; overflow-x: auto; scrollbar-width: none; }
 .tb-tabs::-webkit-scrollbar { display: none; }
-.tb-tabs button { flex: 1 0 auto; min-width: 56px; border: 0; background: transparent; color: var(--muted); padding: 0 6px; height: 40px; font-size: calc(12px * var(--fs)); font-weight: 600; border-bottom: 2px solid transparent; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
+.tb-tabs button { flex: 1 0 auto; min-width: 56px; border: 0; background: transparent; color: var(--muted); padding: 4px 6px 2px; height: 54px; font-size: calc(11px * var(--fs)); font-weight: 600; border-bottom: 2px solid transparent; white-space: nowrap; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; line-height: 1.1; }
 .tb-tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
-.tb-tabs button svg.ic { width: 16px; height: 16px; }
+.tb-tabs button svg.ic { width: 24px; height: 24px; }
 .tb-tabs button.tab-fav svg.ic { color: var(--accent); }
-@media (max-width: 560px) { .tb-tabs button svg.ic { display: none; } .tb-tabs button { padding: 0 6px; min-width: 44px; font-size: calc(11.5px * var(--fs)); } }
+@media (max-width: 560px) { .tb-tabs button { padding: 4px 4px 2px; min-width: 44px; font-size: calc(10.5px * var(--fs)); } }
 .tb-row { display: flex; gap: 8px; padding: 6px 8px calc(6px + var(--safe-bottom)); overflow-x: auto; scrollbar-width: none; align-items: flex-start; scroll-snap-type: x proximity; }
 .tb-row::-webkit-scrollbar { display: none; }
 .tb-group { display: flex; flex-direction: column; gap: 2px; flex: 0 0 auto; scroll-snap-align: start; }
@@ -210,7 +212,7 @@ body.glove .ask-field .opt-text { min-height: 52px; }
 .tb-tiles { display: flex; gap: 4px; }
 .tb-caption { display: none; font-size: calc(9.5px * var(--fs)); color: var(--muted); text-align: center; text-transform: uppercase; letter-spacing: .4px; white-space: nowrap; }
 .tb-row button { flex: 0 0 auto; min-width: var(--tile); min-height: var(--tb-h); border: 0; border-radius: var(--radius); background: var(--btn); color: var(--fg); padding: 4px 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; position: relative; touch-action: pan-x; }
-.tb-row button .ic { width: calc(22px * var(--fs)); height: calc(22px * var(--fs)); }
+.tb-row button .ic { width: calc(28px * var(--fs)); height: calc(28px * var(--fs)); }
 .tb-row button .lb { font-size: calc(10px * var(--fs)); line-height: 1.1; white-space: nowrap; color: var(--muted); max-width: 100%; }
 .tb-row button.active, .tb-row button.on { background: var(--btn-on); box-shadow: inset 0 0 0 2px var(--accent); }
 .tb-row button.active .lb, .tb-row button.on .lb { color: var(--fg); }
@@ -226,6 +228,7 @@ body.glove .ask-field .opt-text { min-height: 52px; }
 body.sun .tb-row button { border: 2px solid var(--line); }
 body.glove { --tile: 64px; --tb-h: 64px; }
 body.glove .tb-row button .lb { font-size: calc(11px * var(--fs)); }
+body.glove .tb-row button .ic { width: calc(32px * var(--fs)); height: calc(32px * var(--fs)); }
 body.glove .btn.icon { width: 48px; height: 48px; }
 body.glove .st-quick button { width: 48px; height: 48px; }
 
@@ -289,7 +292,7 @@ body.glove .st-quick button { width: 48px; height: 48px; }
 .navfabs.idle { opacity: .45; }
 .navfabs .fab { position: static; width: 48px; height: 48px; padding: 0; font-size: 22px; cursor: pointer; color: var(--fg); }
 .navfabs .fab:disabled { opacity: .35; }
-.navfabs .ic, .dpad .ic { width: 22px; height: 22px; }
+.navfabs .ic, .dpad .ic { width: 24px; height: 24px; }
 .dpad { position: absolute; left: 12px; bottom: 16px; display: grid; grid-template-columns: 44px 44px 44px; grid-template-rows: 44px 44px 44px; gap: 2px; z-index: 5; }
 .dpad button { width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--fg); font-size: 16px; display: flex; align-items: center; justify-content: center; }
 .dpad [data-pan=up] { grid-column: 2; grid-row: 1; } .dpad [data-pan=left] { grid-column: 1; grid-row: 2; } .dpad [data-pan=right] { grid-column: 3; grid-row: 2; } .dpad [data-pan=down] { grid-column: 2; grid-row: 3; }
@@ -326,7 +329,7 @@ body.left-hand .cube { right: auto; left: 10px; }
   .tb-tabs { flex-direction: column; overflow-y: auto; overflow-x: hidden; width: 44px; flex: 0 0 44px; border-right: 1px solid var(--line); }
   .tb-tabs button { flex: 0 0 auto; min-width: 0; width: 44px; height: 50px; padding: 2px 0; border-bottom: 0; border-right: 2px solid transparent; flex-direction: column; gap: 2px; font-size: calc(9px * var(--fs)); font-weight: 600; }
   .tb-tabs button.active { border-right-color: var(--accent); }
-  .tb-tabs button svg.ic { display: inline-block; width: 20px; height: 20px; }
+  .tb-tabs button svg.ic { width: 24px; height: 24px; }
   .tb-tabs button span { max-width: 42px; overflow: hidden; text-overflow: ellipsis; }
   #toolbar .tb-tabs .tb-collapse { display: none; }
   .tb-row { flex-direction: column; overflow-x: hidden; overflow-y: auto; padding: 6px 6px calc(6px + var(--safe-bottom)); flex: 1 1 auto; min-height: 0; gap: 6px; }
@@ -437,7 +440,7 @@ body.docmode #navFabs, body.docmode #dpad, body.docmode #cube3d { display: none 
 /* görsel stil ızgarası (açılır kutu) */
 .vs-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 4px 0 8px; }
 .vs-grid button { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 56px; min-height: 56px; border: 1px solid var(--line); border-radius: 10px; background: var(--btn); color: var(--fg); padding: 6px 2px; }
-.vs-grid button svg.ic { width: 26px; height: 26px; }
+.vs-grid button svg.ic { width: 28px; height: 28px; }
 .vs-grid button span { font-size: calc(9.5px * var(--fs)); color: var(--muted); white-space: nowrap; }
 .vs-grid button.on { box-shadow: inset 0 0 0 2px var(--accent); background: var(--btn-on); }
 .vs-grid button.on span { color: var(--fg); }

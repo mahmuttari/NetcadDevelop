@@ -581,7 +581,7 @@ function injectFallbackCss() {
 .navfabs.idle{opacity:.4}
 .navfabs .fab{position:static;width:48px;height:48px;padding:0;font-size:22px;cursor:pointer;color:var(--fg)}
 .navfabs .fab:disabled{opacity:.35}
-.navfabs .ic,.dpad .ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.75;display:inline-block}
+.navfabs .ic,.dpad .ic{width:24px;height:24px;fill:currentColor;stroke:none;display:inline-block}
 .dpad{position:absolute;left:12px;bottom:16px;display:grid;grid-template-columns:44px 44px 44px;grid-template-rows:44px 44px 44px;gap:2px;z-index:5}
 .dpad button{width:44px;height:44px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--fg);font-size:16px}
 .dpad [data-pan=up]{grid-column:2;grid-row:1}.dpad [data-pan=left]{grid-column:1;grid-row:2}.dpad [data-pan=right]{grid-column:3;grid-row:2}.dpad [data-pan=down]{grid-column:2;grid-row:3}
