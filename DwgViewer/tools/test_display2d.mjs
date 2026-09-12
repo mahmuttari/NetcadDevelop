@@ -1,5 +1,6 @@
 // display2d modülü sınaması (kabul listesi A.5–A.20 + regresyon 1).
 // Kullanım: PLAYWRIGHT_PKG=<node_modules> node tools/test_display2d.mjs [çıktı] [örnekler]
+import fs from 'node:fs';
 import { args, startServer, launchBrowser, openFile, onDialog, noUpdate, checker, PHONE } from './harness.mjs';
 const { out, samples: SM } = args(import.meta.url);
 const srv = await startServer();
@@ -336,6 +337,37 @@ await ev(() => window.dwgApp.onBack());
   ok('13g 3B zoom fab hatasız', errors.length === 0);
   await ev(() => window.dwgApp.onBack()); await page.waitForTimeout(200);
 }
+// ---- 21. büyük koordinat hassasiyeti (UTM): tuvale yerel koordinat gider ----------------------
+// Chromium yol noktalarını float32 tutar; X 430.000 / Y 4.496.000 ham verilirse çizgiler kayar, kalınlaşır ya da kaybolur.
+{
+  const L = (c, v) => `${c}\n${v}\n`;
+  const X0 = 430421.6392360674, Y0 = 4496611.864352462, N = 12, STEP = 0.5;
+  let d = L(0, 'SECTION') + L(2, 'HEADER') + L(9, '$ACADVER') + L(1, 'AC1015') + L(0, 'ENDSEC') + L(0, 'SECTION') + L(2, 'ENTITIES');
+  for (let i = 0; i < N; i++) {
+    const x = X0 + i * STEP, y = Y0 + i * STEP;
+    d += L(0, 'LINE') + L(8, '0') + L(62, 4) + L(10, x) + L(20, Y0 - 1) + L(30, 0) + L(11, x) + L(21, Y0 + N * STEP) + L(31, 0);
+    d += L(0, 'LINE') + L(8, '0') + L(62, 4) + L(10, X0 - 1) + L(20, y) + L(30, 0) + L(11, X0 + N * STEP) + L(21, y) + L(31, 0);
+  }
+  d += L(0, 'ENDSEC') + L(0, 'EOF');
+  fs.writeFileSync(`${out}/utm_grid.dxf`, d);
+  await load(`${out}/utm_grid.dxf`);
+  const cxw = X0 + (N - 1) * STEP / 2, cyw = Y0 + (N - 1) * STEP / 2, half = N * STEP * 0.6;
+  await ev(([cx, cy, h]) => { window.dwgApp.state.lw = false; window.dwgApp.zoomExtents([cx - h, cy - h, cx + h, cy + h]); }, [cxw, cyw, half]);
+  await page.waitForTimeout(500);
+  const runs = await ev(() => {
+    const c = document.getElementById('cv'), g = c.getContext('2d');
+    const d = g.getImageData(0, 0, c.width, c.height).data, W = c.width, H = c.height, bg = [d[0], d[1], d[2]];
+    const ink = (x, y) => { const i = (y * W + x) * 4; return Math.abs(d[i] - bg[0]) + Math.abs(d[i + 1] - bg[1]) + Math.abs(d[i + 2] - bg[2]) > 60; };
+    const scan = (len, get) => { const r = []; let on = false, start = 0; for (let t = 0; t < len; t++) { const v = get(t); if (v && !on) { on = true; start = t; } else if (!v && on) { on = false; r.push(t - start); } } if (on) r.push(len - start); return r; };
+    const y = Math.round(H * 0.45), x = Math.round(W * 0.5);   // ortadaki yatay ve dikey tarama çizgileri
+    return { cols: scan(W, (t) => ink(t, y)), rows: scan(H, (t) => ink(x, t)), dpr: window.devicePixelRatio };
+  });
+  const okCols = runs.cols.length === N && runs.cols.every(w => w <= 3), okRows = runs.rows.length === N && runs.rows.every(w => w <= 3);
+  ok('21a UTM koordinatlı 12 dikey çizgi ince ve eksiksiz (float32 sapması yok)', okCols, JSON.stringify(runs.cols));
+  ok('21b UTM koordinatlı 12 yatay çizgi ince ve eksiksiz', okRows, JSON.stringify(runs.rows));
+  await shot('21_utm');
+}
+
 // ---- yatay ve küçük ekran -------------------------------------------------------------------
 await page.setViewportSize({ width: 915, height: 412 }); await page.waitForTimeout(400); await shot('d_landscape');
 await page.setViewportSize({ width: 360, height: 640 }); await page.waitForTimeout(400);

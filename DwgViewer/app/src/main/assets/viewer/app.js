@@ -5,7 +5,7 @@
 import { S, toWorld, toScreen, fitView, zoomAtScreen, visibleRect, UNITS, UNIT_TO_M, fmt, fmtUnit, store } from './state.js';
 import { RTree, snapPoint, primDist, flatten, pathLength, polyArea, TAU } from './geom.js';
 import { FG, primSignature } from './scene.js';
-import { drawFrame, rgbCss, bgColor, fgColor, tracePath, renderRegion, gridState, niceStep } from './render.js';
+import { drawFrame, rgbCss, bgColor, fgColor, tracePath, renderRegion, gridState, niceStep, worldTransform as renderWorldTransform, worldOrigin } from './render.js';
 import * as D from './display.js';
 import { DISPLAY_DEFAULTS, setDisplay, getDisplay, toggleDisplay, primVisible, isolateLayers, unisolate, isIsolated, setLayerFaded, openDisplayOptions, closeDisplayOptions, mountNavFabs, gridLabel, refreshNav } from './display.js';
 import * as editorMod from './editor.js';
@@ -259,10 +259,10 @@ function cancelZoomWindow() {
 let noteDraft = null, selectedNote = null;
 const photos = new Map(); // photo id → {img, ok}
 
-function worldTransform(c) {
-  const k = S.view.scale * S.dpr;
-  c.setTransform(k, 0, 0, -k, ov.width / 2 - k * S.view.cx, ov.height / 2 + k * S.view.cy);
-}
+/** Kaplama için dünya dönüşümü: render.js ile aynı köken (görünüm merkezi); tracePath yerel koordinat üretir */
+function worldTransform(c) { renderWorldTransform(c, ov); }
+/** Dünya kutusunu yerel koordinatla çizer (bb: [x0, y0, x1, y1]) */
+function strokeWorldRect(c, bb) { const [ox, oy] = worldOrigin(); c.strokeRect(bb[0] - ox, bb[1] - oy, bb[2] - bb[0], bb[3] - bb[1]); }
 function drawOverlay() {
   const c = octx;
   c.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);
@@ -276,7 +276,7 @@ function drawOverlay() {
     c.save(); worldTransform(c);
     c.strokeStyle = acc; c.lineWidth = (S.selWidth || 3) / S.view.scale; c.globalAlpha = 0.9; c.setLineDash([]);
     if (p.k === 0) { c.beginPath(); tracePath(c, p.ops); if (p.closed) c.closePath(); c.stroke(); }
-    else c.strokeRect(p.bb[0], p.bb[1], p.bb[2] - p.bb[0], p.bb[3] - p.bb[1]);
+    else strokeWorldRect(c, p.bb);
     c.restore(); c.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);
   }
   if (notes.items.length || noteDraft) drawNotes(c, toScreen, S.view.scale, selectedNote && selectedNote.id, noteDraft, photos);
@@ -1758,7 +1758,7 @@ window.dwgApp = { loadCurrent, onFilePicked, onLocation, onBack, loadBytes, zoom
 ensureStatusChips();
 D.initDisplay({ requestRender, drawOverlay, toast, openDoc, show, hide, buildLayerList, settings, saveSettings, editorTheme, zoomExtents, zoomBy, fitPrims, viewHistory, setLayout, editor, ui: uiPrefs(), basemaps: BASEMAPS, haptic });
 mountNavFabs(vp);
-initEditor({ S, requestRender, drawOverlay, toast, noFaces: showNoFaces, pick: (w) => pick(w, TOL.pick / S.view.scale), snap: doSnap, showInfo, openDoc, hide, show, esc, kv, copyText, buildLayerList, fmt, store, RTree, baseName, zoomExtents, tracePath,
+initEditor({ S, requestRender, drawOverlay, toast, noFaces: showNoFaces, pick: (w) => pick(w, TOL.pick / S.view.scale), snap: doSnap, showInfo, openDoc, hide, show, esc, kv, copyText, buildLayerList, fmt, store, RTree, baseName, zoomExtents, tracePath, worldTransform, strokeWorldRect,
   action: (a) => { if (a === 'layers') $('btnLayers').click(); else if (a === 'search') $('btnSearch').click(); else if (a === 'more') $('btnMore').click(); else menuAction(a); },
   savePng, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, isolateLayers, unisolate, settings, saveSettings, stamp, haptic, openDisplayOptions, setDisplay, getDisplay, toggleDisplay, display: D });
 $('stScale').addEventListener('click', showScalePicker);

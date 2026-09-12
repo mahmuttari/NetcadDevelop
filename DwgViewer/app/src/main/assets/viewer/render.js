@@ -92,15 +92,30 @@ function dashOf(prim, ltypes, scale, ltK) {
   return arr.length ? arr : null;
 }
 
+/**
+ * Dünya kökeni (OX, OY): tuvale verilen bütün koordinatlar bu noktaya göre yereldir.
+ * Chromium/Skia yol noktalarını ve dönüşüm matrisini 32 bit kayan noktada tutar; UTM benzeri
+ * büyük koordinatlar (X 430.000, Y 4.500.000) ham verilirse 0,5 birime varan yuvarlama oluşur ve
+ * ölçeğe göre değişen sapmalar çizgileri kaydırır, kalınlaştırır ya da yok eder. Bu yüzden görünüm
+ * merkezi JS'te (64 bit) çıkarılır, dönüşüm matrisine yalnız tuval merkezi konur.
+ */
+let OX = 0, OY = 0;
+export const worldOrigin = () => [OX, OY];
+/** Dünya → tuval dönüşümü (merkez tabanlı): k = ölçek × dpr; kökeni S.view merkezine alır */
+export function worldTransform(c, cv, k = S.view.scale * S.dpr) {
+  OX = S.view.cx; OY = S.view.cy;
+  c.setTransform(k, 0, 0, -k, cv.width / 2, cv.height / 2);
+}
 export function tracePath(c, ops) {
+  const ox = OX, oy = OY;
   for (let j = 0, m = ops.length; j < m; j++) {
     const o = ops[j];
     switch (o[0]) {
-      case 0: c.moveTo(o[1], o[2]); break;
-      case 1: c.lineTo(o[1], o[2]); break;
-      case 2: c.arc(o[1], o[2], o[3], o[4], o[5], false); break;
-      case -2: c.arc(o[1], o[2], o[3], o[4], o[5], true); break;
-      case 3: c.ellipse(o[1], o[2], o[3], o[4], o[5], o[6], o[7], false); break;
+      case 0: c.moveTo(o[1] - ox, o[2] - oy); break;
+      case 1: c.lineTo(o[1] - ox, o[2] - oy); break;
+      case 2: c.arc(o[1] - ox, o[2] - oy, o[3], o[4], o[5], false); break;
+      case -2: c.arc(o[1] - ox, o[2] - oy, o[3], o[4], o[5], true); break;
+      case 3: c.ellipse(o[1] - ox, o[2] - oy, o[3], o[4], o[5], o[6], o[7], false); break;
       default: break;
     }
   }
@@ -108,7 +123,7 @@ export function tracePath(c, ops) {
 
 function drawText(c, p, fg, col) {
   c.save();
-  c.translate(p.x, p.y);
+  c.translate(p.x - OX, p.y - OY);
   c.rotate(p.rot);
   const s = p.h / 10;
   c.scale(s * p.ws * (p.mx ? -1 : 1), -s * (p.my ? -1 : 1));
@@ -233,10 +248,11 @@ export function drawPrims(c, prims, scale, rect, opt) {
       const s = pPx / scale;
       c.strokeStyle = col; c.fillStyle = col; c.lineWidth = thin; c.setLineDash([]);
       c.beginPath();
-      if (pStyle === 'x') { c.moveTo(p.x - s, p.y - s); c.lineTo(p.x + s, p.y + s); c.moveTo(p.x + s, p.y - s); c.lineTo(p.x - s, p.y + s); c.stroke(); }
-      else if (pStyle === 'o') { c.arc(p.x, p.y, s, 0, 6.2832); c.stroke(); }
-      else if (pStyle === 'dot') { c.arc(p.x, p.y, s * 0.6, 0, 6.2832); c.fill(); }
-      else { c.moveTo(p.x - s, p.y); c.lineTo(p.x + s, p.y); c.moveTo(p.x, p.y - s); c.lineTo(p.x, p.y + s); c.stroke(); }
+      const px = p.x - OX, py = p.y - OY;
+      if (pStyle === 'x') { c.moveTo(px - s, py - s); c.lineTo(px + s, py + s); c.moveTo(px + s, py - s); c.lineTo(px - s, py + s); c.stroke(); }
+      else if (pStyle === 'o') { c.arc(px, py, s, 0, 6.2832); c.stroke(); }
+      else if (pStyle === 'dot') { c.arc(px, py, s * 0.6, 0, 6.2832); c.fill(); }
+      else { c.moveTo(px - s, py); c.lineTo(px + s, py); c.moveTo(px, py - s); c.lineTo(px, py + s); c.stroke(); }
     } else if (p.k === 3) {
       if (fast) continue;
       flush(); curKey = null;
@@ -248,14 +264,15 @@ export function drawPrims(c, prims, scale, rect, opt) {
         // resim px (0..pw, 0..ph; y aşağı) → dünya: sol alt q[0], sağ alt q[1], sol üst q[3]
         const a = (q[1][0] - q[0][0]) / p.pw, b = (q[1][1] - q[0][1]) / p.pw;
         const cc = (q[3][0] - q[0][0]) / p.ph, d = (q[3][1] - q[0][1]) / p.ph;
-        c.transform(a, b, cc, d, q[0][0], q[0][1]);
+        c.transform(a, b, cc, d, q[0][0] - OX, q[0][1] - OY);
         c.transform(1, 0, 0, -1, 0, p.ph);
         c.drawImage(im.img, 0, 0, p.pw, p.ph);
         c.restore();
       } else {
         c.strokeStyle = col; c.lineWidth = thin; c.setLineDash([4 / scale, 4 / scale]);
-        c.beginPath(); c.moveTo(q[0][0], q[0][1]); for (let i = 1; i < 4; i++) c.lineTo(q[i][0], q[i][1]); c.closePath(); c.stroke();
-        c.beginPath(); c.moveTo(q[0][0], q[0][1]); c.lineTo(q[2][0], q[2][1]); c.moveTo(q[1][0], q[1][1]); c.lineTo(q[3][0], q[3][1]); c.stroke();
+        const Q = q.map(v => [v[0] - OX, v[1] - OY]);
+        c.beginPath(); c.moveTo(Q[0][0], Q[0][1]); for (let i = 1; i < 4; i++) c.lineTo(Q[i][0], Q[i][1]); c.closePath(); c.stroke();
+        c.beginPath(); c.moveTo(Q[0][0], Q[0][1]); c.lineTo(Q[2][0], Q[2][1]); c.moveTo(Q[1][0], Q[1][1]); c.lineTo(Q[3][0], Q[3][1]); c.stroke();
         c.setLineDash([]);
       }
     }
@@ -340,7 +357,7 @@ export function drawFrame(c, cv) {
   if (!S.hasDoc) return;
   const { scale, cx, cy } = S.view;
   const k = scale * S.dpr;
-  const world = () => c.setTransform(k, 0, 0, -k, cv.width / 2 - k * cx, cv.height / 2 + k * cy);
+  const world = () => worldTransform(c, cv, k);   // köken = görünüm merkezi (cx, cy); tuvale yerel koordinat gider
   world();
   const rect = visibleRect();
   const layout = S.scene.layouts[S.layoutIndex];
@@ -355,20 +372,24 @@ export function drawFrame(c, cv) {
   } else {
     // kâğıt: çerçeve
     c.fillStyle = S.bgOverride ? bg : th.paper;
-    c.fillRect(layout.ext[0], layout.ext[1], layout.ext[2] - layout.ext[0], layout.ext[3] - layout.ext[1]);
+    c.fillRect(layout.ext[0] - OX, layout.ext[1] - OY, layout.ext[2] - layout.ext[0], layout.ext[3] - layout.ext[1]);
     for (const vp of layout.viewports) {
       if (!vp.on) continue;
       c.save();
-      c.beginPath(); c.rect(vp.x0, vp.y0, vp.x1 - vp.x0, vp.y1 - vp.y0); c.clip();
+      c.beginPath(); c.rect(vp.x0 - OX, vp.y0 - OY, vp.x1 - vp.x0, vp.y1 - vp.y0); c.clip();
       if (S.ui2d.vpFrames) { c.strokeStyle = S.dark ? '#3a4656' : '#c9d0d8'; c.lineWidth = 1 / scale; c.stroke(); }
       const mcx = (vp.x0 + vp.x1) / 2, mcy = (vp.y0 + vp.y1) / 2;
-      c.translate(mcx, mcy); c.scale(vp.scale, vp.scale); if (vp.twist) c.rotate(vp.twist); c.translate(-vp.cx, -vp.cy);
+      // pencere içinde model uzayı: köken pencerenin model merkezi (vp.cx, vp.cy) olur; büyük UTM koordinatları matrise girmez
+      const pOX = OX, pOY = OY;
+      c.translate(mcx - OX, mcy - OY); c.scale(vp.scale, vp.scale); if (vp.twist) c.rotate(vp.twist);
+      OX = vp.cx; OY = vp.cy;
       const ms = scale * vp.scale;
       const hw = (vp.x1 - vp.x0) / 2 / vp.scale, hh = (vp.y1 - vp.y0) / 2 / vp.scale;
       const rr = vp.twist ? [vp.cx - Math.hypot(hw, hh), vp.cy - Math.hypot(hw, hh), vp.cx + Math.hypot(hw, hh), vp.cy + Math.hypot(hw, hh)] : [vp.cx - hw, vp.cy - hh, vp.cx + hw, vp.cy + hh];
       // PSLTSCALE=1: çizgi tipi uzunlukları kâğıt biriminde sabittir; pencere başına dondurulmuş katmanlar (VIEWPORT 331) gizlenir
       const psLt = !(S.scene.header && S.scene.header.PSLTSCALE === 0), frozen = vp.frozen && vp.frozen.length ? new Set(vp.frozen) : null;
       drawPrims(c, model.prims, ms, rr, { ...opt, tree: S.tree, frozen, ltK: psLt && vp.scale > 0 ? 1 / vp.scale : 1 });
+      OX = pOX; OY = pOY;
       c.restore();
     }
     drawPrims(c, S.prims, scale, rect, opt);

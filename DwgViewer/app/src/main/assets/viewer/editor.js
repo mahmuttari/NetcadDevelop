@@ -586,11 +586,10 @@ export function back() {
 export function overlay(c) {
   const acc = S.selColor || '#ff9f0a', sw = S.selWidth || 3;
   if (ed.sel.size) {
-    const k = S.view.scale * S.dpr;
     c.save();
-    c.setTransform(k, 0, 0, -k, c.canvas.width / 2 - k * S.view.cx, c.canvas.height / 2 + k * S.view.cy);
+    api.worldTransform(c);   // köken görünüm merkezi; tracePath / strokeWorldRect yerel koordinat kullanır (büyük UTM sayıları tuvale girmez)
     c.strokeStyle = acc; c.lineWidth = sw / S.view.scale; c.setLineDash([6 / S.view.scale, 4 / S.view.scale]); c.globalAlpha = 0.95;
-    for (const p of ed.sel) { if (p.k === 0) { c.beginPath(); api.tracePath(c, p.ops); if (p.closed) c.closePath(); c.stroke(); } else c.strokeRect(p.bb[0], p.bb[1], p.bb[2] - p.bb[0], p.bb[3] - p.bb[1]); }
+    for (const p of ed.sel) { if (p.k === 0) { c.beginPath(); api.tracePath(c, p.ops); if (p.closed) c.closePath(); c.stroke(); } else api.strokeWorldRect(c, p.bb); }
     c.restore(); c.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);
   }
   const d = tools.draft;
