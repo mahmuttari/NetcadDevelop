@@ -171,7 +171,9 @@ export function drawPrims(c, prims, scale, rect, opt) {
   const th = theme();
   const fast = fastPanActive();
   const minPx = 0.35 / scale;
-  const thinPx = fast ? 0.75 : Math.max(S.minLw, th.minLw);
+  // Çizgi kalınlıkları kapalıyken her çizgi tema kılçığıdır (AutoCAD LWDISPLAY kapalı = 1 px); 'En az kalınlık'
+  // yalnız kalınlıklar gösterilirken ince pozları görünür tutar. Polyline genişlikleri (p.w) her iki durumda da çizilir.
+  const thinPx = fast ? 0.75 : (S.lw ? Math.max(S.minLw, th.minLw) : th.minLw);
   const thin = (S.smooth ? thinPx : 1 / S.dpr) / scale; // yumuşatma kapalıyken tam 1 fiziksel px
   const { layers, ltypes, fg, bg, frozen, ltK } = opt;
   const lwOn = S.lw, lwK = S.lwScale / 100 / scale; // 1/100 mm → dünya birimi (px cinsinden kalınlık / scale)

@@ -260,7 +260,14 @@ if (fs.existsSync(path.join(SM, 'Leader_2004.dwg'))) {
   ok('12a SORTENTSTABLE: HATCH, LINE\'dan önce çizilir (dosya sırası tersiydi)', r.n === 2 && r.h === 0 && r.l === 1, JSON.stringify(r));
   ok('12b taramalar arkada seçeneği varsayılan açık', r.hatchBack === true, String(r.hatchBack));
 }
-ok('13 sayfa hatası yok', errors.length === 0, errors.join(' | ').slice(0, 300));
+// (13) DWG XDATA: LibreDWG EED yapısından okunur; uygulama adları ASCII, ACAD/MTEXTBEGIN vb. değerler gerçek
+{
+  await openFile(page, path.join(SM, 'example_2000.dwg'), { settle: 200 });
+  const r = await ev(() => { const ps = window.dwgApp.state.prims.filter(p => p.info && p.info.xd); const apps = new Set(); for (const p of ps) for (const x of p.info.xd) apps.add(x[0]); return { n: ps.length, apps: [...apps].sort(), bad: [...apps].filter(a => !/^[\x20-\x7e]+$/.test(a)).length, mtext: ps.some(p => p.info.xd.some(x => x[0] === 'ACAD' && /MTEXTBEGIN/.test(x[1]))) }; });
+  ok('13a DWG XDATA okunuyor (EED): uygulama adları ASCII', r.n > 10 && r.bad === 0 && r.apps.includes('ACAD'), JSON.stringify(r).slice(0, 200));
+  ok('13b ACAD MTEXTBEGIN/MTEXTEND geçersiz kılma dizisi çözüldü', r.mtext, String(r.mtext));
+}
+ok('14 sayfa hatası yok', errors.length === 0, errors.join(' | ').slice(0, 300));
 C.summary(errors);
 await browser.close(); srv.kill();
 C.exit();

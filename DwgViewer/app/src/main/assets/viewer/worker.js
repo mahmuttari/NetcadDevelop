@@ -58,7 +58,7 @@ async function readDb(bytes, id) {
   const critical = code >= ERR.CLASSESNOTFOUND ? code : 0;   // DWG_ERR_CRITICAL: CLASSESNOTFOUND (128) ve üstü; sağlam dosyalarda 64/68 kalır
   const suspect = critical || ((code & ERR.WRONGCRC) ? code : 0);   // CRC hatası: dosya açılır ama nesneler eksik olabilir (bozuk kopya) → uyarı
   let db, cp = 0;
-  try { try { cp = lib.dwg_get_codepage(dwg) | 0; } catch (_) { cp = 0; } db = lib.convert(dwg); db.raw3d = collectRaw3D(lib, dwg, db); db.sortents = collectSortents(lib, dwg, db); }
+  try { try { cp = lib.dwg_get_codepage(dwg) | 0; } catch (_) { cp = 0; } db = lib.convert(dwg); db.raw3d = collectRaw3D(lib, dwg, db); db.sortents = collectSortents(lib, dwg, db); attachEed(lib, dwg, db, head, cp); }
   catch (e) {
     if (isAbort(e)) lib = null;
     throw new Error(isMem(e) ? memMsg(u8.length) : (critical ? `DWG bozuk ya da kesik (LibreDWG hata kodu ${code}): ` : 'LibreDWG dosyayı çözemedi: ') + msgOf(e));
@@ -188,6 +188,76 @@ function rawSamples(raw) {
  * Çizim sırası tabloları (SORTENTSTABLE, tür 714): sahip blok kaydı → (varlık tanıtıcısı → sıra tanıtıcısı).
  * Dönüştürücü bu nesneyi vermez; LibreDWG nesne listesi taranır. scene.js sortedEnts() bu eşlemeyle çizer.
  */
+/**
+ * Genişletilmiş varlık verisi (XDATA): sarmalayıcının dwg_object_entity_get_xdata çıktısı bozuk (uygulama adı
+ * UTF-16 sanılır, kodlar kayar); LibreDWG'nin Dwg_Eed dizisi doğrudan okunur ve dxf.js ile aynı biçimde
+ * (e.xdata = [{ appName, value: [{ code, value }] }]) varlığa yazılır. Ölçü stili geçersiz kılmaları
+ * (ACAD/DSTYLE: DIMSCALE, DIMASZ…) böylece DWG yolunda da geçerli olur. Ayrıca LEADER'ın ölçü stili adı
+ * (sarmalayıcı MTEXT stilini okuyordu) dimstyle tanıtıcısından çözülür.
+ * Dwg_Eed (wasm32): size u16 @0, handle.value u64 @16, data* @32 — data (paketli): code u8, sonra değer.
+ */
+function attachEed(lib, dwg, db, head, cp) {
+  const W = lib.wasmInstance; if (!W || !W.dwg_ptr_to_unsigned_char_array) return;
+  const r2007 = head >= 'AC1021';
+  let dec = null; try { dec = new TextDecoder(LW.dwgCodePageToEncoding(cp) || 'windows-1254'); } catch (_) { try { dec = new TextDecoder('windows-1254'); } catch (__) { dec = null; } }
+  const decBytes = (u) => { try { return dec ? dec.decode(u) : String.fromCharCode(...u); } catch (_) { return String.fromCharCode(...u); } };
+  const bytesAt = (p, n) => new Uint8Array(W.dwg_ptr_to_unsigned_char_array(p, n));
+  const hexOf = (v) => Number(v).toString(16).toUpperCase();
+  const byH = new Map(); const add = (arr) => { for (const e of arr || []) if (e && e.handle) byH.set(String(e.handle).toUpperCase(), e); };
+  add(db.entities); for (const b of (db.tables.BLOCK_RECORD && db.tables.BLOCK_RECORD.entries) || []) add(b.entities);
+  const dimByH = new Map(); for (const d of (db.tables.DIMSTYLE && db.tables.DIMSTYLE.entries) || []) if (d && d.handle) dimByH.set(String(d.handle).toUpperCase(), d);
+  const appNames = new Map();
+  const nameOf = (hv) => {
+    if (appNames.has(hv)) return appNames.get(hv);
+    let nm = '';
+    try { const ao = lib.dwg_resolve_handle(dwg, hv); if (ao) { const at = lib.dwg_object_to_object_tio(ao); const r = lib.dwg_dynapi_entity_value(at, 'name'); if (r && r.bin) nm = decBytes(new Uint8Array(Object.values(r.bin))); else if (r && typeof r.data === 'string') nm = r.data; } } catch (_) { nm = ''; }
+    appNames.set(hv, nm); return nm;
+  };
+  const absOf = (r) => { if (r == null) return null; if (typeof r === 'number') { try { return lib.dwg_ref_get_absref(r); } catch (_) { return null; } } if (typeof r === 'object') return r.absolute_ref != null ? r.absolute_ref : (r.handleref && r.handleref.value != null ? r.handleref.value : null); return null; };
+  const parseData = (dp) => {   // → [{ code, value }] (DXF 10xx kodları)
+    const out = []; const h = bytesAt(dp, 8); const code = h[0]; const dv = new DataView(h.buffer);
+    switch (code) {
+      case 0: { const len = dv.getUint16(1, true); if (r2007) { const u = bytesAt(dp + 5, len * 2); let str = ''; for (let i = 0; i + 1 < u.length; i += 2) str += String.fromCharCode(u[i] | (u[i + 1] << 8)); out.push({ code: 1000, value: str }); } else out.push({ code: 1000, value: decBytes(bytesAt(dp + 5, len)) }); break; }
+      case 2: out.push({ code: 1002, value: h[1] ? '}' : '{' }); break;
+      case 3: case 5: { const b = bytesAt(dp + 1, 8); const d2 = new DataView(b.buffer); out.push({ code: 1000 + code, value: hexOf(d2.getUint32(0, true) + d2.getUint32(4, true) * 4294967296) }); break; }
+      case 4: { const len = h[1]; const b = bytesAt(dp + 2, len); out.push({ code: 1004, value: Array.from(b, x => x.toString(16).padStart(2, '0')).join('') }); break; }
+      case 10: case 11: case 12: case 13: { const b = bytesAt(dp + 1, 24); const d2 = new DataView(b.buffer); out.push({ code: 1000 + code, value: d2.getFloat64(0, true) }, { code: 1010 + code, value: d2.getFloat64(8, true) }, { code: 1020 + code, value: d2.getFloat64(16, true) }); break; }
+      case 40: case 41: case 42: { const b = bytesAt(dp + 1, 8); out.push({ code: 1000 + code, value: new DataView(b.buffer).getFloat64(0, true) }); break; }
+      case 70: out.push({ code: 1070, value: dv.getInt16(1, true) }); break;
+      case 71: out.push({ code: 1071, value: dv.getInt32(1, true) }); break;
+      default: break;   // 1 (appid dizini) ve bilinmeyenler
+    }
+    return out;
+  };
+  let N = 0; try { N = lib.dwg_get_num_objects(dwg); } catch (_) { return; }
+  let attached = 0;
+  for (let i = 0; i < N && i < 4000000; i++) {
+    let o = null, tio = null;
+    try { o = lib.dwg_get_object(dwg, i); if (!o || lib.dwg_object_get_supertype(o) !== 0) continue; tio = lib.dwg_object_to_entity_tio(o); if (!tio) continue; } catch (_) { continue; }
+    let e = null; try { e = byH.get(hexOf(lib.dwg_obj_get_handle_value(o))); } catch (_) { e = null; }
+    if (!e) continue;
+    try {
+      if (e.type === 'LEADER' || e.type === 'DIMENSION' || e.type === 'TOLERANCE') {   // ölçü stili adı: dimstyle tanıtıcısı → DIMSTYLE tablosu
+        const ab = absOf(lib.dwg_dynapi_entity_value(tio, 'dimstyle').data); const d = ab != null ? dimByH.get(hexOf(ab)) : null;
+        if (d && d.name) e.styleName = d.name;
+      }
+    } catch (_) { /* stil yok */ }
+    try {
+      const ne = lib.dwg_dynapi_common_value(tio, 'num_eed').data | 0; if (!(ne > 0)) continue;
+      const ep = lib.dwg_dynapi_common_value(tio, 'eed').data | 0; if (!ep) continue;
+      const tbl = bytesAt(ep, 40 * Math.min(ne, 4096)); const dv = new DataView(tbl.buffer);
+      const groups = []; let cur = null;
+      for (let k = 0; k < ne && k < 4096; k++) {
+        const off = k * 40, size = dv.getUint16(off, true), hv = dv.getUint32(off + 16, true), dp = dv.getUint32(off + 32, true);
+        if (size > 0 || !cur) { cur = { appName: nameOf(hv), value: [] }; groups.push(cur); }
+        if (dp) cur.value.push(...parseData(dp));
+      }
+      if (groups.length) { e.xdata = groups; attached++; }
+    } catch (_) { /* bu varlığın EED'si atlanır */ }
+  }
+  db.eedCount = attached;
+}
+
 function collectSortents(lib, dwg, db) {
   const W = lib.wasmInstance, out = {};
   const hexOf = (v) => (v == null ? null : Number(v).toString(16).toUpperCase());
