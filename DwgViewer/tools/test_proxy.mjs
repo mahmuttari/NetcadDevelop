@@ -41,7 +41,7 @@ const scene = new SceneBuilder(db).build();
 const prims = scene.layouts[0].prims;
 const tris = prims.filter(p => p.tri), lines = prims.filter(p => p.k === 0 && !p.tri), txt = prims.filter(p => p.k === 1);
 ok('proxy: kabuk 6 yüz → 12 üçgen + çokgen 1 + ağ 4 = 17 üçgen', tris.length === 17, 'tris=' + tris.length);
-ok('proxy: kenarlar, çizgi, daire ve ağ çizgileri var', lines.length >= 24 + 1 + 1 + 1 + 5, 'lines=' + lines.length);
+ok('proxy: kenarlar (küp 12, eş düzlemli çaprazlar gizli), çizgi, daire, çokgen ve ağ çizgileri', lines.length === 12 + 1 + 1 + 1 + 5, 'lines=' + lines.length);
 ok('proxy: yazı okundu', txt.length === 1 && txt[0].lines[0] === 'PROXY' && Math.abs(txt[0].z - 40) < 1e-9, JSON.stringify(txt[0] && [txt[0].lines, txt[0].z]));
 const tri0 = tris[0]; ok('proxy: renk ACI 1 (kırmızı) uygulanmış', tri0 && tri0.col === 0xff0000, tri0 && tri0.col.toString(16));
 const poly = tris.find(p => p.ops[0][1] >= 100); ok('proxy: dönüşüm yığını uygulanmış (x+100, z+50)', !!poly && Math.abs(poly.ops[0][3] - 50) < 1e-9, poly && JSON.stringify(poly.ops[0]));

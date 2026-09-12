@@ -637,6 +637,12 @@ export class View3D {
     const proj = c.persp ? perspective(fov, aspect, near, far) : ortho(-hh * aspect, hh * aspect, -hh, hh, -far, far);
     return mul4(proj, view);
   }
+  /** hedef uzaklığında bir ekran pikselinin dünya birimi karşılığı (paralelde tam, perspektifte hedef düzleminde) */
+  _worldPerPixel(c) {
+    const fov = clamp(this.opts.fov, 10, 120) * Math.PI / 180;
+    const hh = c.dist * Math.tan(fov / 2);
+    return (2 * hh) / Math.max(1, this.cv.height);
+  }
   _bgColor() {
     const b = this.opts.bg;
     if (b === 'black') return [0, 0, 0]; if (b === 'white') return [1, 1, 1];
@@ -722,7 +728,7 @@ export class View3D {
     // siluet: kameradan uzağa şişirilmiş koyu kabuk (yüzeyler üstüne çizilince yalnız çevre kalır)
     if (fx.silhouette && this._n.tris && fx.faces !== 'none' && fx.faces !== 'xray') {
       this._ensureSmooth();
-      gl.uniform1f(u.uHull, this.radius * 0.004 * o.silhouetteWidth);
+      gl.uniform1f(u.uHull, this._worldPerPixel(c) * o.silhouetteWidth);   // piksel cinsinden siluet kalınlığı (yakınlaşınca kalınlaşmaz)
       gl.uniform4f(u.uOverride, darkEdge[0], darkEdge[1], darkEdge[2], 1);
       this._draw('tris', gl.TRIANGLES, 1, true, true);
       gl.uniform1f(u.uHull, 0); gl.uniform4f(u.uOverride, 0, 0, 0, 0);

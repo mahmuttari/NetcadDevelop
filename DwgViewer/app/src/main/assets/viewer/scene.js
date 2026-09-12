@@ -108,6 +108,42 @@ function zOps(ops, zs, zo) {
   });
 }
 
+/**
+ * Ağ kenar süzgeci: yüz döngülerinden (3B nokta dizileri) çizilecek kenarları seçer.
+ * İki eş düzlemli komşu yüz arasındaki kenar (üçgenleme çaprazı, düz yüzeyin parçalanması) çizilmez;
+ * yalnız sınır kenarları ve kırışıklık açısı `creaseDeg`'i aşan kenarlar kalır. `hidden[f][k]` (dosyadaki
+ * görünmez kenar bayrağı) her zaman gizler. Dönen: [[a,b], …]
+ */
+export function meshEdges(faces, hidden = null, creaseDeg = 20) {
+  const cosT = Math.cos(creaseDeg * Math.PI / 180);
+  const key = (q) => q[0] + ',' + q[1] + ',' + q[2];
+  const map = new Map();
+  faces.forEach((f, fi) => {
+    if (!f || f.length < 2) return;
+    const n = newell(f); const L = Math.hypot(n[0], n[1], n[2]) || 1; const nn = [n[0] / L, n[1] / L, n[2] / L];
+    const m = f.length === 2 ? 1 : f.length;
+    for (let k = 0; k < m; k++) {
+      const a = f[k], b = f[(k + 1) % f.length]; const ka = key(a), kb = key(b); if (ka === kb) continue;
+      const ek = ka < kb ? ka + '|' + kb : kb + '|' + ka;
+      let e = map.get(ek); if (!e) { e = { a, b, n: [], hid: false }; map.set(ek, e); }
+      e.n.push(f.length >= 3 ? nn : null);
+      if (hidden && hidden[fi] && hidden[fi][k]) e.hid = true;
+    }
+  });
+  const out = [];
+  for (const e of map.values()) {
+    if (e.hid) continue;
+    const ns = e.n.filter(Boolean);
+    if (ns.length >= 2) {                                   // komşu yüzler: hepsi eş düzlemliyse kenar iç kenardır
+      let crease = false;
+      for (let i = 1; i < ns.length && !crease; i++) if (Math.abs(ns[0][0] * ns[i][0] + ns[0][1] * ns[i][1] + ns[0][2] * ns[i][2]) < cosT) crease = true;
+      if (!crease) continue;
+    }
+    out.push([e.a, e.b]);
+  }
+  return out;
+}
+
 function ocsOf(e) {
   const n = e && e.extrusionDirection; if (!n) return null;
   const L = Math.hypot(n.x || 0, n.y || 0, n.z || 0); if (!(L > 0)) return null;
@@ -835,13 +871,14 @@ export class SceneBuilder {
             let nEdges = 0; for (const f of faces) for (const l of f) nEdges += l.length;
             if (p + 4 <= end) { const ef = rl(); if (ef & 0xffff) { if (ef & 1) p += 4 * nEdges; if (ef & 2) p += 4 * nEdges; if (ef & 4) p += 4 * nEdges; if (ef & 0x20) p += 4 * nEdges; if (ef & 0x40) { edgeVis = []; for (let q = 0; q < nEdges && p + 4 <= end; q++) edgeVis.push(rl()); } } }
             if (p + 4 <= end) { const ff = rl(); if (ff & 0xffff) { if (ff & 1) { faceCol = []; for (let q = 0; q < faces.length && p + 4 <= end; q++) faceCol.push(rl()); } } }
-            let ei = 0; const saveCol = col;
+            let ei = 0; const saveCol = col; const loops = [], loopHid = [];
             faces.forEach((f, fi) => {
               if (faceCol && faceCol[fi] != null) { const cv = faceCol[fi]; col = (cv > 0 && cv < 256) ? ACI[cv] : (cv > 256 ? (cv & 0xffffff) : saveCol); }
               faceTris(f);
-              for (const l of f) { for (let q = 0; q < l.length; q++) { const vis = edgeVis ? edgeVis[ei] : 1; ei++; if (vis === 0) continue; pushPath([l[q], l[(q + 1) % l.length]], false, false); } }
+              for (const l of f) { const hid = []; for (let q = 0; q < l.length; q++) { const vis = edgeVis ? edgeVis[ei] : 1; ei++; hid.push(vis === 0); } loops.push(l); loopHid.push(hid); }
             });
             col = saveCol;
+            for (const e2 of meshEdges(loops, loopHid)) pushPath(e2, false, false);   // kabuk kenarları: sınır + kırışıklık, eş düzlemli çaprazlar gizli
             break;
           }
           case 10: case 36: { const sp = pt(); pt(); const dir = pt(); const h = rd(); rd(); rd(); const txt = type === 36 ? pus() : ps(); if (txt && h > 0) { const w = P(sp); this.pushText(w[0], w[1], h, Math.atan2(dir[1], dir[0]), mtextLines(txt), 0, 0, 1, e, c2, { z: w[2], col: colNow() }); } break; }
@@ -876,13 +913,14 @@ export class SceneBuilder {
     const edges = [], tris = [];
     if (raw && raw.mesh) {
       const V = raw.mesh.verts, F = raw.mesh.faces, H = raw.mesh.hidden;
+      const fl = [], hl = [];
       for (let i = 0; i < F.length;) {
         const n = F[i++]; if (n < 2 || i + n > F.length) break; const base = i; const idx = F.slice(i, i + n); i += n;
         const pts = idx.map(j => V[j]).filter(Boolean); if (pts.length < 2) continue;
-        if (H) { for (let k = 0; k < pts.length; k++) { if (H[base + k]) continue; if (pts.length === 2 && k === 1) break; edges.push([pts[k], pts[(k + 1) % pts.length]]); } }   // görünmez kenarlar (negatif indeks) çizilmez
-        else edges.push(pts.concat([pts[0]]));
+        fl.push(pts); hl.push(H ? idx.map((_, k) => !!H[base + k]) : null);
         for (let k = 1; k < pts.length - 1; k++) tris.push(pts[0], pts[k], pts[k + 1]);
       }
+      for (const e2 of meshEdges(fl, hl)) edges.push(e2);   // eş düzlemli komşu yüzler arasındaki üçgenleme kenarları çizilmez
     } else if (raw && raw.acis) {
       try {
         const key = e.handle; let t = this._acisCache && this._acisCache.get(key);
