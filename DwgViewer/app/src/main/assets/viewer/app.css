@@ -87,7 +87,7 @@ body.compact-status #stCount { display: none; }
 .home-page { max-width: 640px; margin: 0 auto; }
 .home-brand { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 0 4px; }
 .home-brand h1 { font-size: calc(20px * var(--fs)); margin: 0; }
-.app-mark { width: 46px; height: 46px; flex: 0 0 auto; border-radius: 11px; box-shadow: 0 2px 8px rgba(0,0,0,.35); }   /* uygulama simgesiyle aynı işaret (<symbol id="i-appmark">) */
+.app-mark { width: 46px; height: 46px; flex: 0 0 auto; border-radius: 11px; box-shadow: 0 2px 8px rgba(0,0,0,.35); display: block; }   /* uygulama simgesiyle aynı görsel (img/appmark.png) */
 .home-head { display: flex; align-items: center; justify-content: center; padding: 8px 0 4px; }
 .home-head h2 { font-size: calc(18px * var(--fs)); margin: 0; font-weight: 600; }
 .home-text { color: var(--muted); margin: 6px 0 10px; text-align: center; font-size: calc(13px * var(--fs)); }

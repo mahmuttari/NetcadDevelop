@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Uygulama simgesi arka planı: koyu mavi dikey gradyan -->
+<!-- Uygulama simgesi arka planı: ön yüz görselinin üst ve alt kenar renkleriyle dikey gradyan (maskenin görselden taşan kısmı aynı zeminde kalsın) -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
@@ -9,8 +9,8 @@
     <path android:pathData="M0,0 H108 V108 H0 Z">
         <aapt:attr name="android:fillColor">
             <gradient android:type="linear" android:startX="0" android:startY="0" android:endX="0" android:endY="108">
-                <item android:offset="0" android:color="#FF17407F" />
-                <item android:offset="1" android:color="#FF081C3F" />
+                <item android:offset="0" android:color="#FF054EB1" />
+                <item android:offset="1" android:color="#FF01215F" />
             </gradient>
         </aapt:attr>
     </path>

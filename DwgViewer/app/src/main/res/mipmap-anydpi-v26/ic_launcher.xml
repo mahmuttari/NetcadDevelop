@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Uyarlanabilir simge: arka plan (gradyan + ince ızgara), ön yüz (çizim yaprağı + DWG bandı), tek renkli katman (Android 13+ temalı simge) -->
+<!-- Uyarlanabilir simge: arka plan gradyan (görselin kenar renkleri), ön yüz kullanıcı görselinden üretilmiş PNG (yoğunluk başına
+     mipmap-*dpi/ic_launcher_foreground.png; görsel 108 dp tuvalde %78 ölçekte ortalanır), tek renkli katman vektör kontur -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@drawable/ic_launcher_background" />
-    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
     <monochrome android:drawable="@drawable/ic_launcher_monochrome" />
 </adaptive-icon>
