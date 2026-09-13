@@ -246,5 +246,5 @@ export default {
   tl_shadow3: 'Schatten', th_shadow3: 'Bodenschatten',
   tl_sil3: 'Silhouette', th_sil3: 'Silhouettenkanten',
   perspShort: 'Persp', orthoShort: 'Ortho',
-  driveSetup: 'Einrichtungswerte', driveSetupHint: 'Google Cloud Console › Clients › „Android-Client erstellen“ fragt nach diesen drei Werten. Zum Kopieren tippen.', pkgName: 'Paketname', signSha1: 'Signatur-SHA-1', redirectUri: 'Weiterleitungsadresse',
+  driveSetup: 'Einrichtungswerte', driveSetupHint: 'Google Cloud Console › Clients › „Android-Client erstellen“ fragt nach den ersten beiden Werten. Die Weiterleitungsadresse leitet sich aus der Client-ID ab und erscheint hier, sobald diese gesetzt ist. Zum Kopieren tippen.', pkgName: 'Paketname', signSha1: 'Signatur-SHA-1', redirectUri: 'Weiterleitungsadresse',
 };

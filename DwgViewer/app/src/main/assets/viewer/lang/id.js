@@ -246,5 +246,5 @@ export default {
   tl_shadow3: 'Bayangan', th_shadow3: 'Bayangan tanah',
   tl_sil3: 'Siluet', th_sil3: 'Tepi siluet',
   perspShort: 'Persp', orthoShort: 'Orto',
-  driveSetup: 'Nilai penyiapan', driveSetupHint: 'Google Cloud Console › Klien › "Buat klien Android" meminta ketiga nilai ini. Ketuk untuk menyalin.', pkgName: 'Nama paket', signSha1: 'SHA-1 tanda tangan', redirectUri: 'Alamat pengalihan',
+  driveSetup: 'Nilai penyiapan', driveSetupHint: 'Google Cloud Console › Klien › \"Buat klien Android\" meminta dua nilai pertama. Alamat pengalihan diturunkan dari ID klien dan diperbarui di sini setelah ID diisi. Ketuk untuk menyalin.', pkgName: 'Nama paket', signSha1: 'SHA-1 tanda tangan', redirectUri: 'Alamat pengalihan',
 };

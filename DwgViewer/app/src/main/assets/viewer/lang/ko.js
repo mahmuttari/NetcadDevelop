@@ -246,5 +246,5 @@ export default {
   tl_shadow3: '그림자', th_shadow3: '바닥 그림자',
   tl_sil3: '실루엣', th_sil3: '실루엣 모서리',
   perspShort: '투시', orthoShort: '정사',
-  driveSetup: '설정 값', driveSetupHint: 'Google Cloud Console › 클라이언트 › "Android 클라이언트 만들기"에서 이 세 값을 묻습니다. 눌러서 복사하세요.', pkgName: '패키지 이름', signSha1: '서명 SHA-1', redirectUri: '리디렉션 URI',
+  driveSetup: '설정 값', driveSetupHint: 'Google Cloud Console › 클라이언트 › \"Android 클라이언트 만들기\"는 앞의 두 값을 묻습니다. 리디렉션 URI는 클라이언트 ID에서 만들어지며 ID를 넣으면 여기에 반영됩니다. 눌러서 복사하세요.', pkgName: '패키지 이름', signSha1: '서명 SHA-1', redirectUri: '리디렉션 URI',
 };

@@ -246,5 +246,5 @@ export default {
   tl_shadow3: 'ظل', th_shadow3: 'ظل الأرضية',
   tl_sil3: 'ظل خارجي', th_sil3: 'حواف الظل الخارجي',
   perspShort: 'منظور', orthoShort: 'إسقاطي',
-  driveSetup: 'قيم الإعداد', driveSetupHint: 'خطوة Google Cloud Console ‏› العملاء › «إنشاء عميل أندرويد» تطلب هذه القيم الثلاث. المس للنسخ.', pkgName: 'اسم الحزمة', signSha1: 'بصمة التوقيع SHA-1', redirectUri: 'عنوان إعادة التوجيه',
+  driveSetup: 'قيم الإعداد', driveSetupHint: 'خطوة Google Cloud Console ‏› العملاء › «إنشاء عميل أندرويد» تطلب أول قيمتين. أما عنوان إعادة التوجيه فيُشتق من معرّف العميل ويتحدّث هنا بعد ضبطه. المس للنسخ.', pkgName: 'اسم الحزمة', signSha1: 'بصمة التوقيع SHA-1', redirectUri: 'عنوان إعادة التوجيه',
 };

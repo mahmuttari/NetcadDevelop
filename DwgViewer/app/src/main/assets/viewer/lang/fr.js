@@ -246,5 +246,5 @@ export default {
   tl_shadow3: 'Ombre', th_shadow3: 'Ombre au sol',
   tl_sil3: 'Silhouette', th_sil3: 'Arêtes de silhouette',
   perspShort: 'Persp', orthoShort: 'Ortho',
-  driveSetup: 'Valeurs de configuration', driveSetupHint: 'Google Cloud Console › Clients › « Créer un client Android » demande ces trois valeurs. Touchez pour copier.', pkgName: 'Nom du package', signSha1: 'SHA-1 de la signature', redirectUri: 'URI de redirection',
+  driveSetup: 'Valeurs de configuration', driveSetupHint: 'Google Cloud Console › Clients › « Créer un client Android » demande les deux premières valeurs. L\'URI de redirection découle de l\'identifiant client et s\'actualise ici une fois celui-ci renseigné. Touchez pour copier.', pkgName: 'Nom du package', signSha1: 'SHA-1 de la signature', redirectUri: 'URI de redirection',
 };

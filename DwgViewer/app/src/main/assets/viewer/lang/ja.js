@@ -246,5 +246,5 @@ export default {
   tl_shadow3: '影', th_shadow3: '地面の影',
   tl_sil3: 'シルエット', th_sil3: 'シルエットエッジ',
   perspShort: '透視', orthoShort: '平行',
-  driveSetup: '設定に必要な値', driveSetupHint: 'Google Cloud Console › クライアント ›「Android クライアントを作成」でこの 3 つの値を求められます。タップでコピーします。', pkgName: 'パッケージ名', signSha1: '署名の SHA-1', redirectUri: 'リダイレクト URI',
+  driveSetup: '設定に必要な値', driveSetupHint: 'Google Cloud Console › クライアント ›「Android クライアントを作成」で求められるのは最初の 2 つの値です。リダイレクト URI はクライアント ID から導かれ、ID を設定するとここに反映されます。タップでコピーします。', pkgName: 'パッケージ名', signSha1: '署名の SHA-1', redirectUri: 'リダイレクト URI',
 };
