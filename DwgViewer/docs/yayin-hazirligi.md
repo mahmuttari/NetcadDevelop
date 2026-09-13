@@ -171,7 +171,12 @@ uyuşmazsa uygulama kaldırılır. Aşağıdaki cevaplar uygulamanın davranış
 
 1. Google Cloud projesi, Drive API, onay ekranı, Android OAuth istemcisi. Çıktı:
    `GOOGLE_CLIENT_ID` → `gradle.properties`.
-2. Gizlilik sayfası `main` dalına, GitHub Pages açık.
+2. Gizlilik sayfası `main` dalına. **GitHub Pages zaten açık ve `main` dalını sunuyor**
+   (13 Eylül 2026'da ölçüldü: <https://mahmuttari.github.io/Yonetmelik-araclari/> 200 dönüyor
+   ve `origin/main:index.html` ile bayt bayt aynı). Sayfa şu an yalnız
+   `claude/dwg-viewer-apk-ykjk7a` dalında; `main`'e alındığı anda
+   <https://mahmuttari.github.io/Yonetmelik-araclari/dwgviewer/gizlilik.html> yayına girer
+   (şu an 404). Pages'in yayımlaması bir-iki dakika sürer.
 3. Gerçek AdMob kimlikleri.
 4. Play Console kaydı. Uygulama oluştururken **mevcut imza anahtarını yükleyin**, yoksa
    Play kendi anahtarıyla imzalar, SHA-1 değişir ve Google girişi yayında çalışmaz.
