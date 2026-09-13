@@ -154,6 +154,8 @@ body.homemode #topbar, body.homemode #toolbar, body.homemode #statusbar, body.ho
 /* belge kipi (PDF / Word / Excel / arşiv / resim / metin): çizime ait şerit, durum çubuğu, sayfa sekmeleri ve üst çubuk çizim düğmeleri gizli; yalnız Aç ve Diğer kalır */
 body.docmode #toolbar, body.docmode #statusbar, body.docmode #layoutTabs, body.docmode #side, body.docmode #btnSearch, body.docmode #btnExtents, body.docmode #btnLayers, body.docmode #btnMeasure, body.docmode #btnDisplay { display: none !important; }
 body.docmode #topbar .filewrap { visibility: hidden; }   /* belge kipinde bellekteki çizimin adı yanıltır; belge adı belge başlığındadır */
+/* belge görünümü #viewport içindedir; çizim tuvalinin touch-action:none kuralı belge kipinde kaldırılır, yoksa bazı WebView sürümlerinde belge içinde parmakla kaydırma çalışmaz */
+body.docmode #viewport { touch-action: auto; }
 .open-mount { min-height: 120px; }
 .open-mount .open-tools { padding: 4px 0 6px; }
 
@@ -448,8 +450,8 @@ body.left-hand .cube { right: auto; left: 10px; }
 .doc-page input { width: 56px; padding: 6px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font-size: calc(14px * var(--fs)); text-align: center; min-height: 40px; }
 .doc-search { flex: 1 1 160px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font-size: calc(14px * var(--fs)); min-height: 40px; min-width: 0; }
 .doc-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 8px; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; }
-.doc-body.kind-pdf { background: #3a3f47; padding: 8px 8px 40px; touch-action: pan-y; }
-.light .doc-body.kind-pdf, body[data-theme="sepia"] .doc-body.kind-pdf { background: #cfd4db; }
+.doc-body.kind-pdf, .doc-body.paged { background: #3a3f47; padding: 8px 8px 40px; }   /* yakınlaştırılmış sayfada yatay kaydırma da gerekir: pan-x pan-y (.doc-body); .paged = Word sayfa görünümü */
+.light .doc-body.kind-pdf, body[data-theme="sepia"] .doc-body.kind-pdf, .light .doc-body.paged, body[data-theme="sepia"] .doc-body.paged { background: #cfd4db; }
 .doc-loading { color: var(--muted); padding: 20px; text-align: center; }
 .pdf-pages { margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
 .pdf-page { position: relative; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.35); }
@@ -457,13 +459,22 @@ body.left-hand .cube { right: auto; left: 10px; }
 .pdf-page .pdf-no { position: absolute; left: 8px; top: 8px; font-size: 11px; color: #888; }
 .pdf-page.ready .pdf-no { display: none; }
 .doc-embed { width: 100%; height: 100%; border: 0; }
-.docx-page { margin: 0 auto; background: #fff; color: #111; padding: 28px 24px; border-radius: 4px; box-shadow: 0 2px 10px rgba(0,0,0,.35); font-family: "Times New Roman", Georgia, serif; font-size: 11pt; line-height: 1.35; max-width: 100%; overflow-wrap: break-word; }
-.docx-page p { margin: 0 0 6pt; } .docx-page h1, .docx-page h2, .docx-page h3, .docx-page h4 { font-family: system-ui, sans-serif; color: #1f3b6e; margin: 14pt 0 6pt; line-height: 1.2; }
-.docx-page h1 { font-size: 18pt; } .docx-page h2 { font-size: 15pt; } .docx-page h3 { font-size: 13pt; } .docx-page h4 { font-size: 12pt; }
-.docx-page .li { text-indent: -14pt; padding-left: 14pt; } .docx-page .bul { display: inline-block; width: 14pt; }
-.docx-page .tab { display: inline-block; width: 24pt; } .docx-page img { max-width: 100%; height: auto; }
-.docx-page .pagebreak { border-top: 1px dashed #bbb; margin: 16pt -24px; }
-.docx-page a { color: #0645ad; }
+.docx-page { margin: 0 auto; background: #fff; padding: 28px 24px; border-radius: 4px; box-shadow: 0 2px 10px rgba(0,0,0,.35); max-width: 100%; }   /* akış görünümü */
+/* Word sayfa görünümü: .docx-stack sarmalayıcı (ölçekli boyut → kaydırma alanı), .docx-pages yığın (transform: scale, sol üst köken), .docx-sheet sayfa (belgedeki boyut + kenar boşlukları, sığmayan blokla uzar) */
+.docx-stack { position: relative; margin: 0 auto; }
+.docx-pages { transform-origin: 0 0; display: flex; flex-direction: column; gap: 10px; }
+.docx-sheet { position: relative; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.35); box-sizing: border-box; }
+.docx-sheet-in { position: relative; display: flow-root; }   /* flow-root: ilk/son bloğun kenar boşluğu dışarı sızmasın (sayfa boyu ve offsetTop ölçümü sabit kalır) */
+.docx-sheet .docx-no { position: absolute; left: 0; right: 0; bottom: 6px; text-align: center; font: 10px system-ui, sans-serif; color: #999; pointer-events: none; }
+.docx-more { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 0; }
+.docx-more:empty { display: none; }
+.docx-text { color: #111; font-family: "Times New Roman", Georgia, serif; font-size: 11pt; line-height: 1.35; overflow-wrap: break-word; }
+.docx-text p { margin: 0 0 6pt; } .docx-text h1, .docx-text h2, .docx-text h3, .docx-text h4 { font-family: system-ui, sans-serif; color: #1f3b6e; margin: 14pt 0 6pt; line-height: 1.2; }
+.docx-text h1 { font-size: 18pt; } .docx-text h2 { font-size: 15pt; } .docx-text h3 { font-size: 13pt; } .docx-text h4 { font-size: 12pt; }
+.docx-text .li { text-indent: -14pt; padding-left: 14pt; } .docx-text .bul { display: inline-block; width: 14pt; }
+.docx-text .tab { display: inline-block; width: 24pt; } .docx-text img { max-width: 100%; height: auto; }
+.docx-text .pagebreak { border-top: 1px dashed #bbb; margin: 16pt -24px; }
+.docx-text a { color: #0645ad; }
 .docx-tbl { border-collapse: collapse; margin: 6pt 0; max-width: 100%; }
 .docx-tbl td { border: 1px solid #999; padding: 3pt 5pt; vertical-align: top; }
 .docx-tbl td p { margin: 0; }

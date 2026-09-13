@@ -5,10 +5,11 @@
  *    tarayıcıda yerleşik PDF görüntüleyici (embed) kullanılır.
  *  - ZIP: tarayıcıda DecompressionStream'li yerleşik okuyucu, Android'de arcList/arcExtract (RAR dâhil).
  *  - DOCX / XLSX: OOXML → HTML (paragraf, başlık, liste, tablo, resim, köprü; hücre, birleştirilmiş hücre).
+ *    Word iki kiple görülür: Sayfa (yazdırma önizleme — belgedeki sayfa boyutu ve kenar boşluklarıyla sayfalanmış) ve Akış.
  *  - Arşivden çıkan DWG/DXF çizim olarak açılır; diğerleri belge görünümünde (iç içe arşiv desteklenir).
  *  - .doc / .xls / .ppt / .pptx gibi biçimler için Google Drive ile PDF'e dönüştürme önerilir (drive.js).
  */
-import { fmt } from './state.js';
+import { fmt, store } from './state.js';
 import { t } from './i18n.js';
 import { CP857, decodeCp } from './codepage.js';
 import { isPro } from './edition.js';
@@ -230,13 +231,16 @@ export async function docxToHtml(arc) {
     return out;
   };
   const body = main.getElementsByTagNameNS(W_NS, 'body')[0];
-  let width = '';
+  // sayfa ölçüsü (son bölümün sectPr'si; twip → pt): boyut yoksa A4 (595 × 842 pt), kenar boşluğu yoksa 1440 twip = 72 pt
   const sect = body ? child(body, 'sectPr') : null;
-  const pg = sect ? child(sect, 'pgSz') : null; if (pg && attr(pg, 'w')) width = (+attr(pg, 'w') / 20) + 'pt';
-  // üst düzey bloklar ayrı ayrı (parts): showDocx uzun belgeyi parça parça basar; html tamamı (uyumluluk)
+  const pg = sect ? child(sect, 'pgSz') : null, mg = sect ? child(sect, 'pgMar') : null;
+  const tw = (el, k, def) => { const v = el ? attr(el, k) : null; const n = v == null ? NaN : +v; return isFinite(n) && n >= 0 ? n / 20 : def; };
+  const page = { width: tw(pg, 'w', 595), height: tw(pg, 'h', 842), margins: { top: tw(mg, 'top', 72), right: tw(mg, 'right', 72), bottom: tw(mg, 'bottom', 72), left: tw(mg, 'left', 72) } };
+  const width = pg && attr(pg, 'w') ? page.width + 'pt' : '';   // akış görünümünün en çok genişliği (uyumluluk)
+  // üst düzey bloklar ayrı ayrı (parts): showDocx uzun belgeyi parça parça basar / sayfalar; html tamamı (uyumluluk)
   const parts = [];
   if (body) for (const c of body.children) { const n = c.localName; if (n === 'p') parts.push(await paraHtml(c)); else if (n === 'tbl') parts.push(await tableHtml(c)); else if (n === 'sdt' || n === 'customXml' || n === 'smartTag') { const h = await blockHtml(n === 'sdt' ? (child(c, 'sdtContent') || c) : c); if (h) parts.push(h); } }
-  return { html: parts.join(''), width, parts };
+  return { html: parts.join(''), width, parts, page };
 }
 const DOCX_PAGE = 3000;
 function roman(n) { const v = [1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1], s = ['M', 'CM', 'D', 'CD', 'C', 'XC', 'L', 'XL', 'X', 'IX', 'V', 'IV', 'I']; let o = ''; for (let i = 0; i < v.length; i++) while (n >= v[i]) { o += s[i]; n -= v[i]; } return o; }
@@ -302,7 +306,8 @@ export function initDocs(a) {
     else if (k === 'share') share(false); else if (k === 'open') share(true); else if (k === 'keep') keep(); else if (k === 'drive') call(api.driveUpload, cur);
     else if (k === 'convert') call(api.driveConvert, cur);
     else if (k === 'pdfprev') pdfGoto(pdfCurrent() - 1); else if (k === 'pdfnext') pdfGoto(pdfCurrent() + 1);
-    else if (k === 'zin') pdfZoom(1.25); else if (k === 'zout') pdfZoom(0.8); else if (k === 'zfit') pdfZoom(0);
+    else if (k === 'zin') zoomDoc(1.25); else if (k === 'zout') zoomDoc(0.8); else if (k === 'zfit') zoomDoc(0);
+    else if (k === 'layout') docxSetLayout(cur && cur.layout === 'page' ? 'flow' : 'page');
     else if (k === 'wrap') { els.body.classList.toggle('nowrap'); }
   });
   els.body.addEventListener('scroll', () => { if (cur && cur.kind === 'pdf') { pdfUpdatePage(); pdfLazy(); } });
@@ -436,12 +441,18 @@ function pdfZoom(f) {
   cur.zoom = f === 0 ? 1 : Math.max(0.4, Math.min(5, cur.zoom * f));
   pdfLayout(cur); pdfGoto(page);
 }
-/** iki parmakla yakınlaştırma: sürüklerken CSS ölçek, bırakınca yeniden çizim */
+/** Araç satırındaki yakınlaştırma düğmeleri (zin / zout / zfit): belge türüne göre dağıtır; f = çarpan, 0 = sığdır */
+function zoomDoc(f) { if (!cur) return; if (cur.kind === 'pdf') pdfZoom(f); else if (cur.kind === 'docx') docxZoom(f); }
+/** iki parmakla yakınlaştırma (PDF, resim, Word): sürüklerken CSS ölçek, bırakınca kalıcı ölçek (PDF yeniden çizim, Word sayfa kipinde
+ *  transform ölçeği / akış kipinde yazı yüzdesi). Tek parmak hiçbir zaman engellenmez: preventDefault yalnız iki parmak varken. */
 function bindPinch(el) {
   const pts = new Map(); let d0 = 0, scale = 1, target = null;
-  el.addEventListener('pointerdown', (ev) => { if (!cur || (cur.kind !== 'pdf' && cur.kind !== 'image')) return; pts.set(ev.pointerId, [ev.clientX, ev.clientY]); if (pts.size === 2) { const a = [...pts.values()]; d0 = Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]); target = el.querySelector('.pdf-pages, .doc-img'); scale = 1; } });
-  el.addEventListener('pointermove', (ev) => { if (!pts.has(ev.pointerId)) return; pts.set(ev.pointerId, [ev.clientX, ev.clientY]); if (pts.size === 2 && target) { const a = [...pts.values()]; const d = Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]); scale = Math.max(0.3, Math.min(4, d / (d0 || d))); target.style.transformOrigin = '0 0'; target.style.transform = `scale(${scale})`; ev.preventDefault(); } }, { passive: false });
-  const up = (ev) => { pts.delete(ev.pointerId); if (pts.size < 2 && target) { target.style.transform = ''; if (Math.abs(scale - 1) > 0.05) { if (cur.kind === 'pdf') pdfZoom(scale); else { cur.zoom = Math.max(0.2, Math.min(8, cur.zoom * scale)); const im = el.querySelector('.doc-img'); if (im) im.style.width = Math.round(cur.zoom * 100) + '%'; } } target = null; scale = 1; } };
+  const can = () => cur && (cur.kind === 'pdf' || cur.kind === 'image' || cur.kind === 'docx');
+  const base = () => target && target.classList.contains('docx-pages') ? `scale(${cur.pzoom || 1})` : '';   // sayfa yığınının kalıcı ölçeği
+  el.addEventListener('pointerdown', (ev) => { if (!can()) return; pts.set(ev.pointerId, [ev.clientX, ev.clientY]); if (pts.size === 2) { const a = [...pts.values()]; d0 = Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]); target = el.querySelector('.pdf-pages, .doc-img, .docx-pages, .docx-page'); scale = 1; } });
+  el.addEventListener('pointermove', (ev) => { if (!pts.has(ev.pointerId)) return; pts.set(ev.pointerId, [ev.clientX, ev.clientY]); if (pts.size === 2 && target) { const a = [...pts.values()]; const d = Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]); scale = Math.max(0.3, Math.min(4, d / (d0 || d))); target.style.transformOrigin = '0 0'; target.style.transform = `${base()} scale(${scale})`; ev.preventDefault(); } }, { passive: false });
+  el.addEventListener('touchmove', (ev) => { if (ev.touches.length >= 2 && target) ev.preventDefault(); }, { passive: false });   // iki parmakta tarayıcı kaydırmaya geçip pointercancel üretmesin; tek parmak serbest
+  const up = (ev) => { pts.delete(ev.pointerId); if (pts.size < 2 && target) { target.style.transform = base(); if (Math.abs(scale - 1) > 0.05) { if (cur.kind === 'pdf') pdfZoom(scale); else if (cur.kind === 'docx') docxZoom(scale); else { cur.zoom = Math.max(0.2, Math.min(8, cur.zoom * scale)); const im = el.querySelector('.doc-img'); if (im) im.style.width = Math.round(cur.zoom * 100) + '%'; } } target = null; scale = 1; } };
   el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
 }
 
@@ -452,19 +463,89 @@ async function arcFor(d) {
   else d.arc = await openArchive({ bytes: await bytesOf(d) });
   return d.arc;
 }
+/*
+ * Word görünümü iki kiplidir (store 'doc:docxLayout', varsayılan sayfa):
+ *  - Sayfa (yazdırma önizleme): gri zemin üzerinde belgedeki boyut ve kenar boşluklarıyla beyaz sayfalar (.docx-sheet), altta "i / n".
+ *    Sayfalama: üst düzey bloklar (parts) sırayla geçerli sayfaya eklenir ve ölçülür; blok sayfa iç yüksekliğini aşınca yeni sayfaya
+ *    taşınır; tek başına sığmayan blok (büyük tablo) kendi sayfasında taşar (sayfa uzar, kırpma yok); .pagebreak → zorunlu yeni sayfa.
+ *    İş requestAnimationFrame dilimlerine bölünür (~12 ms / dilim) — 3000 blok ana iş parçacığını kilitlemez; "Daha fazla" kaldığı
+ *    yerden sürdürür. Yakınlaştırma: yığına transform: scale (sol üst köken) + sarmalayıcının (.docx-stack) genişlik/yüksekliği,
+ *    kaydırma alanı doğru kalsın; ilk açılış genişliğe sığdırılmış ölçek.
+ *  - Akış: eski tek sütun (.docx-page), yakınlaştırma yazı yüzdesi.
+ */
+const PT = 96 / 72;   // pt → CSS px
 async function showDocx(d) {
   const arc = await arcFor(d);
   const r = await docxToHtml(arc);
-  els.tools.innerHTML = `<button type="button" class="btn small" data-doc="zout">${ICON('i-zoom-out')}</button><button type="button" class="btn small" data-doc="zin">${ICON('i-zoom-in')}</button>` + (api && api.driveAvailable && api.driveAvailable() ? `<button type="button" class="btn small" data-doc="convert">${esc(tt('drivePdf', "Drive ile PDF'e çevir"))}</button>` : '');
+  d.layout = d.layout || (store.get('doc:docxLayout') === 'flow' ? 'flow' : 'page'); d.zoom = d.zoom || 1; d.pzoom = d.pzoom || 0;   // pzoom 0 = genişliğe sığdır
   const parts = r.parts || [r.html];
+  const foot = (upto) => upto < parts.length ? `<span class="muted">${parts.length} ${esc(tt('blocksOfFirst', 'bloğun ilk'))} ${upto}</span><button type="button" class="btn small" data-more="${Math.min(parts.length, upto * 2)}">${esc(tt('loadMore', 'Daha fazla'))}</button>` : '';
   const render = (upto) => {
-    const html = parts.slice(0, upto).join('') + (upto < parts.length ? `<div class="muted">${parts.length} ${esc(tt('blocksOfFirst', 'bloğun ilk'))} ${upto}</div><button type="button" class="btn small" data-more="${Math.min(parts.length, upto * 2)}">${esc(tt('loadMore', 'Daha fazla'))}</button>` : '');
-    els.body.innerHTML = `<div class="docx-page" style="${r.width ? 'max-width:' + r.width : ''}">${html || `<p class="muted">${esc(tt('docEmpty', 'Belge boş'))}</p>`}</div>`;
+    els.body.classList.toggle('paged', d.layout === 'page'); docxTools(d);
+    if (d.layout === 'page') { docxPaginate(d, r, parts, upto, foot); return; }
+    const top = els.body.scrollTop; d.pg = null;
+    els.body.innerHTML = `<div class="docx-page docx-text" style="${r.width ? 'max-width:' + r.width : ''}">${parts.slice(0, upto).join('') || `<p class="muted">${esc(tt('docEmpty', 'Belge boş'))}</p>`}</div><div class="docx-more">${foot(upto)}</div>`;
+    docxApplyZoom(d); els.body.scrollTop = top;
   };
-  els.body.onclick = (ev) => { const b = ev.target.closest('[data-more]'); if (b) { const top = els.body.scrollTop; render(+b.dataset.more); els.body.scrollTop = top; hookZoomButtons('.docx-page'); } };
+  d.docxRender = render;
+  els.body.onclick = (ev) => {
+    const a = ev.target.closest('a[href^="http"]'); if (a && A() && A().openUrl) { ev.preventDefault(); A().openUrl(a.href); return; }
+    const b = ev.target.closest('[data-more]'); if (b) render(+b.dataset.more);
+  };
   render(DOCX_PAGE);
-  els.body.querySelectorAll('a[href^="http"]').forEach(a => a.addEventListener('click', (ev) => { if (A() && A().openUrl) { ev.preventDefault(); A().openUrl(a.href); } }));
-  hookZoomButtons('.docx-page');
+}
+function docxTools(d) {
+  const page = d.layout === 'page';
+  els.tools.innerHTML = `<button type="button" class="btn small" data-doc="layout" data-layout="${d.layout}" title="${esc(page ? tt('docLayoutFlow', 'Akış görünümü') : tt('docLayoutPage', 'Sayfa görünümü'))}">${ICON(page ? 'i-text' : 'i-layout')} ${esc(page ? tt('docFlow', 'Akış') : tt('docPage', 'Sayfa'))}</button><span class="sp"></span><button type="button" class="btn small" data-doc="zout" aria-label="−">${ICON('i-zoom-out')}</button><button type="button" class="btn small" data-doc="zfit">${esc(tt('fitWidth', 'Sığdır'))}</button><button type="button" class="btn small" data-doc="zin" aria-label="+">${ICON('i-zoom-in')}</button>` + (api && api.driveAvailable && api.driveAvailable() ? `<button type="button" class="btn small" data-doc="convert">${esc(tt('drivePdf', "Drive ile PDF'e çevir"))}</button>` : '');
+}
+/** Kip değişimi (araç satırı düğmesi): hatırlanır, belge yeniden basılır */
+function docxSetLayout(mode) { const d = cur; if (!d || d.kind !== 'docx' || !d.docxRender) return; d.layout = mode; store.set('doc:docxLayout', mode); d.pg = null; els.body.scrollTop = 0; d.docxRender(DOCX_PAGE); }
+/** parts[0..upto) sayfalara dilimlenir; d.pg durumu bağlıysa kaldığı yerden sürer (Daha fazla) */
+function docxPaginate(d, r, parts, upto, foot) {
+  let pg = d.pg;
+  if (!pg || !pg.pages.isConnected) {
+    const p = r.page || { width: 595, height: 842, margins: { top: 72, right: 72, bottom: 72, left: 72 } }, M = p.margins;
+    els.body.innerHTML = '<div class="docx-stack"><div class="docx-pages" data-done="0"></div></div><div class="docx-more"></div>';
+    pg = d.pg = { pages: els.body.querySelector('.docx-pages'), stack: els.body.querySelector('.docx-stack'), foot: els.body.querySelector('.docx-more'), W: p.width * PT, H: p.height * PT, innerH: Math.max(40, (p.height - M.top - M.bottom) * PT), pad: [M.top, M.right, M.bottom, M.left].map(v => (v * PT) + 'px').join(' '), n: 0, idx: 0, sheet: null, fresh: false, job: 0 };
+    pg.pages.style.width = pg.W + 'px';
+    if (!d.pzoom) d.pzoom = docxFitScale(d);
+    docxApplyZoom(d);
+  }
+  pg.foot.innerHTML = foot(upto); pg.pages.dataset.done = '0';
+  const job = ++pg.job, tpl = document.createElement('template');
+  const newSheet = () => { const s = document.createElement('div'); s.className = 'docx-sheet docx-text'; s.style.cssText = `width:${pg.W}px;min-height:${pg.H}px;padding:${pg.pad}`; s.innerHTML = `<div class="docx-sheet-in" style="min-height:${pg.innerH}px"></div><span class="docx-no"></span>`; pg.pages.appendChild(s); pg.n++; pg.sheet = s.firstChild; pg.fresh = true; return pg.sheet; };
+  const step = () => {
+    if (cur !== d || job !== pg.job || !pg.pages.isConnected) return;
+    const t0 = performance.now();
+    while (pg.idx < upto && pg.idx < parts.length && performance.now() - t0 < 12) {
+      tpl.innerHTML = parts[pg.idx++];
+      for (let node of [...tpl.content.childNodes]) {
+        if (node.nodeType === 3) { if (!node.textContent.trim()) continue; const w = document.createElement('p'); w.appendChild(node); node = w; }   // çıplak metin (sayfa sonu br'nin ardı) paragrafa sarılır
+        else if (node.nodeType !== 1) continue;
+        if (node.classList.contains('pagebreak')) { if (pg.sheet && !pg.fresh) pg.sheet = null; continue; }   // sonraki blok yeni sayfaya (boş sayfa üretmez)
+        if (!pg.sheet) newSheet();
+        pg.sheet.appendChild(node);
+        if (!pg.fresh && node.offsetTop + node.offsetHeight > pg.innerH + 0.5) newSheet().appendChild(node);   // sığmadı → yeni sayfa; tek başına sığmayan blok kendi sayfasında taşar
+        pg.fresh = false;
+      }
+    }
+    pg.pages.querySelectorAll('.docx-no').forEach((e, i) => { e.textContent = (i + 1) + ' / ' + pg.n; });
+    docxApplyZoom(d);
+    if (pg.idx < upto && pg.idx < parts.length) requestAnimationFrame(step); else pg.pages.dataset.done = '1';
+  };
+  if (!pg.n && !parts.length) { newSheet().innerHTML = `<p class="muted">${esc(tt('docEmpty', 'Belge boş'))}</p>`; pg.pages.querySelector('.docx-no').textContent = '1 / 1'; docxApplyZoom(d); pg.pages.dataset.done = '1'; return; }
+  step();
+}
+function docxFitScale(d) { const pg = d.pg; return Math.max(0.1, Math.min(6, (els.body.clientWidth - 16) / (pg ? pg.W : 1))); }
+function docxApplyZoom(d) {
+  if (d.layout === 'page') { const pg = d.pg; if (!pg) return; const z = d.pzoom || 1; pg.pages.style.transform = `scale(${z})`; pg.stack.style.width = Math.round(pg.W * z) + 'px'; pg.stack.style.height = Math.round(pg.pages.offsetHeight * z) + 'px'; }
+  else { const el = els.body.querySelector('.docx-page'); if (el) el.style.fontSize = Math.round(100 * d.zoom) + '%'; }
+}
+/** f: çarpan; 0 = sığdır (sayfa kipi: genişliğe, akış: %100). Sayfa kipinde kaydırma konumu ölçekle birlikte taşınır. */
+function docxZoom(f) {
+  const d = cur; if (!d || d.kind !== 'docx') return;
+  if (d.layout === 'page') { if (!d.pg) return; const z0 = d.pzoom || 1; d.pzoom = f === 0 ? docxFitScale(d) : Math.max(0.2, Math.min(6, z0 * f)); docxApplyZoom(d); const k = d.pzoom / z0; els.body.scrollTop = els.body.scrollTop * k; els.body.scrollLeft = els.body.scrollLeft * k; }
+  else { d.zoom = f === 0 ? 1 : Math.max(0.5, Math.min(3, d.zoom * f)); docxApplyZoom(d); }
 }
 async function showXlsx(d) {
   const arc = await arcFor(d);
@@ -481,12 +562,6 @@ async function showXlsx(d) {
   els.body.onclick = (ev) => { const b = ev.target.closest('[data-more]'); if (b) { const top = els.body.scrollTop; render(+b.dataset.more, +b.dataset.upto); els.body.scrollTop = top; } };
   render(0);
 }
-function hookZoomButtons(sel) {
-  const apply = () => { const el = els.body.querySelector(sel); if (el) el.style.fontSize = (100 * cur.zoom) + '%'; };
-  els.tools.querySelector('[data-doc="zin"]').onclick = (ev) => { ev.stopPropagation(); cur.zoom = Math.min(3, cur.zoom * 1.15); apply(); };
-  els.tools.querySelector('[data-doc="zout"]').onclick = (ev) => { ev.stopPropagation(); cur.zoom = Math.max(0.5, cur.zoom / 1.15); apply(); };
-}
-
 // ---- arşiv -----------------------------------------------------------------------------
 async function showArchive(d) {
   const arc = await arcFor(d);

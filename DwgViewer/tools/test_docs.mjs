@@ -45,6 +45,10 @@ const xlsx = makeZip([['xl/workbook.xml', `<workbook xmlns="http://schemas.openx
 const dwgBytes = fs.readFileSync(path.join(SM, 'test_tr.dxf'));
 const zip = makeZip([['pafta/plan.dxf', dwgBytes], ['pafta/notlar.txt', 'satır 1\nsatır 2\n'], ['rapor.docx', docx], ['veri.csv', 'ad;x;y\nB1;100;200\nB2;150;250\n']]);
 fs.writeFileSync(path.join(out, 'ornek.zip'), zip); fs.writeFileSync(path.join(out, 'rapor.docx'), docx); fs.writeFileSync(path.join(out, 'metraj.xlsx'), xlsx);
+// uzun docx (sayfalama): 60 paragraf, 20.'de pageBreakBefore, 40.'da satır içi sayfa sonu (w:br type=page), sonda tablo; A4 + 2 cm kenar
+const uzunP = (i) => i === 20 ? `<w:p><w:pPr><w:pageBreakBefore/></w:pPr><w:r><w:t>KIRILMA ${i}</w:t></w:r></w:p>` : i === 40 ? `<w:p><w:r><w:t>Önce ${i}</w:t></w:r><w:r><w:br w:type="page"/></w:r><w:r><w:t>SONRA ${i}</w:t></w:r></w:p>` : `<w:p><w:r><w:t>Paragraf ${i}: ${'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. '.repeat(3)}</w:t></w:r></w:p>`;
+const uzunXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${Array.from({ length: 60 }, (_, i) => uzunP(i + 1)).join('')}<w:tbl>${Array.from({ length: 4 }, (_, r) => `<w:tr><w:tc><w:p><w:r><w:t>H${r}</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>${r * 10}</w:t></w:r></w:p></w:tc></w:tr>`).join('')}</w:tbl><w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134"/></w:sectPr></w:body></w:document>`;
+fs.writeFileSync(path.join(out, 'uzun.docx'), makeZip([['[Content_Types].xml', '<Types/>'], ['word/document.xml', uzunXml]]));
 // tek sayfalık geçerli PDF (tarayıcıda embed)
 const pdf = `%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 100]>>endobj\ntrailer<</Root 1 0 R>>`;
 fs.writeFileSync(path.join(out, 'test.pdf'), pdf);
@@ -79,8 +83,13 @@ await shot('doc_csv');
 await ev(() => window.dwgApp.onBack());
 await page.click('#docContent .arc-item[data-entry="rapor.docx"]'); await page.waitForTimeout(600);
 {
-  const r = await ev(() => { const p = document.querySelector('#docContent .docx-page'); return { h1: !!p?.querySelector('h1'), bold: !!p?.querySelector('span[style*="font-weight:700"]'), red: !!p?.querySelector('span[style*="color:#FF0000"]'), li: p?.querySelectorAll('.li').length, tbl: p?.querySelectorAll('.docx-tbl td').length, a: p?.querySelector('a')?.href, tr: /Şğüçöı/.test(p?.textContent || ''), num: /2\./.test(p?.querySelectorAll('.li')[1]?.textContent || '') }; });
+  const r = await ev(() => { const p = document.querySelector('#docContent .docx-pages, #docContent .docx-page'); return { h1: !!p?.querySelector('h1'), bold: !!p?.querySelector('span[style*="font-weight:700"]'), red: !!p?.querySelector('span[style*="color:#FF0000"]'), li: p?.querySelectorAll('.li').length, tbl: p?.querySelectorAll('.docx-tbl td').length, a: p?.querySelector('a')?.href, tr: /Şğüçöı/.test(p?.textContent || ''), num: /2\./.test(p?.querySelectorAll('.li')[1]?.textContent || '') }; });
   ok('zip › docx', r.h1 && r.bold && r.red && r.li === 2 && r.tbl === 4 && /isu\.gov\.tr/.test(r.a || '') && r.tr && r.num, JSON.stringify(r));
+}
+{
+  // sayfa görünümü (varsayılan): A4 sayfa, gerçek kenar boşluğu, sayfa numarası, genişliğe sığdırılmış ölçek
+  const r = await ev(() => { const b = document.getElementById('docContent'); const sh = b.querySelector('.docx-sheet'); const rc = sh?.getBoundingClientRect(); const d = window.dwgApp.docs.current(); return { paged: b.classList.contains('paged'), sheets: b.querySelectorAll('.docx-sheet').length, no: sh?.querySelector('.docx-no')?.textContent, ratio: sh ? sh.offsetHeight / sh.offsetWidth : 0, sratio: rc ? rc.height / rc.width : 0, fit: rc ? rc.width <= b.clientWidth : false, pad: sh?.style.paddingTop + ' ' + sh?.style.paddingLeft, z: d.pzoom, btn: document.querySelector('#docTools [data-doc="layout"]')?.dataset.layout, done: b.querySelector('.docx-pages')?.dataset.done }; });
+  ok('docx sayfa görünümü (A4, sığdırılmış)', r.paged && r.sheets >= 1 && /^1 \/ \d+$/.test(r.no || '') && Math.abs(r.ratio - 1.414) < 0.02 && Math.abs(r.sratio - 1.414) < 0.02 && r.fit && r.z > 0 && r.z < 1 && r.pad === '96px 96px' && r.btn === 'page' && r.done === '1', JSON.stringify(r));
 }
 await shot('doc_docx');
 await ev(() => window.dwgApp.onBack());
@@ -97,6 +106,48 @@ await page.setInputFiles('#fileInput', path.join(out, 'metraj.xlsx')); await pag
 ok('xlsx', await ev(() => { const t = document.querySelector('#docContent .xlsx-tbl'); return !!t && /Ø300 boru/.test(t.textContent) && /1\.250,5/.test(t.textContent) && !!document.querySelector('#docTools [data-sheet="0"]'); }), await ev(() => (document.querySelector('#docContent')?.textContent || '').slice(0, 80)));
 await shot('doc_xlsx');
 await ev(() => window.dwgApp.docs.close());
+// ---- DOCX uzun: sayfalama, kip değişimi, ölçek, iki parmak, tek parmak kaydırma ----
+{
+  const donePages = () => page.waitForFunction(() => document.querySelector('#docContent .docx-pages')?.dataset.done === '1', null, { timeout: 15000 });
+  await page.setInputFiles('#fileInput', path.join(out, 'uzun.docx')); await page.waitForTimeout(300); await donePages();
+  const r = await ev(() => {
+    const sheets = [...document.querySelectorAll('#docContent .docx-sheet')]; let over = 0, kir = -1, sonra = -1;
+    sheets.forEach((sh, i) => { const c = sh.querySelector('.docx-sheet-in'); const innerH = parseFloat(c.style.minHeight); const kids = [...c.children]; const last = kids[kids.length - 1]; if (last && last.tagName !== 'TABLE' && last.offsetTop + last.offsetHeight > innerH + 1) over++; if (/^KIRILMA/.test(kids[0]?.textContent || '')) kir = i; if (/^SONRA/.test(kids[0]?.textContent || '')) sonra = i; });
+    const nos = sheets.map(s => s.querySelector('.docx-no').textContent);
+    return { n: sheets.length, over, kir, sonra, nos: nos.slice(0, 2).concat(nos.slice(-1)), tbl: !!document.querySelector('#docContent .docx-sheet .docx-tbl'), noKir: !!sheets.find((sh, i) => i !== kir && /KIRILMA/.test(sh.textContent)), kirLast: /Paragraf 19/.test(sheets[kir - 1]?.textContent || '') };
+  });
+  ok('uzun docx sayfalandı (≥2 sayfa, taşma yok, zorunlu sayfa sonları)', r.n >= 2 && r.over === 0 && r.kir >= 1 && r.sonra > r.kir && r.nos[0] === '1 / ' + r.n && r.nos[2] === r.n + ' / ' + r.n && r.tbl && !r.noKir && r.kirLast, JSON.stringify(r));
+  await shot('doc_docx_pages');
+  await page.click('#docTools [data-doc="layout"]'); await page.waitForTimeout(200);
+  const f0 = await ev(() => ({ flow: !!document.querySelector('#docContent .docx-page'), sheets: document.querySelectorAll('#docContent .docx-sheet').length, btn: document.querySelector('#docTools [data-doc="layout"]').dataset.layout, paged: document.getElementById('docContent').classList.contains('paged'), st: localStorage.getItem('doc:docxLayout'), fs: document.querySelector('#docContent .docx-page').style.fontSize }));
+  await page.click('#docTools [data-doc="zin"]'); await page.waitForTimeout(100);
+  const f1 = await ev(() => parseFloat(document.querySelector('#docContent .docx-page').style.fontSize));
+  ok('akış görünümü + yazı yakınlaştırma', f0.flow && f0.sheets === 0 && f0.btn === 'flow' && !f0.paged && f0.st === 'flow' && f0.fs === '100%' && f1 > 100, JSON.stringify({ f0, f1 }));
+  await page.click('#docTools [data-doc="layout"]'); await page.waitForTimeout(200); await donePages();
+  const z0 = await ev(() => ({ z: window.dwgApp.docs.current().pzoom, n: document.querySelectorAll('#docContent .docx-sheet').length, st: localStorage.getItem('doc:docxLayout'), sw: document.getElementById('docContent').scrollWidth <= document.getElementById('docContent').clientWidth }));
+  await page.click('#docTools [data-doc="zin"]'); await page.waitForTimeout(100);
+  const z1 = await ev(() => { const b = document.getElementById('docContent'); const pg = b.querySelector('.docx-pages'); const st = b.querySelector('.docx-stack'); return { z: window.dwgApp.docs.current().pzoom, tr: pg.style.transform, wide: b.scrollWidth > b.clientWidth, stackW: parseFloat(st.style.width), pagesW: parseFloat(pg.style.width), stackH: parseFloat(st.style.height), pagesH: pg.offsetHeight }; });
+  ok('sayfa kipine dönüş + ölçek büyütme (yatay kaydırılabilir)', z0.n >= 2 && z0.st === 'page' && z0.sw && z1.z > z0.z && z1.wide && /scale\(/.test(z1.tr) && Math.abs(z1.stackW - z1.pagesW * z1.z) < 2 && Math.abs(z1.stackH - z1.pagesH * z1.z) < 2, JSON.stringify({ z0, z1 }));
+  // iki parmak (CDP dokunma): ölçek değişir
+  const bb = await page.locator('#docContent').boundingBox();
+  const cdp2 = await ctx.newCDPSession(page);
+  const tp2 = (type, pts) => cdp2.send('Input.dispatchTouchEvent', { type, touchPoints: pts });
+  const cx = bb.x + bb.width / 2, cy = bb.y + bb.height / 2;
+  await tp2('touchStart', [{ x: cx - 40, y: cy }, { x: cx + 40, y: cy }]); await page.waitForTimeout(40);
+  for (let i = 1; i <= 8; i++) { await tp2('touchMove', [{ x: cx - 40 - i * 10, y: cy }, { x: cx + 40 + i * 10, y: cy }]); await page.waitForTimeout(16); }
+  await tp2('touchEnd', []); await page.waitForTimeout(200);
+  const z2 = await ev(() => ({ z: window.dwgApp.docs.current().pzoom, tr: document.querySelector('#docContent .docx-pages').style.transform }));
+  ok('iki parmak yakınlaştırma (Word)', z2.z > z1.z * 1.2 && Math.abs(parseFloat(z2.tr.slice(6)) - z2.z) < 0.001, JSON.stringify({ z1: z1.z, z2 }));
+  // tek parmak dikey sürükleme: kaydırma engellenmez
+  await ev(() => { document.getElementById('docContent').scrollTop = 0; });
+  await tp2('touchStart', [{ x: cx, y: cy + 200 }]); await page.waitForTimeout(30);
+  for (let i = 1; i <= 10; i++) { await tp2('touchMove', [{ x: cx, y: cy + 200 - i * 35 }]); await page.waitForTimeout(16); }
+  await tp2('touchEnd', []); await page.waitForTimeout(300);
+  const st = await ev(() => document.getElementById('docContent').scrollTop);
+  ok('tek parmak kaydırma (Word)', st > 50, String(st));
+  await cdp2.detach();
+  await ev(() => window.dwgApp.docs.close());
+}
 // ---- PDF (tarayıcı embed) ----
 await page.setInputFiles('#fileInput', path.join(out, 'test.pdf')); await page.waitForTimeout(400);
 ok('pdf embed', await ev(() => !!document.querySelector('#docContent embed.doc-embed')));
@@ -135,7 +186,7 @@ await page.click('#driveList .drive-item[data-id="pdf1"]'); await page.waitForTi
 }
 await shot('doc_pdf_android');
 await page.click('#docTools [data-doc="zin"]'); await page.waitForTimeout(150);
-ok('pdf zoom', await ev(() => window.dwgApp.docs.current().zoom > 1 && /_\d+$/.test(document.querySelector('#docContent .pdf-page img')?.getAttribute('src') || '')));
+ok('pdf zoom', await ev(() => { const b = document.getElementById('docContent'); return window.dwgApp.docs.current().zoom > 1 && /_\d+$/.test(b.querySelector('.pdf-page img')?.getAttribute('src') || '') && b.scrollWidth > b.clientWidth; }));   // yakınlaşınca yatay kaydırma alanı büyür
 await page.fill('#pdfPageIn', '3'); await page.press('#pdfPageIn', 'Enter'); await page.dispatchEvent('#pdfPageIn', 'change'); await page.waitForTimeout(200);
 ok('pdf sayfaya git', await ev(() => document.getElementById('docContent').scrollTop > 100));
 await ev(() => window.dwgApp.docs.close());
