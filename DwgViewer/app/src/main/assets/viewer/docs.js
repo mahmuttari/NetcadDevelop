@@ -5,7 +5,8 @@
  *    tarayıcıda yerleşik PDF görüntüleyici (embed) kullanılır.
  *  - ZIP: tarayıcıda DecompressionStream'li yerleşik okuyucu, Android'de arcList/arcExtract (RAR dâhil).
  *  - DOCX / XLSX: OOXML → HTML (paragraf, başlık, liste, tablo, resim, köprü; hücre, birleştirilmiş hücre).
- *  - DOC (Word 97-2003, MS-DOC ikili): doc.js docToHtml aynı HTML şeklini üretir; Word görünümü ortaktır.
+ *  - DOC (Word 97-2003, MS-DOC ikili): doc.js docToHtml aynı HTML şeklini üretir; Word görünümü ortaktır. ".doc" uzantılı
+ *    RTF / Word HTML / MHTML / DOCX / düz metin içerik baytlardan tanınır (docalt.js sniffDoc) ve uygun yolla açılır.
  *    Word iki kiple görülür: Sayfa (yazdırma önizleme — belgedeki sayfa boyutu ve kenar boşluklarıyla sayfalanmış) ve Akış.
  *  - Arşivden çıkan DWG/DXF çizim olarak açılır; diğerleri belge görünümünde (iç içe arşiv desteklenir).
  *  - .xls / .ppt / .pptx / .rtf gibi biçimler için Google Drive ile PDF'e dönüştürme önerilir (drive.js).
@@ -15,6 +16,7 @@ import { t } from './i18n.js';
 import { CP857, decodeCp } from './codepage.js';
 import { isPro } from './edition.js';
 import { docToHtml } from './doc.js';
+import { sniffDoc, sniffHint, rtfToHtml, htmlToParts, mhtmlParts, decodeHtmlBytes } from './docalt.js';
 
 const $ = (id) => document.getElementById(id);
 const tt = (k, tr) => { const v = t(k); return v === k ? tr : v; };
@@ -481,11 +483,16 @@ const PT = 96 / 72;   // pt → CSS px
 async function showDocx(d) {
   let r;
   if (d.kind === 'doc') {
-    // Word 97-2003: doc.js (eş zamanlı); .doc uzantısıyla kaydedilmiş DOCX (ZIP) docx yoluna gider, RTF açıklanır
-    const buf = await bytesOf(d), u8 = new Uint8Array(buf, 0, Math.min(8, buf.byteLength));
-    if (u8[0] === 0x50 && u8[1] === 0x4B) { d.arc = d.arc || await openArchive({ bytes: buf }); r = await docxToHtml(d.arc); }
-    else if (u8[0] === 0x7B && u8[1] === 0x5C && u8[2] === 0x72 && u8[3] === 0x74) throw new Error(tt('docRtf', 'RTF biçimi doğrudan görüntülenemiyor'));
-    else r = docToHtml(buf, { tt });
+    // içerik baytlardan tanınır: OLE (Word 97-2003) → doc.js; ZIP → DOCX; RTF / Word HTML / MHTML / düz metin → docalt.js
+    const buf = await bytesOf(d), fmt = sniffDoc(buf);
+    if (fmt === 'zip') { d.arc = d.arc || await openArchive({ bytes: buf }); r = await docxToHtml(d.arc); }
+    else if (fmt === 'ole') r = docToHtml(buf, { tt });
+    else if (fmt === 'rtf') r = rtfToHtml(buf, { tt });
+    else if (fmt === 'html') r = htmlToParts(decodeHtmlBytes(new Uint8Array(buf)), { tt });
+    else if (fmt === 'mhtml') { const m = mhtmlParts(buf); if (!m.html) throw new Error(tt('docNotWord', 'Word belgesi değil') + ' (MHTML)'); r = htmlToParts(m.html, { tt, resolve: m.resolve }); }
+    else if (fmt === 'text') { const txt = decodeHtmlBytes(new Uint8Array(buf)); const parts = txt.split(/\r?\n/).map(l => `<p>${esc(l) || '&nbsp;'}</p>`); r = { parts, html: parts.join(''), width: '595pt', page: { width: 595, height: 842, margins: { top: 72, right: 72, bottom: 72, left: 72 } }, warnings: [] }; }
+    else throw new Error(tt('docNotWord', 'Word belgesi değil') + ' — ' + sniffHint(buf));
+    d.fmt = fmt; els.meta.textContent = [fmtSize(d.size), { ole: 'Word 97-2003', zip: 'Word', rtf: 'RTF', html: 'Word HTML', mhtml: 'Word MHTML', text: tt('docText', 'Metin') }[fmt] || ''].filter(Boolean).join(' · ');
   } else r = await docxToHtml(await arcFor(d));
   d.warn = (r.warnings || []).join(' · ');
   d.layout = d.layout || (store.get('doc:docxLayout') === 'flow' ? 'flow' : 'page'); d.zoom = d.zoom || 1; d.pzoom = d.pzoom || 0;   // pzoom 0 = genişliğe sığdır
