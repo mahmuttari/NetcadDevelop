@@ -114,34 +114,61 @@ public class GoogleDrive {
         return e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
     }
 
+    /**
+     * Erişim ve yenileme belirteçleri Android Keystore anahtarıyla şifreli tutulur ("<ad>_e"); WebDAV parolalarıyla
+     * aynı depo (Secrets). Eski sürümlerden kalan düz metin ("<ad>") ilk okumada şifrelenip taşınır ve silinir.
+     * Keystore anahtarı kaybolursa (cihaz sıfırlama, yedekten geri yükleme) çözme başarısız olur; kayıt silinir ve
+     * kullanıcıdan yeniden giriş istenir. Belirteçler ayrıca yedeklemeye girmez (backup_rules.xml → google.xml hariç).
+     */
+    private String secret(String name) {
+        String e = prefs.getString(name + "_e", "");
+        if (!e.isEmpty()) {
+            String v = Secrets.decrypt(e);
+            if (v != null) return v;
+            prefs.edit().remove(name + "_e").apply();   // anahtar çözülemedi: oturum kapanır
+            return "";
+        }
+        String legacy = prefs.getString(name, "");
+        if (!legacy.isEmpty()) { SharedPreferences.Editor ed = prefs.edit(); putSecret(ed, name, legacy); ed.apply(); }
+        return legacy;
+    }
+    private void putSecret(SharedPreferences.Editor ed, String name, String value) {
+        ed.remove(name);   // varsa düz metin kalıntısı
+        if (value == null || value.isEmpty()) { ed.remove(name + "_e"); return; }
+        try { ed.putString(name + "_e", Secrets.encrypt(value)); }
+        catch (Exception e) { Log.w(TAG, "belirteç şifrelenemedi", e); ed.remove(name + "_e"); }
+    }
+
     private void saveTokens(JSONObject tok, String keepRefresh) {
         SharedPreferences.Editor ed = prefs.edit();
-        ed.putString("access", tok.optString("access_token"));
+        putSecret(ed, "access", tok.optString("access_token"));
         ed.putLong("exp", System.currentTimeMillis() + Math.max(60, tok.optLong("expires_in", 3600) - 60) * 1000L);
         String r = tok.optString("refresh_token", "");
-        if (!r.isEmpty()) ed.putString("refresh", r); else if (keepRefresh != null) ed.putString("refresh", keepRefresh);
+        if (!r.isEmpty()) putSecret(ed, "refresh", r); else if (keepRefresh != null) putSecret(ed, "refresh", keepRefresh);
         ed.apply();
     }
 
     public String user() { return prefs.getString("user", ""); }
-    public boolean signedIn() { return !prefs.getString("refresh", "").isEmpty() || !prefs.getString("access", "").isEmpty(); }
+    public boolean signedIn() { return !secret("refresh").isEmpty() || !secret("access").isEmpty(); }
 
     public void signOut() {
-        final String tok = prefs.getString("refresh", prefs.getString("access", ""));
+        String t = secret("refresh");
+        if (t.isEmpty()) t = secret("access");
+        final String tok = t;
         prefs.edit().clear().apply();
         if (!tok.isEmpty()) new Thread(() -> { try { post(REVOKE + "?token=" + enc(tok), "", "application/x-www-form-urlencoded", null); } catch (Exception ignored) { } }).start();
     }
 
     /** Geçerli erişim belirteci; süresi dolmuşsa yeniler. */
     public synchronized String accessToken() throws IOException {
-        String a = prefs.getString("access", "");
+        String a = secret("access");
         if (!a.isEmpty() && System.currentTimeMillis() < prefs.getLong("exp", 0)) return a;
-        String r = prefs.getString("refresh", "");
+        String r = secret("refresh");
         if (r.isEmpty()) throw new IOException("Oturum yok; Google ile giriş yapın.");
         try {
             String body = "refresh_token=" + enc(r) + "&client_id=" + enc(BuildConfig.GOOGLE_CLIENT_ID) + "&grant_type=refresh_token";
             JSONObject tok = new JSONObject(post(TOKEN, body, "application/x-www-form-urlencoded", null));
-            if (!tok.has("access_token")) { prefs.edit().remove("access").remove("refresh").apply(); throw new IOException("Oturum süresi doldu; yeniden giriş yapın."); }
+            if (!tok.has("access_token")) { prefs.edit().remove("access").remove("access_e").remove("refresh").remove("refresh_e").apply(); throw new IOException("Oturum süresi doldu; yeniden giriş yapın."); }
             saveTokens(tok, r);
             return tok.getString("access_token");
         } catch (org.json.JSONException e) { throw new IOException("belirteç yanıtı okunamadı"); }

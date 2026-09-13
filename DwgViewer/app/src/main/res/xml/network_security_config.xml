@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Ağ güvenlik yapılandırması.
+
+  Şifresiz (http) bağlantı genel olarak açıktır: kullanıcı kendi kurum içi WebDAV / Nextcloud sunucusunu,
+  pafta sunucusunu ya da harita karo adresini http olarak girebiliyor ve bunlar çoğu zaman yerel ağda
+  sertifikasız çalışıyor. Uygulama böyle bir adres kullanıldığında arayüzde uyarı gösterir.
+
+  Buna karşılık kimlik doğrulama, Drive ve reklam trafiğinin şifresize düşmesi kesin olarak engellenir:
+  aşağıdaki alan adlarına http ile bağlanma girişimi işletim sistemi tarafından reddedilir. OAuth
+  belirteçleri ve Drive dosya içeriği yalnız TLS üzerinden gider.
+
+  Güven çapaları tanımlanmamıştır: Android 7 ve üstünde varsayılan zaten yalnız sistem sertifikalarıdır,
+  kullanıcı yüklemesi sertifikalar güvenilmez. Bu varsayılan bilerek korunmuştur.
+-->
+<network-security-config>
+
+    <base-config cleartextTrafficPermitted="true" />
+
+    <domain-config cleartextTrafficPermitted="false">
+        <!-- Google oturum açma ve belirteç uç noktaları -->
+        <domain includeSubdomains="true">google.com</domain>
+        <domain includeSubdomains="true">googleapis.com</domain>
+        <domain includeSubdomains="true">googleusercontent.com</domain>
+        <domain includeSubdomains="true">gstatic.com</domain>
+        <!-- AdMob -->
+        <domain includeSubdomains="true">doubleclick.net</domain>
+        <domain includeSubdomains="true">googlesyndication.com</domain>
+        <domain includeSubdomains="true">googleadservices.com</domain>
+        <domain includeSubdomains="true">google-analytics.com</domain>
+    </domain-config>
+
+</network-security-config>
