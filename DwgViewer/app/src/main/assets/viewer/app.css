@@ -468,10 +468,11 @@ body.left-hand .cube { right: auto; left: 10px; }
 .docx-sheet .docx-no { position: absolute; left: 0; right: 0; bottom: 6px; text-align: center; font: 10px system-ui, sans-serif; color: #999; pointer-events: none; }
 .docx-more { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 0; }
 .docx-more:empty { display: none; }
+.doc-warn { font-size: calc(11px * var(--fs)); max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }   /* .doc çözümleyici uyarısı (araç satırı) */
 .docx-text { color: #111; font-family: "Times New Roman", Georgia, serif; font-size: 11pt; line-height: 1.35; overflow-wrap: break-word; }
 .docx-text p { margin: 0 0 6pt; } .docx-text h1, .docx-text h2, .docx-text h3, .docx-text h4 { font-family: system-ui, sans-serif; color: #1f3b6e; margin: 14pt 0 6pt; line-height: 1.2; }
 .docx-text h1 { font-size: 18pt; } .docx-text h2 { font-size: 15pt; } .docx-text h3 { font-size: 13pt; } .docx-text h4 { font-size: 12pt; }
-.docx-text .li { text-indent: -14pt; padding-left: 14pt; } .docx-text .bul { display: inline-block; width: 14pt; }
+.docx-text .li { text-indent: -14pt; padding-left: 14pt; } .docx-text .bul { display: inline-block; min-width: 14pt; white-space: nowrap; margin-right: 2pt; }   /* uzun numara (2.2.2.1.) im kutusunda kırılmasın */
 .docx-text .tab { display: inline-block; width: 24pt; } .docx-text img { max-width: 100%; height: auto; }
 .docx-text .pagebreak { border-top: 1px dashed #bbb; margin: 16pt -24px; }
 .docx-text a { color: #0645ad; }

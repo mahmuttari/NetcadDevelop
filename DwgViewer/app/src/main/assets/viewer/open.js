@@ -31,7 +31,7 @@ const hasFs = () => !!(A() && A().fsRoots);
 /** Android 11+ (API 30) İndirilenler kökünün kendisini ağaç seçiciyle vermez; sürüm bilinmiyorsa açıklama gösterilir */
 const dlHint = () => { const a = A(); if (!(a && a.fsRoots)) return ''; let sdk = 30; if (a.sdkInt) { try { sdk = Number(a.sdkInt()); } catch (_) { /* eski köprü */ } } return sdk >= 30 ? tt('openDlHint', 'Android 11 ve üstünde İndirilenler\'in kendisi seçilemez; içindeki bir alt klasörü seçin (Android/data seçilemez).') : ''; };
 const TABS = ['recent', 'device', 'offline'];
-const KIND_OF = { cad: ['cad'], pdf: ['pdf'], office: ['docx', 'xlsx', 'office', 'text'], archive: ['zip', 'rar'], image: ['image'] };
+const KIND_OF = { cad: ['cad'], pdf: ['pdf'], office: ['docx', 'doc', 'xlsx', 'office', 'text'], archive: ['zip', 'rar'], image: ['image'] };
 
 let api = null;
 /** arayüz durumu: sekme, arama, tür süzgeci, sekme başına sıralama, ızgara, seçim kipi, açık satır menüsü */

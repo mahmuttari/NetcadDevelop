@@ -28,3 +28,27 @@ amacıyla bulunur, APK'ya gömülmez.
 
 `test_proxy.mjs` örnek dosya kullanmaz (sentetik proxy grafik akışı);
 `test_docs.mjs` ZIP/DOCX/XLSX örneklerini çalışırken kendisi üretir.
+
+## `doc/` — Word 97-2003 (.doc) örnekleri
+
+`test_doc.mjs`'nin kullandığı gerçek Word ikili dosyaları. Tamamı Apache POI
+projesinin sınama verisinden (`test-data/document/`, https://poi.apache.org/)
+alınmıştır ve **Apache License 2.0** kapsamındadır; yalnız sınama amacıyla
+bulunur, APK'ya gömülmez.
+
+| Dosya | İçerik | Sınanan |
+|---|---|---|
+| `SampleDoc.doc` | Word 2007'den 97-2003 biçiminde kaydedilmiş iki sayfa; mavi 16 pt metin, sayfa sonu | metin, renk, punto, sayfa sonu, A4 |
+| `simple.doc` | Word 97 SR-2 tek paragraf | Word 97 FIB (nFib 0xC1), Letter |
+| `Lists.doc` | madde imli, numaralı, farklı imli ve iç içe listeler | PlfLst / PlfLfo, sayaç, madde imi |
+| `innertable.doc` | iç içe tablo (Word 2002, itap 2) | 0x07 / TTP, fInnerTableCell / fInnerTtp |
+| `table-merges.doc` | yatay ve dikey birleştirilmiş hücreler | sprmTDefTable TC80 bayrakları → colspan / rowspan |
+| `test-fields.doc` | CREATEDATE alanı, dipnot ve sonnot başvuruları | alan kodu gizleme, dipnot / sonnot bölümleri |
+| `hyperlink.doc` | HYPERLINK alanı | alan → `<a href>` |
+| `HeaderFooterUnicode.doc` | Kiril metin, üst / alt bilgi | UTF-16 parçalar, ccpText sınırı |
+| `footnote.doc` | bir dipnot ve bir sonnot | PlcffndTxt / PlcfendTxt |
+| `o_kurs.doc` | 200 KB Rusça yönetmelik, hızlı kaydedilmiş (395 parça, 0Table) | karmaşık parça tablosu, prm, satır sonu 0x0B |
+| `picture.doc` | 1,4 MB; satır içi resim (EMF içinde gömülü JPEG) | PICF → OfficeArt → metafile içinden JPEG |
+| `Word95.doc`, `Word6.doc`, `Bug60936.doc` | Word 6 / 95 (wIdent 0xA5DC) | yalnız metin, uyarı |
+| `Bug49933.doc` | Word 95 Rusça, tablo | lid → windows-1251, 0x07 sezgisel tablo |
+

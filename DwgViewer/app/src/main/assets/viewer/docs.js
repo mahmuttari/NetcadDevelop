@@ -1,18 +1,20 @@
 /*
- * CAD dışı belgeler: PDF, Word (.docx), Excel (.xlsx), ZIP / RAR arşivleri, resim ve metin.
+ * CAD dışı belgeler: PDF, Word (.docx ve .doc), Excel (.xlsx), ZIP / RAR arşivleri, resim ve metin.
  *
  *  - Android'de PDF sayfaları PdfRenderer ile çizilir (/file/pdfpage_<id>_<sayfa>_<genişlik>);
  *    tarayıcıda yerleşik PDF görüntüleyici (embed) kullanılır.
  *  - ZIP: tarayıcıda DecompressionStream'li yerleşik okuyucu, Android'de arcList/arcExtract (RAR dâhil).
  *  - DOCX / XLSX: OOXML → HTML (paragraf, başlık, liste, tablo, resim, köprü; hücre, birleştirilmiş hücre).
+ *  - DOC (Word 97-2003, MS-DOC ikili): doc.js docToHtml aynı HTML şeklini üretir; Word görünümü ortaktır.
  *    Word iki kiple görülür: Sayfa (yazdırma önizleme — belgedeki sayfa boyutu ve kenar boşluklarıyla sayfalanmış) ve Akış.
  *  - Arşivden çıkan DWG/DXF çizim olarak açılır; diğerleri belge görünümünde (iç içe arşiv desteklenir).
- *  - .doc / .xls / .ppt / .pptx gibi biçimler için Google Drive ile PDF'e dönüştürme önerilir (drive.js).
+ *  - .xls / .ppt / .pptx / .rtf gibi biçimler için Google Drive ile PDF'e dönüştürme önerilir (drive.js).
  */
 import { fmt, store } from './state.js';
 import { t } from './i18n.js';
 import { CP857, decodeCp } from './codepage.js';
 import { isPro } from './edition.js';
+import { docToHtml } from './doc.js';
 
 const $ = (id) => document.getElementById(id);
 const tt = (k, tr) => { const v = t(k); return v === k ? tr : v; };
@@ -22,7 +24,7 @@ let api = null;
 const call = (fn, ...a) => { try { return typeof fn === 'function' ? fn(...a) : undefined; } catch (e) { console.warn(e); return undefined; } };
 
 export const KIND = {
-  cad: ['dwg', 'dxf'], pdf: ['pdf'], docx: ['docx', 'docm', 'dotx'], xlsx: ['xlsx', 'xlsm'], office: ['doc', 'dot', 'rtf', 'odt', 'xls', 'ods', 'ppt', 'pptx', 'odp'],
+  cad: ['dwg', 'dxf'], pdf: ['pdf'], docx: ['docx', 'docm', 'dotx'], doc: ['doc', 'dot'], xlsx: ['xlsx', 'xlsm'], office: ['rtf', 'odt', 'xls', 'ods', 'ppt', 'pptx', 'odp'],
   zip: ['zip', 'jar', 'kmz', 'cbz'], rar: ['rar', 'cbr'], image: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'], text: ['txt', 'csv', 'json', 'xml', 'md', 'log', 'ini', 'gpx', 'kml', 'prj', 'asc', 'ncn', 'nct', 'gml', 'geojson'],
 };
 export function kindOf(name) {
@@ -31,7 +33,9 @@ export function kindOf(name) {
   return 'other';
 }
 export const isCad = (name) => kindOf(name) === 'cad';
-const KIND_ICON = { cad: 'i-pline', pdf: 'i-pdf', docx: 'i-text', xlsx: 'i-grid', office: 'i-text', zip: 'i-layers', rar: 'i-layers', image: 'i-image', text: 'i-text', other: 'i-info', folder: 'i-open' };
+/** Word görünümünü (sayfa / akış, yakınlaştırma, iki parmak) paylaşan türler */
+const isWord = (k) => k === 'docx' || k === 'doc';
+const KIND_ICON = { cad: 'i-pline', pdf: 'i-pdf', docx: 'i-text', doc: 'i-text', xlsx: 'i-grid', office: 'i-text', zip: 'i-layers', rar: 'i-layers', image: 'i-image', text: 'i-text', other: 'i-info', folder: 'i-open' };
 const ICON = (id) => `<svg class="ic" aria-hidden="true"><use href="#${id}"/></svg>`;
 export const iconFor = (name, isDir) => ICON(isDir ? 'i-open' : KIND_ICON[kindOf(name)] || 'i-info');
 const fmtSize = (n) => n == null || !(n >= 0) ? '' : n < 1024 ? n + ' B' : n < 1048576 ? fmt(n / 1024, 1) + ' KB' : fmt(n / 1048576, 2) + ' MB';
@@ -356,7 +360,7 @@ async function show(d, opts = {}) {
   call(api.onOpen, d);
   try {
     if (d.kind === 'pdf') await showPdf(d);
-    else if (d.kind === 'docx') await showDocx(d);
+    else if (isWord(d.kind)) await showDocx(d);
     else if (d.kind === 'xlsx') await showXlsx(d);
     else if (d.kind === 'zip' || d.kind === 'rar') await showArchive(d);
     else if (d.kind === 'image') showImage(d);
@@ -364,7 +368,7 @@ async function show(d, opts = {}) {
     else showOther(d);
   } catch (e) { console.warn(e); els.body.innerHTML = `<div class="doc-card"><strong>${esc(tt('docFail', 'Belge açılamadı'))}</strong><p>${esc(e.message || e)}</p>${otherActions(d)}</div>`; }
 }
-function kindLabel(k) { return { pdf: 'PDF', docx: 'Word', xlsx: 'Excel', office: tt('docOffice', 'Ofis belgesi'), zip: 'ZIP', rar: 'RAR', image: tt('docImage', 'Resim'), text: tt('docText', 'Metin'), other: '' }[k] || ''; }
+function kindLabel(k) { return { pdf: 'PDF', docx: 'Word', doc: 'Word 97-2003', xlsx: 'Excel', office: tt('docOffice', 'Ofis belgesi'), zip: 'ZIP', rar: 'RAR', image: tt('docImage', 'Resim'), text: tt('docText', 'Metin'), other: '' }[k] || ''; }
 function renderActs(d) {
   const android = !!(A() && A().docShare);
   let h = '';
@@ -442,17 +446,17 @@ function pdfZoom(f) {
   pdfLayout(cur); pdfGoto(page);
 }
 /** Araç satırındaki yakınlaştırma düğmeleri (zin / zout / zfit): belge türüne göre dağıtır; f = çarpan, 0 = sığdır */
-function zoomDoc(f) { if (!cur) return; if (cur.kind === 'pdf') pdfZoom(f); else if (cur.kind === 'docx') docxZoom(f); }
+function zoomDoc(f) { if (!cur) return; if (cur.kind === 'pdf') pdfZoom(f); else if (isWord(cur.kind)) docxZoom(f); }
 /** iki parmakla yakınlaştırma (PDF, resim, Word): sürüklerken CSS ölçek, bırakınca kalıcı ölçek (PDF yeniden çizim, Word sayfa kipinde
  *  transform ölçeği / akış kipinde yazı yüzdesi). Tek parmak hiçbir zaman engellenmez: preventDefault yalnız iki parmak varken. */
 function bindPinch(el) {
   const pts = new Map(); let d0 = 0, scale = 1, target = null;
-  const can = () => cur && (cur.kind === 'pdf' || cur.kind === 'image' || cur.kind === 'docx');
+  const can = () => cur && (cur.kind === 'pdf' || cur.kind === 'image' || isWord(cur.kind));
   const base = () => target && target.classList.contains('docx-pages') ? `scale(${cur.pzoom || 1})` : '';   // sayfa yığınının kalıcı ölçeği
   el.addEventListener('pointerdown', (ev) => { if (!can()) return; pts.set(ev.pointerId, [ev.clientX, ev.clientY]); if (pts.size === 2) { const a = [...pts.values()]; d0 = Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]); target = el.querySelector('.pdf-pages, .doc-img, .docx-pages, .docx-page'); scale = 1; } });
   el.addEventListener('pointermove', (ev) => { if (!pts.has(ev.pointerId)) return; pts.set(ev.pointerId, [ev.clientX, ev.clientY]); if (pts.size === 2 && target) { const a = [...pts.values()]; const d = Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]); scale = Math.max(0.3, Math.min(4, d / (d0 || d))); target.style.transformOrigin = '0 0'; target.style.transform = `${base()} scale(${scale})`; ev.preventDefault(); } }, { passive: false });
   el.addEventListener('touchmove', (ev) => { if (ev.touches.length >= 2 && target) ev.preventDefault(); }, { passive: false });   // iki parmakta tarayıcı kaydırmaya geçip pointercancel üretmesin; tek parmak serbest
-  const up = (ev) => { pts.delete(ev.pointerId); if (pts.size < 2 && target) { target.style.transform = base(); if (Math.abs(scale - 1) > 0.05) { if (cur.kind === 'pdf') pdfZoom(scale); else if (cur.kind === 'docx') docxZoom(scale); else { cur.zoom = Math.max(0.2, Math.min(8, cur.zoom * scale)); const im = el.querySelector('.doc-img'); if (im) im.style.width = Math.round(cur.zoom * 100) + '%'; } } target = null; scale = 1; } };
+  const up = (ev) => { pts.delete(ev.pointerId); if (pts.size < 2 && target) { target.style.transform = base(); if (Math.abs(scale - 1) > 0.05) { if (cur.kind === 'pdf') pdfZoom(scale); else if (isWord(cur.kind)) docxZoom(scale); else { cur.zoom = Math.max(0.2, Math.min(8, cur.zoom * scale)); const im = el.querySelector('.doc-img'); if (im) im.style.width = Math.round(cur.zoom * 100) + '%'; } } target = null; scale = 1; } };
   el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
 }
 
@@ -475,8 +479,15 @@ async function arcFor(d) {
  */
 const PT = 96 / 72;   // pt → CSS px
 async function showDocx(d) {
-  const arc = await arcFor(d);
-  const r = await docxToHtml(arc);
+  let r;
+  if (d.kind === 'doc') {
+    // Word 97-2003: doc.js (eş zamanlı); .doc uzantısıyla kaydedilmiş DOCX (ZIP) docx yoluna gider, RTF açıklanır
+    const buf = await bytesOf(d), u8 = new Uint8Array(buf, 0, Math.min(8, buf.byteLength));
+    if (u8[0] === 0x50 && u8[1] === 0x4B) { d.arc = d.arc || await openArchive({ bytes: buf }); r = await docxToHtml(d.arc); }
+    else if (u8[0] === 0x7B && u8[1] === 0x5C && u8[2] === 0x72 && u8[3] === 0x74) throw new Error(tt('docRtf', 'RTF biçimi doğrudan görüntülenemiyor'));
+    else r = docToHtml(buf, { tt });
+  } else r = await docxToHtml(await arcFor(d));
+  d.warn = (r.warnings || []).join(' · ');
   d.layout = d.layout || (store.get('doc:docxLayout') === 'flow' ? 'flow' : 'page'); d.zoom = d.zoom || 1; d.pzoom = d.pzoom || 0;   // pzoom 0 = genişliğe sığdır
   const parts = r.parts || [r.html];
   const foot = (upto) => upto < parts.length ? `<span class="muted">${parts.length} ${esc(tt('blocksOfFirst', 'bloğun ilk'))} ${upto}</span><button type="button" class="btn small" data-more="${Math.min(parts.length, upto * 2)}">${esc(tt('loadMore', 'Daha fazla'))}</button>` : '';
@@ -496,10 +507,10 @@ async function showDocx(d) {
 }
 function docxTools(d) {
   const page = d.layout === 'page';
-  els.tools.innerHTML = `<button type="button" class="btn small" data-doc="layout" data-layout="${d.layout}" title="${esc(page ? tt('docLayoutFlow', 'Akış görünümü') : tt('docLayoutPage', 'Sayfa görünümü'))}">${ICON(page ? 'i-text' : 'i-layout')} ${esc(page ? tt('docFlow', 'Akış') : tt('docPage', 'Sayfa'))}</button><span class="sp"></span><button type="button" class="btn small" data-doc="zout" aria-label="−">${ICON('i-zoom-out')}</button><button type="button" class="btn small" data-doc="zfit">${esc(tt('fitWidth', 'Sığdır'))}</button><button type="button" class="btn small" data-doc="zin" aria-label="+">${ICON('i-zoom-in')}</button>` + (api && api.driveAvailable && api.driveAvailable() ? `<button type="button" class="btn small" data-doc="convert">${esc(tt('drivePdf', "Drive ile PDF'e çevir"))}</button>` : '');
+  els.tools.innerHTML = `<button type="button" class="btn small" data-doc="layout" data-layout="${d.layout}" title="${esc(page ? tt('docLayoutFlow', 'Akış görünümü') : tt('docLayoutPage', 'Sayfa görünümü'))}">${ICON(page ? 'i-text' : 'i-layout')} ${esc(page ? tt('docFlow', 'Akış') : tt('docPage', 'Sayfa'))}</button><span class="sp"></span><button type="button" class="btn small" data-doc="zout" aria-label="−">${ICON('i-zoom-out')}</button><button type="button" class="btn small" data-doc="zfit">${esc(tt('fitWidth', 'Sığdır'))}</button><button type="button" class="btn small" data-doc="zin" aria-label="+">${ICON('i-zoom-in')}</button>` + (api && api.driveAvailable && api.driveAvailable() ? `<button type="button" class="btn small" data-doc="convert">${esc(tt('drivePdf', "Drive ile PDF'e çevir"))}</button>` : '') + (d.warn ? `<span class="muted doc-warn" title="${esc(d.warn)}">${esc(d.warn)}</span>` : '');
 }
 /** Kip değişimi (araç satırı düğmesi): hatırlanır, belge yeniden basılır */
-function docxSetLayout(mode) { const d = cur; if (!d || d.kind !== 'docx' || !d.docxRender) return; d.layout = mode; store.set('doc:docxLayout', mode); d.pg = null; els.body.scrollTop = 0; d.docxRender(DOCX_PAGE); }
+function docxSetLayout(mode) { const d = cur; if (!d || !isWord(d.kind) || !d.docxRender) return; d.layout = mode; store.set('doc:docxLayout', mode); d.pg = null; els.body.scrollTop = 0; d.docxRender(DOCX_PAGE); }
 /** parts[0..upto) sayfalara dilimlenir; d.pg durumu bağlıysa kaldığı yerden sürer (Daha fazla) */
 function docxPaginate(d, r, parts, upto, foot) {
   let pg = d.pg;
@@ -543,7 +554,7 @@ function docxApplyZoom(d) {
 }
 /** f: çarpan; 0 = sığdır (sayfa kipi: genişliğe, akış: %100). Sayfa kipinde kaydırma konumu ölçekle birlikte taşınır. */
 function docxZoom(f) {
-  const d = cur; if (!d || d.kind !== 'docx') return;
+  const d = cur; if (!d || !isWord(d.kind)) return;
   if (d.layout === 'page') { if (!d.pg) return; const z0 = d.pzoom || 1; d.pzoom = f === 0 ? docxFitScale(d) : Math.max(0.2, Math.min(6, z0 * f)); docxApplyZoom(d); const k = d.pzoom / z0; els.body.scrollTop = els.body.scrollTop * k; els.body.scrollLeft = els.body.scrollLeft * k; }
   else { d.zoom = f === 0 ? 1 : Math.max(0.5, Math.min(3, d.zoom * f)); docxApplyZoom(d); }
 }
@@ -637,7 +648,7 @@ async function showText(d) {
 }
 function otherActions(d) {
   let h = '<div class="row">';
-  if (api && api.driveAvailable && api.driveAvailable() && (d.kind === 'office' || d.kind === 'docx' || d.kind === 'xlsx')) h += `<button type="button" class="btn primary small" data-doc="convert">${esc(tt('drivePdf', "Drive ile PDF'e çevir"))}</button>`;
+  if (api && api.driveAvailable && api.driveAvailable() && (d.kind === 'office' || d.kind === 'docx' || d.kind === 'doc' || d.kind === 'xlsx')) h += `<button type="button" class="btn primary small" data-doc="convert">${esc(tt('drivePdf', "Drive ile PDF'e çevir"))}</button>`;
   if (A() && A().docShare && d.id) h += `<button type="button" class="btn small" data-doc="open">${esc(tt('docOpenWith', 'Başka uygulamayla aç'))}</button><button type="button" class="btn small" data-doc="share">${esc(tt('share', 'Paylaş'))}</button>`;
   return h + '</div>';
 }

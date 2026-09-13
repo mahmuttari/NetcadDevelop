@@ -3,6 +3,7 @@
 // Kullanım: PLAYWRIGHT_PKG=<node_modules> node tools/test_open.mjs [çıktı] [örnekler]
 import { args, startServer, launchBrowser, openFile, onDialog, noUpdate, checker, PHONE, queueAnswers } from './harness.mjs';
 import fs from 'node:fs';
+import path from 'node:path';
 const { out, samples: SM } = args(import.meta.url);
 const srv = await startServer();
 const C = checker(), ok = C.ok;
@@ -17,6 +18,7 @@ const sampleFiles = fs.readdirSync(SM).filter(f => !f.startsWith('.'));
 /** panelde görünen ve 40 px'ten alçak dokunma hedefleri */
 const smallTargets = () => [...document.querySelectorAll('#openPanel button, #openPanel select, #openPanel input')].filter(b => { const r = b.getBoundingClientRect(); return r.width > 0 && r.height > 0 && r.height < 40; }).map(b => (b.id || b.className) + ':' + Math.round(b.getBoundingClientRect().height));
 const cadN = sampleFiles.filter(f => /\.(dwg|dxf)$/i.test(f)).length;
+const dirN = sampleFiles.filter(f => fs.statSync(path.join(SM, f)).isDirectory()).length;   // alt klasörler (samples/doc) tür süzgecinden geçer, sıralamada öne gelir
 
 // ---------------------------------------------------------------------------------
 // 1) Tarayıcı yolu
@@ -54,12 +56,12 @@ const cadN = sampleFiles.filter(f => /\.(dwg|dxf)$/i.test(f)).length;
   { const bad = await ev(smallTargets); ok('1ae dokunma hedefleri ≥ 40 px (kırıntı dâhil)', bad.length === 0 && await ev(() => document.querySelectorAll('#openBody [data-open-crumb]').length >= 1), bad.join(' ')); }
   // tür süzgeci
   await page.selectOption('#openKind', 'cad'); await page.waitForTimeout(60);
-  { const r = await rows(); ok('1g tür süzgeci Çizim → yalnız dwg/dxf', r.length === cadN && r.every(x => /\.(dwg|dxf)$/i.test(x.name)), r.length + '/' + cadN); }
+  { const r = await rows(); ok('1g tür süzgeci Çizim → yalnız dwg/dxf (klasörler süzülmez)', r.length === cadN + dirN && r.every(x => x.dir || /\.(dwg|dxf)$/i.test(x.name)), r.length + '/' + (cadN + dirN)); }
   await page.selectOption('#openKind', 'all'); await page.waitForTimeout(60);
   ok('1h süzgeç Tümü', (await rows()).length === sampleFiles.length);
   // sıralama
   await page.selectOption('#openSort', 'size'); await page.waitForTimeout(60);
-  { const r = await rows(); ok('1i boyuta göre azalan', r.every((x, i) => i === 0 || r[i - 1].size >= x.size) && r[0].size === Math.max(...r.map(x => x.size)), r.slice(0, 3).map(x => x.name + ':' + x.size).join(' ')); }
+  { const r = await rows(), f = r.filter(x => !x.dir); ok('1i boyuta göre azalan (klasörler önce)', r.slice(0, dirN).every(x => x.dir) && f.every((x, i) => i === 0 || f[i - 1].size >= x.size) && f[0].size === Math.max(...f.map(x => x.size)), r.slice(0, 3).map(x => x.name + ':' + x.size).join(' ')); }
   await page.selectOption('#openSort', 'name'); await page.waitForTimeout(60);
   { const r = await rows(); const names = r.map(x => x.name); const sorted = names.slice().sort((a, b) => a.localeCompare(b, 'tr')); ok('1j ada göre (tr)', JSON.stringify(names) === JSON.stringify(sorted), names.slice(0, 4).join(' ')); }
   // arama (3+ karakter → özyinelemeli arama)
