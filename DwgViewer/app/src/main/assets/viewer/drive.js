@@ -63,6 +63,21 @@ export function onDrive(reqId, ok, json) {
 }
 export function onProgress(reqId, done, total) { const p = pending.get(reqId); if (p && p.onProgress) p.onProgress(done, total); }
 
+/**
+ * Google'ın ham İngilizce hata iletilerini anlaşılır karşılıklarına çevirir. İkisi kurulum kaynaklıdır ve
+ * kullanıcının yapacağı iş farklıdır: kapsam eksikse oturum yenilenir, API kapalıysa iş konsoldadır.
+ */
+export function friendly(msg) {
+  const m = String(msg == null ? '' : msg);
+  if (/insufficient authentication scopes|insufficient_scope|ACCESS_TOKEN_SCOPE_INSUFFICIENT/i.test(m))
+    return tt('driveNoScope', 'Drive izni verilmemiş: oturum yalnız ad ve e-posta için açılmış. Çıkış yapıp yeniden giriş yapın ve izin ekranındaki Drive satırını onaylayın.');
+  if (/accessNotConfigured|has not been used in project|is disabled/i.test(m))
+    return tt('driveApiOff', 'Google Drive API bu proje için etkin değil.') + ' ' + m;
+  return m;
+}
+/** Yalnız yeniden giriş çözer mi? (kart üstünde düğme gösterilir) */
+const needsReauth = (m) => /insufficient authentication scopes|insufficient_scope|ACCESS_TOKEN_SCOPE_INSUFFICIENT|401|Oturum/i.test(String(m || ''));
+
 // ---- panel ---------------------------------------------------------------------------
 export function open(o = {}) {
   const p = $('drivePanel'); if (!p) return;
@@ -106,7 +121,7 @@ async function load(more) {
     const r = await call('list', { folder: nav.folder, q: nav.q, pageToken: nav.pageToken });
     nav.items = more ? nav.items.concat(r.files || []) : (r.files || []);
     nav.pageToken = r.nextPageToken || '';
-  } catch (e) { list.innerHTML = `<div class="doc-card"><strong>${esc(tt('driveError', 'Drive hatası'))}</strong><p>${esc(e.message)}</p>${/401|Oturum/.test(e.message) ? `<button type="button" class="btn primary small" data-drive="signin">${esc(tt('signIn', 'Google ile giriş yap'))}</button>` : ''}</div>`; nav.loading = false; return; }
+  } catch (e) { list.innerHTML = `<div class="doc-card"><strong>${esc(tt('driveError', 'Drive hatası'))}</strong><p>${esc(friendly(e.message))}</p>${needsReauth(e.message) ? `<button type="button" class="btn primary small" data-drive="reauth">${esc(tt('driveReauth', 'Çıkış yap ve yeniden giriş'))}</button>` : ''}</div>`; nav.loading = false; return; }
   nav.loading = false;
   renderList();
 }
@@ -145,10 +160,11 @@ async function onClick(ev) {
     else if (k === 'crumb') { const i = +b.dataset.i; const c = nav.crumbs[i]; nav.crumbs = nav.crumbs.slice(0, i + 1); nav.folder = c.id; load(); }
     else if (k === 'more') load(true);
     else if (k === 'upload') { if (gate('driveUpload')) uploadMenu(); }
-    else if (k === 'mkdir') { const name = await askText(tt('folderName', 'Klasör adı:'), ''); if (name) { try { await call('mkdir', { name, parent: nav.folder }); api.toast(tt('folderCreated', 'Klasör oluşturuldu'), { type: 'ok' }); load(); } catch (e) { api.toast(e.message, { type: 'error' }); } } }
+    else if (k === 'mkdir') { const name = await askText(tt('folderName', 'Klasör adı:'), ''); if (name) { try { await call('mkdir', { name, parent: nav.folder }); api.toast(tt('folderCreated', 'Klasör oluşturuldu'), { type: 'ok' }); load(); } catch (e) { api.toast(friendly(e.message), { type: 'error' }); } } }
     else if (k === 'refresh') load();
     else if (k === 'pickhere') { const p = nav.pick; nav.pick = null; if (p && p.fn) p.fn(nav.folder === 'shared' || nav.folder === 'recent' || nav.folder === 'starred' ? 'root' : nav.folder); }
     else if (k === 'menu') { ev.stopPropagation(); fileMenu(b.closest('.drive-item')); }
+    else if (k === 'reauth') { signOut(); setTimeout(signIn, 300); }
     else if (k === 'copy') { const v = b.dataset.v || ''; try { if (A() && A().copy) A().copy(v); else if (navigator.clipboard) navigator.clipboard.writeText(v); } catch (_) { /* pano yok */ } api.toast(t('copied'), { type: 'ok' }); }
     return;
   }
@@ -167,7 +183,7 @@ async function openFile(d) {
     close();
     await api.openRegistered(info);
     store.set('drive:last', JSON.stringify({ folder: nav.folder, crumbs: nav.crumbs }));
-  } catch (e) { api.toast(tt('driveError', 'Drive hatası') + ': ' + e.message, { type: 'error', ms: 6000 }); }
+  } catch (e) { api.toast(tt('driveError', 'Drive hatası') + ': ' + friendly(e.message), { type: 'error', ms: 6000 }); }
 }
 function fileMenu(it) {
   if (!it) return;
@@ -175,9 +191,9 @@ function fileMenu(it) {
   const html = `<div class="full"><strong>${esc(d.name)}</strong></div><div class="full btns"><button type="button" class="btn small primary" id="dmOpen">${esc(t('open'))}</button><button type="button" class="btn small" id="dmKeep">${esc(tt('docKeep', 'Çevrimdışı sakla'))}</button>${d.link ? `<button type="button" class="btn small" id="dmLink">${esc(tt('openInDrive', "Drive'da aç"))}</button>` : ''}<button type="button" class="btn small" id="dmDel">${esc(t('delete'))}</button></div>`;
   api.openDoc(tt('driveFile', 'Drive dosyası'), html);
   $('dmOpen').onclick = () => { api.hide('docPanel'); openFile(d); };
-  $('dmKeep').onclick = async () => { api.hide('docPanel'); try { const info = await call('download', { id: d.id, name: d.name, mime: d.mime, size: +d.size || 0 }); if (A() && A().docKeep) A().docKeep(info.id); api.toast(tt('docKept', 'Çevrimdışı kopya alındı (Dosya Aç › Çevrimdışı)'), { type: 'ok' }); } catch (e) { api.toast(e.message, { type: 'error' }); } };
+  $('dmKeep').onclick = async () => { api.hide('docPanel'); try { const info = await call('download', { id: d.id, name: d.name, mime: d.mime, size: +d.size || 0 }); if (A() && A().docKeep) A().docKeep(info.id); api.toast(tt('docKept', 'Çevrimdışı kopya alındı (Dosya Aç › Çevrimdışı)'), { type: 'ok' }); } catch (e) { api.toast(friendly(e.message), { type: 'error' }); } };
   if ($('dmLink')) $('dmLink').onclick = () => { api.hide('docPanel'); if (A() && A().openUrl) A().openUrl(d.link); else window.open(d.link, '_blank'); };
-  $('dmDel').onclick = async () => { api.hide('docPanel'); if (!(await askConfirm(tt('confirmDelete', 'Silinsin mi?') + ' ' + d.name))) return; try { await call('delete', { id: d.id }); api.toast(tt('deleted', 'Silindi')); load(); } catch (e) { api.toast(e.message, { type: 'error' }); } };
+  $('dmDel').onclick = async () => { api.hide('docPanel'); if (!(await askConfirm(tt('confirmDelete', 'Silinsin mi?') + ' ' + d.name))) return; try { await call('delete', { id: d.id }); api.toast(tt('deleted', 'Silindi')); load(); } catch (e) { api.toast(friendly(e.message), { type: 'error' }); } };
 }
 // ---- yükleme -------------------------------------------------------------------------
 function uploadMenu() {
@@ -200,7 +216,7 @@ export async function upload(args) {
     api.toast(tt('uploaded', "Drive'a yüklendi") + ': ' + (r.name || args.name), { type: 'ok', ms: 5000, action: r.webViewLink ? { label: tt('openInDrive', "Drive'da aç"), fn: () => { if (A() && A().openUrl) A().openUrl(r.webViewLink); } } : undefined });
     if (!$('drivePanel').hidden) load();
     return r;
-  } catch (e) { api.toast(tt('uploadFail', 'Yükleme başarısız') + ': ' + e.message, { type: 'error', ms: 6000 }); return null; }
+  } catch (e) { api.toast(tt('uploadFail', 'Yükleme başarısız') + ': ' + friendly(e.message), { type: 'error', ms: 6000 }); return null; }
 }
 /** Klasör seçtirerek yükler */
 export function uploadWithPicker(args) {
@@ -214,5 +230,5 @@ export async function convertToPdf(doc) {
   if (!signedIn()) { signIn(); return; }
   api.toast(tt('converting', 'PDF\'e dönüştürülüyor') + ': ' + doc.name, 90000);
   try { const info = await call('convertPdf', { fileId: doc.id }); api.hideToast && api.hideToast(); await api.openConverted(info); }
-  catch (e) { api.toast(tt('convertFail', 'Dönüştürülemedi') + ': ' + e.message, { type: 'error', ms: 6000 }); }
+  catch (e) { api.toast(tt('convertFail', 'Dönüştürülemedi') + ': ' + friendly(e.message), { type: 'error', ms: 6000 }); }
 }

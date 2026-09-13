@@ -247,4 +247,5 @@ export default {
   tl_sil3: 'Silhouette', th_sil3: 'Spigoli di silhouette',
   perspShort: 'Prosp', orthoShort: 'Orto',
   driveSetup: 'Valori di configurazione', driveSetupHint: 'Google Cloud Console › Client › «Crea client Android» richiede i primi due valori. L\'URI di reindirizzamento deriva dall\'ID client e si aggiorna qui una volta impostato. Tocca per copiare.', pkgName: 'Nome del pacchetto', signSha1: 'SHA-1 della firma', redirectUri: 'URI di reindirizzamento',
+  driveNoScope: 'L\'accesso a Drive non è stato concesso: la sessione copre solo nome ed e-mail. Esci, accedi di nuovo e approva la riga Drive nella schermata di consenso.', driveReauth: 'Esci e accedi di nuovo', driveApiOff: 'L\'API Google Drive non è abilitata per questo progetto.',
 };
