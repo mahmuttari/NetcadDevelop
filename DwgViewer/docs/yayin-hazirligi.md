@@ -57,6 +57,33 @@ sorusunu sorar. Cevap somut olmalı, "dosyalara erişmek için" gibi genel ifade
 > workable. The Drive browser also has to show folder structure, which the Picker's
 > per-file grant does not preserve between sessions.
 
+### 1.1.1 Android istemcisinde "Özel URI şeması" açılmalıdır
+
+Google, 2024'ten sonra oluşturulan Android ve iOS OAuth istemcilerinde **özel
+URI şemasıyla yönlendirmeyi varsayılan olarak kapalı** getiriyor. Kapalıyken
+yetkilendirme isteği tarayıcıda şu hatayla durur:
+
+```
+Hata 400: invalid_request
+Custom URI scheme is not enabled for your Android client.
+```
+
+İstek kusursuz olsa bile bu hata alınır; engel istemcinin ayarındadır. Açmak
+için: **Google Auth Platform › İstemciler › (Android istemcisi) › Gelişmiş
+ayarlar › Özel URI şemasını etkinleştir** → Kaydet. Değişikliğin yayılması
+birkaç dakika sürebilir.
+
+Bu uygulama özel URI şeması kullanır, çünkü giriş Play Hizmetleri olmadan,
+yalnız tarayıcı ve PKCE ile yürür (`GoogleDrive.java`). Google uzun vadede
+Android'de Google Identity Services / Credential Manager'ı öneriyor; o yol
+Play Hizmetleri bağımlılığı getirir ve Drive REST çağrıları için ayrıca
+sunucu tarafı yetkilendirme gerektirir. Şema anahtarı kapatılırsa giriş
+akışının yeniden yazılması gerekir.
+
+Yeni bir imza anahtarına geçilirse (ör. Play uygulama imzalaması) yeni bir
+Android istemcisi oluşturulur; bu anahtarın **yeni istemcide de** açılması
+unutulmamalıdır.
+
 ### 1.2 Tanıtım videosu (demo video) senaryosu
 
 Google, YouTube'a yüklenmiş (liste dışı olabilir) bir video ister. Videoda OAuth istemci
