@@ -246,4 +246,5 @@ export default {
   tl_shadow3: '阴影', th_shadow3: '地面阴影',
   tl_sil3: '轮廓', th_sil3: '轮廓边',
   perspShort: '透视', orthoShort: '正交',
+  driveSetup: '配置所需的值', driveSetupHint: 'Google Cloud Console › 客户端 ›「创建 Android 客户端」会要求这三个值。点按即可复制。', pkgName: '软件包名称', signSha1: '签名 SHA-1', redirectUri: '重定向地址',
 };

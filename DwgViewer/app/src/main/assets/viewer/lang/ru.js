@@ -246,4 +246,5 @@ export default {
   tl_shadow3: 'Тень', th_shadow3: 'Тень на земле',
   tl_sil3: 'Силуэт', th_sil3: 'Силуэтные рёбра',
   perspShort: 'Персп', orthoShort: 'Орто',
+  driveSetup: 'Значения для настройки', driveSetupHint: 'Google Cloud Console › Клиенты › «Создать клиент Android» запрашивает эти три значения. Коснитесь, чтобы скопировать.', pkgName: 'Имя пакета', signSha1: 'SHA-1 подписи', redirectUri: 'Адрес перенаправления',
 };

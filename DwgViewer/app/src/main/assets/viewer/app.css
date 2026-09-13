@@ -649,3 +649,9 @@ html[dir="rtl"] .open-tile .lbtn { right: auto; left: 0; }
 html[dir="rtl"] .pdf-page, html[dir="rtl"] .docx-page, html[dir="rtl"] .docx-sheet,
 html[dir="rtl"] .pdfe-stack, html[dir="rtl"] .xlsx-tbl, html[dir="rtl"] .txt-body,
 html[dir="rtl"] #cv, html[dir="rtl"] #cv3d, html[dir="rtl"] .stage { direction: ltr; }
+
+/* Drive kurulum kartı: paket adı / imza SHA-1 / yönlendirme adresi — dokununca panoya kopyalanır */
+.kv-copy { display: block; width: 100%; text-align: left; margin: 6px 0 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--fg); }
+.kv-copy small { display: block; color: var(--muted); font-size: calc(11px * var(--fs)); }
+.kv-copy code { display: block; font-size: calc(12px * var(--fs)); word-break: break-all; line-height: 1.35; }
+html[dir="rtl"] .kv-copy { text-align: right; }

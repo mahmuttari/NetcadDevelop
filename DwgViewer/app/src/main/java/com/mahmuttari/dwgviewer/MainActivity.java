@@ -1272,6 +1272,31 @@ public class MainActivity extends Activity {
         }
 
         // ---- Google ile giriş / Drive -----------------------------------------------------
+        /**
+         * Uygulamanın gerçekten imzalandığı sertifikanın SHA-1 parmak izi ("AB:CD:…" biçiminde).
+         * Google Cloud Console'da Android OAuth istemcisi bu değerle oluşturulur; Play uygulama imzalaması
+         * devreye girerse APK yeniden imzalanır ve bu değer değişir — giriş çalışmıyorsa ilk bakılacak yer burasıdır.
+         */
+        @JavascriptInterface public String signingSha1() {
+            try {
+                java.security.cert.Certificate[] certs;
+                android.content.pm.PackageManager pm = getPackageManager();
+                if (Build.VERSION.SDK_INT >= 28) {
+                    android.content.pm.SigningInfo si = pm.getPackageInfo(getPackageName(), android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES).signingInfo;
+                    android.content.pm.Signature[] sg = si.hasMultipleSigners() ? si.getApkContentsSigners() : si.getSigningCertificateHistory();
+                    return sha1Of(sg[0].toByteArray());
+                }
+                @SuppressWarnings("deprecation")
+                android.content.pm.Signature[] sg = pm.getPackageInfo(getPackageName(), android.content.pm.PackageManager.GET_SIGNATURES).signatures;
+                return sha1Of(sg[0].toByteArray());
+            } catch (Throwable e) { Log.w(TAG, "signingSha1", e); return ""; }
+        }
+        private String sha1Of(byte[] der) throws Exception {
+            byte[] d = java.security.MessageDigest.getInstance("SHA-1").digest(der);
+            StringBuilder sb = new StringBuilder(d.length * 3);
+            for (byte b : d) { if (sb.length() > 0) sb.append(':'); sb.append(String.format(Locale.US, "%02X", b)); }
+            return sb.toString();
+        }
         @JavascriptInterface public boolean gConfigured() { return GoogleDrive.configured(); }
         @JavascriptInterface public String gRedirect() { return GoogleDrive.redirectUri(); }
         @JavascriptInterface public String gSignIn() { runOnUiThread(() -> { String r = google.signIn(); if (!r.isEmpty()) Toast.makeText(MainActivity.this, r, Toast.LENGTH_LONG).show(); }); return ""; }

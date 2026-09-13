@@ -1,4 +1,4 @@
-# DWG OfficeZip (Android) — v7.10
+# DWG OfficeZip (Android) — v7.11
 
 AutoCAD **DWG** ve **DXF** çizimlerini telefonda açan, çevrimdışı çalışan
 Android uygulaması. Dosya cihazdan dışarı çıkmaz; çözümleme telefonun
@@ -308,6 +308,7 @@ RAR (junrar), gerçek Google Drive ve Android PdfRenderer yalnız cihazda
 | 7.7 | 30 | 2026-09-13 | Word 97-2003 (.doc) belgeleri doğrudan açılır: bağımsız MS-DOC çözümleyicisi (`doc.js`: CFB, FIB, parça tablosu, FKP, stiller, listeler, tablolar, alanlar, resimler, dipnotlar, bölümler), DOCX ile ortak sayfa / akış görünümü; Word 6 / 95 yalnız metin; `samples/doc/` derlemi ve `test_doc.mjs` |
 | 7.8 | 31 | 2026-09-13 | ".doc" uzantılı RTF, Word HTML, MHTML, DOCX ve düz metin içerik baytlardan tanınıp açılır (`docalt.js`: RTF çözümleyicisi, HTML temizleyici, MHTML ayrıştırıcı); tanınmayan içerikte ilk baytlar iletide gösterilir |
 | 7.9 | 32 | 2026-09-13 | Uygulama adı **DWG OfficeZip** oldu (paket adı ve APK dosya adı değişmedi: kurulu sürümler güncellenmeye devam eder). PDF ve Word düzenleme Pro özelliği olarak eklendi (`pdfedit.js` açıklama katmanı ve pdf-lib çıktısı, `docedit.js` yerinde düzenleme ve OOXML / DOCX yazıcı); yayın hazırlığı: Google belirteçleri Keystore ile şifreleniyor, Google alan adlarında şifresiz trafik yasak, gizlilik politikası ve doğrulama evrakı |
+| 7.11 | 34 | 2026-09-13 | Google girişi kurulumu: istemci kimliği işlenmemişse Drive panelinde paket adı, **uygulamanın çalışırken okunan imza SHA-1'i** (`signingSha1` köprüsü) ve yönlendirme adresi dokununca kopyalanacak biçimde gösteriliyor — Play uygulama imzalaması APK'yı yeniden imzalarsa uyuşmazlık burada görülür |
 | 7.10 | 33 | 2026-09-13 | Arayüz 15 dilde: cihazın diline göre kendiliğinden açılır (Android `LocaleList` köprüsü, `Ayarlar › Dil` ile sabitlenebilir). Sözlükler `viewer/lang/<kod>.js` içinde, ilk kullanımda dinamik `import()` ile yükleniyor; Arapça için sağdan sola düzen (`<html dir="rtl">`, belge ve tuval yüzeyleri soldan sağa kalır). DXF varlık türleri, 3B hazır görünümler ve görünüm küpü etiketleri de sözlüğe taşındı; `values-*/strings.xml`, `locales_config.xml`, `resourceConfigurations` ve `tools/lang_check.mjs` eklendi |
 
 ## QR kod biçimi

@@ -246,4 +246,5 @@ export default {
   tl_shadow3: 'Bóng', th_shadow3: 'Bóng đổ trên nền',
   tl_sil3: 'Cạnh bao', th_sil3: 'Cạnh bao ngoài',
   perspShort: 'P.cảnh', orthoShort: 'T.giao',
+  driveSetup: 'Giá trị thiết lập', driveSetupHint: 'Google Cloud Console › Ứng dụng khách › «Tạo ứng dụng khách Android» yêu cầu ba giá trị này. Chạm để sao chép.', pkgName: 'Tên gói', signSha1: 'SHA-1 của chữ ký', redirectUri: 'Địa chỉ chuyển hướng',
 };

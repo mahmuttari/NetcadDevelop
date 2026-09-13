@@ -246,4 +246,5 @@ export default {
   tl_shadow3: 'Sombra', th_shadow3: 'Sombra no solo',
   tl_sil3: 'Silhueta', th_sil3: 'Arestas de silhueta',
   perspShort: 'Persp', orthoShort: 'Orto',
+  driveSetup: 'Valores de configuração', driveSetupHint: 'Google Cloud Console › Clientes › «Criar cliente Android» pede estes três valores. Toque para copiar.', pkgName: 'Nome do pacote', signSha1: 'SHA-1 da assinatura', redirectUri: 'URI de redirecionamento',
 };

@@ -246,4 +246,5 @@ export default {
   tl_shadow3: 'छाया', th_shadow3: 'भूमि की छाया',
   tl_sil3: 'बाह्य रेखा', th_sil3: 'बाह्य रेखा के किनारे',
   perspShort: 'परिप्रे.', orthoShort: 'लंबको.',
+  driveSetup: 'सेटअप मान', driveSetupHint: 'Google Cloud Console › क्लाइंट › «Android क्लाइंट बनाएँ» इन तीन मानों को माँगता है। कॉपी करने के लिए टैप करें।', pkgName: 'पैकेज नाम', signSha1: 'हस्ताक्षर SHA-1', redirectUri: 'पुनर्निर्देशन पता',
 };

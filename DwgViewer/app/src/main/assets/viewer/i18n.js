@@ -140,6 +140,7 @@ export const TR = {
   v3c_top: 'Ü', v3c_bottom: 'Al', v3c_front: 'Ö', v3c_back: 'A', v3c_left: 'S', v3c_right: 'Sğ',
   // dil seçimi
   langAuto: 'Cihaz dili (otomatik)', langChanged: 'Dil değişti',
+  driveSetup: 'Kurulum bilgileri', driveSetupHint: 'Google Cloud Console › İstemciler › "Android istemcisi oluştur" adımı bu üç değeri ister. Dokununca kopyalanır.', pkgName: 'Paket adı', signSha1: 'İmza SHA-1', redirectUri: 'Yönlendirme adresi',
 };
 export const EN = {
   open: 'Open', noFile: 'No file', fit: 'Zoom extents', layers: 'Layers', measure: 'Measure', more: 'More', search: 'Search',
@@ -282,6 +283,7 @@ export const EN = {
   v3c_top: 'T', v3c_bottom: 'Bo', v3c_front: 'F', v3c_back: 'Ba', v3c_left: 'L', v3c_right: 'R',
   // language picker
   langAuto: 'Device language (automatic)', langChanged: 'Language changed',
+  driveSetup: 'Setup values', driveSetupHint: 'Google Cloud Console › Clients › "Create Android client" asks for these three values. Tap to copy.', pkgName: 'Package name', signSha1: 'Signing SHA-1', redirectUri: 'Redirect URI',
 };
 /* ---------------------------------------------------------------------------
  * Dil kayıt defteri

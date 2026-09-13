@@ -71,10 +71,26 @@ export function open(o = {}) {
   p.hidden = false;
   renderAccount();
   if (!available()) { $('driveList').innerHTML = `<div class="doc-card"><strong>Google Drive</strong><p>${esc(tt('driveAndroidOnly', 'Google Drive yalnız Android uygulamasında kullanılabilir.'))}</p></div>`; return; }
+  if (A().gConfigured && !A().gConfigured()) { $('driveList').innerHTML = `<div class="doc-card">${ICON('i-drive')}<strong>Google Drive</strong><p>${esc(tt('driveNotConfigured', 'Google istemci kimliği bu sürüme henüz işlenmedi.'))}</p></div>` + setupCard(); return; }
   if (!signedIn()) { $('driveList').innerHTML = `<div class="doc-card">${ICON('i-drive')}<strong>Google Drive</strong><p>${esc(tt('driveIntro', 'Drive\'daki DWG, DXF, PDF, Word ve arşiv dosyalarını açmak, çizimlerinizi ve çıktılarınızı Drive\'a yüklemek için Google hesabınızla giriş yapın.'))}</p><button type="button" class="btn primary" data-drive="signin">${ICON('i-gps')} ${esc(tt('signIn', 'Google ile giriş yap'))}</button></div>`; return; }
   load();
 }
 export function close() { const p = $('drivePanel'); if (p) p.hidden = true; nav.pick = null; }
+/**
+ * İstemci kimliği bu derlemeye işlenmemişse gösterilir: Android OAuth istemcisini oluşturmak için gereken üç
+ * değer. İmza parmak izi çalışan uygulamadan okunur — Play uygulama imzalaması APK'yı yeniden imzalarsa
+ * buradaki SHA-1 değişir ve konsoldaki kayıtla uyuşmadığı anda giriş çalışmaz; kaynağı burada görülür.
+ */
+function setupCard() {
+  const a = A(); if (!a) return '';
+  const val = (fn) => { try { return fn && fn.call(a) || ''; } catch (_) { return ''; } };
+  const rows = [[tt('pkgName', 'Paket adı'), 'com.mahmuttari.dwgviewer'],
+    [tt('signSha1', 'İmza SHA-1'), val(a.signingSha1)],
+    [tt('redirectUri', 'Yönlendirme adresi'), val(a.gRedirect)]];
+  return `<div class="doc-card"><strong>${esc(tt('driveSetup', 'Kurulum bilgileri'))}</strong><p class="muted">${esc(tt('driveSetupHint', ''))}</p>`
+    + rows.filter(r => r[1]).map(r => `<button type="button" class="kv-copy" data-drive="copy" data-v="${esc(r[1])}" title="${esc(t('copyHint'))}"><small>${esc(r[0])}</small><code>${esc(r[1])}</code></button>`).join('')
+    + '</div>';
+}
 function renderAccount() {
   const el = $('driveAccount'); if (!el) return;
   const u = account();
@@ -133,6 +149,7 @@ async function onClick(ev) {
     else if (k === 'refresh') load();
     else if (k === 'pickhere') { const p = nav.pick; nav.pick = null; if (p && p.fn) p.fn(nav.folder === 'shared' || nav.folder === 'recent' || nav.folder === 'starred' ? 'root' : nav.folder); }
     else if (k === 'menu') { ev.stopPropagation(); fileMenu(b.closest('.drive-item')); }
+    else if (k === 'copy') { const v = b.dataset.v || ''; try { if (A() && A().copy) A().copy(v); else if (navigator.clipboard) navigator.clipboard.writeText(v); } catch (_) { /* pano yok */ } api.toast(t('copied'), { type: 'ok' }); }
     return;
   }
   const it = ev.target.closest('.drive-item'); if (!it) return;
