@@ -87,6 +87,7 @@ body.compact-status #stCount { display: none; }
 .home-page { max-width: 640px; margin: 0 auto; }
 .home-brand { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 0 4px; }
 .home-brand h1 { font-size: calc(20px * var(--fs)); margin: 0; }
+.app-mark { width: 46px; height: 46px; flex: 0 0 auto; border-radius: 11px; box-shadow: 0 2px 8px rgba(0,0,0,.35); }   /* uygulama simgesiyle aynı işaret (<symbol id="i-appmark">) */
 .home-head { display: flex; align-items: center; justify-content: center; padding: 8px 0 4px; }
 .home-head h2 { font-size: calc(18px * var(--fs)); margin: 0; font-weight: 600; }
 .home-text { color: var(--muted); margin: 6px 0 10px; text-align: center; font-size: calc(13px * var(--fs)); }
@@ -99,7 +100,6 @@ body.compact-status #stCount { display: none; }
 .home-seg { display: flex; border-bottom: 1px solid var(--line); margin: 0 0 8px; }
 .home-seg button { flex: 1 1 0; border: 0; background: transparent; color: var(--muted); padding: 10px; font-weight: 600; min-height: 44px; border-bottom: 2px solid transparent; font-size: calc(14px * var(--fs)); }
 .home-seg button.on { color: var(--accent); border-bottom-color: var(--accent); }
-.empty-logo { display: inline-block; font-weight: 800; letter-spacing: 2px; background: var(--accent); color: var(--accent-fg); padding: 6px 12px; border-radius: 8px; }
 .pro-line { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin: 8px 0 10px; padding: 8px 10px; border: 1px dashed var(--line); border-radius: 10px; font-size: calc(12.5px * var(--fs)); color: var(--muted); }
 .pro-line .btn { white-space: nowrap; }
 .pro-features { margin: 4px 0 6px; padding-left: 20px; columns: 2; column-gap: 18px; font-size: calc(13px * var(--fs)); }
