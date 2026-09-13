@@ -29,11 +29,13 @@ android {
         applicationId "com.mahmuttari.dwgviewer"
         minSdk 26
         targetSdk 34
-        versionCode 32
-        versionName "7.9"
+        versionCode 33
+        versionName "7.10"
 
-        // Uygulama yalnız Türkçe ve İngilizce kaynak taşır (bağımlılıkların 85 dilde etiketi düşer)
-        resourceConfigurations += ["tr", "en"]
+        // Uygulamanın taşıdığı diller. Listede olmayan bir dilde kurulan cihaz İngilizce'ye düşer;
+        // bağımlılıkların (AndroidX, Play) 85 dilde etiketi APK'ye girmez. Yeni dil eklerken bu liste,
+        // res/values-<kod>/strings.xml, res/xml/locales_config.xml ve viewer/lang/<kod>.js birlikte güncellenir.
+        resourceConfigurations += ["tr", "en", "ar", "de", "es", "fr", "hi", "in", "it", "ja", "ko", "pt", "ru", "vi", "zh"]
 
         // Derleme kimliği hata kaydında görünür; sürüm denetimi derlendiği daldaki version.json'a bakar
         buildConfigField "String", "GIT_SHA", "\"" + gitSha + "\""

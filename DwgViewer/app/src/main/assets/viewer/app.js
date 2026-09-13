@@ -12,7 +12,7 @@ import * as editorMod from './editor.js';
 import { setTileCallback, basemapAttribution } from './tiles.js';
 import { notes, loadNotes, saveNotes, addNote, removeNote, hitNote, drawNotes } from './notes.js';
 import { CRS, GeoRef, BASEMAPS, nameOf } from './proj.js';
-import { t, setLang, getLang, applyI18n } from './i18n.js';
+import { t, setLang, getLang, applyI18n, LANGS, langInfo, resolveLang } from './i18n.js';
 import { askText, askConfirm, isOpen as askOpen, cancel as askCancel } from './dialog.js';
 import { initEditor, onScene as editorScene, tap as editorTap, back as editorBack, overlay as editorOverlay, onResize as editorResize, onTheme as editorTheme, editor } from './editor.js';
 import * as Docs from './docs.js';
@@ -37,7 +37,7 @@ const VERSION_URL = (A() && A().updateUrl) ? A().updateUrl() : 'https://raw.gith
 // ---------------------------------------------------------------------------
 // Ayarlar
 // ---------------------------------------------------------------------------
-const settings = Object.assign({ lang: 'tr', dark: true, lwScale: 3, crs: 'NONE', unit: 'auto', swap: false, dx: 0, dy: 0, basemap: 'none', basemapUrl: '', wms: '', opacity: 0.8, snap: ['end', 'mid', 'cen', 'int', 'ins', 'node'] }, store.json('settings', {}));
+const settings = Object.assign({ lang: 'auto', dark: true, lwScale: 3, crs: 'NONE', unit: 'auto', swap: false, dx: 0, dy: 0, basemap: 'none', basemapUrl: '', wms: '', opacity: 0.8, snap: ['end', 'mid', 'cen', 'int', 'ins', 'node'] }, store.json('settings', {}));
 /** 3B görünümde hiç yüzey yoksa: dosyadaki varlık türleri ve katı tanılaması bir kartta gösterilir (bir dosya için bir kez) */
 function showNoFaces() {
   const c = S.counts || {}, cen = (S.scene && S.scene.census) || {}, d = S.scene && S.scene.solidDiag;
@@ -64,11 +64,16 @@ function solidDiagText() {
 
 function saveSettings() { store.set('settings', JSON.stringify(settings)); }
 let displayApplied = false;
-function applySettings() {
-  setLang(settings.lang); applyI18n();
-  try { window.dispatchEvent(new CustomEvent('dwg:lang', { detail: { lang: settings.lang } })); } catch (_) { /* yok */ }   // ana ekran (araç adları, bulut kartları) yeniden çizilir
+/** Sözlükle kurulan, data-i18n dışında kalan kabuk metinleri. Dil dosyası sonradan geldiğinde de çalışır. */
+function relocalize() {
   if (Ed.isProPanelOpen()) Ed.openProPanel();   // açık Pro paneli gövdesi (özellik listesi, fiyat, düğmeler) t() ile kurulur: dil değişince yeniden çizilir
   if (!S.hasDoc) $('fileName').textContent = t('noFile');
+}
+// Türkçe ile İngilizce gömülüdür; öteki diller lang/<kod>.js ile sonradan gelir ve i18n 'dwg:lang'i yeniden yayınlar
+window.addEventListener('dwg:lang', relocalize);
+function applySettings() {
+  const lang = setLang(settings.lang); applyI18n();
+  try { window.dispatchEvent(new CustomEvent('dwg:lang', { detail: { lang } })); } catch (_) { relocalize(); }   // olay: ana ekran (araç adları, bulut kartları) ve kabuk metinleri yeniden çizilir
   S.basemap.id = settings.basemap || 'none'; S.basemap.url = settings.basemapUrl || ''; S.basemap.wms = settings.wms || '';
   if (!displayApplied) {
     // ekran ayarları göçü (v1 → v2): dark / lwScale / opacity alanları settings.display'e taşınır, eski okuyucular için yansıtılmaya devam eder
@@ -719,17 +724,7 @@ function copyText(text) {
 $('stCoord').addEventListener('click', () => { if (lastCoord) copyText(fmt(lastCoord[0]) + ';' + fmt(lastCoord[1])); });
 
 // ---- nesne bilgisi ---------------------------------------------------------------
-const TYPE_TR = { LINE: 'Çizgi', LWPOLYLINE: 'Polyline', POLYLINE2D: 'Polyline (2B)', POLYLINE3D: 'Polyline (3B)', POLYFACE: 'Çok yüzlü ağ', CIRCLE: 'Daire', ARC: 'Yay',
-  ELLIPSE: 'Elips', SPLINE: 'Spline', TEXT: 'Yazı', MTEXT: 'Çok satırlı yazı', INSERT: 'Blok', HATCH: 'Tarama', DIMENSION: 'Ölçü',
-  POINT: 'Nokta', SOLID: 'Dolgu', '3DFACE': '3B yüzey', LEADER: 'Kılavuz çizgi', MULTILEADER: 'Çoklu kılavuz', MLINE: 'Çoklu çizgi',
-  XLINE: 'Sonsuz çizgi', RAY: 'Işın', ATTRIB: 'Öznitelik', ATTDEF: 'Öznitelik tanımı', WIPEOUT: 'Maske', IMAGE: 'Resim', ACAD_TABLE: 'Tablo',
-  TOLERANCE: 'Tolerans', '3DSOLID': '3B katı', REGION: 'Bölge', VIEWPORT: 'Görünüm penceresi', TRACE: 'İz' };
-const TYPE_EN = { LINE: 'Line', LWPOLYLINE: 'Polyline', POLYLINE2D: 'Polyline (2D)', POLYLINE3D: 'Polyline (3D)', POLYFACE: 'Polyface mesh', CIRCLE: 'Circle', ARC: 'Arc',
-  ELLIPSE: 'Ellipse', SPLINE: 'Spline', TEXT: 'Text', MTEXT: 'Multiline text', INSERT: 'Block', HATCH: 'Hatch', DIMENSION: 'Dimension',
-  POINT: 'Point', SOLID: 'Solid fill', '3DFACE': '3D face', LEADER: 'Leader', MULTILEADER: 'Multileader', MLINE: 'Multiline',
-  XLINE: 'Construction line', RAY: 'Ray', ATTRIB: 'Attribute', ATTDEF: 'Attribute definition', WIPEOUT: 'Wipeout', IMAGE: 'Image', ACAD_TABLE: 'Table',
-  TOLERANCE: 'Tolerance', '3DSOLID': '3D solid', REGION: 'Region', VIEWPORT: 'Viewport', TRACE: 'Trace' };
-const trType = (x) => (getLang() === 'tr' ? TYPE_TR[x] : TYPE_EN[x]) || x;
+const trType = (x) => tt('ety_' + x, x);   // sözlükte yoksa DXF adının kendisi (LINE, HATCH…)
 const zTxt = (z) => (z != null && isFinite(z) && z !== 0) ? ' ; Z ' + fmt(z) : '';
 let infoPrim = null;
 function showInfo(p) {
@@ -746,7 +741,7 @@ function showInfo(p) {
   if (top === 'DIMENSION') { rows.push([t('measVal'), inf.meas != null ? fmt(inf.meas) + u : null]); if (inf.text && inf.text !== '<>') rows.push([t('measText'), inf.text]); rows.push([t('dimStyle'), inf.style]); }
   rows.push([t('layer'), p.lay]);
   const L = S.layers.get(p.lay);
-  const colTxt = p.col === FG ? '7 (' + (S.dark ? t('white') : t('black')).toLocaleLowerCase(getLang() === 'tr' ? 'tr' : 'en') + ')' : rgbCss(p.col, '');
+  const colTxt = p.col === FG ? '7 (' + (S.dark ? t('white') : t('black')).toLocaleLowerCase(getLang()) + ')' : rgbCss(p.col, '');
   rows.push([t('color'), (inf.ci === 256 ? t('fromLayer') + ' ' : inf.ci === 0 ? t('fromBlock') + ' ' : '') + colTxt]);
   rows.push([t('ltype'), p.lt || (L ? L.lt : 'Continuous')]);
   if (p.lw != null) rows.push([t('lweight'), fmt(p.lw / 100, 2) + ' mm']);
@@ -1192,12 +1187,21 @@ function showGps() {
 }
 
 // ---- ayarlar ---------------------------------------------------------------------------
+/** Dil listesi: "Cihaz dili" + desteklenen diller (kendi yazımlarıyla). Seçim yoksa cihazın dili kullanılır. */
+function langOptions() {
+  const cur = settings.lang || 'auto';
+  const sel = (v) => (v === cur ? ' selected' : '');
+  const auto = `${t('langAuto')} — ${langInfo(resolveLang('auto')).native}`;
+  return `<option value="auto"${sel('auto')}>${esc(auto)}</option>` +
+    LANGS.map(l => `<option value="${l.id}"${sel(l.id)}>${esc(l.native)}</option>`).join('');
+}
+
 function showSettings() {
   const g = S.fileKey ? (store.json('geo:' + S.fileKey, null) || {}) : {};
   const cur = { crs: g.crs || settings.crs, unit: g.unit || settings.unit, swap: g.swap != null ? g.swap : settings.swap, dx: g.dx || settings.dx || 0, dy: g.dy || settings.dy || 0 };
   const unitOpts = [['auto', t('unitFromDrawing') + (S.units ? ': ' + S.units : '') + ')'], ['0.001', 'mm'], ['0.01', 'cm'], ['1', 'm'], ['0.1', 'dm'], ['1000', 'km']];
   const html = kv([
-    [t('language'), `<select id="sLang"><option value="tr" ${settings.lang === 'tr' ? 'selected' : ''}>Türkçe</option><option value="en" ${settings.lang === 'en' ? 'selected' : ''}>English</option></select>`, 1],
+    [t('language'), `<select id="sLang">${langOptions()}</select>`, 1],
     [t('crs'), `<select id="sCrs">${CRS.map(c => `<option value="${c.id}" ${c.id === cur.crs ? 'selected' : ''}>${esc(nameOf(c))}</option>`).join('')}</select>`, 1],
     [t('drawingUnit'), `<select id="sUnit">${unitOpts.map(o => `<option value="${o[0]}" ${String(cur.unit) === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('')}</select>`, 1],
     [t('axisSwap'), `<label class="chk"><input type="checkbox" id="sSwap" ${cur.swap ? 'checked' : ''}> ${esc(t('axisSwapHint'))}</label>`, 1],
@@ -1790,7 +1794,7 @@ window.dwgApp = { loadCurrent, onFilePicked, onLocation, onBack, loadBytes, zoom
   onQr: (text) => { try { const s = String(text || '').trim(); if (s) onQr(s); } catch (e) { console.warn(e); } },   // Android ACTION_SEND / EXTRA_TEXT
   onLocationError: (m) => { const perm = /kalıcı olarak reddedildi|permanently denied/i.test(String(m)); const openSet = A() && A().openAppSettings ? () => A().openAppSettings() : null;
     toast('GPS: ' + m, perm && openSet ? { ms: 8000, action: { label: tt('settings', 'Ayarlar'), fn: openSet } } : undefined); },
-  display: D, toast, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, savePng, getSettings: () => settings, requestRender, openDisplayOptions,
+  display: D, toast, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, savePng, getSettings: () => settings, requestRender, openDisplayOptions, showSettings,
   docs: Docs, drive: Drive, onGoogle: (ok, json) => Drive.onGoogle(ok, json), onDrive: (id, ok, json) => Drive.onDrive(id, ok, json), onDriveProgress: (id, d, tot) => Drive.onProgress(id, d, tot), openDrive: () => Drive.open(),
   open: Open, openCenter: (tab) => Open.open(tab), onFsRoot: (obj) => Open.onFsRoot(obj), onFs: (id, ok, json) => Open.onFs(id, ok, json),
   home: Home, cloud: Cloud, onWebDav: (id, ok, json) => Cloud.onWebDav(id, ok, json), goHome, refreshMenu,

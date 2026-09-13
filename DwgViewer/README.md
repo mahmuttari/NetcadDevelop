@@ -1,4 +1,4 @@
-# DWG OfficeZip (Android) — v7.9
+# DWG OfficeZip (Android) — v7.10
 
 AutoCAD **DWG** ve **DXF** çizimlerini telefonda açan, çevrimdışı çalışan
 Android uygulaması. Dosya cihazdan dışarı çıkmaz; çözümleme telefonun
@@ -112,6 +112,32 @@ belleğinde yapılır; pratik sınır 4 GB RAM'li telefonda 80-100 MB
 dosyadır. 80 MB üstünde uygulama açmadan önce sorar; daha büyük paftalar
 PURGE/AUDIT ile küçültülmeli ya da parçalanmalıdır. Uzun süren
 yükleme **Vazgeç** ile kesilebilir.
+
+### Diller
+
+Arayüz **15 dilde**dir: Türkçe, İngilizce, Almanca, Arapça, Çince
+(basitleştirilmiş), Endonezce, Fransızca, Hintçe, İspanyolca, İtalyanca,
+Japonca, Korece, Portekizce, Rusça ve Vietnamca. Varsayılan ayar
+**cihaz dili**dir: uygulama Android'in dil listesini (`LocaleList`, yani
+kullanıcının Android 13+ üzerinde uygulamaya özel yaptığı seçim de dâhil)
+okur, desteklediği ilk dile geçer, hiçbiri yoksa İngilizce'ye düşer.
+Kullanıcı **Ayarlar › Dil**'den istediği dili sabitleyebilir.
+
+Arapça'da belge yönü sağdan sola çevrilir (`<html dir="rtl">`); çizim
+tuvali ile PDF / Word / Excel sayfaları soldan sağa kalır, çünkü onların
+içeriği kâğıdın kendi düzenidir.
+
+Sözlükler `assets/viewer/lang/<kod>.js` dosyalarındadır ve ilk
+kullanıldıklarında dinamik `import()` ile yüklenir; Türkçe ile İngilizce
+`i18n.js` içinde gömülüdür. Eksik bir anahtar önce İngilizce'ye, sonra
+Türkçe'ye düşer. Yeni bir dil eklemek için dört yer güncellenir:
+`i18n.js` içindeki `LANGS` listesi, `lang/<kod>.js`,
+`res/values-<kod>/strings.xml` (Android bildirimleri için; `res/values/`
+**İngilizce** varsayılandır, çünkü listede olmayan bir yerelde Android
+oraya düşer — Türkçe `res/values-tr/`'dedir) ve `res/xml/locales_config.xml`
++ `build.gradle` içindeki `resourceConfigurations`. `node tools/lang_check.mjs` her dilin
+1.225 anahtarının tam olduğunu, fazlalık bulunmadığını ve `%1$s` gibi
+yer tutucuların çeviride de durduğunu sınar.
 
 ## Nasıl çalışır
 
@@ -279,9 +305,10 @@ RAR (junrar), gerçek Google Drive ve Android PdfRenderer yalnız cihazda
 | 7.4 | 27 | 2026-09-13 | Yeni uygulama simgesi: çizim yaprağı + plan + DWG bandı (uyarlanabilir, temalı katman), Play Store 512 px simgesi, ana ekran marka işareti |
 | 7.5 | 28 | 2026-09-13 | Simge "yelpaze belge yığını" olarak yeniden tasarlandı: mavi DWG paftası önde, kırmızı (PDF) ve turuncu (arşiv) bantlı yapraklar arkada; temalı katman kırpma delikli kontur |
 | 7.6 | 29 | 2026-09-13 | Uygulama simgesi başvuru sahibinin görseliyle değiştirildi (raster ön yüz, gradyan arka plan, vektör temalı katman) |
-| 7.9 | 32 | 2026-09-13 | Uygulama adı **DWG OfficeZip** oldu (paket adı ve APK dosya adı değişmedi: kurulu sürümler güncellenmeye devam eder). PDF ve Word düzenleme Pro özelliği olarak eklendi (`pdfedit.js` açıklama katmanı ve pdf-lib çıktısı, `docedit.js` yerinde düzenleme ve OOXML / DOCX yazıcı); yayın hazırlığı: Google belirteçleri Keystore ile şifreleniyor, Google alan adlarında şifresiz trafik yasak, gizlilik politikası ve doğrulama evrakı |
-| 7.8 | 31 | 2026-09-13 | ".doc" uzantılı RTF, Word HTML, MHTML, DOCX ve düz metin içerik baytlardan tanınıp açılır (`docalt.js`: RTF çözümleyicisi, HTML temizleyici, MHTML ayrıştırıcı); tanınmayan içerikte ilk baytlar iletide gösterilir |
 | 7.7 | 30 | 2026-09-13 | Word 97-2003 (.doc) belgeleri doğrudan açılır: bağımsız MS-DOC çözümleyicisi (`doc.js`: CFB, FIB, parça tablosu, FKP, stiller, listeler, tablolar, alanlar, resimler, dipnotlar, bölümler), DOCX ile ortak sayfa / akış görünümü; Word 6 / 95 yalnız metin; `samples/doc/` derlemi ve `test_doc.mjs` |
+| 7.8 | 31 | 2026-09-13 | ".doc" uzantılı RTF, Word HTML, MHTML, DOCX ve düz metin içerik baytlardan tanınıp açılır (`docalt.js`: RTF çözümleyicisi, HTML temizleyici, MHTML ayrıştırıcı); tanınmayan içerikte ilk baytlar iletide gösterilir |
+| 7.9 | 32 | 2026-09-13 | Uygulama adı **DWG OfficeZip** oldu (paket adı ve APK dosya adı değişmedi: kurulu sürümler güncellenmeye devam eder). PDF ve Word düzenleme Pro özelliği olarak eklendi (`pdfedit.js` açıklama katmanı ve pdf-lib çıktısı, `docedit.js` yerinde düzenleme ve OOXML / DOCX yazıcı); yayın hazırlığı: Google belirteçleri Keystore ile şifreleniyor, Google alan adlarında şifresiz trafik yasak, gizlilik politikası ve doğrulama evrakı |
+| 7.10 | 33 | 2026-09-13 | Arayüz 15 dilde: cihazın diline göre kendiliğinden açılır (Android `LocaleList` köprüsü, `Ayarlar › Dil` ile sabitlenebilir). Sözlükler `viewer/lang/<kod>.js` içinde, ilk kullanımda dinamik `import()` ile yükleniyor; Arapça için sağdan sola düzen (`<html dir="rtl">`, belge ve tuval yüzeyleri soldan sağa kalır). DXF varlık türleri, 3B hazır görünümler ve görünüm küpü etiketleri de sözlüğe taşındı; `values-*/strings.xml`, `locales_config.xml`, `resourceConfigurations` ve `tools/lang_check.mjs` eklendi |
 
 ## QR kod biçimi
 

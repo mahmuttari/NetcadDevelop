@@ -14,7 +14,7 @@
  */
 import { View3D } from './view3d.js';
 import { store, fmt as fmtDef } from './state.js';
-import { t, getLang } from './i18n.js';
+import { t } from './i18n.js';
 
 const tt = (k, tr) => { const v = t(k); return v === k ? tr : v; };
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -140,8 +140,7 @@ export function renderStyle(el, v3, host) {
 }
 
 export function renderPresets(el, v3, host) {
-  const lang = getLang();
-  el.innerHTML = W.sec('presets', tt('v3Presets', 'Görünümler'), `<div class="chips preset-grid" data-key="presets">${View3D.PRESETS.map(p => `<button type="button" class="chip" data-preset="${p.id}">${esc(lang === 'en' ? (p.en || p.tr) : p.tr)}</button>`).join('')}</div>`);
+  el.innerHTML = W.sec('presets', tt('v3Presets', 'Görünümler'), `<div class="chips preset-grid" data-key="presets">${View3D.PRESETS.map(p => `<button type="button" class="chip" data-preset="${p.id}">${esc(tt('v3p_' + p.id, p.tr))}</button>`).join('')}</div>`);
   const b = bindWidgets(el, v3, host);
   return { destroy: b.destroy };
 }
@@ -296,7 +295,6 @@ function faceOf(id) { return CUBE_FACES.find(f => f.id === id); }
 
 export function buildViewCube(container, v3, host = {}) {
   const NS = 'http://www.w3.org/2000/svg';
-  const lang = getLang();
   container.innerHTML = '';
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('viewBox', '-1.45 -1.45 2.9 2.9'); svg.setAttribute('width', '84'); svg.setAttribute('height', '84');
@@ -315,7 +313,7 @@ export function buildViewCube(container, v3, host = {}) {
     gFaces.appendChild(poly); faceEls.set(f.id, poly);
     const tx = document.createElementNS(NS, 'text');
     tx.setAttribute('text-anchor', 'middle'); tx.setAttribute('dominant-baseline', 'central'); tx.setAttribute('font-size', '0.42'); tx.setAttribute('font-weight', '700'); tx.setAttribute('font-family', 'system-ui, sans-serif'); tx.setAttribute('fill', 'currentColor'); tx.setAttribute('pointer-events', 'none');
-    tx.textContent = lang === 'en' ? f.en : f.tr; gLabels.appendChild(tx); labelEls.set(f.id, tx);
+    tx.textContent = tt('v3c_' + f.id, f.tr); gLabels.appendChild(tx); labelEls.set(f.id, tx);
   }
   // kenarlar: iki yüzü paylaşan köşe çiftleri
   const edgeEls = [];

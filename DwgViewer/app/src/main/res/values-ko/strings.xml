@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pick_file">DWG 파일 선택</string>
+    <string name="saved_to">저장됨: %1$s</string>
+    <string name="save_failed">이미지를 저장하지 못했습니다</string>
+    <string name="open_failed">파일을 열지 못했습니다</string>
+    <string name="recent_gone">파일에 더 이상 접근할 수 없어 목록에서 제거했습니다</string>
+    <string name="folder_denied">폴더 접근 권한을 받지 못했습니다</string>
+    <string name="webview_restarted">메모리가 부족하여 뷰어를 다시 시작했습니다</string>
+    <string name="webview_crashed">뷰어가 중단되어 다시 시작했습니다</string>
+    <string name="location_approx">대략적인 위치 (대략적 위치 권한)</string>
+</resources>

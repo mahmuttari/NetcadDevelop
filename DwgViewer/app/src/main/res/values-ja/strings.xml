@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pick_file">DWG ファイルを選択</string>
+    <string name="saved_to">保存しました: %1$s</string>
+    <string name="save_failed">画像を保存できませんでした</string>
+    <string name="open_failed">ファイルを開けませんでした</string>
+    <string name="recent_gone">ファイルにアクセスできなくなったため、一覧から削除しました</string>
+    <string name="folder_denied">フォルダーへのアクセス許可が得られませんでした</string>
+    <string name="webview_restarted">メモリ不足のためビューアーを再起動しました</string>
+    <string name="webview_crashed">ビューアーがクラッシュしたため再起動しました</string>
+    <string name="location_approx">おおよその位置情報 (低精度の位置情報の許可)</string>
+</resources>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pick_file">Выбрать файл DWG</string>
+    <string name="saved_to">Сохранено: %1$s</string>
+    <string name="save_failed">Не удалось сохранить изображение</string>
+    <string name="open_failed">Не удалось открыть файл</string>
+    <string name="recent_gone">Файл больше недоступен; удалён из списка</string>
+    <string name="folder_denied">Разрешение на доступ к папке не получено</string>
+    <string name="webview_restarted">Просмотрщик перезапущен (не хватило памяти)</string>
+    <string name="webview_crashed">Просмотрщик аварийно завершился и был перезапущен</string>
+    <string name="location_approx">Приблизительное местоположение (разрешение на грубую геолокацию)</string>
+</resources>

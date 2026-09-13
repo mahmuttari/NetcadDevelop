@@ -18,7 +18,7 @@ import { openView3DOptions, buildViewCube, openCameraBookmarks, renderZScale, re
 import { FG, ACI } from './scene.js';
 import { toScreen, toWorld, fmt, store } from './state.js';
 import { bgColor, fgColor } from './render.js';
-import { t, getLang, applyI18n, addStrings } from './i18n.js';
+import { t, applyI18n, addStrings } from './i18n.js';
 import { TAU } from './geom.js';
 import * as D from './display.js';
 import { askText } from './dialog.js';
@@ -123,8 +123,8 @@ function registerTiles() {
   addStrings(tr, en);
 }
 registerTiles();
-const tileLabel = (act) => { const it = TILE[act]; if (!it) return act; return getLang() === 'en' ? it.en : it.tr; };
-const tileHint = (act) => { const it = TILE[act]; if (!it) return ''; return getLang() === 'en' ? it.hen : it.htr; };
+const tileLabel = (act) => { const it = TILE[act]; return it ? tt('tl_' + act, it.tr) : act; };
+const tileHint = (act) => { const it = TILE[act]; return it ? tt('th_' + act, it.htr) : ''; };
 const ICON = (id) => `<svg class="ic" aria-hidden="true"><use href="#${id}"/></svg>`;
 
 // ---------------------------------------------------------------------------------

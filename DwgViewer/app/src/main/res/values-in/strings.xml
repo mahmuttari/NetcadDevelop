@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pick_file">Pilih berkas DWG</string>
+    <string name="saved_to">Disimpan: %1$s</string>
+    <string name="save_failed">Gambar tidak dapat disimpan</string>
+    <string name="open_failed">Berkas tidak dapat dibuka</string>
+    <string name="recent_gone">Berkas sudah tidak tersedia; dihapus dari daftar</string>
+    <string name="folder_denied">Izin akses folder tidak diberikan</string>
+    <string name="webview_restarted">Penampil dimulai ulang (memori tidak cukup)</string>
+    <string name="webview_crashed">Penampil mengalami kegagalan dan dimulai ulang</string>
+    <string name="location_approx">Lokasi perkiraan (izin lokasi kasar)</string>
+</resources>

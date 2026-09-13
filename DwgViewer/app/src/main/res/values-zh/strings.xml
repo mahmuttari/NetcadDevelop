@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pick_file">选择 DWG 文件</string>
+    <string name="saved_to">已保存：%1$s</string>
+    <string name="save_failed">无法保存图像</string>
+    <string name="open_failed">无法打开文件</string>
+    <string name="recent_gone">该文件已无法访问，已从列表中移除</string>
+    <string name="folder_denied">未获得文件夹访问权限</string>
+    <string name="webview_restarted">内存不足，查看器已重新启动</string>
+    <string name="webview_crashed">查看器崩溃并已重新启动</string>
+    <string name="location_approx">大致位置（粗略位置权限）</string>
+</resources>

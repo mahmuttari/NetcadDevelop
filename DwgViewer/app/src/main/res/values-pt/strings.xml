@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pick_file">Escolher um ficheiro DWG</string>
+    <string name="saved_to">Guardado: %1$s</string>
+    <string name="save_failed">Não foi possível guardar a imagem</string>
+    <string name="open_failed">Não foi possível abrir o ficheiro</string>
+    <string name="recent_gone">O ficheiro já não está acessível; removido da lista</string>
+    <string name="folder_denied">A permissão de acesso à pasta não foi concedida</string>
+    <string name="webview_restarted">O visualizador foi reiniciado (memória insuficiente)</string>
+    <string name="webview_crashed">O visualizador falhou e foi reiniciado</string>
+    <string name="location_approx">Localização aproximada (permissão de localização aproximada)</string>
+</resources>

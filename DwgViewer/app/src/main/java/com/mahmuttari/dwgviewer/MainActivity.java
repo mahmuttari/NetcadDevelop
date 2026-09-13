@@ -870,6 +870,20 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface public void toast(String msg) { runOnUiThread(() -> Toast.makeText(MainActivity.this, msg, Toast.LENGTH_SHORT).show()); }
         @JavascriptInterface public void finish() { runOnUiThread(MainActivity.this::finish); }
+        /**
+         * Cihazın dil tercihleri, en yüksek öncelikliden başlayarak virgülle ayrılmış BCP-47 etiketleri
+         * ("tr-TR,en-US"). Android 13 ve sonrasında kullanıcının uygulamaya özel dil seçimi de buraya yansır;
+         * arayüz dili "otomatik" iken viewer bu listeden desteklediği ilk dili seçer.
+         */
+        @JavascriptInterface public String deviceLang() {
+            StringBuilder sb = new StringBuilder();
+            try {
+                android.os.LocaleList ll = getResources().getConfiguration().getLocales();
+                for (int i = 0; i < ll.size(); i++) { if (sb.length() > 0) sb.append(','); sb.append(ll.get(i).toLanguageTag()); }
+            } catch (Throwable ignored) { /* eski sürüm ya da yapılandırma yok */ }
+            if (sb.length() == 0) sb.append(Locale.getDefault().toLanguageTag());
+            return sb.toString();
+        }
         @JavascriptInterface public String appVersion() { return BuildConfig.VERSION_NAME; }
         @JavascriptInterface public int versionCode() { return BuildConfig.VERSION_CODE; }
         /** Sürüm denetimi için version.json adresi (derlendiği dala göre) */

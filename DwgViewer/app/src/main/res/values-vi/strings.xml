@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pick_file">Chọn tệp DWG</string>
+    <string name="saved_to">Đã lưu: %1$s</string>
+    <string name="save_failed">Không lưu được hình ảnh</string>
+    <string name="open_failed">Không mở được tệp</string>
+    <string name="recent_gone">Tệp không còn truy cập được; đã xoá khỏi danh sách</string>
+    <string name="folder_denied">Không được cấp quyền truy cập thư mục</string>
+    <string name="webview_restarted">Trình xem đã khởi động lại (thiếu bộ nhớ)</string>
+    <string name="webview_crashed">Trình xem đã gặp sự cố và được khởi động lại</string>
+    <string name="location_approx">Vị trí gần đúng (quyền vị trí thô)</string>
+</resources>

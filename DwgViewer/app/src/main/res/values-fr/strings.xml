@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pick_file">Choisir un fichier DWG</string>
+    <string name="saved_to">Enregistré : %1$s</string>
+    <string name="save_failed">L\'image n\'a pas pu être enregistrée</string>
+    <string name="open_failed">Le fichier n\'a pas pu être ouvert</string>
+    <string name="recent_gone">Le fichier n\'est plus accessible ; retiré de la liste</string>
+    <string name="folder_denied">L\'autorisation d\'accès au dossier n\'a pas été accordée</string>
+    <string name="webview_restarted">La visionneuse a été redémarrée (mémoire insuffisante)</string>
+    <string name="webview_crashed">La visionneuse a planté et a été redémarrée</string>
+    <string name="location_approx">Position approximative (autorisation de localisation grossière)</string>
+</resources>

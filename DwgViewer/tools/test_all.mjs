@@ -18,6 +18,9 @@ function run(script) {
     const onData = (d) => { const s = d.toString(); buf += s; process.stdout.write(s); };
     child.stdout.on('data', onData); child.stderr.on('data', onData);
     const timer = setTimeout(() => { timedOut = true; child.kill('SIGKILL'); }, TIMEOUT_MS);
+    // Betik bitmesine rağmen ondan kalan bir alt süreç (ör. sunucu) boruyu açık tutarsa 'close' hiç gelmez:
+    // 'exit' geldikten kısa bir süre sonra borular kapatılır, böylece koşu takılmaz.
+    child.on('exit', () => setTimeout(() => { try { child.stdout.destroy(); child.stderr.destroy(); } catch (_) { /* kapalı */ } }, 1500).unref());
     child.on('close', (code, signal) => {
       clearTimeout(timer);
       const m = buf.match(/SONUÇ:[^\n]*/g);

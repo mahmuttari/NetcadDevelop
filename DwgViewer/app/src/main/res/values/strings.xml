@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">DWG OfficeZip</string>
-    <string name="pick_file">DWG dosyası seç</string>
-    <string name="saved_to">Kaydedildi: %1$s</string>
-    <string name="save_failed">Görüntü kaydedilemedi</string>
-    <string name="open_failed">Dosya açılamadı</string>
-    <string name="recent_gone">Dosya artık erişilebilir değil; listeden kaldırıldı</string>
-    <string name="folder_denied">Klasör erişim izni alınamadı</string>
-    <string name="webview_restarted">Görüntüleyici yeniden başlatıldı (bellek yetmedi)</string>
-    <string name="webview_crashed">Görüntüleyici çöktü ve yeniden başlatıldı</string>
-    <string name="location_approx">Yaklaşık konum (kaba konum izni)</string>
+    <string name="pick_file">Pick a DWG file</string>
+    <string name="saved_to">Saved: %1$s</string>
+    <string name="save_failed">The image could not be saved</string>
+    <string name="open_failed">The file could not be opened</string>
+    <string name="recent_gone">The file is no longer available; removed from the list</string>
+    <string name="folder_denied">Folder access permission was not granted</string>
+    <string name="webview_restarted">The viewer was restarted (out of memory)</string>
+    <string name="webview_crashed">The viewer crashed and was restarted</string>
+    <string name="location_approx">Approximate location (coarse location permission)</string>
 </resources>

@@ -13,7 +13,8 @@ export const outRoot = path.join(here, 'out');
 /** Chromium'da yazılımsal WebGL (3B görünüm sınamaları için) */
 export const WEBGL_ARGS = ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'];
 /** Sınama telefon görünümü (mevcut betiklerin ortak bağlam ayarı) */
-export const PHONE = { viewport: { width: 412, height: 915 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true, acceptDownloads: true };
+// locale: arayüz dili artık varsayılan olarak cihazın dilidir; sınamalar Türkçe metin beklediğinden bağlam tr-TR kurulur
+export const PHONE = { viewport: { width: 412, height: 915 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true, acceptDownloads: true, locale: 'tr-TR' };
 
 /** Playwright paketi: PLAYWRIGHT_PKG ortam değişkeni, yoksa proje/global node_modules */
 export function playwright() {
@@ -36,7 +37,11 @@ export function args(scriptUrl) {
 /** serve.mjs'yi port 0 ile başlatır, gerçek adresi stdout'tan okur. */
 export function startServer(port = 0) {
   return new Promise((resolve, reject) => {
-    const proc = spawn(process.execPath, [path.join(here, 'serve.mjs'), String(port)], { stdio: ['ignore', 'pipe', 'inherit'] });
+    // stderr 'inherit' değil: sunucu, betiği çalıştıran sürecin (test_all) borusunu açık tutar ve
+    // betik sonlandıktan sonra bile 'close' olayını bekletir. Süreç biterken sunucu her hâlükârda kapatılır.
+    const proc = spawn(process.execPath, [path.join(here, 'serve.mjs'), String(port)], { stdio: ['ignore', 'pipe', 'ignore'] });
+    const bye = () => { try { proc.kill(); } catch (_) { /* zaten bitti */ } };
+    process.once('exit', bye); process.once('SIGINT', bye); process.once('SIGTERM', bye);
     let buf = '', done = false;
     const timer = setTimeout(() => { if (!done) { done = true; proc.kill(); reject(new Error('sunucu 15 sn içinde hazır olmadı')); } }, 15000);
     proc.stdout.on('data', (d) => {

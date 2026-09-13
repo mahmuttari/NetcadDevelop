@@ -128,6 +128,18 @@ export const TR = {
   webdav: 'WebDAV / Nextcloud', webdavUrl: 'Sunucu adresi', webdavUser: 'Kullanıcı adı', webdavPass: 'Parola', webdavName: 'Görünen ad', webdavTest: 'Bağlantıyı sına', webdavSaved: 'WebDAV hesabı kaydedildi', webdavSaveFail: 'WebDAV hesabı kaydedilemedi', webdavFail: 'WebDAV bağlantısı kurulamadı', webdavOk: 'Bağlantı başarılı',
   webdavAndroidOnly: 'WebDAV yalnız Android uygulamasında kullanılabilir.', webdavRemove: 'Hesabı kaldır', webdavAdd: 'Hesap ekle', webdavUrlHint: 'https://bulut.ornek.com/remote.php/dav/files/kullanici/', webdavNeedUrl: 'Sunucu adresi ve kullanıcı adı gerekli', webdavError: 'WebDAV hatası',
   toolsTitle: 'Araçlar', toolPdf: 'PDF çıktısı', toolPng: 'PNG kaydet', toolDxf: 'DXF kaydet', toolDelta: 'Değişiklikleri kaydet', toolCompare: 'Karşılaştır', toolProfile: 'Profil', toolNotes: 'Notlar', toolViews: 'Görünümler', proBadge: 'PRO',
+  // DXF varlık türleri (Çizim bilgisi ▸ Varlık türleri)
+  ety_LINE: 'Çizgi', ety_LWPOLYLINE: 'Polyline', ety_POLYLINE2D: 'Polyline (2B)', ety_POLYLINE3D: 'Polyline (3B)', ety_POLYFACE: 'Çok yüzlü ağ', ety_CIRCLE: 'Daire', ety_ARC: 'Yay',
+  ety_ELLIPSE: 'Elips', ety_SPLINE: 'Spline', ety_TEXT: 'Yazı', ety_MTEXT: 'Çok satırlı yazı', ety_INSERT: 'Blok', ety_HATCH: 'Tarama', ety_DIMENSION: 'Ölçü',
+  ety_POINT: 'Nokta', ety_SOLID: 'Dolgu', ety_3DFACE: '3B yüzey', ety_LEADER: 'Kılavuz çizgi', ety_MULTILEADER: 'Çoklu kılavuz', ety_MLINE: 'Çoklu çizgi',
+  ety_XLINE: 'Sonsuz çizgi', ety_RAY: 'Işın', ety_ATTRIB: 'Öznitelik', ety_ATTDEF: 'Öznitelik tanımı', ety_WIPEOUT: 'Maske', ety_IMAGE: 'Resim', ety_ACAD_TABLE: 'Tablo',
+  ety_TOLERANCE: 'Tolerans', ety_3DSOLID: '3B katı', ety_REGION: 'Bölge', ety_VIEWPORT: 'Görünüm penceresi', ety_TRACE: 'İz',
+  // 3B hazır görünümler (view3d.js PRESETS) ve görünüm küpü yüzleri (kısa etiket)
+  v3p_top: 'Üst', v3p_bottom: 'Alt', v3p_front: 'Ön', v3p_back: 'Arka', v3p_left: 'Sol', v3p_right: 'Sağ', v3p_iso: 'İzometrik',
+  v3p_isoNE: 'İzo KD', v3p_isoNW: 'İzo KB', v3p_isoSE: 'İzo GD', v3p_isoSW: 'İzo GB',
+  v3c_top: 'Ü', v3c_bottom: 'Al', v3c_front: 'Ö', v3c_back: 'A', v3c_left: 'S', v3c_right: 'Sğ',
+  // dil seçimi
+  langAuto: 'Cihaz dili (otomatik)', langChanged: 'Dil değişti',
 };
 export const EN = {
   open: 'Open', noFile: 'No file', fit: 'Zoom extents', layers: 'Layers', measure: 'Measure', more: 'More', search: 'Search',
@@ -258,12 +270,128 @@ export const EN = {
   webdav: 'WebDAV / Nextcloud', webdavUrl: 'Server address', webdavUser: 'User name', webdavPass: 'Password', webdavName: 'Display name', webdavTest: 'Test connection', webdavSaved: 'WebDAV account saved', webdavSaveFail: 'WebDAV account could not be saved', webdavFail: 'WebDAV connection failed', webdavOk: 'Connection OK',
   webdavAndroidOnly: 'WebDAV is available only in the Android app.', webdavRemove: 'Remove account', webdavAdd: 'Add account', webdavUrlHint: 'https://cloud.example.com/remote.php/dav/files/user/', webdavNeedUrl: 'Server address and user name are required', webdavError: 'WebDAV error',
   toolsTitle: 'Tools', toolPdf: 'PDF export', toolPng: 'Save PNG', toolDxf: 'Save DXF', toolDelta: 'Save changes', toolCompare: 'Compare', toolProfile: 'Profile', toolNotes: 'Notes', toolViews: 'Views', proBadge: 'PRO',
+  // DXF entity types (Drawing info ▸ Entity types)
+  ety_LINE: 'Line', ety_LWPOLYLINE: 'Polyline', ety_POLYLINE2D: 'Polyline (2D)', ety_POLYLINE3D: 'Polyline (3D)', ety_POLYFACE: 'Polyface mesh', ety_CIRCLE: 'Circle', ety_ARC: 'Arc',
+  ety_ELLIPSE: 'Ellipse', ety_SPLINE: 'Spline', ety_TEXT: 'Text', ety_MTEXT: 'Multiline text', ety_INSERT: 'Block', ety_HATCH: 'Hatch', ety_DIMENSION: 'Dimension',
+  ety_POINT: 'Point', ety_SOLID: 'Solid fill', ety_3DFACE: '3D face', ety_LEADER: 'Leader', ety_MULTILEADER: 'Multileader', ety_MLINE: 'Multiline',
+  ety_XLINE: 'Construction line', ety_RAY: 'Ray', ety_ATTRIB: 'Attribute', ety_ATTDEF: 'Attribute definition', ety_WIPEOUT: 'Wipeout', ety_IMAGE: 'Image', ety_ACAD_TABLE: 'Table',
+  ety_TOLERANCE: 'Tolerance', ety_3DSOLID: '3D solid', ety_REGION: 'Region', ety_VIEWPORT: 'Viewport', ety_TRACE: 'Trace',
+  // 3D view presets and view-cube faces (short label)
+  v3p_top: 'Top', v3p_bottom: 'Bottom', v3p_front: 'Front', v3p_back: 'Back', v3p_left: 'Left', v3p_right: 'Right', v3p_iso: 'Isometric',
+  v3p_isoNE: 'Iso NE', v3p_isoNW: 'Iso NW', v3p_isoSE: 'Iso SE', v3p_isoSW: 'Iso SW',
+  v3c_top: 'T', v3c_bottom: 'Bo', v3c_front: 'F', v3c_back: 'Ba', v3c_left: 'L', v3c_right: 'R',
+  // language picker
+  langAuto: 'Device language (automatic)', langChanged: 'Language changed',
 };
-let dict = TR, lang = 'tr';
-export function setLang(l) { lang = l === 'en' ? 'en' : 'tr'; dict = lang === 'en' ? EN : TR; try { document.documentElement.lang = lang; } catch (_) { /* işçi / Node */ } }   // lang: CSS uppercase'te i→İ dönüşümü dile uysun
+/* ---------------------------------------------------------------------------
+ * Dil kayıt defteri
+ * TR bütün anahtarların kaynağıdır, EN eksiksiz ikinci sözlüktür. Öteki diller
+ * lang/<kod>.js dosyalarında durur ve ilk kullanıldığında dinamik import ile
+ * yüklenir; eksik anahtar EN'e, o da yoksa TR'ye düşer.
+ * ------------------------------------------------------------------------- */
+export const LANGS = [
+  { id: 'tr', native: 'Türkçe', en: 'Turkish' },
+  { id: 'en', native: 'English', en: 'English' },
+  { id: 'ar', native: 'العربية', en: 'Arabic', dir: 'rtl' },
+  { id: 'de', native: 'Deutsch', en: 'German' },
+  { id: 'es', native: 'Español', en: 'Spanish' },
+  { id: 'fr', native: 'Français', en: 'French' },
+  { id: 'hi', native: 'हिन्दी', en: 'Hindi' },
+  { id: 'id', native: 'Bahasa Indonesia', en: 'Indonesian' },
+  { id: 'it', native: 'Italiano', en: 'Italian' },
+  { id: 'ja', native: '日本語', en: 'Japanese' },
+  { id: 'ko', native: '한국어', en: 'Korean' },
+  { id: 'pt', native: 'Português', en: 'Portuguese' },
+  { id: 'ru', native: 'Русский', en: 'Russian' },
+  { id: 'vi', native: 'Tiếng Việt', en: 'Vietnamese' },
+  { id: 'zh', native: '中文（简体）', en: 'Chinese (Simplified)' },
+];
+export const LANG_IDS = LANGS.map(l => l.id);
+const INFO = new Map(LANGS.map(l => [l.id, l]));
+const DICTS = { tr: TR, en: EN };
+/** Eski yerel kodlar ve bizim topladığımız değişkeler: hepsi desteklenen bir kimliğe iner. */
+const ALIAS = { in: 'id', iw: 'he', ji: 'yi', tl: 'fil', cmn: 'zh', yue: 'zh', nan: 'zh', wuu: 'zh', prs: 'fa', pes: 'fa', azb: 'az' };
+
+/** Dil dosyası kendini böyle kaydeder. Yüklenen dil o an seçiliyse sözlük anında devreye girer. */
+export function register(id, table) {
+  if (!INFO.has(id) || !table) return false;
+  DICTS[id] = Object.assign(DICTS[id] || {}, table);
+  if (id === lang) dict = DICTS[id];
+  return true;
+}
+export const hasDict = (id) => !!DICTS[id];
+
+const pending = new Map();
+/** lang/<id>.js dosyasını getirir. TR ve EN gömülüdür; bilinmeyen dil ya da ağ/dosya hatası false döner. */
+export function loadLang(id) {
+  if (!INFO.has(id)) return Promise.resolve(false);
+  if (DICTS[id]) return Promise.resolve(true);
+  if (!pending.has(id)) {
+    pending.set(id, import(`./lang/${id}.js`)
+      .then(m => register(id, m.default || m.STRINGS))
+      .catch(e => { console.warn('dil yüklenemedi:', id, e && e.message); return false; }));
+  }
+  return pending.get(id);
+}
+
+/** 'pt-BR' → 'pt', 'zh-Hant-TW' → 'zh', 'in' → 'id'; desteklenmeyen → '' */
+export function normLang(tag) {
+  if (!tag) return '';
+  const s = String(tag).trim().toLowerCase().replace(/_/g, '-');
+  if (INFO.has(s)) return s;
+  const prim = ALIAS[s] || s.split('-')[0];
+  const p = ALIAS[prim] || prim;
+  return INFO.has(p) ? p : '';
+}
+/** Cihazın dili: önce Android köprüsü (Locale.getDefault + kullanıcının dil listesi), sonra WebView. */
+export function deviceLang() {
+  const tags = [];
+  try { const a = window.Android && window.Android.deviceLang && window.Android.deviceLang(); if (a) tags.push(...String(a).split(',')); } catch (_) { /* köprü yok */ }
+  try {
+    if (navigator.languages && navigator.languages.length) tags.push(...navigator.languages);
+    else if (navigator.language) tags.push(navigator.language);
+  } catch (_) { /* Node */ }
+  for (const tg of tags) { const n = normLang(tg); if (n) return n; }
+  return 'en';
+}
+/** Ayarlardaki tercih ('auto' ya da bir dil kimliği) → gerçekten kullanılacak dil. */
+export const resolveLang = (pref) => (pref && pref !== 'auto' && INFO.has(pref) ? pref : deviceLang());
+export const langInfo = (id) => INFO.get(id) || INFO.get('en');
+export const dirOf = (id) => (INFO.get(id) || {}).dir || 'ltr';
+
+let dict = TR, lang = 'tr', pref = 'tr';
+function applyDoc() {
+  try {
+    const el = document.documentElement;
+    el.lang = lang;                                   // CSS text-transform'da i→İ dönüşümü dile uysun
+    el.dir = dirOf(lang);
+    el.classList.toggle('rtl', dirOf(lang) === 'rtl');
+  } catch (_) { /* işçi / Node */ }
+}
+/**
+ * Dili ayarlar. Sözlük henüz yüklenmediyse arayüz geçici olarak İngilizce görünür,
+ * dosya gelince applyI18n çalışır ve 'dwg:lang' yeniden yayınlanır — çağıran yer beklemek zorunda değil.
+ */
+export function setLang(l) {
+  pref = l == null ? 'auto' : String(l);
+  const id = resolveLang(pref);
+  lang = id; dict = DICTS[id] || EN;
+  applyDoc();
+  if (!DICTS[id]) {
+    loadLang(id).then(ok => {
+      if (!ok || lang !== id) return;
+      dict = DICTS[id];
+      try { applyI18n(); window.dispatchEvent(new CustomEvent('dwg:lang', { detail: { lang: id } })); } catch (_) { /* yok */ }
+    });
+  }
+  return id;
+}
 export const getLang = () => lang;
-export const t = (k) => dict[k] != null ? dict[k] : (TR[k] != null ? TR[k] : k);
-/** Modüllerin kendi metinlerini kaydetmesi (ör. araç çubuğu karo adları): addStrings({key: 'tr'}, {key: 'en'}) */
+export const getLangPref = () => pref;
+export const isRtl = () => dirOf(lang) === 'rtl';
+export const t = (k) => (dict[k] != null ? dict[k] : (EN[k] != null ? EN[k] : (TR[k] != null ? TR[k] : k)));
+/** Modüllerin kendi metinlerini kaydetmesi (ör. araç çubuğu karo adları): addStrings({key: 'tr'}, {key: 'en'}).
+ *  Öteki dillerin karşılıkları lang/<kod>.js içinde aynı anahtarla bulunur. */
 export function addStrings(tr, en) { if (tr) Object.assign(TR, tr); if (en) Object.assign(EN, en); }
 /** data-i18n="key" (metin), data-i18n-ph="key" (placeholder), data-i18n-title="key", data-i18n-aria="key" (aria-label) */
 export function applyI18n(root = document) {

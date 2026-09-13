@@ -96,6 +96,7 @@ Uygulamada bu değerlendirmenin bakacağı noktalar için yapılmış olanlar:
 | Sertifika güveni | Varsayılan korunuyor, yalnız sistem sertifikaları güvenilir (Android 7+ davranışı) |
 | Gereksiz izin | Konum ve kamera isteğe bağlı özellikler için, `uses-feature required="false"` |
 | Kod karartma | R8 küçültme açık |
+| Yerelleştirme | Arayüz onbeş dilde; APK yalnız bu dillerin kaynağını taşır (`resourceConfigurations`), dil dosyaları uygulamanın içindedir, çeviri için ağa çıkılmaz |
 | Zafiyetli bağımlılık | junrar 7.5.5, Play Billing 7.1.1, play-services-ads 23.6.0, AndroidX Core 1.13.1 |
 
 ---
@@ -147,6 +148,8 @@ uyuşmazsa uygulama kaldırılır. Aşağıdaki cevaplar uygulamanın davranış
 3. Gerçek AdMob kimlikleri.
 4. Play Console kaydı. Uygulama oluştururken **mevcut imza anahtarını yükleyin**, yoksa
    Play kendi anahtarıyla imzalar, SHA-1 değişir ve Google girişi yayında çalışmaz.
+   Mağaza kaydı arayüzle aynı **onbeş dilde** doldurulur; hazır metinler
+   [`magaza-metinleri.md`](magaza-metinleri.md) dosyasındadır.
 5. `dwg_pro` ürünü ve lisans anahtar çifti.
 6. Mağaza görselleri, marka güvenli simge.
 7. Doğrulama başvurusu ve CASA.

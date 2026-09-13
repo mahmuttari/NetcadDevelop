@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pick_file">اختر ملف DWG</string>
+    <string name="saved_to">تم الحفظ: %1$s</string>
+    <string name="save_failed">تعذّر حفظ الصورة</string>
+    <string name="open_failed">تعذّر فتح الملف</string>
+    <string name="recent_gone">لم يعد الملف متاحًا؛ أُزيل من القائمة</string>
+    <string name="folder_denied">لم يُمنح إذن الوصول إلى المجلد</string>
+    <string name="webview_restarted">أُعيد تشغيل العارض (نفدت الذاكرة)</string>
+    <string name="webview_crashed">تعطّل العارض وأُعيد تشغيله</string>
+    <string name="location_approx">موقع تقريبي (إذن الموقع التقريبي)</string>
+</resources>

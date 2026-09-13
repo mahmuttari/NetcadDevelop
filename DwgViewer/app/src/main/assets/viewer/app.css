@@ -586,3 +586,66 @@ body.glove .open-item { min-height: 56px; }
 .vs-grid button.on { box-shadow: inset 0 0 0 2px var(--accent); background: var(--btn-on); }
 .vs-grid button.on span { color: var(--fg); }
 @media (max-width: 400px) { .vs-grid { grid-template-columns: repeat(4, 1fr); } }
+
+/* ---------------------------------------------------------------------------
+ * Sağdan sola diller (Arapça). <html dir="rtl"> gelince satır akışı, esnek
+ * kutular ve ızgaralar kendiliğinden aynalanır; burada yalnız mutlak konumlu
+ * öğeler, fiziksel kenarlıklar ve fiziksel hizalamalar düzeltilir.
+ * Çizim tuvali ile belge yüzeyleri (PDF, Word, Excel sayfaları) soldan sağa
+ * kalır: onların içeriği kâğıdın kendi düzenidir, arayüz yönüyle dönmez.
+ * ------------------------------------------------------------------------- */
+html[dir="rtl"] .side { border-left: 0; border-right: 1px solid var(--line); }
+html[dir="rtl"] .pro-features { padding-left: 0; padding-right: 20px; }
+html[dir="rtl"] .recent .item,
+html[dir="rtl"] .menu button,
+html[dir="rtl"] .doc-card.pick { text-align: right; }
+html[dir="rtl"] .slider output,
+html[dir="rtl"] .range2 .hi-v { text-align: left; }
+html[dir="rtl"] .fab { right: auto; left: 12px; }
+html[dir="rtl"] .tool .pro-badge { right: auto; left: calc(50% - 38px); }
+html[dir="rtl"] .panel.right { right: auto; left: 0; border-radius: 0 12px 12px 0; }
+html[dir="rtl"] .menu { right: auto; left: 6px; }
+html[dir="rtl"] .toast .act { margin-left: 0; margin-right: 4px; }
+html[dir="rtl"] .toast.error, html[dir="rtl"] .toast.warn, html[dir="rtl"] .toast.ok { border-left-width: 1px; border-right-width: 4px; }
+html[dir="rtl"] .toast.error { border-right-color: var(--danger); }
+html[dir="rtl"] .toast.warn { border-right-color: var(--accent); }
+html[dir="rtl"] .toast.ok { border-right-color: var(--ok); }
+html[dir="rtl"] .legend i { margin-right: 0; margin-left: 4px; }
+html[dir="rtl"] .tb-group + .tb-group { border-left: 0; padding-left: 0; border-right: 1px solid var(--line); padding-right: 8px; }
+html[dir="rtl"] .tb-row button.on::after { right: auto; left: 5px; }
+html[dir="rtl"] .tb-row button.fav-mark::before { left: auto; right: 4px; }
+html[dir="rtl"] #displaySeg { margin-right: 0; margin-left: 4px; }
+html[dir="rtl"] .switch .knob::after { left: auto; right: 3px; }
+html[dir="rtl"] .switch input:checked + .knob::after { transform: translateX(-20px); }
+html[dir="rtl"] .navfabs { right: auto; left: 12px; }
+html[dir="rtl"] body.left-hand .navfabs { left: auto; right: 12px; }
+html[dir="rtl"] .dpad { left: auto; right: 12px; }
+html[dir="rtl"] body.left-hand .dpad { right: auto; left: 12px; }
+html[dir="rtl"] .cube { right: auto; left: 10px; }
+html[dir="rtl"] body.left-hand .cube { left: auto; right: 10px; }
+html[dir="rtl"] .open-item.fav .nm { padding-right: 0; padding-left: 18px; }
+html[dir="rtl"] .open-item.fav .nm > svg.ic { right: auto; left: 0; }
+html[dir="rtl"] .open-tile > svg.ic { left: auto; right: 6px; }
+html[dir="rtl"] .open-tile .lbtn { right: auto; left: 0; }
+@media (orientation: landscape) and (max-height: 520px) {
+  html[dir="rtl"] #layoutTabs { border-left: 0; border-right: 1px solid var(--line); }
+  html[dir="rtl"] body.left-hand #layoutTabs { border-right: 0; border-left: 1px solid var(--line); }
+  html[dir="rtl"] #toolbar { border-left: 0; border-right: 1px solid var(--line); padding-right: 0; padding-left: var(--safe-left); }
+  html[dir="rtl"] body.left-hand #toolbar { border-right: 0; border-left: 1px solid var(--line); padding-left: 0; padding-right: var(--safe-right); }
+  html[dir="rtl"] .tb-tabs { border-right: 0; border-left: 1px solid var(--line); }
+  html[dir="rtl"] .tb-tabs button { border-right: 0; border-left: 2px solid transparent; }
+  html[dir="rtl"] #toolbar.collapsed .tb-tabs { border-left: 0; }
+  html[dir="rtl"] .tb-group + .tb-group { border-right: 0; padding-right: 0; }
+  html[dir="rtl"] .panel.bottom { right: auto; left: 0; border-radius: 0 12px 0 0; }
+  html[dir="rtl"] body.left-hand .panel.bottom { left: auto; right: 0; border-radius: 12px 0 0 0; }
+  html[dir="rtl"] .notesbar { left: 8px; right: 72px; }
+  html[dir="rtl"] body.left-hand .notesbar { left: 72px; right: 8px; }
+  html[dir="rtl"] .cube { left: 72px; right: auto; }
+  html[dir="rtl"] body.left-hand .cube { left: auto; right: 72px; }
+}
+/* Belge yüzeyleri kâğıdın kendi yönünde kalır: sayfa numarası, sütun donması ve
+   sayı hizalaması arayüz aynalanınca bozulmasın. Metnin kendi iki yönlü akışı
+   (Arapça bir Word belgesi) tarayıcının bidi algoritmasıyla zaten doğru çıkar. */
+html[dir="rtl"] .pdf-page, html[dir="rtl"] .docx-page, html[dir="rtl"] .docx-sheet,
+html[dir="rtl"] .pdfe-stack, html[dir="rtl"] .xlsx-tbl, html[dir="rtl"] .txt-body,
+html[dir="rtl"] #cv, html[dir="rtl"] #cv3d, html[dir="rtl"] .stage { direction: ltr; }

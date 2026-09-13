@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pick_file">DWG फ़ाइल चुनें</string>
+    <string name="saved_to">सहेजा गया: %1$s</string>
+    <string name="save_failed">छवि सहेजी नहीं जा सकी</string>
+    <string name="open_failed">फ़ाइल खोली नहीं जा सकी</string>
+    <string name="recent_gone">फ़ाइल अब उपलब्ध नहीं है; सूची से हटा दी गई</string>
+    <string name="folder_denied">फ़ोल्डर तक पहुँच की अनुमति नहीं मिली</string>
+    <string name="webview_restarted">व्यूअर पुनः आरंभ किया गया (मेमोरी कम पड़ गई)</string>
+    <string name="webview_crashed">व्यूअर क्रैश हुआ और पुनः आरंभ किया गया</string>
+    <string name="location_approx">अनुमानित स्थान (मोटे स्थान की अनुमति)</string>
+</resources>

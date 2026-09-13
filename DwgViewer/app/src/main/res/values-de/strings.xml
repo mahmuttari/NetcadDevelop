@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pick_file">DWG-Datei wählen</string>
+    <string name="saved_to">Gespeichert: %1$s</string>
+    <string name="save_failed">Das Bild konnte nicht gespeichert werden</string>
+    <string name="open_failed">Die Datei konnte nicht geöffnet werden</string>
+    <string name="recent_gone">Die Datei ist nicht mehr verfügbar; aus der Liste entfernt</string>
+    <string name="folder_denied">Zugriffsberechtigung für den Ordner wurde nicht erteilt</string>
+    <string name="webview_restarted">Der Betrachter wurde neu gestartet (zu wenig Speicher)</string>
+    <string name="webview_crashed">Der Betrachter ist abgestürzt und wurde neu gestartet</string>
+    <string name="location_approx">Ungefährer Standort (grobe Standortberechtigung)</string>
+</resources>
