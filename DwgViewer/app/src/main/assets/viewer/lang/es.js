@@ -249,4 +249,6 @@ export default {
   driveSetup: 'Valores de configuración', driveSetupHint: 'Google Cloud Console › Clientes › «Crear cliente de Android» pide los dos primeros valores. El URI de redirección se deriva del ID de cliente y se actualiza aquí cuando esté configurado. Toque para copiar.', pkgName: 'Nombre del paquete', signSha1: 'SHA-1 de la firma', redirectUri: 'URI de redirección',
   driveNoScope: 'No se concedió el acceso a Drive: la sesión solo abarca su nombre y correo. Cierre sesión, vuelva a iniciarla y acepte la línea de Drive en la pantalla de permisos.', driveReauth: 'Cerrar sesión y volver a iniciarla', driveApiOff: 'La API de Google Drive no está habilitada para este proyecto.',
   zoom100: '100 %',
+  newFile: 'Archivo nuevo', newDrawing: 'Dibujo (DXF)', newWord: 'Documento de Word', newSheet: 'Hoja de Excel', newPdf: 'Documento PDF', newText: 'Archivo de texto', newCsv: 'Tabla CSV', newNamePh: 'nombre del archivo', newFail: 'No se pudo crear el archivo nuevo', editAddRow: 'Fila', editAddCol: 'Columna', editSheetNote: 'En la copia guardada solo se conservan los valores de las celdas; el formato, las fórmulas y las celdas combinadas no se transfieren.',
+  editCsvBig: 'La tabla se acortó para mostrarla; se edita como texto para conservar todas las filas.',
 };

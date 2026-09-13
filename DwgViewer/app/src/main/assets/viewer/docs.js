@@ -20,6 +20,7 @@ import { sniffDoc, sniffHint, rtfToHtml, htmlToParts, mhtmlParts, decodeHtmlByte
 import * as PdfEdit from './pdfedit.js';
 import * as DocEdit from './docedit.js';
 import { askText, askConfirm } from './dialog.js';
+import { xlsxBook, csvText } from './newdoc.js';
 
 const $ = (id) => document.getElementById(id);
 const tt = (k, tr) => { const v = t(k); return v === k ? tr : v; };
@@ -289,8 +290,8 @@ export async function xlsxToHtml(arc) {
         for (let ri = 0; ri < n; ri++) { const cells = rows[ri]; html += `<tr><th>${ri + 1}</th>`; for (let ci = 0; ci < maxC; ci++) { if (skip.has(ri + ':' + ci)) continue; const sp = span.get(ri + ':' + ci); const v = cells[ci] == null ? '' : cells[ci]; html += `<td${sp ? ` rowspan="${sp[0]}" colspan="${sp[1]}"` : ''}${/^[-\d.,]+$/.test(v) ? ' class="num"' : ''}>${esc(v)}</td>`; } html += '</tr>'; }
         return html + '</table>';
       };
-      sheets.push({ name: sh.getAttribute('name') || path, get html() { return tableHtml(); }, tableHtml, rows: rows.length, maxC });
-    } catch (e) { sheets.push({ name: sh.getAttribute('name') || path, html: `<div class="muted">${esc(e.message)}</div>`, tableHtml: null, rows: 0 }); }
+      sheets.push({ name: sh.getAttribute('name') || path, get html() { return tableHtml(); }, tableHtml, cells: rows, rows: rows.length, maxC });
+    } catch (e) { sheets.push({ name: sh.getAttribute('name') || path, html: `<div class="muted">${esc(e.message)}</div>`, tableHtml: null, cells: null, rows: 0, maxC: 0 }); }
   }
   return sheets;
 }
@@ -456,7 +457,7 @@ function pdfZoom(f) {
   pdfLayout(cur); pdfGoto(page);
 }
 /** Araç satırındaki yakınlaştırma düğmeleri (zin / zout / zfit): belge türüne göre dağıtır; f = çarpan, 0 = sığdır */
-function zoomDoc(f) { if (!cur) return; if (cur.kind === 'pdf') pdfZoom(f); else if (isWord(cur.kind)) docxZoom(f); else if (cur.kind === 'xlsx') xlsxZoom(f); }
+function zoomDoc(f) { if (!cur) return; if (editing && editing.kind === 'grid') { xlsxZoom(f); return; } if (cur.kind === 'pdf') pdfZoom(f); else if (isWord(cur.kind)) docxZoom(f); else if (cur.kind === 'xlsx') xlsxZoom(f); }
 /** iki parmakla yakınlaştırma (PDF, resim, Word): sürüklerken CSS ölçek, bırakınca kalıcı ölçek (PDF yeniden çizim, Word sayfa kipinde
  *  transform ölçeği / akış kipinde yazı yüzdesi). Tek parmak hiçbir zaman engellenmez: preventDefault yalnız iki parmak varken. */
 function bindPinch(el) {
@@ -597,6 +598,7 @@ function xlsxZoom(f) {
 async function showXlsx(d) {
   const arc = await arcFor(d);
   const sheets = await xlsxToHtml(arc);
+  d.sheets = sheets; d.sheetIdx = Math.min(d.sheetIdx || 0, Math.max(0, sheets.length - 1));   // düzenleyici etkin sayfayı buradan alır
   els.tools.innerHTML = `<div class="tabs doc-tabs">${sheets.map((s, i) => `<button type="button" data-sheet="${i}" class="${i ? '' : 'active'}">${esc(s.name)}</button>`).join('')}</div><span class="sp"></span><button type="button" class="btn small" data-doc="zout" aria-label="−">${ICON('i-zoom-out')}</button><button type="button" class="btn small" data-doc="zfit">${esc(tt('zoom100', '%100'))}</button><button type="button" class="btn small" data-doc="zin" aria-label="+">${ICON('i-zoom-in')}</button>` + editBtn();
   // sayfalı basım: ilk XLSX_PAGE satır, "Daha fazla" ile katlanarak; 60k satırlık tablo ana iş parçacığını kilitlemesin
   const render = (i, upto = XLSX_PAGE) => {
@@ -606,10 +608,11 @@ async function showXlsx(d) {
     els.body.innerHTML = `<div class="xlsx-wrap">${html}</div>`;
     xlsxApplyZoom(d);
   };
-  els.tools.querySelector('.doc-tabs').addEventListener('click', (ev) => { const b = ev.target.closest('[data-sheet]'); if (!b) return; els.tools.querySelectorAll('[data-sheet]').forEach(x => x.classList.toggle('active', x === b)); render(+b.dataset.sheet); });
+  els.tools.querySelector('.doc-tabs').addEventListener('click', (ev) => { const b = ev.target.closest('[data-sheet]'); if (!b) return; els.tools.querySelectorAll('[data-sheet]').forEach(x => x.classList.toggle('active', x === b)); d.sheetIdx = +b.dataset.sheet; render(d.sheetIdx); });
   // kaydırma artık .xlsx-wrap'ta: "Daha fazla" sonrası bakılan yer korunur
   els.body.onclick = (ev) => { const b = ev.target.closest('[data-more]'); if (b) { const { w } = xlsxEls(); const top = w ? w.scrollTop : 0, left = w ? w.scrollLeft : 0; render(+b.dataset.more, +b.dataset.upto); const n = xlsxEls().w; if (n) { n.scrollTop = top; n.scrollLeft = left; } } };
-  render(0);
+  render(d.sheetIdx);
+  const tab = els.tools.querySelector(`[data-sheet="${d.sheetIdx}"]`); if (tab) els.tools.querySelectorAll('[data-sheet]').forEach(x => x.classList.toggle('active', x === tab));
 }
 // ---- arşiv -----------------------------------------------------------------------------
 async function showArchive(d) {
@@ -670,18 +673,35 @@ function showImage(d) {
   els.tools.innerHTML = '';
   els.body.innerHTML = `<img class="doc-img" src="${esc(urlOf(d))}" alt="" style="width:100%">`;
 }
+/** Tırnaklı CSV satırını alanlara böler: "a;b" tek alandır, "" kaçışlanmış tırnaktır */
+function splitCsv(line, sep) {
+  const out = []; let cur = '', q = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (q) { if (ch === '"') { if (line[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += ch; }
+    else if (ch === '"') q = true;
+    else if (ch === sep) { out.push(cur); cur = ''; }
+    else cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
 async function showText(d) {
   const buf = await bytesOf(d);
   let txt; try { txt = new TextDecoder('utf-8', { fatal: true }).decode(buf); } catch (_) { txt = new TextDecoder('windows-1254').decode(buf); }
   const ext = d.name.toLowerCase().split('.').pop();
-  els.tools.innerHTML = `<button type="button" class="btn small" data-doc="wrap">${esc(tt('wrap', 'Satır kaydır'))}</button><span class="muted">${txt.split('\n').length} ${esc(tt('lines', 'satır'))}</span>`;
+  d.text = txt; d.csv = null;   // düzenleyici ham metni buradan alır
+  els.tools.innerHTML = `<button type="button" class="btn small" data-doc="wrap">${esc(tt('wrap', 'Satır kaydır'))}</button><span class="muted">${txt.split('\n').length} ${esc(tt('lines', 'satır'))}</span>` + editBtn();
   if (ext === 'csv' || (ext === 'txt' && /^[^\n]*[;\t][^\n]*\n/.test(txt))) {
     const sep = (txt.match(/;/g) || []).length >= (txt.match(/,/g) || []).length ? ';' : (txt.includes('\t') ? '\t' : ',');
-    const rows = txt.split(/\r?\n/).filter(l => l.trim()).slice(0, 5000).map(l => l.split(sep));
+    const lines = txt.split(/\r?\n/); while (lines.length && !lines[lines.length - 1].length) lines.pop();   // yalnız sondaki boş satırlar atılır; aradaki boş satır tablonun parçasıdır
+    const rows = lines.slice(0, 5000).map(l => splitCsv(l, sep));
+    d.csv = { rows, sep, cut: lines.length > 5000 };   // cut: tablo kısaltıldı — ızgarada düzenlenirse kalan satırlar kaybolur
+    els.body.classList.add('grid-edit');   // Excel'deki iç kaydırma ve donuk başlık düzeni CSV ızgarasında da geçerli
     els.body.innerHTML = `<div class="xlsx-wrap"><table class="xlsx-tbl">${rows.map((r, i) => `<tr>${r.map(c => i === 0 ? `<th>${esc(c)}</th>` : `<td${/^[-\d.,]+$/.test(c.trim()) ? ' class="num"' : ''}>${esc(c)}</td>`).join('')}</tr>`).join('')}</table></div>`;
     return;
   }
-  if (ext === 'json' || ext === 'geojson') { try { txt = JSON.stringify(JSON.parse(txt), null, 2); } catch (_) { /* ham */ } }
+  if (ext === 'json' || ext === 'geojson') { try { txt = JSON.stringify(JSON.parse(txt), null, 2); d.text = txt; } catch (_) { /* ham */ } }   // düzenleyici ekranda görüneni açar
   els.body.innerHTML = `<pre class="doc-pre">${esc(txt.length > 2_000_000 ? txt.slice(0, 2_000_000) + '\n…' : txt)}</pre>`;
 }
 function otherActions(d) {
@@ -692,12 +712,20 @@ function otherActions(d) {
 }
 // ---- düzenleme (Pro) ------------------------------------------------------------------
 /*
- * PDF ve Word düzenleme tek kapıdan geçer: kind 'pdf' ise pdfedit.js açıklama katmanı, Word türlerinde
- * docedit.js contenteditable akış düzenleyicisi. İkisinde de özgün dosya değişmez; "Kaydet" yeni bir dosya
- * üretip paylaşır. Ücretsiz sürümde düğme hiç görünmez.
+ * Düzenleme tek kapıdan geçer: kind 'pdf' ise pdfedit.js açıklama katmanı, Word türlerinde docedit.js
+ * contenteditable akış düzenleyicisi, Excel ve CSV'de hücre ızgarası, düz metinde metin kutusu. Hepsinde
+ * özgün dosya değişmez; "Kaydet" yeni bir dosya üretip paylaşır. Ücretsiz sürümde düğme hiç görünmez.
+ *
+ * Izgara düzenleyici yalnız HÜCRE DEĞERLERİNİ taşır: biçim, formül ve birleştirilmiş hücre kaydedilen
+ * kopyada bulunmaz (kullanıcıya kaydetmeden önce söylenir). Etkin olmayan sayfalar kaynaktaki değerleriyle
+ * olduğu gibi yazılır, GRID_MAX'tan sonraki satırlar da düzenlenmeden korunur.
  */
+/* Bir seferde basılan en çok satır. Ölçüm (masaüstü Chromium, 26 sütun): 1.000 satır = 26.000 hücre için
+   122 ms basım + 35 ms geri okuma; 2.000 satır 234 + 68 ms, 5.000 satır 441 + 213 ms. Telefon üç-beş kat
+   yavaştır, bu yüzden görüntüleyicinin sayfa boyuyla (XLSX_PAGE) aynı 1.000'de tutulur; gerisi "Daha fazla". */
+const GRID_MAX = 1000;
 let editing = null;
-const editable = (k) => k === 'pdf' || isWord(k);
+const editable = (k) => k === 'pdf' || isWord(k) || k === 'xlsx' || k === 'text';
 function editBtn() {
   if (!cur || !editable(cur.kind) || !isPro()) return '';
   return `<span class="sp"></span><button type="button" class="btn small" data-doc="edit">${ICON('i-pen')} ${esc(tt('docEdit', 'Düzenle'))}</button>`;
@@ -730,6 +758,14 @@ async function startEdit(d) {
       const surf = PdfEdit.mountSurface(els.body, st, { bg, onText: (def) => askText(tt('editTextLabel', 'Metin'), def || ''), onChange: () => { editing.touched = true; } });
       editing = { kind: 'pdf', d, st, surf, buf, touched: false };
       els.tools.innerHTML = PdfEdit.toolbarHtml(st);
+    } else if (d.kind === 'xlsx') {
+      const sh = (d.sheets || [])[d.sheetIdx || 0];
+      if (!sh || !sh.cells) throw new Error(tt('editNoBody', 'Düzenlenecek içerik bulunamadı'));
+      startGridEdit(d, sh.cells, Math.max(sh.maxC || 0, 1), 'xlsx');
+    } else if (d.kind === 'text' && d.csv && !d.csv.cut) {
+      startGridEdit(d, d.csv.rows, d.csv.rows.reduce((m, r) => Math.max(m, r.length), 1), 'csv');
+    } else if (d.kind === 'text') {
+      startTextEdit(d);
     } else {
       if (d.layout !== 'flow') { d.layout = 'flow'; store.set('doc:docxLayout', 'flow'); d.pg = null; els.body.scrollTop = 0; d.docxRender(DOCX_PAGE); }
       const root = els.body.querySelector('.docx-page');
@@ -744,6 +780,71 @@ async function startEdit(d) {
     api.toast(tt('editFail', 'Düzenleme başlatılamadı') + ': ' + (e.message || e), { type: 'error', ms: 6000 });
     editing = null;
   }
+}
+/* ---- ızgara (Excel sayfası / CSV) ---------------------------------------------------
+ * Kaynaktaki değerler kopyalanır, ilk GRID_MAX satır contenteditable hücre olarak basılır. Satır ve sütun
+ * eklemek ızgarayı büyütür; kaydetme sırasında DOM'daki değerler kopyaya işlenir, kalan satırlar kaynaktan gelir.
+ */
+function gridTableHtml(rows, maxC, upto) {
+  const n = Math.min(upto, rows.length);
+  let h = '<table class="xlsx-tbl grid-ed"><tr><th></th>' + Array.from({ length: maxC }, (_, i) => `<th>${colName(i)}</th>`).join('') + '</tr>';
+  for (let ri = 0; ri < n; ri++) {
+    const cells = rows[ri] || [];
+    h += `<tr><th>${ri + 1}</th>`;
+    for (let ci = 0; ci < maxC; ci++) { const v = cells[ci] == null ? '' : String(cells[ci]); h += `<td contenteditable="true" data-r="${ri}" data-c="${ci}">${esc(v)}</td>`; }
+    h += '</tr>';
+  }
+  return h + '</table>';
+}
+function gridRender() {
+  const e = editing; if (!e || e.kind !== 'grid') return;
+  const w = els.body.querySelector('.xlsx-wrap'), top = w ? w.scrollTop : 0, left = w ? w.scrollLeft : 0;
+  els.body.innerHTML = `<div class="xlsx-wrap">${gridTableHtml(e.rows, e.maxC, e.shown)}</div>`;
+  xlsxApplyZoom(e.d);
+  const n = els.body.querySelector('.xlsx-wrap'); if (n) { n.scrollTop = top; n.scrollLeft = left; }
+}
+/** DOM'daki hücreleri e.rows kopyasına işler (kaydetmeden ve ızgarayı yeniden basmadan önce) */
+function gridSync() {
+  const e = editing; if (!e || e.kind !== 'grid') return;
+  for (const td of els.body.querySelectorAll('.grid-ed td[data-r]')) {
+    const r = +td.dataset.r, c = +td.dataset.c;
+    if (!e.rows[r]) e.rows[r] = [];
+    e.rows[r][c] = td.textContent.replace(/\u00a0/g, ' ');
+  }
+}
+function startGridEdit(d, srcRows, maxC, from) {
+  els.body.classList.add('grid-edit');
+  const rows = (srcRows || []).map(r => (r || []).slice());
+  if (!rows.length) rows.push([]);
+  editing = { kind: 'grid', d, from, rows, maxC: Math.max(maxC, 1), shown: Math.min(rows.length, GRID_MAX), src: srcRows || [], touched: false };
+  gridRender();
+  els.body.addEventListener('input', gridDirty);
+  els.tools.innerHTML = gridToolbarHtml();
+  if (from === 'xlsx') api.toast(tt('editSheetNote', 'Kaydedilen kopyada yalnız hücre değerleri korunur; biçim, formül ve birleştirilmiş hücreler aktarılmaz.'), { ms: 7000 });
+}
+const gridDirty = () => { if (editing) editing.touched = true; };
+function gridToolbarHtml() {
+  const e = editing, more = e && e.rows.length > e.shown;
+  return `<button type="button" class="btn small" data-pe="addrow">${ICON('i-plus')} ${esc(tt('editAddRow', 'Satır'))}</button>`
+    + `<button type="button" class="btn small" data-pe="addcol">${ICON('i-plus')} ${esc(tt('editAddCol', 'Sütun'))}</button>`
+    + (more ? `<button type="button" class="btn small" data-pe="gridmore">${esc(tt('loadMore', 'Daha fazla'))}</button>` : '')
+    + `<span class="sp"></span><button type="button" class="btn small" data-doc="zout" aria-label="−">${ICON('i-zoom-out')}</button><button type="button" class="btn small" data-doc="zfit">${esc(tt('zoom100', '%100'))}</button><button type="button" class="btn small" data-doc="zin" aria-label="+">${ICON('i-zoom-in')}</button>`
+    + `<span class="sp"></span><button type="button" class="btn small primary" data-pe="save">${esc(tt('editSave', 'Kaydet'))}</button>`
+    + `<button type="button" class="btn small" data-pe="cancel">${esc(t('cancel'))}</button>`;
+}
+/* ---- düz metin ---------------------------------------------------------------------- */
+function startTextEdit(d) {
+  els.body.classList.add('editing-text');
+  if (d.csv && d.csv.cut) api.toast(tt('editCsvBig', 'Tablo görüntülemek için kısaltıldı; bütün satırlar korunsun diye metin olarak düzenleniyor.'), { ms: 7000 });
+  els.body.innerHTML = `<textarea class="doc-edit-txt" spellcheck="false"></textarea>`;
+  const ta = els.body.querySelector('.doc-edit-txt');
+  ta.value = d.text == null ? '' : d.text;
+  ta.addEventListener('input', () => { if (editing) editing.touched = true; });
+  editing = { kind: 'text', d, ta, touched: false };
+  els.tools.innerHTML = `<span class="muted">${esc(kindLabel('text'))}</span><span class="sp"></span>`
+    + `<button type="button" class="btn small primary" data-pe="save">${esc(tt('editSave', 'Kaydet'))}</button>`
+    + `<button type="button" class="btn small" data-pe="cancel">${esc(t('cancel'))}</button>`;
+  setTimeout(() => { try { ta.focus(); } catch (_) { /* yok */ } }, 0);
 }
 function wordToolbarHtml() {
   const b = (c, icon, label) => `<button type="button" class="btn small" data-pe="cmd" data-cmd="${c}" title="${esc(label)}" aria-label="${esc(label)}">${ICON(icon)}</button>`;
@@ -768,7 +869,19 @@ async function onEditAction(btn) {
     else api.toast(tt('editLastPage', 'Son sayfa silinemez'), { type: 'error' });
     return;
   }
-  if (k === 'undo') { if (editing.kind === 'pdf') { if (PdfEdit.undo(st)) editing.surf.render(); } else editing.ed.cmd('undo'); return; }
+  if (k === 'addrow') {
+    // Yeni satır sona eklenir. Tablonun tamamı ekrandaysa satır da görünür olur; kısaltılmış büyük bir sayfada
+    // görünen aralık büyütülmez (amaç GRID_MAX'ı korumak), satır yine de dosyaya yazılır — "Daha fazla" ile görülür.
+    gridSync(); const e = editing; e.rows.push([]); e.touched = true;
+    if (e.shown >= e.rows.length - 1) e.shown = e.rows.length;
+    gridRender(); els.tools.innerHTML = gridToolbarHtml();
+    const tds = els.body.querySelectorAll(`.grid-ed td[data-r="${e.rows.length - 1}"]`);
+    if (tds[0]) { tds[0].focus(); tds[0].scrollIntoView({ block: 'nearest' }); }
+    return;
+  }
+  if (k === 'addcol') { gridSync(); const e = editing; e.maxC++; e.touched = true; gridRender(); return; }
+  if (k === 'gridmore') { gridSync(); const e = editing; e.shown = Math.min(e.rows.length, e.shown + GRID_MAX); gridRender(); els.tools.innerHTML = gridToolbarHtml(); return; }
+  if (k === 'undo') { if (editing.kind === 'pdf') { if (PdfEdit.undo(st)) editing.surf.render(); } else if (editing.ed) editing.ed.cmd('undo'); return; }
   if (k === 'zin' || k === 'zout' || k === 'zfit') { editing.surf.zoom(k === 'zin' ? 1.25 : k === 'zout' ? 0.8 : 0); return; }
   if (k === 'cmd') { editing.ed.cmd(btn.dataset.cmd); return; }
   if (k === 'find') {
@@ -794,6 +907,19 @@ async function saveEdit() {
     if (e.kind === 'pdf') {
       const out = await PdfEdit.exportPdf(e.buf, e.st);
       saveOut(out, outName(e.d, 'pdf'), 'application/pdf');
+    } else if (e.kind === 'grid') {
+      gridSync();
+      if (e.from === 'xlsx') {
+        const sheets = (e.d.sheets || []).map((sh, i) => ({ name: sh.name, rows: i === (e.d.sheetIdx || 0) ? e.rows : (sh.cells || []) }));
+        const out = await xlsxBook(sheets.length ? sheets : [{ name: 'Sayfa1', rows: e.rows }]);
+        saveOut(new Uint8Array(out), outName(e.d, 'xlsx'), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      } else {
+        const ext = e.d.name.toLowerCase().split('.').pop() === 'txt' ? 'txt' : 'csv';
+        saveOut(new TextEncoder().encode(csvText(e.rows, (e.d.csv && e.d.csv.sep) || ';')), outName(e.d, ext), ext === 'csv' ? 'text/csv' : 'text/plain');
+      }
+    } else if (e.kind === 'text') {
+      const ext = e.d.name.toLowerCase().split('.').pop() || 'txt';
+      saveOut(new TextEncoder().encode(e.ta.value), outName(e.d, ext), 'text/plain');
     } else {
       const out = await DocEdit.htmlToDocx(e.root, e.d.docxPage);
       saveOut(out, outName(e.d, 'docx'), 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
@@ -815,6 +941,8 @@ async function endEdit(saved) {
   const e = editing; editing = null;
   document.body.classList.remove('editmode');
   if (!e) return;
+  if (e.kind === 'grid') els.body.removeEventListener('input', gridDirty);
+  els.body.classList.remove('editing-text');
   if (e.kind === 'word' && e.ed) e.ed.unmount();
   if (e.kind === 'pdf' && e.surf && e.surf.unmount) e.surf.unmount();
   await show(e.d, { replace: true });   // görünümü tazeden kur (düzenleme izleri kalmasın)

@@ -249,4 +249,6 @@ export default {
   driveSetup: '설정 값', driveSetupHint: 'Google Cloud Console › 클라이언트 › \"Android 클라이언트 만들기\"는 앞의 두 값을 묻습니다. 리디렉션 URI는 클라이언트 ID에서 만들어지며 ID를 넣으면 여기에 반영됩니다. 눌러서 복사하세요.', pkgName: '패키지 이름', signSha1: '서명 SHA-1', redirectUri: '리디렉션 URI',
   driveNoScope: 'Drive 권한이 부여되지 않았습니다. 세션에 이름과 이메일만 포함되어 있습니다. 로그아웃한 뒤 다시 로그인하고 동의 화면의 Drive 항목을 승인하세요.', driveReauth: '로그아웃 후 다시 로그인', driveApiOff: '이 프로젝트에서 Google Drive API가 사용 설정되어 있지 않습니다.',
   zoom100: '100%',
+  newFile: '새 파일', newDrawing: '도면 (DXF)', newWord: 'Word 문서', newSheet: 'Excel 시트', newPdf: 'PDF 문서', newText: '텍스트 파일', newCsv: 'CSV 표', newNamePh: '파일 이름', newFail: '새 파일을 만들지 못했습니다', editAddRow: '행', editAddCol: '열', editSheetNote: '저장되는 사본에는 셀 값만 유지됩니다. 서식, 수식, 병합된 셀은 옮겨지지 않습니다.',
+  editCsvBig: '표는 표시를 위해 잘렸습니다. 모든 행을 유지하기 위해 텍스트로 편집합니다.',
 };

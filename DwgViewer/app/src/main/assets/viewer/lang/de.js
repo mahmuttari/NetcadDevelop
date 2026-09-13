@@ -249,4 +249,6 @@ export default {
   driveSetup: 'Einrichtungswerte', driveSetupHint: 'Google Cloud Console › Clients › „Android-Client erstellen“ fragt nach den ersten beiden Werten. Die Weiterleitungsadresse leitet sich aus der Client-ID ab und erscheint hier, sobald diese gesetzt ist. Zum Kopieren tippen.', pkgName: 'Paketname', signSha1: 'Signatur-SHA-1', redirectUri: 'Weiterleitungsadresse',
   driveNoScope: 'Der Drive-Zugriff wurde nicht erteilt: Die Sitzung umfasst nur Name und E-Mail. Melden Sie sich ab, wieder an und bestätigen Sie die Drive-Zeile im Zustimmungsbildschirm.', driveReauth: 'Abmelden und erneut anmelden', driveApiOff: 'Die Google Drive API ist für dieses Projekt nicht aktiviert.',
   zoom100: '100 %',
+  newFile: 'Neue Datei', newDrawing: 'Zeichnung (DXF)', newWord: 'Word-Dokument', newSheet: 'Excel-Blatt', newPdf: 'PDF-Dokument', newText: 'Textdatei', newCsv: 'CSV-Tabelle', newNamePh: 'Dateiname', newFail: 'Neue Datei konnte nicht erstellt werden', editAddRow: 'Zeile', editAddCol: 'Spalte', editSheetNote: 'In der gespeicherten Kopie bleiben nur die Zellwerte erhalten; Formatierung, Formeln und verbundene Zellen werden nicht übernommen.',
+  editCsvBig: 'Die Tabelle wurde für die Anzeige gekürzt; sie wird als Text bearbeitet, damit alle Zeilen erhalten bleiben.',
 };

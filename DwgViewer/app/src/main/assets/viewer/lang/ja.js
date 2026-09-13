@@ -249,4 +249,6 @@ export default {
   driveSetup: '設定に必要な値', driveSetupHint: 'Google Cloud Console › クライアント ›「Android クライアントを作成」で求められるのは最初の 2 つの値です。リダイレクト URI はクライアント ID から導かれ、ID を設定するとここに反映されます。タップでコピーします。', pkgName: 'パッケージ名', signSha1: '署名の SHA-1', redirectUri: 'リダイレクト URI',
   driveNoScope: 'Drive の権限が付与されていません。セッションには氏名とメールしか含まれていません。ログアウトして再度ログインし、同意画面の Drive の行を承認してください。', driveReauth: 'ログアウトして再ログイン', driveApiOff: 'このプロジェクトでは Google Drive API が有効になっていません。',
   zoom100: '100%',
+  newFile: '新規ファイル', newDrawing: '図面 (DXF)', newWord: 'Word 文書', newSheet: 'Excel シート', newPdf: 'PDF 文書', newText: 'テキストファイル', newCsv: 'CSV 表', newNamePh: 'ファイル名', newFail: '新しいファイルを作成できませんでした', editAddRow: '行', editAddCol: '列', editSheetNote: '保存されるコピーにはセルの値だけが残ります。書式、数式、結合セルは引き継がれません。',
+  editCsvBig: '表は表示のために短縮されました。すべての行を保つためテキストとして編集します。',
 };

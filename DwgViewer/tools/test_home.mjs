@@ -101,7 +101,7 @@ const menuVisible = () => [...document.querySelectorAll('#moreMenu [data-act]')]
   await page.click('#homeNav [data-home-tab="tools"]'); await page.waitForTimeout(80);
   {
     const r = await ev(() => { const g = document.getElementById('toolsGrid'); const cols = getComputedStyle(g).gridTemplateColumns.split(' ').length; const tools = [...g.querySelectorAll('[data-tool]')]; return { cols, n: tools.length, badges: tools.filter(b => b.querySelector('.pro-badge')).map(b => b.dataset.tool).sort(), colored: tools.every(b => /tool-c[1-8]/.test(b.querySelector('.tool-ic').className)), ic: tools.every(b => b.querySelector('.tool-ic svg.ic use')), lb: tools.every(b => b.querySelector('.lb').textContent.trim().length > 0) }; });
-    ok('1l Araçlar: 4 sütun, 19 araç, renkli simgeler, ad; ücretsizde 6 PRO rozeti', r.cols === 4 && r.n === 19 && r.colored && r.ic && r.lb && JSON.stringify(r.badges) === JSON.stringify(['compare', 'notes', 'pdf', 'profile', 'savedelta', 'savedxf']), JSON.stringify(r));
+    ok('1l Araçlar: 4 sütun, 20 araç, renkli simgeler, ad; ücretsizde 7 PRO rozeti', r.cols === 4 && r.n === 20 && r.colored && r.ic && r.lb && JSON.stringify(r.badges) === JSON.stringify(['compare', 'new', 'notes', 'pdf', 'profile', 'savedelta', 'savedxf']), JSON.stringify(r));
     await shot('home_araclar');
     await page.click('#toolsGrid [data-tool="measure"]'); await page.waitForTimeout(80);
     ok('1m çizim gerektiren araç, belge yokken → "Önce bir … açın"', /Önce bir/.test(await toastText()) && await ev(() => !document.getElementById('home').hidden));
@@ -243,7 +243,7 @@ const menuVisible = () => [...document.querySelectorAll('#moreMenu [data-act]')]
   }
   // Araçlar: Pro'da rozet yok, "Pro" aracı yok
   await page.click('#homeNav [data-home-tab="tools"]'); await page.waitForTimeout(60);
-  ok('2d Pro: PRO rozeti yok, Pro aracı listelenmez (18 araç)', await ev(() => document.querySelectorAll('#toolsGrid .pro-badge').length === 0 && document.querySelectorAll('#toolsGrid [data-tool]').length === 18 && !document.querySelector('#toolsGrid [data-tool="pro"]')));
+  ok('2d Pro: PRO rozeti yok, Pro aracı listelenmez (19 araç)', await ev(() => document.querySelectorAll('#toolsGrid .pro-badge').length === 0 && document.querySelectorAll('#toolsGrid [data-tool]').length === 19 && !document.querySelector('#toolsGrid [data-tool="pro"]')));
   // WebDAV hesabı
   await page.click('#homeNav [data-home-tab="files"]'); await page.click('#filesSeg [data-fseg="cloud"]'); await page.waitForTimeout(60);
   await page.click('#filesCloud [data-cloud="wd-add"]'); await page.waitForTimeout(80);

@@ -506,8 +506,8 @@ body.editmode #docContent { touch-action: auto; }
 /* Excel: kaydırılan kutu .xlsx-wrap'tır (iki eksen birden). Gövde kaydırılmaz, yoksa dikey kaydırma dışarıya
    kaçar ve başlık satırı ile satır numarası sütunu ekranda kalamaz (position: sticky en yakın kaydırıcıya bakar).
    Yakınlaştırma yazı boyuyladır; dolgu ve en büyük hücre genişliği bu yüzden em cinsindendir. */
-.doc-body.kind-xlsx { overflow: hidden; display: flex; flex-direction: column; }
-.doc-body.kind-xlsx .xlsx-wrap { flex: 1 1 auto; min-height: 0; }
+.doc-body.kind-xlsx, .doc-body.grid-edit { overflow: hidden; display: flex; flex-direction: column; }
+.doc-body.kind-xlsx .xlsx-wrap, .doc-body.grid-edit .xlsx-wrap { flex: 1 1 auto; min-height: 0; }
 .xlsx-wrap { overflow: auto; background: #fff; color: #111; border-radius: 4px; touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
 /* border-collapse: separate — çökertilmiş kenarlıklar tabloya aittir, yapışkan hücrenin katmanına girmez ve
    donmuş başlığın altından ince çizgi/metin sızar (Chromium'da bilinen davranış). Ayrı kenarlıkta her hücre
@@ -523,6 +523,22 @@ body.editmode #docContent { touch-action: auto; }
 .xlsx-tbl tr:first-child th { top: 0; z-index: 2; }         /* sütun başlığı satırı üstte donar */
 .xlsx-tbl tr:first-child th:first-child { z-index: 3; }     /* köşe hücresi ikisinin de üstünde */
 .xlsx-tbl td { padding: .25em .5em; white-space: nowrap; max-width: 27em; overflow: hidden; text-overflow: ellipsis; }
+/* Izgara düzenleyici: hücreler contenteditable; kırpma yerine kaydırma (yazarken metnin sonu görünsün) */
+.xlsx-tbl.grid-ed td { min-width: 4.5em; overflow: visible; text-overflow: clip; cursor: text; }
+.xlsx-tbl.grid-ed td:focus { outline: 2px solid #2d7ff9; outline-offset: -2px; background: #fffbe6; position: relative; z-index: 4; }
+/* Düz metin düzenleyici: gövdeyi doldurur, tek başına kaydırılır */
+.doc-body.kind-text.editing-text { overflow: hidden; display: flex; }
+.doc-edit-txt { flex: 1 1 auto; width: 100%; min-height: 60vh; box-sizing: border-box; resize: none; border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 10px; background: var(--panel); color: var(--fg); font-family: ui-monospace, Menlo, Consolas, monospace; font-size: calc(13px * var(--fs)); line-height: 1.5; white-space: pre; overflow: auto; }
+/* Yeni dosya seçicisi: tür başına bir karo (simge, ad, uzantı) */
+.new-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 4px 0; }
+.new-item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 86px; padding: 10px 6px;
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--btn); color: var(--fg); cursor: pointer; }
+.new-item:active { background: var(--btn-on); }
+.new-item svg.ic { width: 26px; height: 26px; color: var(--accent); }
+.new-item span { font-size: calc(12.5px * var(--fs)); text-align: center; line-height: 1.15; }
+.new-item small { color: var(--muted); font-size: calc(10.5px * var(--fs)); }
+@media (max-width: 340px) { .new-grid { grid-template-columns: repeat(2, 1fr); } }
 .xlsx-tbl td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .doc-tabs { padding: 0; border: 0; background: transparent; flex: 1 1 auto; }
 .doc-pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: 12px/1.45 ui-monospace, "Roboto Mono", monospace; color: var(--fg); }

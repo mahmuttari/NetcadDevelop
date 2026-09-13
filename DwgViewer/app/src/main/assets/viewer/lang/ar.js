@@ -249,4 +249,6 @@ export default {
   driveSetup: 'قيم الإعداد', driveSetupHint: 'خطوة Google Cloud Console ‏› العملاء › «إنشاء عميل أندرويد» تطلب أول قيمتين. أما عنوان إعادة التوجيه فيُشتق من معرّف العميل ويتحدّث هنا بعد ضبطه. المس للنسخ.', pkgName: 'اسم الحزمة', signSha1: 'بصمة التوقيع SHA-1', redirectUri: 'عنوان إعادة التوجيه',
   driveNoScope: 'لم يُمنح إذن Drive: الجلسة تشمل الاسم والبريد فقط. سجّل الخروج ثم الدخول من جديد ووافق على سطر Drive في شاشة الأذونات.', driveReauth: 'تسجيل الخروج ثم الدخول من جديد', driveApiOff: 'واجهة Google Drive API غير مفعّلة لهذا المشروع.',
   zoom100: '100٪',
+  newFile: 'ملف جديد', newDrawing: 'رسم (DXF)', newWord: 'مستند Word', newSheet: 'ورقة Excel', newPdf: 'مستند PDF', newText: 'ملف نصي', newCsv: 'جدول CSV', newNamePh: 'اسم الملف', newFail: 'تعذّر إنشاء الملف الجديد', editAddRow: 'صف', editAddCol: 'عمود', editSheetNote: 'تُحفظ قيم الخلايا فقط في النسخة المحفوظة؛ لا يُنقل التنسيق ولا الصيغ ولا الخلايا المدمجة.',
+  editCsvBig: 'اختُصر الجدول لأغراض العرض؛ يجري تحريره كنص للحفاظ على كل الصفوف.',
 };

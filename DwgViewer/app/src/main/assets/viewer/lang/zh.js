@@ -249,4 +249,6 @@ export default {
   driveSetup: '配置所需的值', driveSetupHint: 'Google Cloud Console › 客户端 ›「创建 Android 客户端」只要求前两个值。重定向地址由客户端 ID 推导而来，填入 ID 后会在此更新。点按即可复制。', pkgName: '软件包名称', signSha1: '签名 SHA-1', redirectUri: '重定向地址',
   driveNoScope: '未授予 Drive 权限：本次登录只包含姓名和电子邮件。请退出后重新登录，并在授权页面同意 Drive 那一行。', driveReauth: '退出并重新登录', driveApiOff: '此项目尚未启用 Google Drive API。',
   zoom100: '100%',
+  newFile: '新建文件', newDrawing: '图形 (DXF)', newWord: 'Word 文档', newSheet: 'Excel 工作表', newPdf: 'PDF 文档', newText: '文本文件', newCsv: 'CSV 表格', newNamePh: '文件名', newFail: '无法创建新文件', editAddRow: '行', editAddCol: '列', editSheetNote: '保存的副本仅保留单元格的值，格式、公式和合并单元格不会被保留。',
+  editCsvBig: '表格因显示需要被截短；为保留全部行，改以文本方式编辑。',
 };

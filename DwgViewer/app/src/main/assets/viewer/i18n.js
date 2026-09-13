@@ -143,6 +143,8 @@ export const TR = {
   driveSetup: 'Kurulum bilgileri', driveSetupHint: 'Google Cloud Console › İstemciler › \"Android istemcisi oluştur\" adımı ilk iki değeri ister. Yönlendirme adresi istemci kimliğinden türer; kimlik işlenince burada güncellenir. Dokununca kopyalanır.', pkgName: 'Paket adı', signSha1: 'İmza SHA-1', redirectUri: 'Yönlendirme adresi',
   driveNoScope: 'Drive izni verilmemiş: oturum yalnız ad ve e-posta için açılmış. Çıkış yapıp yeniden giriş yapın ve izin ekranındaki Drive satırını onaylayın.', driveReauth: 'Çıkış yap ve yeniden giriş', driveApiOff: 'Google Drive API bu proje için etkin değil.',
   zoom100: '%100',
+  newFile: 'Yeni dosya', newDrawing: 'Çizim (DXF)', newWord: 'Word belgesi', newSheet: 'Excel sayfası', newPdf: 'PDF belgesi', newText: 'Metin dosyası', newCsv: 'CSV tablosu', newNamePh: 'dosya adı', newFail: 'Yeni dosya oluşturulamadı', editAddRow: 'Satır', editAddCol: 'Sütun', editSheetNote: 'Kaydedilen kopyada yalnız hücre değerleri korunur; biçim, formül ve birleştirilmiş hücreler aktarılmaz.',
+  editCsvBig: 'Tablo görüntülemek için kısaltıldı; bütün satırlar korunsun diye metin olarak düzenleniyor.',
 };
 export const EN = {
   open: 'Open', noFile: 'No file', fit: 'Zoom extents', layers: 'Layers', measure: 'Measure', more: 'More', search: 'Search',
@@ -288,6 +290,8 @@ export const EN = {
   driveSetup: 'Setup values', driveSetupHint: 'Google Cloud Console › Clients › \"Create Android client\" asks for the first two values. The redirect URI is derived from the client ID and updates here once it is set. Tap to copy.', pkgName: 'Package name', signSha1: 'Signing SHA-1', redirectUri: 'Redirect URI',
   driveNoScope: 'Drive access was not granted: the session covers only your name and e-mail. Sign out, sign in again and approve the Drive line on the consent screen.', driveReauth: 'Sign out and sign in again', driveApiOff: 'The Google Drive API is not enabled for this project.',
   zoom100: '100%',
+  newFile: 'New file', newDrawing: 'Drawing (DXF)', newWord: 'Word document', newSheet: 'Excel sheet', newPdf: 'PDF document', newText: 'Text file', newCsv: 'CSV table', newNamePh: 'file name', newFail: 'Could not create the new file', editAddRow: 'Row', editAddCol: 'Column', editSheetNote: 'Only cell values are kept in the saved copy; formatting, formulas and merged cells are not carried over.',
+  editCsvBig: 'The table was shortened for display; it is edited as text so that every row is kept.',
 };
 /* ---------------------------------------------------------------------------
  * Dil kayıt defteri

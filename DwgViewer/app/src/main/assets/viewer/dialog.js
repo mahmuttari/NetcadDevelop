@@ -1,6 +1,6 @@
 /*
  * Uygulama içi giriş ve onay kutuları (tarayıcının prompt()/confirm() yerine).
- *   askText(label, def, { type:'text'|'number', multiline, ok, cancel }) → Promise<string|null>
+ *   askText(label, def, { type:'text'|'number', multiline, ph, ok, cancel }) → Promise<string|null>
  *   askConfirm(msg, { ok, cancel })                                       → Promise<boolean>
  *   isOpen() · cancel()   geri tuşu için (app.onBack)
  * Kutu #app içinde durur: tema, yazı ölçeği (--fs) ve eldiven modu kendiliğinden uygulanır.
@@ -73,9 +73,10 @@ export function askText(label, def = '', opts = {}) {
   const q = fromQueue('text', label); if (q !== undefined) return Promise.resolve(q);
   const o = opts || {};
   const val = escA(def == null ? '' : def);
+  const ph = o.ph ? ` placeholder="${escA(o.ph)}"` : '';
   const field = o.multiline
-    ? `<textarea id="askIn" class="opt-text" rows="3">${val}</textarea>`
-    : `<input id="askIn" class="opt-text" type="text" value="${val}" autocomplete="off" ${o.type === 'number' ? 'inputmode="decimal"' : ''}${o.maxlength ? ` maxlength="${o.maxlength}"` : ''}>`;
+    ? `<textarea id="askIn" class="opt-text" rows="3"${ph}>${val}</textarea>`
+    : `<input id="askIn" class="opt-text" type="text" value="${val}" autocomplete="off"${ph} ${o.type === 'number' ? 'inputmode="decimal"' : ''}${o.maxlength ? ` maxlength="${o.maxlength}"` : ''}>`;
   return open('text', label, field, o);
 }
 /** Evet / hayır onayı */

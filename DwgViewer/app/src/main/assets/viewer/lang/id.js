@@ -249,4 +249,6 @@ export default {
   driveSetup: 'Nilai penyiapan', driveSetupHint: 'Google Cloud Console › Klien › \"Buat klien Android\" meminta dua nilai pertama. Alamat pengalihan diturunkan dari ID klien dan diperbarui di sini setelah ID diisi. Ketuk untuk menyalin.', pkgName: 'Nama paket', signSha1: 'SHA-1 tanda tangan', redirectUri: 'Alamat pengalihan',
   driveNoScope: 'Izin Drive tidak diberikan: sesi hanya mencakup nama dan surel. Keluar, masuk lagi, lalu setujui baris Drive di layar izin.', driveReauth: 'Keluar dan masuk lagi', driveApiOff: 'Google Drive API belum diaktifkan untuk proyek ini.',
   zoom100: '100%',
+  newFile: 'Berkas baru', newDrawing: 'Gambar (DXF)', newWord: 'Dokumen Word', newSheet: 'Lembar Excel', newPdf: 'Dokumen PDF', newText: 'Berkas teks', newCsv: 'Tabel CSV', newNamePh: 'nama berkas', newFail: 'Berkas baru tidak dapat dibuat', editAddRow: 'Baris', editAddCol: 'Kolom', editSheetNote: 'Hanya nilai sel yang dipertahankan pada salinan tersimpan; format, rumus, dan sel gabungan tidak ikut dipindahkan.',
+  editCsvBig: 'Tabel dipendekkan untuk ditampilkan; berkas disunting sebagai teks agar seluruh baris tetap utuh.',
 };

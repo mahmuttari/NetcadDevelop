@@ -16,6 +16,7 @@ import { t, setLang, getLang, applyI18n, LANGS, langInfo, resolveLang } from './
 import { askText, askConfirm, isOpen as askOpen, cancel as askCancel } from './dialog.js';
 import { initEditor, onScene as editorScene, tap as editorTap, back as editorBack, overlay as editorOverlay, onResize as editorResize, onTheme as editorTheme, editor } from './editor.js';
 import * as Docs from './docs.js';
+import * as New from './newdoc.js';
 import * as Drive from './drive.js';
 import * as Open from './open.js';
 import * as Ed from './edition.js';
@@ -1186,6 +1187,35 @@ function showGps() {
   $('gSet').onclick = showSettings;
 }
 
+// ---- yeni dosya ------------------------------------------------------------------------
+/**
+ * Yeni boş belge: tür seçilir, ad sorulur, dosya üretilip normal açma yolundan açılır.
+ * Düzenleme Pro özelliği olduğundan oluşturma da Pro'ya bağlıdır; ücretsizde Pro paneli açılır.
+ */
+function showNewDoc() {
+  if (!Ed.gate('docEdit')) return;
+  const html = `<div class="new-grid">${New.NEW_KINDS.map(k => `<button type="button" class="new-item" data-new="${k.id}"><svg class="ic" aria-hidden="true"><use href="#${k.icon}"/></svg><span>${esc(t(k.i18n))}</span><small>.${k.ext}</small></button>`).join('')}</div>`;
+  openDoc(tt('newFile', 'Yeni dosya'), html);
+  let busy = false;
+  $('docBody').onclick = async (ev) => {
+    const b = ev.target.closest('[data-new]'); if (!b || busy) return;
+    const id = b.dataset.new;
+    busy = true;
+    try { await createNew(id); } finally { busy = false; }
+  };
+  async function createNew(id) {
+    const name = await askText(tt('newFile', 'Yeni dosya'), New.defaultName(id), { ph: tt('newNamePh', 'dosya adı') });
+    if (!name) return;
+    const k = New.kindOfNew(id);
+    const full = name.toLowerCase().endsWith('.' + k.ext) ? name : name + '.' + k.ext;
+    hide('docPanel');
+    setLoading(t('loading'), full);
+    try { await New.createAndOpen(id, full, { openBlob: (f, n) => Docs.openBlob(f, n) }); }
+    catch (e) { console.warn(e); toast(tt('newFail', 'Yeni dosya oluşturulamadı') + ': ' + e.message, { type: 'error', ms: 6000 }); }
+    finally { setLoading(null); }
+  }
+}
+
 // ---- ayarlar ---------------------------------------------------------------------------
 /** Dil listesi: "Cihaz dili" + desteklenen diller (kendi yazımlarıyla). Seçim yoksa cihazın dili kullanılır. */
 function langOptions() {
@@ -1738,6 +1768,7 @@ function systemPick(purpose, mime) {
 }
 $('btnOpen').addEventListener('click', () => Open.open());
 $('btnOpen2').addEventListener('click', () => Open.open());
+$('btnNew2').addEventListener('click', showNewDoc);
 { const b = $('recentAll'); if (b) b.addEventListener('click', () => Open.open('recent')); }
 $('fileInput').addEventListener('change', async (ev) => { const f = ev.target.files && ev.target.files[0]; if (!f) return; await fileForPurpose('open', f); ev.target.value = ''; });
 
@@ -1794,7 +1825,7 @@ window.dwgApp = { loadCurrent, onFilePicked, onLocation, onBack, loadBytes, zoom
   onQr: (text) => { try { const s = String(text || '').trim(); if (s) onQr(s); } catch (e) { console.warn(e); } },   // Android ACTION_SEND / EXTRA_TEXT
   onLocationError: (m) => { const perm = /kalıcı olarak reddedildi|permanently denied/i.test(String(m)); const openSet = A() && A().openAppSettings ? () => A().openAppSettings() : null;
     toast('GPS: ' + m, perm && openSet ? { ms: 8000, action: { label: tt('settings', 'Ayarlar'), fn: openSet } } : undefined); },
-  display: D, toast, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, savePng, getSettings: () => settings, requestRender, openDisplayOptions, showSettings,
+  display: D, toast, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, savePng, getSettings: () => settings, requestRender, openDisplayOptions, showSettings, showNewDoc,
   docs: Docs, drive: Drive, onGoogle: (ok, json) => Drive.onGoogle(ok, json), onDrive: (id, ok, json) => Drive.onDrive(id, ok, json), onDriveProgress: (id, d, tot) => Drive.onProgress(id, d, tot), openDrive: () => Drive.open(),
   open: Open, openCenter: (tab) => Open.open(tab), onFsRoot: (obj) => Open.onFsRoot(obj), onFs: (id, ok, json) => Open.onFs(id, ok, json),
   home: Home, cloud: Cloud, onWebDav: (id, ok, json) => Cloud.onWebDav(id, ok, json), goHome, refreshMenu,
@@ -1818,7 +1849,7 @@ Drive.initDrive({ toast, openDoc, hide, show, esc, kv, hideToast: () => { $('toa
 $('btnDrive').addEventListener('click', () => Drive.open());
 Open.initOpen({ toast, loadBytes, openBlob: (f) => Docs.openBlob(f), fileForPurpose, onFilePicked, showServer, startQr, openDrive: () => Drive.open(), systemPick, refreshRecent: buildRecent,
   onOpen: () => { closeMenu(); Drive.close(); hide('docPanel'); } });
-Home.initHome({ toast, openDoc, hide, kv, hideToast: () => { $('toast').hidden = true; }, menuAction, editorAct: (a) => edCall('act', a), click: (id) => { const b = $(id); if (b) b.click(); }, openProPanel: () => Ed.openProPanel(),
+Home.initHome({ toast, openDoc, hide, kv, newDoc: showNewDoc, hideToast: () => { $('toast').hidden = true; }, menuAction, editorAct: (a) => edCall('act', a), click: (id) => { const b = $(id); if (b) b.click(); }, openProPanel: () => Ed.openProPanel(),
   openCenter: (tab) => Open.open(tab), systemPick, openDrive: () => Drive.open(), showServer, openRegistered: (info) => Docs.openRegistered(info), refreshRecent: buildRecent,
   onShow: () => { closeMenu(); Drive.close(); Open.close(); for (const id of openPanels()) hide(id); if (S.notesOn) toggleNotes(false); if (S.mode !== 'view') setMode('view'); cancelZoomWindow(); refreshMenu(); buildRecent(); },   // Son dosyalar ızgarası her gösterimde tazelenir (tarayıcıda oturum listesi)
   onHide: () => { refreshMenu(); requestRender(); } });

@@ -28,6 +28,7 @@ const ui = { tab: 'ev', fseg: 'local', shown: false };
 
 /** Araç tanımları: run(api) — menü eylemi, şerit eylemi ya da üst çubuk düğmesi */
 export const TOOLS = [
+  { id: 'new', icon: 'i-file-add', i18n: 'newFile', pro: true, run: (a) => a.newDoc() },
   { id: 'pdf', icon: 'i-pdf', i18n: 'toolPdf', pro: true, needsDoc: true, run: (a) => a.menuAction('pdf') },
   { id: 'png', icon: 'i-image', i18n: 'toolPng', needsDoc: true, run: (a) => a.menuAction('png') },
   { id: 'savedxf', icon: 'i-save', i18n: 'toolDxf', pro: true, needsDoc: true, run: (a) => a.editorAct('savedxf') },

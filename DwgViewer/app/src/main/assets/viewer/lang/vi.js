@@ -249,4 +249,6 @@ export default {
   driveSetup: 'Giá trị thiết lập', driveSetupHint: 'Google Cloud Console › Ứng dụng khách › «Tạo ứng dụng khách Android» yêu cầu hai giá trị đầu. Địa chỉ chuyển hướng sinh ra từ mã ứng dụng khách và sẽ cập nhật ở đây khi mã được nhập. Chạm để sao chép.', pkgName: 'Tên gói', signSha1: 'SHA-1 của chữ ký', redirectUri: 'Địa chỉ chuyển hướng',
   driveNoScope: 'Chưa cấp quyền Drive: phiên đăng nhập chỉ gồm tên và email. Hãy đăng xuất, đăng nhập lại và chấp nhận dòng Drive trên màn hình cấp quyền.', driveReauth: 'Đăng xuất và đăng nhập lại', driveApiOff: 'Google Drive API chưa được bật cho dự án này.',
   zoom100: '100%',
+  newFile: 'Tệp mới', newDrawing: 'Bản vẽ (DXF)', newWord: 'Tài liệu Word', newSheet: 'Trang tính Excel', newPdf: 'Tài liệu PDF', newText: 'Tệp văn bản', newCsv: 'Bảng CSV', newNamePh: 'tên tệp', newFail: 'Không thể tạo tệp mới', editAddRow: 'Hàng', editAddCol: 'Cột', editSheetNote: 'Bản sao được lưu chỉ giữ giá trị ô; định dạng, công thức và ô đã gộp không được chuyển sang.',
+  editCsvBig: 'Bảng đã được rút gọn để hiển thị; tệp được sửa dưới dạng văn bản để giữ lại mọi hàng.',
 };
