@@ -79,7 +79,7 @@ await setLang('en');
   await setLang('tr');
   await page.click('#btnMore'); await page.click('#moreMenu [data-act="about"]'); await page.waitForTimeout(200);
   const at = (await page.locator('#docBody').innerText()).replace(/\n/g, ' | ');
-  ok('2b Hakkında TR: sürüm satırı, Klavye, Üçüncü taraf, ACIS', /DWG Görüntüleyici web/.test(at) && /Klavye/.test(at) && /Üçüncü taraf/.test(at) && /ACIS/.test(at) && /Hata kaydını paylaş/.test(at), at.slice(0, 160));
+  ok('2b Hakkında TR: sürüm satırı, Klavye, Üçüncü taraf, ACIS', /DWG OfficeZip web/.test(at) && /Klavye/.test(at) && /Üçüncü taraf/.test(at) && /ACIS/.test(at) && /Hata kaydını paylaş/.test(at), at.slice(0, 160));
   await shot('i_about_tr');
   await ev(() => window.dwgApp.onBack());
 }

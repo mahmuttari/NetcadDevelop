@@ -1,5 +1,5 @@
 /*
- * DWG Görüntüleyici – uygulama: yükleme, çizim döngüsü, dokunma, paneller ve araçlar.
+ * DWG OfficeZip – uygulama: yükleme, çizim döngüsü, dokunma, paneller ve araçlar.
  * Çözümleme worker.js'te, geometri geom.js'te, çizim render.js'te.
  */
 import { S, toWorld, toScreen, fitView, zoomAtScreen, visibleRect, UNITS, UNIT_TO_M, fmt, fmtUnit, store } from './state.js';
@@ -53,7 +53,7 @@ function showNoFaces() {
 /** katı tanılama metni: sürümler, AcDs özeti, katı başına ham veri boyutu ve ilk katıların base64 örneği */
 function solidDiagText() {
   const d = (S.scene && S.scene.solidDiag) || { solids: 0, faces: 0, approx: 0, skipped: 0, surfaces: {}, versions: [], unknownTags: [], errors: [], acds: null, samples: [] };
-  const L = [`DWG Görüntüleyici ${A() && A().versionCode ? 'v' + A().versionCode() : ''} — katı tanılaması`, `Dosya: ${S.fileName}  Sürüm: ${S.version}`,
+  const L = [`DWG OfficeZip ${A() && A().versionCode ? 'v' + A().versionCode() : ''} — katı tanılaması`, `Dosya: ${S.fileName}  Sürüm: ${S.version}`,
     `Sahne varlık türleri: ${JSON.stringify(S.counts || {})}`, `DWG nesne türleri (LibreDWG): ${JSON.stringify((S.scene && S.scene.census) || {})}`,
     `Katı: ${d.solids}  Yüzey: ${d.faces} (yaklaşık ${d.approx})  Atlanan: ${d.skipped}`, `Yüzey türleri: ${JSON.stringify(d.surfaces)}`, `ACIS sürümleri: ${d.versions.join(', ') || '-'}`,
     `Bilinmeyen SAB etiketleri: ${d.unknownTags.join(' ') || '-'}`, `AcDs: ${JSON.stringify(d.acds)}`, 'Hatalar:', ...d.errors.map(e => '  ' + e), 'Katılar:'];
@@ -1562,7 +1562,7 @@ function buildPdf(jpegB64, pw, ph, wmm, hmm, title) {
   const img = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) img[i] = bin.charCodeAt(i);
   push(img); push('\nendstream\nendobj\n');
   const esc2 = (s) => s.replace(/[^\x20-\x7e]/g, '?').replace(/[()\\]/g, '\\$&');
-  obj(6, `<< /Title (${esc2(title)}) /Producer (DWG Goruntuleyici) /CreationDate (D:${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}) >>`);
+  obj(6, `<< /Title (${esc2(title)}) /Producer (DWG OfficeZip) /CreationDate (D:${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}) >>`);
   const xrefPos = offset;
   let x = 'xref\n0 7\n0000000000 65535 f \n';
   for (let i = 1; i <= 6; i++) x += String(xref[i]).padStart(10, '0') + ' 00000 n \n';

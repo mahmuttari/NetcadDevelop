@@ -1,5 +1,5 @@
 // Sürüm tutarlılığı denetimi: app/build.gradle ↔ release/version.json ↔ README başlığı ↔ (varsa) release APK'sı
-// (release/DwgGoruntuleyici.apk: paket adı com.mahmuttari.dwgviewer, etiket "DWG Görüntüleyici").
+// (release/DwgGoruntuleyici.apk: paket adı com.mahmuttari.dwgviewer, etiket "DWG OfficeZip").
 // Kullanım: node tools/release_check.mjs [--no-apk] [--apk <yol>] [--aapt <yol>]
 //   --no-apk : APK denetimini atla (CI'da APK derlenmeden önce)
 //   --apk    : verilen APK'yı denetle (paket adı ve etiket yine sınanır)
@@ -14,7 +14,7 @@ const argv = process.argv.slice(2);
 const opt = (k) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : undefined; };
 const noApk = argv.includes('--no-apk');
 // tek uygulama: Pro yetkisi çalışma zamanında (Play satın alması / lisans kodu), APK ve paket adı tektir
-const PAKET = 'com.mahmuttari.dwgviewer', ETIKET = 'DWG Görüntüleyici';
+const PAKET = 'com.mahmuttari.dwgviewer', ETIKET = 'DWG OfficeZip';
 const APKS = [{ ad: 'APK', yol: path.resolve(projectRoot, opt('--apk') || 'release/DwgGoruntuleyici.apk'), paket: PAKET, etiket: ETIKET }];
 const problems = [];
 const bad = (m) => { problems.push(m); console.log('FARK  ' + m); };

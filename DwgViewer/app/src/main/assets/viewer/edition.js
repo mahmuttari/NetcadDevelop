@@ -54,6 +54,7 @@ export const PRO_ONLY = new Set([
   't:select', 't:move', 't:copy', 't:rotate', 't:scale', 't:mirror', 't:offset', 't:del', 't:setz', 't:edittext',   // düzenleme
   '3:move', '3:setz', '3:del', '3:pline',                                             // 3B düzenleme / 3B çizim
   'props', 'layer', 'color', 'profile', 'notes', 'savedxf', 'savedelta', 'pdf', 'compare', 'undo', 'redo',   // karolar / menü
+  'docEdit',                                                                          // PDF ve Word düzenleme (belge görünümü)
   'driveUpload',                                                                      // Drive'a yükleme (belge eylemi, Drive paneli, toast eylemi)
 ]);
 

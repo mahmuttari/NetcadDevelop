@@ -1,4 +1,4 @@
-# DWG Görüntüleyici – R8 kuralları
+# DWG OfficeZip – R8 kuralları
 
 # JS köprüsü: WebView yöntemleri adıyla çağırır; @JavascriptInterface yöntemleri ve adları korunur
 -keepclassmembers class com.mahmuttari.dwgviewer.MainActivity$Bridge {

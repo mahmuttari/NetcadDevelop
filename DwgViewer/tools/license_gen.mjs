@@ -1,4 +1,4 @@
-// DWG Görüntüleyici çevrimdışı Pro lisans kodu aracı (Node 22, yalnız node:crypto).
+// DWG OfficeZip çevrimdışı Pro lisans kodu aracı (Node 22, yalnız node:crypto).
 //
 //   node tools/license_gen.mjs keygen --out <özel.pem>
 //       RSA-2048 anahtar çifti üretir; özel anahtarı PEM (PKCS#8) olarak dosyaya yazar, açık anahtarı Base64 X.509

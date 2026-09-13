@@ -57,7 +57,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * DWG Görüntüleyici – Android kabuğu.
+ * DWG OfficeZip – Android kabuğu.
  *
  * Çizim işi WebView içindeki HTML/JS'te yapılır. Bu sınıf:
  *  1. assets/viewer sayfasını sahte bir https kökünden sunar,
@@ -775,7 +775,7 @@ public class MainActivity extends Activity {
             }
             if (fine || coarse) startLocation();
             else if (!shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_COARSE_LOCATION))
-                js("window.dwgApp && window.dwgApp.onLocationError('konum izni kalıcı olarak reddedildi; Ayarlar > Uygulamalar > DWG Görüntüleyici > İzinler yolundan verin')");
+                js("window.dwgApp && window.dwgApp.onLocationError('konum izni kalıcı olarak reddedildi; Ayarlar > Uygulamalar > DWG OfficeZip > İzinler yolundan verin')");
             else js("window.dwgApp && window.dwgApp.onLocationError('konum izni verilmedi')");
         } else if (requestCode == REQ_CAMERA && pendingCameraRequest != null) {
             boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;

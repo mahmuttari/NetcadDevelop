@@ -29,7 +29,7 @@ sorusunu sorar. Cevap somut olmalı, "dosyalara erişmek için" gibi genel ifade
 
 > **Scope requested:** `https://www.googleapis.com/auth/drive`
 >
-> DWG Viewer is an offline CAD and document viewer for surveying and infrastructure
+> DWG OfficeZip is an offline CAD and document viewer for surveying and infrastructure
 > engineers. Users keep their project drawings (DWG, DXF) and related documents (PDF,
 > Word, Excel) in their own Google Drive, typically in folders shared by their employer
 > or by project partners.

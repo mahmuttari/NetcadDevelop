@@ -17,6 +17,9 @@ import { CP857, decodeCp } from './codepage.js';
 import { isPro } from './edition.js';
 import { docToHtml } from './doc.js';
 import { sniffDoc, sniffHint, rtfToHtml, htmlToParts, mhtmlParts, decodeHtmlBytes } from './docalt.js';
+import * as PdfEdit from './pdfedit.js';
+import * as DocEdit from './docedit.js';
+import { askText, askConfirm } from './dialog.js';
 
 const $ = (id) => document.getElementById(id);
 const tt = (k, tr) => { const v = t(k); return v === k ? tr : v; };
@@ -306,8 +309,10 @@ export function initDocs(a) {
   els = { view: $('docView'), name: $('docName'), meta: $('docMeta'), acts: $('docActs'), tools: $('docTools'), body: $('docContent') };
   if (!els.view) return;
   els.view.addEventListener('click', (ev) => {
+    const pe = ev.target.closest('[data-pe]'); if (pe) { onEditAction(pe); return; }
     const b = ev.target.closest('[data-doc]'); if (!b) return;
     const k = b.dataset.doc;
+    if (k === 'edit') { startEdit(cur); return; }
     if (k === 'close') close(); else if (k === 'back') back();
     else if (k === 'share') share(false); else if (k === 'open') share(true); else if (k === 'keep') keep(); else if (k === 'drive') call(api.driveUpload, cur);
     else if (k === 'convert') call(api.driveConvert, cur);
@@ -383,6 +388,7 @@ function renderActs(d) {
 export function close() {
   if (!els || !els.view) return false;
   if (!isOpen()) return false;
+  if (editing) { cancelEdit(); return true; }
   if (cur && cur.kind === 'pdf' && A() && A().pdfClose) try { A().pdfClose(); } catch (_) { /* yok */ }
   stack.length = 0; cur = null;
   els.view.hidden = true; document.body.classList.remove('docmode'); els.body.innerHTML = '';
@@ -391,6 +397,7 @@ export function close() {
 }
 export function back() {
   if (!isOpen()) return false;
+  if (editing) { cancelEdit(); return true; }
   if (!stack.length) return close();
   const prev = stack.pop();
   show(prev, { replace: true });
@@ -410,12 +417,13 @@ async function showPdf(d) {
     const info = JSON.parse(A().pdfInfo(d.id) || '{}');
     if (info.error) throw new Error(info.error);
     d.pdf = { pages: info.pages, sizes: info.sizes };
-    els.tools.innerHTML = `<button type="button" class="btn small" data-doc="pdfprev" aria-label="${esc(tt('prevPage', 'Önceki sayfa'))}">${ICON('i-arrow-up')}</button><span class="doc-page"><input id="pdfPageIn" type="number" min="1" max="${info.pages}" value="1" inputmode="numeric"> / ${info.pages}</span><button type="button" class="btn small" data-doc="pdfnext" aria-label="${esc(tt('nextPage', 'Sonraki sayfa'))}">${ICON('i-arrow-down')}</button><span class="sp"></span><button type="button" class="btn small" data-doc="zout" aria-label="−">${ICON('i-zoom-out')}</button><button type="button" class="btn small" data-doc="zfit">${esc(tt('fitWidth', 'Sığdır'))}</button><button type="button" class="btn small" data-doc="zin" aria-label="+">${ICON('i-zoom-in')}</button>`;
+    els.tools.innerHTML = `<button type="button" class="btn small" data-doc="pdfprev" aria-label="${esc(tt('prevPage', 'Önceki sayfa'))}">${ICON('i-arrow-up')}</button><span class="doc-page"><input id="pdfPageIn" type="number" min="1" max="${info.pages}" value="1" inputmode="numeric"> / ${info.pages}</span><button type="button" class="btn small" data-doc="pdfnext" aria-label="${esc(tt('nextPage', 'Sonraki sayfa'))}">${ICON('i-arrow-down')}</button><span class="sp"></span><button type="button" class="btn small" data-doc="zout" aria-label="−">${ICON('i-zoom-out')}</button><button type="button" class="btn small" data-doc="zfit">${esc(tt('fitWidth', 'Sığdır'))}</button><button type="button" class="btn small" data-doc="zin" aria-label="+">${ICON('i-zoom-in')}</button>` + editBtn();
     $('pdfPageIn').addEventListener('change', (ev) => pdfGoto(+ev.target.value - 1));
     pdfLayout(d);
     return;
   }
-  // tarayıcı: yerleşik görüntüleyici
+  // tarayıcı: yerleşik görüntüleyici (düzenleme düğmesi yine çalışır; düzenleyici sayfa geometrisini pdf-lib'den alır)
+  els.tools.innerHTML = editBtn();
   const url = urlOf(d);
   els.body.innerHTML = `<embed class="doc-embed" src="${esc(url)}" type="application/pdf">`;
 }
@@ -495,6 +503,7 @@ async function showDocx(d) {
     d.fmt = fmt; els.meta.textContent = [fmtSize(d.size), { ole: 'Word 97-2003', zip: 'Word', rtf: 'RTF', html: 'Word HTML', mhtml: 'Word MHTML', text: tt('docText', 'Metin') }[fmt] || ''].filter(Boolean).join(' · ');
   } else r = await docxToHtml(await arcFor(d));
   d.warn = (r.warnings || []).join(' · ');
+  d.docxPage = r.page;   // düzenleme çıktısındaki sayfa boyutu için
   d.layout = d.layout || (store.get('doc:docxLayout') === 'flow' ? 'flow' : 'page'); d.zoom = d.zoom || 1; d.pzoom = d.pzoom || 0;   // pzoom 0 = genişliğe sığdır
   const parts = r.parts || [r.html];
   const foot = (upto) => upto < parts.length ? `<span class="muted">${parts.length} ${esc(tt('blocksOfFirst', 'bloğun ilk'))} ${upto}</span><button type="button" class="btn small" data-more="${Math.min(parts.length, upto * 2)}">${esc(tt('loadMore', 'Daha fazla'))}</button>` : '';
@@ -514,7 +523,7 @@ async function showDocx(d) {
 }
 function docxTools(d) {
   const page = d.layout === 'page';
-  els.tools.innerHTML = `<button type="button" class="btn small" data-doc="layout" data-layout="${d.layout}" title="${esc(page ? tt('docLayoutFlow', 'Akış görünümü') : tt('docLayoutPage', 'Sayfa görünümü'))}">${ICON(page ? 'i-text' : 'i-layout')} ${esc(page ? tt('docFlow', 'Akış') : tt('docPage', 'Sayfa'))}</button><span class="sp"></span><button type="button" class="btn small" data-doc="zout" aria-label="−">${ICON('i-zoom-out')}</button><button type="button" class="btn small" data-doc="zfit">${esc(tt('fitWidth', 'Sığdır'))}</button><button type="button" class="btn small" data-doc="zin" aria-label="+">${ICON('i-zoom-in')}</button>` + (api && api.driveAvailable && api.driveAvailable() ? `<button type="button" class="btn small" data-doc="convert">${esc(tt('drivePdf', "Drive ile PDF'e çevir"))}</button>` : '') + (d.warn ? `<span class="muted doc-warn" title="${esc(d.warn)}">${esc(d.warn)}</span>` : '');
+  els.tools.innerHTML = `<button type="button" class="btn small" data-doc="layout" data-layout="${d.layout}" title="${esc(page ? tt('docLayoutFlow', 'Akış görünümü') : tt('docLayoutPage', 'Sayfa görünümü'))}">${ICON(page ? 'i-text' : 'i-layout')} ${esc(page ? tt('docFlow', 'Akış') : tt('docPage', 'Sayfa'))}</button><span class="sp"></span><button type="button" class="btn small" data-doc="zout" aria-label="−">${ICON('i-zoom-out')}</button><button type="button" class="btn small" data-doc="zfit">${esc(tt('fitWidth', 'Sığdır'))}</button><button type="button" class="btn small" data-doc="zin" aria-label="+">${ICON('i-zoom-in')}</button>` + (api && api.driveAvailable && api.driveAvailable() ? `<button type="button" class="btn small" data-doc="convert">${esc(tt('drivePdf', "Drive ile PDF'e çevir"))}</button>` : '') + editBtn() + (d.warn ? `<span class="muted doc-warn" title="${esc(d.warn)}">${esc(d.warn)}</span>` : '');
 }
 /** Kip değişimi (araç satırı düğmesi): hatırlanır, belge yeniden basılır */
 function docxSetLayout(mode) { const d = cur; if (!d || !isWord(d.kind) || !d.docxRender) return; d.layout = mode; store.set('doc:docxLayout', mode); d.pg = null; els.body.scrollTop = 0; d.docxRender(DOCX_PAGE); }
@@ -659,6 +668,138 @@ function otherActions(d) {
   if (A() && A().docShare && d.id) h += `<button type="button" class="btn small" data-doc="open">${esc(tt('docOpenWith', 'Başka uygulamayla aç'))}</button><button type="button" class="btn small" data-doc="share">${esc(tt('share', 'Paylaş'))}</button>`;
   return h + '</div>';
 }
+// ---- düzenleme (Pro) ------------------------------------------------------------------
+/*
+ * PDF ve Word düzenleme tek kapıdan geçer: kind 'pdf' ise pdfedit.js açıklama katmanı, Word türlerinde
+ * docedit.js contenteditable akış düzenleyicisi. İkisinde de özgün dosya değişmez; "Kaydet" yeni bir dosya
+ * üretip paylaşır. Ücretsiz sürümde düğme hiç görünmez.
+ */
+let editing = null;
+const editable = (k) => k === 'pdf' || isWord(k);
+function editBtn() {
+  if (!cur || !editable(cur.kind) || !isPro()) return '';
+  return `<span class="sp"></span><button type="button" class="btn small" data-doc="edit">${ICON('i-pen')} ${esc(tt('docEdit', 'Düzenle'))}</button>`;
+}
+const b64of = (u8) => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, Math.min(u8.length, i + 0x8000))); return btoa(s); };
+/** Üretilen dosyayı paylaşır ya da indirir */
+function saveOut(u8, name, mime) {
+  if (A() && A().saveFile) {
+    const r = A().saveFile(b64of(u8), name, mime, true);
+    api.toast(r ? tt('editSaved', 'Kaydedildi') + ': ' + r : tt('editSaveFail', 'Kaydedilemedi'), { type: r ? 'ok' : 'error', ms: 6000 });
+    return;
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([u8], { type: mime })); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  api.toast(tt('editSaved', 'Kaydedildi'), { type: 'ok' });
+}
+const outName = (d, ext) => d.name.replace(/\.[^.]+$/, '') + '_' + tt('editSuffix', 'duzenlendi') + '.' + ext;
+
+async function startEdit(d) {
+  if (!d || !editable(d.kind)) return;
+  if (!PdfEdit.canEdit()) return;   // Ücretsizde yükseltme kutusu açılır
+  els.body.classList.remove('paged');
+  try {
+    if (d.kind === 'pdf') {
+      const buf = await bytesOf(d);
+      const st = await PdfEdit.openEdit(buf);
+      const bg = (A() && A().pdfInfo && d.id) ? ((i, px) => `/file/pdfpage_${d.id}_${i}_${px}`) : (() => '');
+      els.body.innerHTML = '';
+      const surf = PdfEdit.mountSurface(els.body, st, { bg, onText: (def) => askText(tt('editTextLabel', 'Metin'), def || ''), onChange: () => { editing.touched = true; } });
+      editing = { kind: 'pdf', d, st, surf, buf, touched: false };
+      els.tools.innerHTML = PdfEdit.toolbarHtml(st);
+    } else {
+      if (d.layout !== 'flow') { d.layout = 'flow'; store.set('doc:docxLayout', 'flow'); d.pg = null; els.body.scrollTop = 0; d.docxRender(DOCX_PAGE); }
+      const root = els.body.querySelector('.docx-page');
+      if (!root) throw new Error(tt('editNoBody', 'Düzenlenecek içerik bulunamadı'));
+      const ed = DocEdit.mountEditor(root, { onDirty: () => { if (editing) editing.touched = true; } });
+      editing = { kind: 'word', d, root, ed, touched: false };
+      els.tools.innerHTML = wordToolbarHtml();
+    }
+    document.body.classList.add('editmode');
+  } catch (e) {
+    console.warn(e);
+    api.toast(tt('editFail', 'Düzenleme başlatılamadı') + ': ' + (e.message || e), { type: 'error', ms: 6000 });
+    editing = null;
+  }
+}
+function wordToolbarHtml() {
+  const b = (c, icon, label) => `<button type="button" class="btn small" data-pe="cmd" data-cmd="${c}" title="${esc(label)}" aria-label="${esc(label)}">${ICON(icon)}</button>`;
+  return b('bold', 'i-bold', tt('editBold', 'Kalın')) + b('italic', 'i-italic', tt('editItalic', 'İtalik')) + b('underline', 'i-underline', tt('editUnderline', 'Altı çizili'))
+    + `<span class="sp"></span>` + b('justifyLeft', 'i-align-left', tt('editAlignL', 'Sola hizala')) + b('justifyCenter', 'i-align-center', tt('editAlignC', 'Ortala')) + b('justifyRight', 'i-align-right', tt('editAlignR', 'Sağa hizala'))
+    + `<span class="sp"></span><button type="button" class="btn small" data-pe="find">${esc(tt('editFind', 'Bul ve değiştir'))}</button>`
+    + `<button type="button" class="btn small" data-pe="undo" title="${esc(t('undo'))}" aria-label="${esc(t('undo'))}">${ICON('i-undo')}</button>`
+    + `<span class="sp"></span><button type="button" class="btn small primary" data-pe="save">${esc(tt('editSave', 'Kaydet'))}</button>`
+    + `<button type="button" class="btn small" data-pe="cancel">${esc(t('cancel'))}</button>`;
+}
+async function onEditAction(btn) {
+  if (!editing) return;
+  const k = btn.dataset.pe, st = editing.st;
+  if (k === 'tool') { editing.surf.tool = btn.dataset.tool; els.tools.innerHTML = PdfEdit.toolbarHtml(st); return; }
+  if (k === 'color') { st.color = btn.dataset.color; els.tools.innerHTML = PdfEdit.toolbarHtml(st); return; }
+  if (k === 'width') { st.width = +btn.dataset.width; els.tools.innerHTML = PdfEdit.toolbarHtml(st); return; }
+  if (k === 'rotl') { const i = topPage(); if (i >= 0) { PdfEdit.rotatePage(st, i, -90); editing.touched = true; editing.surf.render(); } return; }
+  if (k === 'delpage') {
+    const i = topPage(); if (i < 0) return;
+    if (!(await askConfirm(tt('editDelPageAsk', 'Bu sayfa çıktıdan çıkarılsın mı?')))) return;
+    if (PdfEdit.deletePage(st, i)) { editing.touched = true; editing.surf.render(); }
+    else api.toast(tt('editLastPage', 'Son sayfa silinemez'), { type: 'error' });
+    return;
+  }
+  if (k === 'undo') { if (editing.kind === 'pdf') { if (PdfEdit.undo(st)) editing.surf.render(); } else editing.ed.cmd('undo'); return; }
+  if (k === 'zin' || k === 'zout' || k === 'zfit') { editing.surf.zoom(k === 'zin' ? 1.25 : k === 'zout' ? 0.8 : 0); return; }
+  if (k === 'cmd') { editing.ed.cmd(btn.dataset.cmd); return; }
+  if (k === 'find') {
+    const find = await askText(tt('editFindWhat', 'Aranacak'), '');
+    if (!find) return;
+    const repl = await askText(tt('editReplaceWith', 'Yerine'), '');
+    if (repl == null) return;
+    const n = DocEdit.replaceAll(editing.root, find, repl, false);
+    if (n) editing.touched = true;
+    api.toast(n ? n + ' ' + tt('editReplaced', 'yer değiştirildi') : t('noResult'), { type: n ? 'ok' : 'error' });
+    return;
+  }
+  if (k === 'save') { await saveEdit(); return; }
+  if (k === 'cancel') { await cancelEdit(); return; }
+}
+/** Görünümdeki etkin sayfanın model sırası; döndürme ve silme ona uygulanır (yüzey hesaplar, işaretler) */
+const topPage = () => (editing && editing.surf ? editing.surf.active() : -1);
+async function saveEdit() {
+  if (!editing) return;
+  const e = editing;
+  api.toast(tt('editSaving', 'Hazırlanıyor…'), { ms: 20000 });
+  try {
+    if (e.kind === 'pdf') {
+      const out = await PdfEdit.exportPdf(e.buf, e.st);
+      saveOut(out, outName(e.d, 'pdf'), 'application/pdf');
+    } else {
+      const out = await DocEdit.htmlToDocx(e.root, e.d.docxPage);
+      saveOut(out, outName(e.d, 'docx'), 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      if (e.d.kind === 'doc') api.toast(tt('editAsDocx', 'Belge DOCX olarak kaydedildi'), { ms: 5000 });
+    }
+    e.touched = false;
+    await endEdit(true);
+  } catch (err) {
+    console.warn(err);
+    api.toast(tt('editSaveFail', 'Kaydedilemedi') + ': ' + (err.message || err), { type: 'error', ms: 7000 });
+  }
+}
+async function cancelEdit() {
+  if (!editing) return;
+  if (editing.touched && !(await askConfirm(tt('editDiscardAsk', 'Yapılan değişiklikler atılsın mı?')))) return;
+  await endEdit(false);
+}
+async function endEdit(saved) {
+  const e = editing; editing = null;
+  document.body.classList.remove('editmode');
+  if (!e) return;
+  if (e.kind === 'word' && e.ed) e.ed.unmount();
+  if (e.kind === 'pdf' && e.surf && e.surf.unmount) e.surf.unmount();
+  await show(e.d, { replace: true });   // görünümü tazeden kur (düzenleme izleri kalmasın)
+  if (saved) api.toast(tt('editDone', 'Düzenleme bitti'), { type: 'ok' });
+}
+export const isEditing = () => !!editing;
+
 function showOther(d) {
   els.tools.innerHTML = '';
   const msg = d.kind === 'office' ? tt('docOfficeMsg', 'Bu biçim doğrudan görüntülenemiyor. Google Drive ile giriş yaptıysanız belge PDF\'e dönüştürülerek açılabilir; ya da başka bir uygulamaya gönderin.') : tt('docUnknown', 'Bu dosya türü tanınmıyor.');

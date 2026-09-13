@@ -59,7 +59,7 @@ const fakeBridge = (price) => {
     ok('1b2 Pro paneli başta kapalı', await ev(() => document.getElementById('proPanel').hidden === true));
     await page.click('#btnGoPro'); await page.waitForTimeout(80);
     const p = await panel();
-    ok('1c karşılama Pro düğmesi → #proPanel açılır: başlık, 10 özellik, fiyat, Satın al etkin, Geri yükle, Lisans kodu', p.open && p.vis && p.title === 'DWG Görüntüleyici Pro' && p.features === 10 && p.price === PRICE && p.buy && !p.buy.dis && p.buy.text === 'Satın al' && p.restore && p.license && p.status === null && p.note === null && /Pro tek seferlik/.test(p.text), JSON.stringify(p).slice(0, 300));
+    ok('1c karşılama Pro düğmesi → #proPanel açılır: başlık, 10 özellik, fiyat, Satın al etkin, Geri yükle, Lisans kodu', p.open && p.vis && p.title === 'DWG OfficeZip Pro' && p.features === 10 && p.price === PRICE && p.buy && !p.buy.dis && p.buy.text === 'Satın al' && p.restore && p.license && p.status === null && p.note === null && /Pro tek seferlik/.test(p.text), JSON.stringify(p).slice(0, 300));
     ok('1c2 panel URL açmaz, köprüye satın alma çağrısı gitmez', await ev(() => window.__opened.length === 0 && window.__proCalls.length === 0));
     await shot('pro_panel_free');
     const back = await ev(() => window.dwgApp.onBack());
@@ -252,11 +252,11 @@ const fakeBridge = (price) => {
       await page.click('#btnMore'); await page.click('#moreMenu [data-act="settings"]'); await page.waitForTimeout(100);
       await page.selectOption('#sLang', 'en'); await page.click('#sSave'); await page.waitForTimeout(150);
       const p = await panel();
-      ok('5u dil İngilizce → açık Pro paneli gövdesi İngilizce (başlık, açıklama, Buy)', p.open && p.title === 'DWG Viewer Pro' && /one-time purchase/.test(p.text) && !/Pro tek seferlik/.test(p.text) && p.buy && p.buy.text === 'Buy' && p.features === 10, JSON.stringify(p).slice(0, 200));
+      ok('5u dil İngilizce → açık Pro paneli gövdesi İngilizce (başlık, açıklama, Buy)', p.open && p.title === 'DWG OfficeZip Pro' && /one-time purchase/.test(p.text) && !/Pro tek seferlik/.test(p.text) && p.buy && p.buy.text === 'Buy' && p.features === 10, JSON.stringify(p).slice(0, 200));
       await page.click('#btnMore'); await page.click('#moreMenu [data-act="settings"]'); await page.waitForTimeout(100);
       await page.selectOption('#sLang', 'tr'); await page.click('#sSave'); await page.waitForTimeout(150);
       const p2 = await panel();
-      ok('5v dil Türkçe → panel gövdesi Türkçe', p2.open && p2.title === 'DWG Görüntüleyici Pro' && /Pro tek seferlik/.test(p2.text) && p2.buy && p2.buy.text === 'Satın al', JSON.stringify(p2).slice(0, 200));
+      ok('5v dil Türkçe → panel gövdesi Türkçe', p2.open && p2.title === 'DWG OfficeZip Pro' && /Pro tek seferlik/.test(p2.text) && p2.buy && p2.buy.text === 'Satın al', JSON.stringify(p2).slice(0, 200));
       await ev(() => window.dwgApp.onBack()); await page.waitForTimeout(50);
       ok('5w panel kapandı', (await panel()).open === false);
     }
