@@ -24,6 +24,7 @@ uniform mat4 uMVP; uniform float uZ; uniform float uPointSize; uniform vec2 uOff
 uniform int uColorMode; uniform vec3 uFg; uniform float uZmin; uniform float uZmax;
 uniform vec3 uClipMin; uniform vec3 uClipInv; uniform vec3 uEye; uniform vec2 uFadeRange;
 uniform float uJitter; uniform float uSeed; uniform float uHull; uniform int uFlat; uniform float uFlatZ;
+uniform vec3 uViewDir; uniform int uPersp; uniform float uHullBack;
 varying vec4 vCol; varying vec3 vNrm; varying vec3 vClip; varying float vFade; varying vec3 vPos;
 vec3 ramp(float t) {
   vec3 c0 = vec3(0.16, 0.36, 0.95), c1 = vec3(0.2, 0.8, 0.9), c2 = vec3(0.25, 0.82, 0.3), c3 = vec3(0.98, 0.85, 0.2), c4 = vec3(0.95, 0.25, 0.2);
@@ -41,6 +42,11 @@ void main() {
   if (uHull > 0.0) {                                   // siluet: kameradan uzak yöne şişirilmiş kabuk
     vec3 n = nS; if (dot(n, uEye - p3) > 0.0) n = -n;
     p3 += n * uHull;
+    // kabuk bakış doğrultusunda yüzün belirgin biçimde ARKASINA alınır (uHullBack x siluet kalınlığı). Böylece derinlik
+    // sırası sürücünün polygonOffset davranışına bağlı kalmaz: bazı mobil GPU'larda ofset yetersiz kalıp dik yüzler
+    // kabukla siyaha boyanıyordu. Paralelde ekran konumu değişmez, perspektifte kayma piksel altıdır.
+    vec3 vd = uPersp == 1 ? normalize(p3 - uEye) : uViewDir;
+    p3 += vd * uHull * uHullBack;
   }
   vec4 p = uMVP * vec4(p3, 1.0);
   p.xy += uOff * p.w;
@@ -82,6 +88,9 @@ void main() {
   if (uFade > 0.0) rgb = mix(rgb, uBg, uFade * vFade);
   gl_FragColor = vec4(rgb, vCol.a * uAlpha);
 }`;
+
+/** Siluet kabuğunun bakış doğrultusunda geri itilme payı (siluet kalınlığı katı): polygonOffset'ten bağımsız derinlik sırası */
+const HULL_BACK = 6;
 
 // ---- küçük matris kütüphanesi (sütun-öncelikli 4x4) ----
 function perspective(fovy, aspect, near, far) { const f = 1 / Math.tan(fovy / 2), nf = 1 / (near - far); return [f / aspect, 0, 0, 0, 0, f, 0, 0, 0, 0, (far + near) * nf, -1, 0, 0, 2 * far * near * nf, 0]; }
@@ -228,7 +237,7 @@ export class View3D {
     this.prog = prog; gl.useProgram(prog);
     this.aPos = gl.getAttribLocation(prog, 'aPos'); this.aCol = gl.getAttribLocation(prog, 'aCol'); this.aNrm = gl.getAttribLocation(prog, 'aNrm');
     this.u = {};
-    for (const n of ['uMVP', 'uZ', 'uPointSize', 'uOff', 'uColorMode', 'uFg', 'uZmin', 'uZmax', 'uClipMin', 'uClipInv', 'uEye', 'uFadeRange', 'uAlpha', 'uOverride', 'uClip', 'uLit', 'uLightDir', 'uAmbient', 'uIntensity', 'uFade', 'uBg', 'uJitter', 'uSeed', 'uHull', 'uFlat', 'uFlatZ', 'uShade', 'uGray']) this.u[n] = gl.getUniformLocation(prog, n);
+    for (const n of ['uMVP', 'uZ', 'uPointSize', 'uOff', 'uColorMode', 'uFg', 'uZmin', 'uZmax', 'uClipMin', 'uClipInv', 'uEye', 'uFadeRange', 'uAlpha', 'uOverride', 'uClip', 'uLit', 'uLightDir', 'uAmbient', 'uIntensity', 'uFade', 'uBg', 'uJitter', 'uSeed', 'uHull', 'uFlat', 'uFlatZ', 'uShade', 'uGray', 'uViewDir', 'uPersp', 'uHullBack']) this.u[n] = gl.getUniformLocation(prog, n);
   }
   /** WebGL bağlam kaybı: preventDefault ile geri verilmesi istenir; geri gelince her şey yeniden kurulur */
   _bindContext() {
@@ -708,7 +717,10 @@ export class View3D {
     const near = Math.max(this.radius * 1e-6, c.dist * 0.002), far = c.dist * 10 + this.radius * 10;
     const fov = clamp(this.opts.fov, 10, 120) * Math.PI / 180;
     const hh = c.dist * Math.tan(fov / 2);
-    const proj = c.persp ? perspective(fov, aspect, near, far) : ortho(-hh * aspect, hh * aspect, -hh, hh, -far, far);
+    // paralel: derinlik aralığı modele sığacak kadar (göz ± uzaklık + 2,5 yarıçap); eski 20 x uzaklık aralığı 16 bit derinlik
+    // tamponlu cihazlarda siluet kabuğu ile yüzleri aynı derinlik basamağına düşürüp dik yüzleri karartıyordu
+    const ofar = c.dist + this.radius * 2.5;
+    const proj = c.persp ? perspective(fov, aspect, near, far) : ortho(-hh * aspect, hh * aspect, -hh, hh, -ofar, ofar);
     return mul4(proj, view);
   }
   /** hedef uzaklığında bir CSS pikselinin dünya birimi karşılığı (paralelde tam, perspektifte hedef düzleminde) */
@@ -763,6 +775,7 @@ export class View3D {
     gl.uniform1f(u.uZmin, this.zrange[0] - this.origin[2]); gl.uniform1f(u.uZmax, this.zrange[1] - this.origin[2]);
     const e = this._eye(c);
     gl.uniform3f(u.uEye, e[0] - this.origin[0], e[1] - this.origin[1], e[2] - this.origin[2] * this.zScale);
+    { const tg = e[3]; const vd = [tg[0] - e[0], tg[1] - e[1], tg[2] - e[2]]; const L = Math.hypot(vd[0], vd[1], vd[2]) || 1; gl.uniform3f(u.uViewDir, vd[0] / L, vd[1] / L, vd[2] / L); gl.uniform1i(u.uPersp, c.persp ? 1 : 0); }   // siluet kabuğunun geri itileceği bakış doğrultusu
     gl.uniform2f(u.uFadeRange, Math.max(0, c.dist - this.radius * 0.5), c.dist + this.radius * 1.5);
     gl.uniform1f(u.uFade, o.depthFade ? 0.75 : 0);
     // kesit
@@ -804,12 +817,13 @@ export class View3D {
     if (fx.silhouette && this._n.tris && fx.faces !== 'none' && fx.faces !== 'xray') {
       this._ensureSmooth();
       gl.uniform1f(u.uHull, this._worldPerPixel(c) * o.silhouetteWidth);   // piksel cinsinden siluet kalınlığı (yakınlaşınca kalınlaşmaz)
+      gl.uniform1f(u.uHullBack, HULL_BACK);                                // kabuk bakış doğrultusunda bu kadar siluet kalınlığı geriye (gölgelendiriciye bkz.)
       gl.uniform4f(u.uOverride, darkEdge[0], darkEdge[1], darkEdge[2], 1);
       // kabuk derinlikte yüzlerin ARKASINA itilir: yüzler (1,1) ofsetiyle çizildiğinden dik yüzlerde kabuk öne geçip yüzü karartmasın
       gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(4, 8);
       this._draw('tris', gl.TRIANGLES, 1, true, true);
       gl.disable(gl.POLYGON_OFFSET_FILL);
-      gl.uniform1f(u.uHull, 0); gl.uniform4f(u.uOverride, 0, 0, 0, 0);
+      gl.uniform1f(u.uHull, 0); gl.uniform1f(u.uHullBack, 0); gl.uniform4f(u.uOverride, 0, 0, 0, 0);
     }
     if (fx.faces === 'bg') {
       gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(1, 1);

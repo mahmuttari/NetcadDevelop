@@ -157,6 +157,37 @@ for (const f of ['pface.dxf', 'pface_2000.dwg', 'pface_2018.dwg']) {
   await page.screenshot({ path: `${out}/realistic_cube.png` });
 }
 
+// ---- 5b. siluet kabuğu derinlik sırası polygonOffset'e bağlı olmamalı: sürücü ofseti yok sayılsa da (mobil GPU) dik yüzler
+//          Gooch tonunda kalır, siluet çizgisi küpün dışında görünür; paralel ve perspektif, kullanıcının bakış açısı (yaw -40°, pitch 33°) ----
+{
+  await open(path.join(out, 'kup.dxf'));
+  const rr = await page.evaluate(() => {
+    const v = window.dwgApp.editor.view3d(); v.set('grid', false); v.set('axes', false); v.set('style', 'conceptual');
+    const gl = v.gl, orig = gl.polygonOffset; gl.polygonOffset = () => {};   // sürücü ofseti etkisiz
+    const res = {};
+    try {
+      for (const persp of [false, true]) {
+        v.set('persp', persp); v.preset('isoNE', { animate: false }); v.fit({ animate: false }); v.cam.yaw = -40 * Math.PI / 180; v.cam.pitch = 33 * Math.PI / 180; v.render();
+        const cv = v.cv, c = document.createElement('canvas'); c.width = cv.width; c.height = cv.height; const gc = c.getContext('2d'); gc.drawImage(cv, 0, 0);
+        const dpr = cv.width / cv.clientWidth;
+        const at = (sx, sy) => { const d = gc.getImageData(Math.round(sx * dpr), Math.round(sy * dpr), 1, 1).data; return [d[0], d[1], d[2]]; };
+        const px = (x, y, z) => { const p = v.project(x, y, z); return at(p[0], p[1]); };
+        // siluet: en sağdaki dikey kenarın orta noktasından dışa (sağa) doğru 1..5 px içinde koyu piksel
+        const e = [[0, 0, 5], [10, 0, 5], [10, 10, 5], [0, 10, 5]].map(q => v.project(...q)).reduce((a, p) => p[0] > a[0] ? p : a); let outline = null;
+        for (let d = 1; d <= 5; d++) { const q = at(e[0] + d, e[1]); if (q[0] + q[1] + q[2] < 60) { outline = d; break; } }
+        res[persp ? 'persp' : 'ortho'] = { top: px(5, 5, 10), sideX: px(10, 5, 5), sideY: px(5, 10, 5), outline };
+      }
+    } finally { gl.polygonOffset = orig; v.set('persp', true); v.render(); }
+    return res;
+  });
+  const bright = (c) => c[0] + c[1] + c[2];
+  for (const k of ['ortho', 'persp']) {
+    const r = rr[k];
+    ok(`5b ${k}: polygonOffset yokken dik yüzler siyah değil (kabuk bakış doğrultusunda geride)`, bright(r.sideX) > 90 && bright(r.sideY) > 90 && bright(r.top) > 90, JSON.stringify(r));
+    ok(`5b ${k}: siluet çizgisi küpün dışında görünür`, r.outline != null, JSON.stringify(r));
+  }
+}
+
 C.summary(errors);
 await browser.close(); srv.kill();
 C.exit();
