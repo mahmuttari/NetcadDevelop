@@ -248,4 +248,5 @@ export default {
   perspShort: '透视', orthoShort: '正交',
   driveSetup: '配置所需的值', driveSetupHint: 'Google Cloud Console › 客户端 ›「创建 Android 客户端」只要求前两个值。重定向地址由客户端 ID 推导而来，填入 ID 后会在此更新。点按即可复制。', pkgName: '软件包名称', signSha1: '签名 SHA-1', redirectUri: '重定向地址',
   driveNoScope: '未授予 Drive 权限：本次登录只包含姓名和电子邮件。请退出后重新登录，并在授权页面同意 Drive 那一行。', driveReauth: '退出并重新登录', driveApiOff: '此项目尚未启用 Google Drive API。',
+  zoom100: '100%',
 };

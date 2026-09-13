@@ -45,6 +45,14 @@ const xlsx = makeZip([['xl/workbook.xml', `<workbook xmlns="http://schemas.openx
 const dwgBytes = fs.readFileSync(path.join(SM, 'test_tr.dxf'));
 const zip = makeZip([['pafta/plan.dxf', dwgBytes], ['pafta/notlar.txt', 'satır 1\nsatır 2\n'], ['rapor.docx', docx], ['veri.csv', 'ad;x;y\nB1;100;200\nB2;150;250\n']]);
 fs.writeFileSync(path.join(out, 'ornek.zip'), zip); fs.writeFileSync(path.join(out, 'rapor.docx'), docx); fs.writeFileSync(path.join(out, 'metraj.xlsx'), xlsx);
+// geniş + uzun sayfa: iki eksende kaydırma, donmuş başlık ve yakınlaştırma sınaması için (26 sütun × 200 satır)
+const cn = (i) => String.fromCharCode(65 + i);
+const bigRow = (r) => `<row r="${r}">` + Array.from({ length: 26 }, (_, c) => `<c r="${cn(c)}${r}" t="inlineStr"><is><t>Hucre ${cn(c)}${r} uzun metin</t></is></c>`).join('') + '</row>';
+const bigSheet = `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${Array.from({ length: 200 }, (_, i) => bigRow(i + 1)).join('')}</sheetData></worksheet>`;
+const bigXlsx = makeZip([['xl/workbook.xml', `<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Buyuk" sheetId="1" r:id="rId1"/></sheets></workbook>`],
+  ['xl/_rels/workbook.xml.rels', `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="x" Target="worksheets/sheet1.xml"/></Relationships>`],
+  ['xl/worksheets/sheet1.xml', bigSheet]]);
+fs.writeFileSync(path.join(out, 'buyuk.xlsx'), bigXlsx);
 // uzun docx (sayfalama): 60 paragraf, 20.'de pageBreakBefore, 40.'da satır içi sayfa sonu (w:br type=page), sonda tablo; A4 + 2 cm kenar
 const uzunP = (i) => i === 20 ? `<w:p><w:pPr><w:pageBreakBefore/></w:pPr><w:r><w:t>KIRILMA ${i}</w:t></w:r></w:p>` : i === 40 ? `<w:p><w:r><w:t>Önce ${i}</w:t></w:r><w:r><w:br w:type="page"/></w:r><w:r><w:t>SONRA ${i}</w:t></w:r></w:p>` : `<w:p><w:r><w:t>Paragraf ${i}: ${'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. '.repeat(3)}</w:t></w:r></w:p>`;
 const uzunXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${Array.from({ length: 60 }, (_, i) => uzunP(i + 1)).join('')}<w:tbl>${Array.from({ length: 4 }, (_, r) => `<w:tr><w:tc><w:p><w:r><w:t>H${r}</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>${r * 10}</w:t></w:r></w:p></w:tc></w:tr>`).join('')}</w:tbl><w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134"/></w:sectPr></w:body></w:document>`;
@@ -105,6 +113,38 @@ await ev(() => window.dwgApp.docs.close());
 await page.setInputFiles('#fileInput', path.join(out, 'metraj.xlsx')); await page.waitForTimeout(500);
 ok('xlsx', await ev(() => { const t = document.querySelector('#docContent .xlsx-tbl'); return !!t && /Ø300 boru/.test(t.textContent) && /1\.250,5/.test(t.textContent) && !!document.querySelector('#docTools [data-sheet="0"]'); }), await ev(() => (document.querySelector('#docContent')?.textContent || '').slice(0, 80)));
 await shot('doc_xlsx');
+await ev(() => window.dwgApp.docs.close());
+// ---- XLSX geniş sayfa: iki eksende gezinme, donmuş başlık, yakınlaştırma ----
+await page.setInputFiles('#fileInput', path.join(out, 'buyuk.xlsx')); await page.waitForTimeout(700);
+{
+  const g = () => ev(() => {
+    const b = document.getElementById('docContent'), w = document.querySelector('.xlsx-wrap'), t = document.querySelector('.xlsx-tbl');
+    return { bodyScrolls: b.scrollHeight > b.clientHeight, wrapY: w.scrollHeight > w.clientHeight + 4, wrapX: w.scrollWidth > w.clientWidth + 4, fs: getComputedStyle(t).fontSize, tw: t.offsetWidth };
+  });
+  const a = await g();
+  ok('x1 kaydırma .xlsx-wrap içinde: iki eksen de kayıyor, gövde kaymıyor', a.wrapX && a.wrapY && !a.bodyScrolls, JSON.stringify(a));
+  ok('x2 yakınlaştırma düğmeleri var', await ev(() => !!document.querySelector('#docTools [data-doc="zin"]') && !!document.querySelector('#docTools [data-doc="zout"]') && !!document.querySelector('#docTools [data-doc="zfit"]')));
+  await page.click('#docTools [data-doc="zin"]'); await page.waitForTimeout(120);
+  const b2 = await g();
+  ok('x3 büyütünce yazı ve tablo büyüyor', parseFloat(b2.fs) > parseFloat(a.fs) && b2.tw > a.tw, `${a.fs}→${b2.fs} ${a.tw}→${b2.tw}`);
+  await page.click('#docTools [data-doc="zout"]'); await page.click('#docTools [data-doc="zout"]'); await page.waitForTimeout(120);
+  const b3 = await g();
+  ok('x4 küçültünce yazı küçülüyor', parseFloat(b3.fs) < parseFloat(a.fs), `${a.fs}→${b3.fs}`);
+  await page.click('#docTools [data-doc="zfit"]'); await page.waitForTimeout(120);
+  ok('x5 %100 düğmesi temel boya döner', (await g()).fs === a.fs, (await g()).fs);
+  // donmuş başlık satırı ve satır numarası sütunu
+  const st = await ev(() => {
+    const w = document.querySelector('.xlsx-wrap'); w.scrollTop = 300; w.scrollLeft = 400;
+    const wr = w.getBoundingClientRect();
+    const hdr = document.querySelector('.xlsx-tbl tr:first-child th:nth-child(2)');
+    const rowNo = [...document.querySelectorAll('.xlsx-tbl tr')][30].cells[0];
+    const hit = document.elementFromPoint(wr.left + 150, wr.top + 6);
+    return { hdrTop: Math.round(hdr.getBoundingClientRect().top - wr.top), rowNoLeft: Math.round(rowNo.getBoundingClientRect().left - wr.top + wr.top - wr.left), hitTag: hit && hit.tagName, hitTxt: hit ? hit.textContent.trim().slice(0, 6) : '', scrolled: w.scrollTop > 0 && w.scrollLeft > 0 };
+  });
+  ok('x6 kaydırınca başlık satırı üstte kalır', st.scrolled && st.hdrTop === 0 && st.hitTag === 'TH', JSON.stringify(st));
+  ok('x7 satır numarası sütunu solda kalır', st.rowNoLeft === 0, JSON.stringify(st));
+  await shot('doc_xlsx_buyuk');
+}
 await ev(() => window.dwgApp.docs.close());
 // ---- DOCX uzun: sayfalama, kip değişimi, ölçek, iki parmak, tek parmak kaydırma ----
 {

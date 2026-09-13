@@ -456,17 +456,17 @@ function pdfZoom(f) {
   pdfLayout(cur); pdfGoto(page);
 }
 /** Araç satırındaki yakınlaştırma düğmeleri (zin / zout / zfit): belge türüne göre dağıtır; f = çarpan, 0 = sığdır */
-function zoomDoc(f) { if (!cur) return; if (cur.kind === 'pdf') pdfZoom(f); else if (isWord(cur.kind)) docxZoom(f); }
+function zoomDoc(f) { if (!cur) return; if (cur.kind === 'pdf') pdfZoom(f); else if (isWord(cur.kind)) docxZoom(f); else if (cur.kind === 'xlsx') xlsxZoom(f); }
 /** iki parmakla yakınlaştırma (PDF, resim, Word): sürüklerken CSS ölçek, bırakınca kalıcı ölçek (PDF yeniden çizim, Word sayfa kipinde
  *  transform ölçeği / akış kipinde yazı yüzdesi). Tek parmak hiçbir zaman engellenmez: preventDefault yalnız iki parmak varken. */
 function bindPinch(el) {
   const pts = new Map(); let d0 = 0, scale = 1, target = null;
   const can = () => cur && (cur.kind === 'pdf' || cur.kind === 'image' || isWord(cur.kind));
   const base = () => target && target.classList.contains('docx-pages') ? `scale(${cur.pzoom || 1})` : '';   // sayfa yığınının kalıcı ölçeği
-  el.addEventListener('pointerdown', (ev) => { if (!can()) return; pts.set(ev.pointerId, [ev.clientX, ev.clientY]); if (pts.size === 2) { const a = [...pts.values()]; d0 = Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]); target = el.querySelector('.pdf-pages, .doc-img, .docx-pages, .docx-page'); scale = 1; } });
+  el.addEventListener('pointerdown', (ev) => { if (!can()) return; pts.set(ev.pointerId, [ev.clientX, ev.clientY]); if (pts.size === 2) { const a = [...pts.values()]; d0 = Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]); target = el.querySelector('.pdf-pages, .doc-img, .docx-pages, .docx-page, .xlsx-tbl'); scale = 1; } });
   el.addEventListener('pointermove', (ev) => { if (!pts.has(ev.pointerId)) return; pts.set(ev.pointerId, [ev.clientX, ev.clientY]); if (pts.size === 2 && target) { const a = [...pts.values()]; const d = Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]); scale = Math.max(0.3, Math.min(4, d / (d0 || d))); target.style.transformOrigin = '0 0'; target.style.transform = `${base()} scale(${scale})`; ev.preventDefault(); } }, { passive: false });
   el.addEventListener('touchmove', (ev) => { if (ev.touches.length >= 2 && target) ev.preventDefault(); }, { passive: false });   // iki parmakta tarayıcı kaydırmaya geçip pointercancel üretmesin; tek parmak serbest
-  const up = (ev) => { pts.delete(ev.pointerId); if (pts.size < 2 && target) { target.style.transform = base(); if (Math.abs(scale - 1) > 0.05) { if (cur.kind === 'pdf') pdfZoom(scale); else if (isWord(cur.kind)) docxZoom(scale); else { cur.zoom = Math.max(0.2, Math.min(8, cur.zoom * scale)); const im = el.querySelector('.doc-img'); if (im) im.style.width = Math.round(cur.zoom * 100) + '%'; } } target = null; scale = 1; } };
+  const up = (ev) => { pts.delete(ev.pointerId); if (pts.size < 2 && target) { target.style.transform = base(); if (Math.abs(scale - 1) > 0.05) { if (cur.kind === 'pdf') pdfZoom(scale); else if (isWord(cur.kind)) docxZoom(scale); else if (cur.kind === 'xlsx') xlsxZoom(scale); else { cur.zoom = Math.max(0.2, Math.min(8, cur.zoom * scale)); const im = el.querySelector('.doc-img'); if (im) im.style.width = Math.round(cur.zoom * 100) + '%'; } } target = null; scale = 1; } };
   el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
 }
 
@@ -574,19 +574,41 @@ function docxZoom(f) {
   if (d.layout === 'page') { if (!d.pg) return; const z0 = d.pzoom || 1; d.pzoom = f === 0 ? docxFitScale(d) : Math.max(0.2, Math.min(6, z0 * f)); docxApplyZoom(d); const k = d.pzoom / z0; els.body.scrollTop = els.body.scrollTop * k; els.body.scrollLeft = els.body.scrollLeft * k; }
   else { d.zoom = f === 0 ? 1 : Math.max(0.5, Math.min(3, d.zoom * f)); docxApplyZoom(d); }
 }
+/**
+ * Excel yakınlaştırması yazı boyuyla yapılır (ölçek dönüşümüyle değil): tablo yeniden dizilir, yazı keskin kalır
+ * ve başlık satırı ile satır numarası sütunundaki position:sticky çalışmaya devam eder — dönüşüm uygulanan bir
+ * atada sticky bozulur. Dolgu ve en büyük hücre genişliği CSS'te em cinsindendir, boyla birlikte ölçeklenir.
+ */
+const XLSX_FS = 12;   // .xlsx-tbl temel yazı boyu (app.css ile aynı olmalı)
+const xlsxEls = () => ({ w: els.body.querySelector('.xlsx-wrap'), t: els.body.querySelector('.xlsx-tbl') });
+function xlsxApplyZoom(d) { const { t } = xlsxEls(); if (t) t.style.fontSize = (XLSX_FS * (d.zoom || 1)).toFixed(2) + 'px'; }
+/**
+ * Orta düğme %100'e döner, "genişliğe sığdır" değildir: hücre genişliği yazı boyuyla doğru orantılı olduğundan
+ * yirmi sütunluk bir sayfayı telefon genişliğine sığdırmak yazıyı okunmaz kılar (ölçüldü: 26 sütun için ~0,10×).
+ * Daha çok sütun görmek isteyen − ile küçültür ya da iki parmakla ayarlar; düğme her zaman bilinen yere döndürür.
+ */
+function xlsxZoom(f) {
+  const d = cur; if (!d) return;
+  const { w } = xlsxEls(), z0 = d.zoom || 1;
+  d.zoom = f === 0 ? 1 : Math.max(0.4, Math.min(3, z0 * f));
+  xlsxApplyZoom(d);
+  if (w) { const k = d.zoom / z0; w.scrollLeft = w.scrollLeft * k; w.scrollTop = w.scrollTop * k; }   // bakılan yer ekranda kalsın
+}
 async function showXlsx(d) {
   const arc = await arcFor(d);
   const sheets = await xlsxToHtml(arc);
-  els.tools.innerHTML = `<div class="tabs doc-tabs">${sheets.map((s, i) => `<button type="button" data-sheet="${i}" class="${i ? '' : 'active'}">${esc(s.name)}</button>`).join('')}</div>`;
+  els.tools.innerHTML = `<div class="tabs doc-tabs">${sheets.map((s, i) => `<button type="button" data-sheet="${i}" class="${i ? '' : 'active'}">${esc(s.name)}</button>`).join('')}</div><span class="sp"></span><button type="button" class="btn small" data-doc="zout" aria-label="−">${ICON('i-zoom-out')}</button><button type="button" class="btn small" data-doc="zfit">${esc(tt('zoom100', '%100'))}</button><button type="button" class="btn small" data-doc="zin" aria-label="+">${ICON('i-zoom-in')}</button>` + editBtn();
   // sayfalı basım: ilk XLSX_PAGE satır, "Daha fazla" ile katlanarak; 60k satırlık tablo ana iş parçacığını kilitlemesin
   const render = (i, upto = XLSX_PAGE) => {
     const s = sheets[i]; if (!s) { els.body.innerHTML = ''; return; }
     let html = s.tableHtml ? s.tableHtml(upto) : s.html;
     if (s.tableHtml && upto < s.rows) html += `<div class="muted">${s.rows} ${esc(tt('rowsOfFirst', 'satırın ilk'))} ${Math.min(upto, s.rows)}</div><button type="button" class="btn small" data-more="${i}" data-upto="${Math.min(s.rows, upto * 2)}">${esc(tt('loadMore', 'Daha fazla'))}</button>`;
     els.body.innerHTML = `<div class="xlsx-wrap">${html}</div>`;
+    xlsxApplyZoom(d);
   };
   els.tools.querySelector('.doc-tabs').addEventListener('click', (ev) => { const b = ev.target.closest('[data-sheet]'); if (!b) return; els.tools.querySelectorAll('[data-sheet]').forEach(x => x.classList.toggle('active', x === b)); render(+b.dataset.sheet); });
-  els.body.onclick = (ev) => { const b = ev.target.closest('[data-more]'); if (b) { const top = els.body.scrollTop; render(+b.dataset.more, +b.dataset.upto); els.body.scrollTop = top; } };
+  // kaydırma artık .xlsx-wrap'ta: "Daha fazla" sonrası bakılan yer korunur
+  els.body.onclick = (ev) => { const b = ev.target.closest('[data-more]'); if (b) { const { w } = xlsxEls(); const top = w ? w.scrollTop : 0, left = w ? w.scrollLeft : 0; render(+b.dataset.more, +b.dataset.upto); const n = xlsxEls().w; if (n) { n.scrollTop = top; n.scrollLeft = left; } } };
   render(0);
 }
 // ---- arşiv -----------------------------------------------------------------------------

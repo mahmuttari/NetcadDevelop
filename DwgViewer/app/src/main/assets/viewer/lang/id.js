@@ -248,4 +248,5 @@ export default {
   perspShort: 'Persp', orthoShort: 'Orto',
   driveSetup: 'Nilai penyiapan', driveSetupHint: 'Google Cloud Console › Klien › \"Buat klien Android\" meminta dua nilai pertama. Alamat pengalihan diturunkan dari ID klien dan diperbarui di sini setelah ID diisi. Ketuk untuk menyalin.', pkgName: 'Nama paket', signSha1: 'SHA-1 tanda tangan', redirectUri: 'Alamat pengalihan',
   driveNoScope: 'Izin Drive tidak diberikan: sesi hanya mencakup nama dan surel. Keluar, masuk lagi, lalu setujui baris Drive di layar izin.', driveReauth: 'Keluar dan masuk lagi', driveApiOff: 'Google Drive API belum diaktifkan untuk proyek ini.',
+  zoom100: '100%',
 };

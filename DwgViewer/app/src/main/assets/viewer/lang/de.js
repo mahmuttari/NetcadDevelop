@@ -248,4 +248,5 @@ export default {
   perspShort: 'Persp', orthoShort: 'Ortho',
   driveSetup: 'Einrichtungswerte', driveSetupHint: 'Google Cloud Console › Clients › „Android-Client erstellen“ fragt nach den ersten beiden Werten. Die Weiterleitungsadresse leitet sich aus der Client-ID ab und erscheint hier, sobald diese gesetzt ist. Zum Kopieren tippen.', pkgName: 'Paketname', signSha1: 'Signatur-SHA-1', redirectUri: 'Weiterleitungsadresse',
   driveNoScope: 'Der Drive-Zugriff wurde nicht erteilt: Die Sitzung umfasst nur Name und E-Mail. Melden Sie sich ab, wieder an und bestätigen Sie die Drive-Zeile im Zustimmungsbildschirm.', driveReauth: 'Abmelden und erneut anmelden', driveApiOff: 'Die Google Drive API ist für dieses Projekt nicht aktiviert.',
+  zoom100: '100 %',
 };

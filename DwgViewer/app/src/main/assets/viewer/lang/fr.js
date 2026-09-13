@@ -248,4 +248,5 @@ export default {
   perspShort: 'Persp', orthoShort: 'Ortho',
   driveSetup: 'Valeurs de configuration', driveSetupHint: 'Google Cloud Console › Clients › « Créer un client Android » demande les deux premières valeurs. L\'URI de redirection découle de l\'identifiant client et s\'actualise ici une fois celui-ci renseigné. Touchez pour copier.', pkgName: 'Nom du package', signSha1: 'SHA-1 de la signature', redirectUri: 'URI de redirection',
   driveNoScope: 'L\'accès à Drive n\'a pas été accordé : la session ne couvre que le nom et l\'e-mail. Déconnectez-vous, reconnectez-vous et validez la ligne Drive sur l\'écran d\'autorisation.', driveReauth: 'Se déconnecter et se reconnecter', driveApiOff: 'L\'API Google Drive n\'est pas activée pour ce projet.',
+  zoom100: '100 %',
 };

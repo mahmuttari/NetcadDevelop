@@ -503,11 +503,26 @@ body.editmode #docContent { touch-action: auto; }
 .docx-tbl { border-collapse: collapse; margin: 6pt 0; max-width: 100%; }
 .docx-tbl td { border: 1px solid #999; padding: 3pt 5pt; vertical-align: top; }
 .docx-tbl td p { margin: 0; }
-.xlsx-wrap { overflow: auto; background: #fff; color: #111; border-radius: 4px; }
-.xlsx-tbl { border-collapse: collapse; font-size: 12px; font-family: system-ui, sans-serif; }
-.xlsx-tbl th { background: #eef1f5; color: #445; font-weight: 600; border: 1px solid #c9ced6; padding: 3px 6px; text-align: center; position: sticky; top: 0; }
-.xlsx-tbl tr th:first-child { position: sticky; left: 0; z-index: 1; }
-.xlsx-tbl td { border: 1px solid #d7dbe2; padding: 3px 6px; white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
+/* Excel: kaydırılan kutu .xlsx-wrap'tır (iki eksen birden). Gövde kaydırılmaz, yoksa dikey kaydırma dışarıya
+   kaçar ve başlık satırı ile satır numarası sütunu ekranda kalamaz (position: sticky en yakın kaydırıcıya bakar).
+   Yakınlaştırma yazı boyuyladır; dolgu ve en büyük hücre genişliği bu yüzden em cinsindendir. */
+.doc-body.kind-xlsx { overflow: hidden; display: flex; flex-direction: column; }
+.doc-body.kind-xlsx .xlsx-wrap { flex: 1 1 auto; min-height: 0; }
+.xlsx-wrap { overflow: auto; background: #fff; color: #111; border-radius: 4px; touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+/* border-collapse: separate — çökertilmiş kenarlıklar tabloya aittir, yapışkan hücrenin katmanına girmez ve
+   donmuş başlığın altından ince çizgi/metin sızar (Chromium'da bilinen davranış). Ayrı kenarlıkta her hücre
+   kendi çizgisini taşır: sağ + alt verilir, ilk satır ve ilk sütuna üst/sol eklenir; ızgara çift çizgisiz çıkar. */
+.xlsx-tbl { border-collapse: separate; border-spacing: 0; font-size: 12px; font-family: system-ui, sans-serif; }
+.xlsx-tbl th, .xlsx-tbl td { border-right: 1px solid #d7dbe2; border-bottom: 1px solid #d7dbe2; }
+.xlsx-tbl tr:first-child th { border-top: 1px solid #c9ced6; }
+.xlsx-tbl tr > *:first-child { border-left: 1px solid #c9ced6; }
+.xlsx-tbl th { background: #eef1f5; color: #445; font-weight: 600; border-right-color: #c9ced6; border-bottom-color: #c9ced6; padding: .25em .5em; text-align: center; position: sticky; }
+/* Katman sırası önemli: satır numarası sütunu başlık satırının ALTINDA kalmalı, yoksa kaydırırken numaralar
+   başlığın üzerine biner. Özgüllükleri eşit olduğundan başlık kuralı sonra gelir ve z-index'i o belirler. */
+.xlsx-tbl tr th:first-child { left: 0; z-index: 1; }        /* satır numarası sütunu solda donar */
+.xlsx-tbl tr:first-child th { top: 0; z-index: 2; }         /* sütun başlığı satırı üstte donar */
+.xlsx-tbl tr:first-child th:first-child { z-index: 3; }     /* köşe hücresi ikisinin de üstünde */
+.xlsx-tbl td { padding: .25em .5em; white-space: nowrap; max-width: 27em; overflow: hidden; text-overflow: ellipsis; }
 .xlsx-tbl td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .doc-tabs { padding: 0; border: 0; background: transparent; flex: 1 1 auto; }
 .doc-pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: 12px/1.45 ui-monospace, "Roboto Mono", monospace; color: var(--fg); }

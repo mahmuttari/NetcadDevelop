@@ -142,6 +142,7 @@ export const TR = {
   langAuto: 'Cihaz dili (otomatik)', langChanged: 'Dil değişti',
   driveSetup: 'Kurulum bilgileri', driveSetupHint: 'Google Cloud Console › İstemciler › \"Android istemcisi oluştur\" adımı ilk iki değeri ister. Yönlendirme adresi istemci kimliğinden türer; kimlik işlenince burada güncellenir. Dokununca kopyalanır.', pkgName: 'Paket adı', signSha1: 'İmza SHA-1', redirectUri: 'Yönlendirme adresi',
   driveNoScope: 'Drive izni verilmemiş: oturum yalnız ad ve e-posta için açılmış. Çıkış yapıp yeniden giriş yapın ve izin ekranındaki Drive satırını onaylayın.', driveReauth: 'Çıkış yap ve yeniden giriş', driveApiOff: 'Google Drive API bu proje için etkin değil.',
+  zoom100: '%100',
 };
 export const EN = {
   open: 'Open', noFile: 'No file', fit: 'Zoom extents', layers: 'Layers', measure: 'Measure', more: 'More', search: 'Search',
@@ -286,6 +287,7 @@ export const EN = {
   langAuto: 'Device language (automatic)', langChanged: 'Language changed',
   driveSetup: 'Setup values', driveSetupHint: 'Google Cloud Console › Clients › \"Create Android client\" asks for the first two values. The redirect URI is derived from the client ID and updates here once it is set. Tap to copy.', pkgName: 'Package name', signSha1: 'Signing SHA-1', redirectUri: 'Redirect URI',
   driveNoScope: 'Drive access was not granted: the session covers only your name and e-mail. Sign out, sign in again and approve the Drive line on the consent screen.', driveReauth: 'Sign out and sign in again', driveApiOff: 'The Google Drive API is not enabled for this project.',
+  zoom100: '100%',
 };
 /* ---------------------------------------------------------------------------
  * Dil kayıt defteri
