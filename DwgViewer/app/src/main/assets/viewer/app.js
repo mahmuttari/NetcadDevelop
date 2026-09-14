@@ -1693,8 +1693,8 @@ async function loadBytes(buf, name, size) {
   let stat = null;
   try { stat = dwgObjectCount(new Uint8Array(buf, 0, bytes)); } catch (_) { stat = null; }
   const objN = stat ? stat.objects : 0;
-  const sub = name + ' · ' + mb + (objN ? ' · ' + fmt(objN, 0) + ' ' + t('entity') : '');
-  if (objN > HUGE_OBJ && !(await askConfirm(`${name} · ${fmt(objN, 0)} ${t('entity')}. ${t('hugeObjAsk')}`))) { setLoading(null); return; }
+  const sub = name + ' · ' + mb + (objN ? ' · ' + fmt(objN, 0) + ' ' + t('objectsN') : '');
+  if (objN > HUGE_OBJ && !(await askConfirm(`${name} · ${fmt(objN, 0)} ${t('objectsN')}. ${t('hugeObjAsk')}`))) { setLoading(null); return; }
   const my = ++loadSeq;
   setLoading(t('loading'), sub, 0);
   try {
