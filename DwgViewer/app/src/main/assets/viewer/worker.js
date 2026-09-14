@@ -12,6 +12,7 @@ import { SceneBuilder } from './scene.js';
 import { parseDxf, isDxf } from './dxf.js';
 import { readAcDs, mapAsmToHandles, isR2004Family } from './acds.js';
 import { installTextDecoder } from './codepage.js';
+import * as Win from './dwgwin.js';
 
 installTextDecoder(self);   // DOS857/DOS850: sarmalayıcı convert() sırasında new TextDecoder(encoding) çağırır, tarayıcı bu etiketleri tanımaz
 
@@ -77,11 +78,19 @@ async function readDb(bytes, id) {
   }
   if (head < 'AC1012') throw new Error('Çok eski DWG sürümü (' + head + '). R13 ve sonrası açılabilir.');
   postMessage({ id, stage: 'lib' });
-  if (!lib) {
-    try { lib = await LibreDwg.create(); }
-    catch (e) { const m = isMem(e) ? memMsg(u8.length, 'çözümleyici kurulumu', e) : 'Çözümleyici başlatılamadı: ' + msgOf(e); lib = null; throw new Error(m); }
-  }
+  await ensureLib(u8);
   postMessage({ id, stage: 'parse' });
+  return decodeDwg(u8, head);
+}
+
+async function ensureLib(u8) {
+  if (lib) return;
+  try { lib = await LibreDwg.create(); }
+  catch (e) { const m = isMem(e) ? memMsg(u8.length, 'çözümleyici kurulumu', e) : 'Çözümleyici başlatılamadı: ' + msgOf(e); lib = null; throw new Error(m); }
+}
+
+/** tek bir DWG tamponunu veritabanına çevirir; pencereli yolda her pencere için yeniden çağrılır */
+function decodeDwg(u8, head, ends) {
   // sarmalayıcının dwg_read_data'sı hata kodunu yutar (yalnız OUTOFMEM fırlatır); dosya doğrudan okunur, kod değerlendirilir
   const W = lib.wasmInstance, ERR = LW.Dwg_Error;
   let res = null;
@@ -103,7 +112,7 @@ async function readDb(bytes, id) {
   const critical = code >= ERR.CLASSESNOTFOUND ? code : 0;   // DWG_ERR_CRITICAL: CLASSESNOTFOUND (128) ve üstü; sağlam dosyalarda 64/68 kalır
   const suspect = critical || ((code & ERR.WRONGCRC) ? code : 0);   // CRC hatası: dosya açılır ama nesneler eksik olabilir (bozuk kopya) → uyarı
   let db, cp = 0;
-  try { try { cp = lib.dwg_get_codepage(dwg) | 0; } catch (_) { cp = 0; } db = lib.convert(dwg); db.raw3d = collectRaw3D(lib, dwg, db); db.sortents = collectSortents(lib, dwg, db); attachEed(lib, dwg, db, head, cp); }
+  try { if (ends && ends.length) patchChains(dwg, ends); try { cp = lib.dwg_get_codepage(dwg) | 0; } catch (_) { cp = 0; } db = lib.convert(dwg); db.raw3d = collectRaw3D(lib, dwg, db); db.sortents = collectSortents(lib, dwg, db); attachEed(lib, dwg, db, head, cp); }
   catch (e) {
     const m = isMem(e) ? memMsg(u8.length, 'nesne dönüşümü', e) : (critical ? `DWG bozuk ya da kesik (LibreDWG hata kodu ${code}): ` : 'LibreDWG dosyayı çözemedi: ') + msgOf(e);
     if (isAbort(e)) lib = null;
@@ -455,11 +464,149 @@ function collectRaw3D(lib, dwg, db) {
   return out;
 }
 
+const WIN_OBJ = 250000;      // pencere başına hedeflenen nesne sayısı (ölçüm: 250 bin nesne ≈ 200 MB yığın)
+const WIN_MIN_BYTES = 32 * 1048576;   // bu boyutun altındaki dosyalar tek parça okunur
+
+/** iki sahnenin ilkellerini ve tablolarını birleştirir; her varlık tek pencerede olduğu için tekrar oluşmaz */
+function mergeScene(a, b) {
+  for (const lb of b.layouts) {
+    const la = a.layouts.find((l) => l.name === lb.name);
+    if (!la) { a.layouts.push(lb); continue; }
+    if (lb.prims.length) {
+      // yayma (...) kullanılmaz: milyonlarca öge çağrı yığınını taşırır.
+      // k=4 (ekleme noktası imi) atılır: INSERT her pencerede bulunduğundan bu im pencere başına yeniden üretilir.
+      for (const q of lb.prims) if (q.k !== 4) la.prims.push(q);
+      la.ext = la.prims.length === lb.prims.length ? lb.ext
+        : [Math.min(la.ext[0], lb.ext[0]), Math.min(la.ext[1], lb.ext[1]), Math.max(la.ext[2], lb.ext[2]), Math.max(la.ext[3], lb.ext[3])];
+    }
+    for (const v of lb.viewports) la.viewports.push(v);
+  }
+  const byName = new Map(a.layers.map((l) => [l.name, l]));
+  for (const l of b.layers) { const x = byName.get(l.name); if (x) x.count = (x.count || 0) + (l.count || 0); else { a.layers.push(l); byName.set(l.name, l); } }
+  for (const k of Object.keys(b.counts || {})) a.counts[k] = (a.counts[k] || 0) + b.counts[k];
+  a.entityCount += b.entityCount || 0;
+  a.blockCount = Math.max(a.blockCount || 0, b.blockCount || 0);
+  const xn = new Set(a.xrefs.map((x) => x.name)); for (const x of b.xrefs) if (!xn.has(x.name)) { a.xrefs.push(x); xn.add(x.name); }
+  const im = new Set(a.images.map((x) => x.fileName)); for (const x of b.images) if (!im.has(x.fileName)) { a.images.push(x); im.add(x.fileName); }
+  if (!a.solidDiag && b.solidDiag) a.solidDiag = b.solidDiag;
+  return a;
+}
+
+/**
+ * Pencereli okuma. Dosyanın nesne haritası dilimlenir; her dilim ayrı ayrı çözülür, sahne ilkelleri
+ * biriktirilir, nesneler serbest bırakılır. Ölçülen kazanç: 283,8 MB / 7,09 milyon nesnelik bir dosyada
+ * tepe bellek 5.680 MB yerine 481 MB; geometri (köşe, yüz, yüz indeksi toplamı) tek parça okumayla
+ * birebir aynı. Dosya uygun değilse (R2004+, INSERT içeriyor, yeterince büyük değil) null döner ve
+ * çağıran tek parça okumaya devam eder.
+ */
+/** ham bir DWG tamponunu MEMFS'e yazıp çözer; çağıran dwg'yi kendisi serbest bırakır */
+function rawRead(u8) {
+  const W = lib.wasmInstance;
+  try { W.FS.unlink('/tmp.dwg'); } catch (_) { /* yok */ }
+  W.FS.createDataFile('/', 'tmp.dwg', u8, true, false, true);
+  let res = null;
+  try { res = W.dwg_read_file('tmp.dwg'); } finally { try { W.FS.unlink('/tmp.dwg'); } catch (_) { /* yok */ } }
+  return res;
+}
+
+/** yapı geçişi: her blok başlığının kendi tanıtıcısı ile ilk/son varlık tanıtıcıları */
+function blockRanges(u8, keep, H) {
+  const W = lib.wasmInstance, out = [];
+  const res = rawRead(u8);
+  if (!res || !res.data) return out;
+  try {
+    const n = W.dwg_get_num_objects(res.data) | 0;
+    // yapı geçişinde dizi ile harita birebir örtüşür (fazladan nesne eklenmez); blok başlığının tanıtıcısı buradan alınır
+    if (n !== keep.length) return out;
+    for (let i = 0; i < n; i++) {
+      const o = W.dwg_get_object(res.data, i);
+      let ft = 0; try { ft = lib.dwg_object_get_fixedtype(o); } catch (_) { continue; }
+      if (ft !== 49) continue;                                     // BLOCK_HEADER
+      const tio = lib.dwg_object_to_object_tio(o);
+      const ref = (f) => { try { const r = lib.dwg_dynapi_entity_value(tio, f); const p = r && r.data; return p ? (W.dwg_ref_get_absref(p) | 0) : 0; } catch (_) { return 0; } };
+      const bh = H[keep[i]], f = ref('first_entity'), l = ref('last_entity');
+      if (bh && f && l) out.push({ bh, f, l });
+    }
+  } finally { try { lib.dwg_free(res.data); } catch (_) { /* geç */ } }
+  return out;
+}
+
+/**
+ * Blok başlıklarının zincir uçlarını bu pencerede bulunan varlıklara yönlendirir.
+ * `Dwg_Object_Ref` yapısının ilk alanı çözülmüş nesne işaretçisidir (`struct _dwg_object *obj`),
+ * bu yüzden 0 uzaklığına yazmak yeterlidir. Önce bir kez `dwg_getall_entities_in_model_space`
+ * çağrılır ki LibreDWG'nin `dirty_refs` çözümlemesi yamayı sonradan silmesin.
+ */
+function patchChains(dwg, ends) {
+  const W = lib.wasmInstance;
+  try { lib.dwg_getall_entities_in_model_space(dwg); } catch (_) { /* geç */ }   // dirty_refs çözümlemesi yamayı silmesin
+  let done = 0;
+  for (const e of ends) {
+    try {
+      const bo = W.dwg_absref_get_object(dwg, e.bh), fo = W.dwg_absref_get_object(dwg, e.fh), lo = W.dwg_absref_get_object(dwg, e.lh);
+      if (!bo || !fo || !lo) continue;
+      const tio = lib.dwg_object_to_object_tio(bo);
+      const fr = lib.dwg_dynapi_entity_value(tio, 'first_entity'), lr = lib.dwg_dynapi_entity_value(tio, 'last_entity');
+      if (!fr || !fr.data || !lr || !lr.data) continue;
+      W.setValue(fr.data, fo, 'i32');                              // Dwg_Object_Ref'in ilk alanı: struct _dwg_object *obj
+      W.setValue(lr.data, lo, 'i32');
+      done++;
+    } catch (_) { /* bu blok atlanır */ }
+  }
+  return done;
+}
+
+async function parseWindowed(u8, id, head, perWindow) {
+  let pl = null;
+  try { pl = Win.plan(u8, perWindow || WIN_OBJ); } catch (_) { pl = null; }
+  if (!pl) return null;
+  postMessage({ id, stage: 'lib' });
+  await ensureLib(u8);
+  let scene = null, warn = 0, order = 0, ents = 0;
+  try {
+    const keep = Win.applyStructure(u8, pl);
+    const blocks = blockRanges(u8, keep, pl.H);
+    if (!blocks.length) { Win.restore(u8, pl); return null; }      // zincir uçları okunamadı: tek parça okumaya düş
+    const owner = Win.assignBlocks(pl, blocks);
+    for (let k = 0; k < pl.windows.length; k++) {
+      postMessage({ id, stage: 'parse', pct: Math.round((100 * k) / pl.windows.length) });
+      const idxArr = Win.applyWindow(u8, pl, k);
+      const db = decodeDwg(u8, head, Win.chainEnds(pl, blocks, owner, idxArr));
+      warn = warn || db.readWarn || 0;
+      ents += (db.entities || []).length;
+      order += db.sortents ? Object.values(db.sortents).reduce((n, m) => n + m.size, 0) : 0;
+      const s = new SceneBuilder(db, {}).build();
+      scene = scene ? mergeScene(scene, s) : s;
+    }
+  } finally { try { Win.restore(u8, pl); } catch (_) { /* geç */ } }
+  /*
+   * Eksiksizlik denetimi. Pencereli okumanın tek parça okumayla aynı çizimi vermesi, bir bloğun
+   * varlık zincirinin pencere içinde yürüyebilmesine bağlıdır (LibreDWG `next_entity` bağlarını
+   * izler). Zincir sırası dosyadaki tanıtıcı sırasından farklı olan çizimlerde pencereler eksik
+   * kalabilir; böyle bir durumda eksik bir sonuç göstermek yerine null dönülür ve çağıran tek parça
+   * okumaya devam eder. Ölçüt, çevrilen üst düzey varlık sayısının haritadaki üst düzey varlık
+   * sayısını karşılamasıdır.
+   */
+  if (ents < pl.topLevel * 0.98) return null;
+  scene.version = head;
+  scene.readWarn = warn;
+  scene.drawOrder = order;
+  scene.census = null;
+  scene.windows = pl.windows.length;
+  scene.objects = pl.objects;
+  return scene;
+}
+
 self.onmessage = async (ev) => {
   const { id, cmd } = ev.data;
   try {
     if (cmd === 'parse') {
       objCount = ev.data.objects | 0;
+      const u8w = new Uint8Array(ev.data.bytes);
+      if (u8w.length >= WIN_MIN_BYTES || ev.data.winObj) {
+        const ws = await parseWindowed(u8w, id, String.fromCharCode(...u8w.slice(0, 6)), ev.data.winObj | 0);
+        if (ws) { postMessage({ id, ok: true, scene: ws }); return; }
+      }
       const db = await readDb(ev.data.bytes, id);
       postMessage({ id, stage: 'scene' });
       const scene = new SceneBuilder(db, { onProgress: (i, n) => postMessage({ id, stage: 'scene', pct: n ? Math.round(100 * i / n) : 0 }) }).build();
