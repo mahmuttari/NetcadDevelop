@@ -2,9 +2,15 @@
 
 Uygulama dört basamaklıdır. Sıra bağlayıcıdır ve tek kaynaktan gelir:
 `viewer/edition.js` içindeki **`FEATURE_TIER`** tablosu ile Java tarafındaki
-**`Tier.java`**. Bir özelliği başka bir pakete taşımak için `FEATURE_TIER`
-içinde tek bir satır değiştirmek yeterlidir; arayüz, kapılar, rozetler ve
-panel hep oradan beslenir.
+**`Tier.java`**. Bir özelliğin **davranışını** başka pakete taşımak için
+`FEATURE_TIER` içinde tek satır yeter: şerit karoları, sekmeler, menü
+eylemleri, `has()` ve `gate()` hep oradan beslenir.
+
+**Ama paket kartında yazan madde listesi oradan gelmez.** Pro panelindeki
+maddeler `tierFeat_free` / `tierFeat_adfree` / `tierFeat_premium` /
+`tierFeat_super` anahtarlarından okunur (i18n.js + `lang/` altındaki on üç
+dosya, yani on beş yer). Bir özellik paket değiştirdiğinde bu anahtarlar da
+elle düzeltilmelidir; yoksa kart bir şey söyler, kapı başka şey yapar.
 
 ```
 free  <  adfree  <  premium  <  super
@@ -95,12 +101,31 @@ yok**; 28'inin karşılığı var; 26 yeteneğimizin rakipte karşılığı yok.
 | Özellik | Neden ucuz | Kademe | Durum |
 |---|---|---|---|
 | Blok sayma + grafik istatistik | sayımlar `S.counts`, blok adı `info.name` | free | **v7.27'de eklendi** |
-| Yüzey / yanal alan | ağ üçgenleri bellekte (`p.vtx`, `p.idx`) | super | sırada |
-| Çok sayfalı PDF | düzenler `scene.layouts` içinde | premium | sırada |
-| Metin çıkarma (arama sonucunu dışa aktar) | arama sonucu zaten toplanıyor | premium | sırada |
-| Ölçümü paylaşma | köprü hazır (`MainActivity.share`) | free | sırada |
-| Ondalık hassasiyeti ayarı | tek `fmt()` çağrısı | free | sırada |
-| Hazır ifadeler (Useful Words) | sabit liste + son kullanılanlar | free | sırada |
+| Yüzey / yanal alan / hacim | ağ üçgenleri bellekte (`p.vtx`, `p.idx`) | super | **v7.28'de eklendi** |
+| Çok sayfalı PDF | düzenler `scene.layouts` içinde | premium | **v7.28'de eklendi** |
+| Metin çıkarma (CSV / düz metin) | yazı ilkelleri ve öznitelikler sahnede | premium | **v7.28'de eklendi** |
+| Ölçümü paylaşma | köprü hazır (`MainActivity.shareText`) | free | **v7.28'de eklendi** |
+| Ondalık hassasiyeti ayarı | tek `fmt()` çağrısı | free | **v7.28'de eklendi** |
+| Hazır ifadeler (Useful Words) | sabit liste + son kullanılanlar | free | **v7.28'de eklendi** |
+
+Bu yedisi v7.28 ile kapandı; **birinci öbekte açık madde kalmadı**. Ayrıntıları:
+
+- **Yüzey / yanal alan** — seçili ağ gövdesinin bilgi panelinde “Yüzey alanı” çipi. Toplam yüzey,
+  yanal alan (normali düşeyden en çok 30° sapan üçgenler), yatayımsı yüzeyler, üstten ve alttan
+  izdüşüm, kapalı ağta hacim ve üçgen sayısı. Hesap `geom.meshMetrics`tedir; 10 m'lik küpte
+  600 / 400 / 200 / 100 / 100 / 1000 değerleri sınamayla bağlandı.
+- **Çok sayfalı PDF** — PDF kutusunda “Bütün sayfalar” seçeneği (yalnız birden çok düzen varsa
+  çıkar). Her düzen kendi sınırlarına sığdırılır, kendi ölçeğini ve “n / m” sayfa numarasını taşır.
+  `buildPdf` artık sayfa dizisi alır; nesne numaraları ve xref sayfa sayısına göre üretilir.
+- **Metin çıkarma** — Görünüm › Çıktı › “Metin çıkar”. TEXT / MTEXT gövdeleri ve blok
+  öznitelikleri; CSV'de metin, etiket, tür, katman, X/Y/Z, yükseklik, açı ve tutamak sütunları.
+  İstenirse bütün sayfalar taranır. Excel'in Türkçe ayraçı (`;`) ve BOM kullanılır.
+- **Ölçümü paylaşma** — ölçü panelinde “Paylaş” çipi; dökümü kopyalama ile aynı metinden üretir.
+- **Ondalık hassasiyeti** — Ayarlar'da 0-6 basamak ve “son sıfırlar” seçeneği. `fmt()` basamak
+  verilmediğinde ayarı okur; açı gibi basamağı sabit olması gereken yerler değeri açıkça geçer
+  ve ayardan etkilenmez.
+- **Hazır ifadeler** — yazı ve not kutularının üstünde çip sırası: dilin öntanımlı on iki ifadesi
+  (`presetList`) ve kullanıcının son sekiz yazdığı. Liste cihazda kalır, hiçbir yere gönderilmez.
 
 ### 2. Orta — var olan düzenleme çekirdeğine eklenir
 
@@ -150,22 +175,12 @@ Bu değerler pazar ölçümüne dayanır; gerekçesi yukarıdaki **Rakip kıyas�
 bölümündedir. Daha önce burada savunulan "yıllık = aylığın 10 katı" kuralı
 bu kategoride geçerli değildir ve terk edilmiştir.
 
-**Neden 10 kat.** Yıllık fiyatın aylığın 10 katı olması sektörde
-yerleşik kuraldır ve "yıllık alırsanız iki ay bedava" diye tek cümleyle
-anlatılır. Oranın paketten pakete değişmesi hem anlatımı bozar hem de
-paketler arasında mantıksız boşluk açar.
-
-İlk verilen fiyatlarda (Ad-Free 40/350, Premium 300/2000, Super 450/2200)
-iki sorun vardı:
-
-1. **Yıllık Premium 2.000 TL, yıllık Super 2.200 TL** — arada yalnız %10
-   fark. Aylıkta fark %50 olduğu için yıllık tarafta Premium'u seçmenin
-   hiçbir gerekçesi kalmıyordu; Premium yıllık ölü ürün olurdu.
-2. **Super'de yıllık, aylığın 4,9 katı** — yani %59 indirim. Aylık
-   fiyatı inandırıcılıktan düşürür ve yıllık geliri gereksiz yere kırar.
-
-Düzeltme, aylık merdiveni olduğu gibi korur (40 / 300 / 450 → .99'lu
-karşılıkları) ve yalnız yıllıkları tutarlı hâle getirir.
+**Aylık merdiven neden böyle.** İlk verilen fiyatlarda (Ad-Free 40/350,
+Premium 300/2000, Super 450/2200) yıllık Premium 2.000 TL ile yıllık Super
+2.200 TL arasında yalnız %10 fark vardı; aylıkta fark %50 olduğu için yıllık
+tarafta Premium “ölü ürün” olurdu. Aylık merdiven (40 / 300 / 450) korundu,
+yıllıklar rakip ölçümüne göre yeniden kuruldu; iki paket arasındaki fark
+yıllıkta %29'a çıktı.
 
 **Kalan bir tercih:** Ad-Free ile Premium arasında 7,5 kat fark var. Bu
 bilinçliyse sorun değil — Ad-Free "reklamdan kurtulmak isteyen izleyici",
@@ -205,9 +220,18 @@ uygulama onları bu adla arar:
 | `monthly` | 1 ay, otomatik yenilenen |
 | `yearly` | 1 yıl, otomatik yenilenen |
 
-Kimlikler `gradle.properties` içinde `SKU_*` ve `PLAN_*` olarak durur;
-Play'de başka bir yazım kullanılacaksa oradan değiştirilir, kod
-değişmez.
+Ürün kimlikleri (`SKU_*`) `gradle.properties` içinde durur; Play'de başka
+bir yazım kullanılacaksa oradan değiştirilir, kod değişmez.
+
+**Temel plan kimlikleri için aynı şey geçerli değildir.** `PLAN_MONTHLY` ve
+`PLAN_YEARLY` gradle tarafında ayarlansa da `viewer/edition.js` içindeki
+`PLANS = ['monthly', 'yearly']` dizisi sabittir ve satın alma çağrısına
+(`Android.buyPro(tier, plan)`) o dizideki metin gider. `Billing.buy()` gelen
+metni `BuildConfig.PLAN_YEARLY` ile karşılaştırdığı için, plan kimliği
+gradle'da değiştirilip JS'te değiştirilmezse **yıllık alımlar sessizce aylığa
+düşer**. Plan kimliği değiştirilecekse `gradle.properties`, `edition.js`
+(`PLANS` ve `planYearly` etiket karşılaştırması) birlikte güncellenir.
+En sağlamı kimlikleri `monthly` / `yearly` bırakmaktır.
 
 **Yükseltme ve düşürme.** Uygulama, elde etkin bir abonelik varken başka
 bir paket satın alınırsa akışı `SubscriptionUpdateParams` ile başlatır

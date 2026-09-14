@@ -191,6 +191,10 @@ body.docmode #viewport { touch-action: auto; }
 .ask-card { background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 14px; padding: 16px; width: 100%; max-width: 420px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 12px; }
 .ask-label { font-size: calc(15px * var(--fs)); line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
 .ask-field:empty { display: none; }
+/* Hazır ifade çipleri: giriş kutusunun üstünde iki satıra kadar, tabanı kaydırılabilir */
+.ask-words { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; max-height: 104px; overflow-y: auto; }
+.ask-words .chip { height: 34px; padding: 0 12px; font-size: calc(12px * var(--fs)); }
+body.glove .ask-words .chip { height: 44px; }
 .ask-field .opt-text { width: 100%; box-sizing: border-box; font-size: calc(16px * var(--fs)); }
 .ask-field textarea.opt-text { resize: vertical; min-height: 72px; font-family: inherit; }
 .ask-btns { justify-content: flex-end; }

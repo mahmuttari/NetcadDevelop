@@ -2,8 +2,8 @@
  * DWG OfficeZip – uygulama: yükleme, çizim döngüsü, dokunma, paneller ve araçlar.
  * Çözümleme worker.js'te, geometri geom.js'te, çizim render.js'te.
  */
-import { S, toWorld, toScreen, fitView, zoomAtScreen, visibleRect, UNITS, UNIT_TO_M, fmt, fmtUnit, store } from './state.js';
-import { RTree, snapPoint, primDist, flatten, pathLength, polyArea, TAU } from './geom.js';
+import { S, toWorld, toScreen, fitView, zoomAtScreen, visibleRect, UNITS, UNIT_TO_M, fmt, fmtUnit, store, clampPrec, PREC_MIN, PREC_MAX } from './state.js';
+import { RTree, snapPoint, primDist, flatten, pathLength, polyArea, meshMetrics, TAU } from './geom.js';
 import { FG, primSignature } from './scene.js';
 import { drawFrame, rgbCss, bgColor, fgColor, tracePath, renderRegion, gridState, niceStep, worldTransform as renderWorldTransform, worldOrigin } from './render.js';
 import * as D from './display.js';
@@ -39,7 +39,7 @@ const VERSION_URL = (A() && A().updateUrl) ? A().updateUrl() : 'https://raw.gith
 // ---------------------------------------------------------------------------
 // Ayarlar
 // ---------------------------------------------------------------------------
-const settings = Object.assign({ lang: 'auto', dark: true, lwScale: 3, crs: 'NONE', unit: 'auto', swap: false, dx: 0, dy: 0, basemap: 'none', basemapUrl: '', wms: '', opacity: 0.8, snap: ['end', 'mid', 'cen', 'int', 'ins', 'node'] }, store.json('settings', {}));
+const settings = Object.assign({ lang: 'auto', dark: true, lwScale: 3, crs: 'NONE', unit: 'auto', swap: false, dx: 0, dy: 0, basemap: 'none', basemapUrl: '', wms: '', opacity: 0.8, prec: 3, precPad: false, snap: ['end', 'mid', 'cen', 'int', 'ins', 'node'] }, store.json('settings', {}));
 /** 3B görünümde hiç yüzey yoksa: dosyadaki varlık türleri ve katı tanılaması bir kartta gösterilir (bir dosya için bir kez) */
 function showNoFaces() {
   const c = S.counts || {}, cen = (S.scene && S.scene.census) || {}, d = S.scene && S.scene.solidDiag;
@@ -91,6 +91,7 @@ function applySettings() {
     if (settings.opacity != null && settings.opacity !== S.basemap.opacity) setDisplay('basemapOpacity', settings.opacity, { silent: true });
   }
   settings.dark = S.dark; settings.lwScale = S.lwScale; settings.opacity = S.basemap.opacity; settings.display = { ...(settings.display || {}), ...D.snapshot() };
+  S.prec = clampPrec(settings.prec); S.precPad = !!settings.precPad;
   S.snapModes = new Set(settings.snap || []);
   document.querySelectorAll('[data-snap]').forEach(cb => { cb.checked = S.snapModes.has(cb.dataset.snap); });
 }
@@ -780,18 +781,21 @@ function showInfo(p) {
   rows.push([t('handle'), inf.h]);
   $('infoBody').innerHTML = kv(rows);
   ensureInfoActions();
+  { const ab = $('iaArea'); if (ab) ab.hidden = !(p.k === 5 && p.idx && p.idx.length >= 3); }   // yüzey ölçüsü yalnız üçgen ağı olan gövdede
   show('infoPanel');
 }
 /** Bilgi paneli eylem çipleri (başlık altı): Buradan ölç · Katmanı izole et · Aynı katmandakileri seç */
 function ensureInfoActions() {
   const panel = $('infoPanel'); if (!panel || $('infoActions')) return;
   const row = document.createElement('div'); row.id = 'infoActions'; row.className = 'info-actions';
-  row.innerHTML = `<button type="button" class="chip" data-ia="measure">${tt('measureFrom', 'Buradan ölç')}</button><button type="button" class="chip" data-ia="iso">${tt('isolate', 'Katmanı izole et')}</button><button type="button" class="chip" data-ia="samelayer">${tt('selectSameLayer', 'Aynı katmandakileri seç')}</button>`;
+  row.innerHTML = `<button type="button" class="chip" data-ia="measure">${tt('measureFrom', 'Buradan ölç')}</button><button type="button" class="chip" data-ia="iso">${tt('isolate', 'Katmanı izole et')}</button><button type="button" class="chip" data-ia="samelayer">${tt('selectSameLayer', 'Aynı katmandakileri seç')}</button>`
+    + `<button type="button" class="chip" id="iaArea" data-ia="area" hidden>${esc(t('surfArea'))}</button>`;
   const body = $('infoBody'); body.parentElement.insertBefore(row, body);
   row.addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-ia]'); if (!b || !infoPrim) return;
     const p = infoPrim;
     if (b.dataset.ia === 'measure') { const pts = p.k === 0 ? flatten(p.ops) : p.k === 5 ? [[(p.bb[0] + p.bb[2]) / 2, (p.bb[1] + p.bb[3]) / 2]] : [[p.x, p.y]]; hide('infoPanel'); setMode('measure'); if (pts[0]) { S.measure.push([pts[0][0], pts[0][1], undefined]); updateMeasure(); drawOverlay(); } }
+    else if (b.dataset.ia === 'area') showMeshArea(p);
     else if (b.dataset.ia === 'iso') isolateLayers([p.lay]);
     else if (b.dataset.ia === 'samelayer') {
       const same = S.prims.filter(q => q.lay === p.lay && q.k !== 4 && primVisible(q));
@@ -799,6 +803,37 @@ function ensureInfoActions() {
       drawOverlay(); toast(same.length + ' ' + tt('selectedN', 'nesne seçildi'));
     }
   });
+}
+/**
+ * Seçili üçgen ağın yüzey ölçüleri: toplam yüzey, yanal (düşey) yüzey, üst/alt plan izdüşümü ve
+ * kapalı ağda hacim. Hesap geom.meshMetrics'tedir; burada yalnız birim çevirimi ve sunum vardır.
+ * Hacim yalnız KAPALI (delik bırakmayan) ağda geçerlidir; panelde bu koşul açıkça yazılır.
+ */
+function showMeshArea(p) {
+  if (!Ed.gate('area3d')) return;
+  if (!p || p.k !== 5 || !p.idx || p.idx.length < 3) { toast(t('noResult')); return; }
+  const m = meshMetrics(p.vtx, p.idx);
+  const u = S.units ? ' ' + S.units : '';
+  const a2 = u ? u + '²' : '', a3 = u ? u + '³' : '';
+  const k = S.unitToM || 1, mm = k !== 1;
+  // metrik karşılık küçük değerlerde iki basamakta sıfıra düşer; basamak değere göre açılır
+  const met = (x, u2) => '  = ' + fmt(x, x >= 1 ? 2 : x >= 0.01 ? 4 : 6) + ' ' + u2;
+  const ar = (v) => fmt(v) + a2 + (mm ? met(v * k * k, 'm²') : '');
+  const vo = (v) => fmt(v) + a3 + (mm ? met(v * k * k * k, 'm³') : '');
+  const rows = [
+    [t('surfTotal'), ar(m.total)],
+    [t('surfLateral'), ar(m.lateral)],
+    [t('surfFlat'), ar(m.flat)],
+    [t('surfTop'), ar(m.top)],
+    [t('surfBottom'), ar(m.bottom)],
+    [t('volume'), vo(m.volume)],
+    [t('triCount'), fmt(m.tris, 0)],
+    [`<div class="full muted">${esc(t('surfNote'))}</div>`],
+    [`<div class="full btns"><button class="btn small" id="saCopy">${esc(tt('copyClip', 'Panoya kopyala'))}</button><button class="btn small" id="saShare">${esc(t('share'))}</button></div>`]];
+  openDoc(t('surfArea'), kv(rows));
+  const txt = [t('surfArea') + ' — ' + (S.fileName || ''), ...rows.slice(0, 7).map(r => r[0] + '\t' + r[1])].join('\n');
+  $('saCopy').onclick = () => copyText(txt);
+  $('saShare').onclick = () => { if (A() && A().shareText) A().shareText(t('surfArea'), txt); else copyText(txt); };
 }
 $('infoZoom').addEventListener('click', () => { if (infoPrim) { const b = infoPrim.bb; const m = Math.max(b[2] - b[0], b[3] - b[1]) * 0.3 || 1; zoomExtents([b[0] - m, b[1] - m, b[2] + m, b[3] + m]); } });
 $('infoCopy').addEventListener('click', () => {
@@ -869,9 +904,11 @@ function updateMeasureBig(rows, total) {
   if (!big) {
     big = document.createElement('div'); big.id = 'measureBig'; big.className = 'meas-big';
     acts = document.createElement('div'); acts.id = 'measureActions'; acts.className = 'meas-actions';
-    acts.innerHTML = `<button type="button" class="chip" id="measureCopy">${tt('copyClip', 'Panoya kopyala')}</button>`;
+    acts.innerHTML = `<button type="button" class="chip" id="measureCopy">${tt('copyClip', 'Panoya kopyala')}</button>`
+      + `<button type="button" class="chip" id="measureShare">${esc(t('share'))}</button>`;
     const body = $('measureBody'); body.parentElement.insertBefore(big, body); body.parentElement.insertBefore(acts, body);
-    $('measureCopy').addEventListener('click', () => { const txt = [...$('measureBody').querySelectorAll('.k, .v, .full')].reduce((a, el, i, arr) => { if (el.classList.contains('k')) a.push(el.textContent + '\t' + (arr[i + 1] ? arr[i + 1].textContent : '')); else if (el.classList.contains('full')) a.push(el.textContent); return a; }, []).join('\n'); copyText(txt); });
+    $('measureCopy').addEventListener('click', () => copyText(measureText()));
+    $('measureShare').addEventListener('click', () => shareMeasure());
   }
   const m = S.measure, u = S.units ? ' ' + S.units : '';
   if (!m.length) { big.hidden = true; acts.hidden = true; return; }
@@ -882,6 +919,27 @@ function updateMeasureBig(rows, total) {
   if (m.length > 2) s += '   Σ ' + fmt(total) + u + '   A ' + fmt(polyArea(m)) + (u ? u + '²' : '');
   else if (m.length === 2 && S.unitToM && S.unitToM !== 1) s += '  = ' + fmt(last * S.unitToM, 2) + ' m';
   big.textContent = s;
+}
+/**
+ * Ölçüm panelinin metin dökümü: başlık, dosya adı ve panelde yazılı ne varsa.
+ * Kopyalama da paylaşım da aynı metni kullanır; iki yerde ayrı biçim tutulmaz.
+ */
+function measureText() {
+  const head = (S.mode === 'profile' ? t('profile') : t('measure')) + (S.fileName ? ' — ' + S.fileName : '');
+  const body = [...$('measureBody').querySelectorAll('.k, .v, .full')].reduce((a, el, i, arr) => {
+    if (el.classList.contains('k')) a.push(el.textContent + '\t' + (arr[i + 1] ? arr[i + 1].textContent : ''));
+    else if (el.classList.contains('full')) a.push(el.textContent);
+    return a;
+  }, []).join('\n');
+  const big = $('measureBig');
+  return [head, big && !big.hidden ? big.textContent : '', body].filter(Boolean).join('\n');
+}
+/** Ölçümü başka uygulamaya gönderir (köprü yoksa panoya kopyalar) */
+function shareMeasure() {
+  const txt = measureText();
+  if (A() && A().shareText) { A().shareText(S.mode === 'profile' ? t('profile') : t('measure'), txt); return; }
+  if (navigator.share) { navigator.share({ title: t('measure'), text: txt }).catch(() => copyText(txt)); return; }
+  copyText(txt);
 }
 $('btnMeasure').addEventListener('click', () => setMode(S.mode === 'measure' ? 'view' : 'measure'));
 $('btnMeasureClear').addEventListener('click', () => { S.measure = []; S.snap = null; updateMeasure(); drawOverlay(); });
@@ -988,6 +1046,91 @@ function doSearch() {
   };
 }
 
+// ---- metin çıkarma ------------------------------------------------------------------
+/**
+ * Çizimdeki bütün yazıları toplar: TEXT / MTEXT / ATTDEF gövdeleri (k 1) ve blok yerleşimlerinin
+ * öznitelikleri (INSERT → info.attrs). Her satır metin, tür, katman, konum, yükseklik, açı ve tutamaktır.
+ * Görünürlük süzgeci uygulanmaz — çıkarım belgenin tamamını vermelidir, ekranın gösterdiğini değil.
+ */
+function collectTexts(prims) {
+  const out = [], seenIns = new Set();
+  for (const p of prims) {
+    if (p.k === 4) continue;
+    const inf = p.info || {};
+    if (p.k === 1 && p.lines && p.lines.length) {
+      const txt = p.lines.join('\n').trim();
+      if (txt) out.push({ txt, type: inf.t || p.et || 'TEXT', tag: inf.tag || '', lay: p.lay, x: p.x, y: p.y, z: p.z || 0, h: p.h || 0, rot: (p.rot || 0) * 180 / Math.PI, hnd: inf.h || '' });
+    }
+    if (inf.attrs && inf.attrs.length) {
+      // bir blok yerleştirmesi onlarca ilkele yayılır ve hepsi aynı info nesnesini taşır:
+      // öznitelikler tutamak başına bir kez yazılır, yoksa her öznitelik onlarca kez tekrarlanır
+      const key = (inf.h || '') + '\u0000' + inf.attrs.length;
+      if (inf.h && seenIns.has(key)) continue;
+      if (inf.h) seenIns.add(key);
+      for (const a of inf.attrs) {
+        const v = String(a[1] == null ? '' : a[1]).trim();
+        if (!v) continue;
+        out.push({ txt: v, type: 'ATTRIB', tag: a[0] || '', lay: p.lay, x: inf.x != null ? inf.x : p.x, y: inf.y != null ? inf.y : p.y, z: inf.z || 0, h: 0, rot: 0, hnd: inf.h || '' });
+      }
+    }
+  }
+  return out;
+}
+/** Bir CSV hücresi: ayraç, tırnak ya da satır sonu varsa tırnak içine alınır, iç tırnak ikilenir */
+const csvCell = (v) => { const x = String(v == null ? '' : v); return /[";\n\r]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; };
+/** UTF-8 metni base64'e çevirir (köprü saveFile base64 ister) */
+function b64utf8(text) {
+  const bytes = new TextEncoder().encode(text);
+  let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+/** Dosyayı kaydeder / paylaşır; köprü yoksa tarayıcıda indirir */
+function saveTextFile(text, name, mime) {
+  const b64 = b64utf8(text);
+  const driveAct = Drive.signedIn() && Ed.has('driveUpload') ? { label: tt('driveUpload', "Drive'a yükle"), fn: () => Drive.uploadWithPicker({ b64, name, mime }) } : undefined;
+  if (A() && A().saveFile) { const r = A().saveFile(b64, name, mime, true); toast(r ? t('saved') + ': ' + r : t('error'), { type: r ? 'ok' : 'error', ms: 6000, action: r ? driveAct : undefined }); return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: mime })); a.download = name;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+  toast(t('saved'), { type: 'ok', action: driveAct });
+}
+function showTextOut() {
+  if (!Ed.gate('textout')) return;
+  const all = S.scene && S.scene.layouts.length > 1;
+  const html = kv([
+    [t('scope'), all
+      ? `<label class="chk"><input type="checkbox" id="txAll"> ${esc(t('allLayouts'))}</label>`
+      : `<span class="muted">${esc(S.scene ? S.scene.layouts[S.layoutIndex].name : '')}</span>`, 1],
+    [t('outFormat'), `<select id="txFmt"><option value="csv">CSV (${esc(t('withCoords'))})</option><option value="txt">${esc(t('plainText'))}</option></select>`, 1],
+    [`<div class="full" id="txInfo"></div>`],
+    [`<div class="full btns"><button class="btn primary small" id="txSave">${esc(t('save'))}</button><button class="btn small" id="txCopy">${esc(tt('copyClip', 'Panoya kopyala'))}</button><button class="btn small" id="txShare">${esc(t('share'))}</button></div>`]]);
+  openDoc(t('textOut'), html);
+  const build = () => {
+    const useAll = all && $('txAll').checked;
+    const src = useAll ? S.scene.layouts.flatMap(L => L.prims) : S.prims;
+    const rows = collectTexts(src);
+    const fmtSel = $('txFmt').value;
+    let body;
+    if (fmtSel === 'csv') {
+      const head = [t('textK'), t('tag'), t('typeCol'), t('layer'), 'X', 'Y', 'Z', t('height'), t('rotation'), t('handle')];
+      body = '\ufeff' + [head.map(csvCell).join(';'), ...rows.map(r => [r.txt, r.tag, r.type, r.lay, fmt(r.x), fmt(r.y), fmt(r.z), fmt(r.h), fmt(r.rot, 2), r.hnd].map(csvCell).join(';'))].join('\r\n');
+    } else body = rows.map(r => r.txt).join('\n');
+    return { rows, body, ext: fmtSel === 'csv' ? '.csv' : '.txt', mime: fmtSel === 'csv' ? 'text/csv' : 'text/plain' };
+  };
+  const refresh = () => {
+    const { rows } = build();
+    const prev = rows.slice(0, 12).map(r => esc(r.txt.replace(/\n/g, ' ↵ ').slice(0, 60))).join('<br>');
+    $('txInfo').innerHTML = rows.length
+      ? `<strong>${fmt(rows.length, 0)}</strong> ${esc(t('textsN'))}<div class="muted" style="margin-top:6px">${prev}${rows.length > 12 ? '<br>…' : ''}</div>`
+      : `<span class="muted">${esc(t('noResult'))}</span>`;
+  };
+  if (all) $('txAll').onchange = refresh;
+  $('txFmt').onchange = refresh;
+  refresh();
+  $('txSave').onclick = () => { const b = build(); if (!b.rows.length) { toast(t('noResult')); return; } saveTextFile(b.body, baseName() + '_metin_' + stamp() + b.ext, b.mime); hide('docPanel'); };
+  $('txCopy').onclick = () => { const b = build(); copyText(b.body); };
+  $('txShare').onclick = () => { const b = build(); if (A() && A().shareText) A().shareText(t('textOut'), b.body); else copyText(b.body); };
+}
+
 // ---- diğer menüsü --------------------------------------------------------------------
 $('btnMore').addEventListener('click', () => { $('moreMenu').hidden = !$('moreMenu').hidden; });
 /** Belge kipinde (PDF / Word / Excel / arşiv / resim / metin) Diğer menüsünde yalnız genel eylemler kalır; çizim eylemleri gizlenir */
@@ -1007,7 +1150,7 @@ $('btnExtents').addEventListener('click', () => zoomExtents());
 function menuAction(act) {
   closeMenu();
   if (!Ed.gate(act)) return;   // Ücretsiz sürümde Pro eylemi (notes / profile / compare / pdf): yükseltme kutusu
-  const needDoc = ['info', 'layouts', 'notes', 'profile', 'compare', 'xrefs', 'views', 'png', 'pdf'];
+  const needDoc = ['info', 'layouts', 'notes', 'profile', 'compare', 'xrefs', 'views', 'png', 'pdf', 'textout'];
   if (needDoc.includes(act) && !S.hasDoc) { toast(t('openFirst')); return; }
   switch (act) {
     case 'info': showDocInfo(); break;
@@ -1033,6 +1176,7 @@ function menuAction(act) {
     case 'extents': zoomExtents(); break;
     case 'png': savePng(); break;
     case 'pdf': showPdf(); break;
+    case 'textout': showTextOut(); break;
     case 'server': showServer(); break;
     case 'qr': startQr(); break;
     case 'settings': showSettings(); break;
@@ -1154,7 +1298,7 @@ $('noteColor').addEventListener('input', (ev) => { S.noteColor = ev.target.value
 let pendingPhotoPoint = null;
 async function noteTap(sx, sy, w) {
   if (S.noteTool === 'text') {
-    const txt = await askText(t('notePrompt'), '', { multiline: true });
+    const txt = await askText(t('notePrompt'), '', { multiline: true, words: true });
     if (txt) addNote({ type: 'text', pts: [w], color: S.noteColor, text: txt });
   } else if (S.noteTool === 'photo') {
     pendingPhotoPoint = w;
@@ -1279,6 +1423,8 @@ function showSettings() {
     [t('offset') + ' X', `<input id="sDx" type="number" step="any" value="${cur.dx}">`, 1],
     [t('offset') + ' Y', `<input id="sDy" type="number" step="any" value="${cur.dy}">`, 1],
     [t('lwScale'), `<input id="sLw" type="number" step="0.5" min="1" max="10" value="${S.lwScale}">`, 1],
+    [t('decimals'), `<select id="sPrec">${Array.from({ length: PREC_MAX - PREC_MIN + 1 }, (_, i) => PREC_MIN + i).map(n => `<option value="${n}" ${n === S.prec ? 'selected' : ''}>${n}</option>`).join('')}</select>`, 1],
+    [t('decimalsPad'), `<label class="chk"><input type="checkbox" id="sPrecPad" ${S.precPad ? 'checked' : ''}> ${esc(t('decimalsPadHint'))}</label>`, 1],
     [`<div class="full muted">${S.fileKey ? esc(t('geoPerFile')) + ' ' : ''}${esc(t('ed50Note'))}</div>`],
     [`<div class="full btns"><button class="btn primary small" id="sSave">${t('save')}</button><button class="btn small" id="sDisplay">${tt('dispTitle', 'Ekran ayarları')}</button></div>`]]);
   let a11y = null;
@@ -1288,10 +1434,13 @@ function showSettings() {
   $('sDisplay').onclick = () => { hide('docPanel'); openDisplayOptions(); };
   $('sSave').onclick = () => {
     settings.lang = $('sLang').value; settings.lwScale = Number($('sLw').value) || 3;
+    settings.prec = clampPrec($('sPrec').value); settings.precPad = $('sPrecPad').checked;
     const geo = { crs: $('sCrs').value, unit: $('sUnit').value, swap: $('sSwap').checked, dx: Number($('sDx').value) || 0, dy: Number($('sDy').value) || 0 };
     if (S.fileKey) store.set('geo:' + S.fileKey, JSON.stringify(geo));
     Object.assign(settings, geo); saveSettings(); applySettings(); applyGeo();
-    S.cacheValid = false; requestRender(); hide('docPanel'); toast(t('save') + ' ✓');
+    S.cacheValid = false; requestRender(); drawOverlay();
+    if (!$('measurePanel').hidden) updateMeasure();
+    hide('docPanel'); toast(t('save') + ' ✓');
   };
 }
 
@@ -1551,73 +1700,110 @@ const baseName = () => (S.fileName || 'cizim').replace(/\.(dwg|dxf)$/i, '');
 const stamp = () => new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '');
 const PAPERS = { A4: [210, 297], A3: [297, 420], A2: [420, 594], A1: [594, 841], A0: [841, 1189] };
 function showPdf() {
+  const multi = !!(S.scene && S.scene.layouts.length > 1);   // çok sayfalı seçeneği yalnız birden çok düzen varsa
   const html = kv([
     [t('title'), `<input id="pTitle" value="${esc(baseName())}">`, 1],
     [t('paper'), `<select id="pPaper">${Object.keys(PAPERS).map(k => `<option ${k === 'A3' ? 'selected' : ''}>${k}</option>`).join('')}</select>`, 1],
     [t('orient'), `<select id="pOrient"><option value="l">${t('landscape')}</option><option value="p">${t('portrait')}</option></select>`, 1],
     [t('pdfScale'), `<input id="pScale" type="number" min="1" step="1" placeholder="${t('pdfFit')}" value="">`, 1],
     [t('dpi'), `<select id="pDpi"><option>100</option><option selected>150</option><option>200</option><option>300</option></select>`, 1],
+    ...(multi ? [[t('scope'), `<label class="chk"><input type="checkbox" id="pAll"> ${esc(t('pdfAllLayouts'))}</label>`, 1]] : []),
     [`<div class="full muted">Ölçek boş bırakılırsa mevcut görünüm sayfaya sığdırılır. Ölçek verilirse görünüm merkezi esas alınır (çizim birimi: ${S.units || '?'}).</div>`],
     [`<div class="full btns"><button class="btn primary small" id="pGo">${t('create')}</button></div>`]]);
   openDoc(t('pdfTitle'), html);
-  $('pGo').onclick = () => makePdf($('pTitle').value, $('pPaper').value, $('pOrient').value, Number($('pScale').value) || 0, Number($('pDpi').value) || 150);
+  $('pGo').onclick = () => makePdf($('pTitle').value, $('pPaper').value, $('pOrient').value, Number($('pScale').value) || 0, Number($('pDpi').value) || 150, multi && $('pAll').checked);
 }
-async function makePdf(title, paper, orient, scaleN, dpi) {
+/**
+ * PDF oluşturur. all verilirse belgedeki BÜTÜN düzenler (Model + kâğıt sayfaları) ayrı sayfalar olarak
+ * tek dosyaya yazılır; her sayfa kendi sınırlarına sığdırılır ve kendi ölçeğini taşır.
+ * Tek sayfada ölçek verilebilir (görünüm merkezi esas alınır); çok sayfada ölçek her sayfa için
+ * ayrı hesaplanır — farklı büyüklükteki düzenlere tek ölçek dayatılamaz.
+ */
+async function makePdf(title, paper, orient, scaleN, dpi, all) {
   setLoading(t('pdfTitle'), paper);
   await new Promise(r => setTimeout(r, 30));
+  const keep = { li: S.layoutIndex, prims: S.prims, tree: S.tree, ext: S.ext, sel: S.selected };
   try {
     let [wmm, hmm] = PAPERS[paper]; if (orient === 'l') [wmm, hmm] = [hmm, wmm];
     const pxPerMm = dpi / 25.4;
     const W = Math.round(wmm * pxPerMm), H = Math.round(hmm * pxPerMm);
     const margin = 10 * pxPerMm, tb = 18 * pxPerMm;
     const aw = Math.round(W - 2 * margin), ah = Math.round(H - 2 * margin - tb);
-    let bb;
-    if (scaleN > 0 && S.unitToM) {
-      const ww = (aw / pxPerMm / 1000) * scaleN / S.unitToM, hh = (ah / pxPerMm / 1000) * scaleN / S.unitToM;
-      bb = [S.view.cx - ww / 2, S.view.cy - hh / 2, S.view.cx + ww / 2, S.view.cy + hh / 2];
-    } else {
-      const vr = visibleRect();
-      const ar = aw / ah, vw = vr[2] - vr[0], vh = vr[3] - vr[1];
-      if (vw / vh > ar) { const nh = vw / ar; bb = [vr[0], S.view.cy - nh / 2, vr[2], S.view.cy + nh / 2]; } else { const nw = vh * ar; bb = [S.view.cx - nw / 2, vr[1], S.view.cx + nw / 2, vr[3]]; }
-      scaleN = S.unitToM ? Math.round(((bb[2] - bb[0]) * S.unitToM * 1000) / (aw / pxPerMm)) : 0;
+    const layouts = S.scene.layouts;
+    // çok sayfada boş ya da sınırsız düzen baştan elenir: sayfa numarası ("2 / 3") gerçek sayfayı göstersin
+    const idxs = all ? layouts.map((_, i) => i).filter(i => layouts[i].prims.length && layouts[i].ext && isFinite(layouts[i].ext[0])) : [S.layoutIndex];
+    if (!idxs.length) { toast(t('pdfFail'), { type: 'error' }); return; }
+    if (all) S.selected = null;                      // başka düzene ait seçim yeni sayfada çizilmesin
+    const pages = [];
+    for (const li of idxs) {
+      if (all) {
+        const L = layouts[li];
+        S.layoutIndex = li; S.prims = L.prims; S.ext = L.ext;
+        S.tree = L.isModel ? S.modelTree : (L.tree || (L.tree = new RTree(L.prims, q => q.bb)));
+        setLoading(t('pdfTitle'), `${L.name} (${pages.length + 1}/${idxs.length})`, 100 * pages.length / idxs.length);
+        await new Promise(r => setTimeout(r, 0));
+      }
+      let bb, pageScale = scaleN;
+      if (!all && scaleN > 0 && S.unitToM) {
+        const ww = (aw / pxPerMm / 1000) * scaleN / S.unitToM, hh = (ah / pxPerMm / 1000) * scaleN / S.unitToM;
+        bb = [S.view.cx - ww / 2, S.view.cy - hh / 2, S.view.cx + ww / 2, S.view.cy + hh / 2];
+      } else {
+        // tek sayfada ekrandaki görünüm, çok sayfada düzenin kendi sınırları sayfaya sığdırılır
+        let vr = all ? S.ext.slice() : visibleRect();
+        if (all) { const mx = Math.max(vr[2] - vr[0], vr[3] - vr[1]) * 0.03 || 1; vr = [vr[0] - mx, vr[1] - mx, vr[2] + mx, vr[3] + mx]; }
+        const cx = (vr[0] + vr[2]) / 2, cy = (vr[1] + vr[3]) / 2;
+        const ar = aw / ah, vw = Math.max(vr[2] - vr[0], 1e-9), vh = Math.max(vr[3] - vr[1], 1e-9);
+        if (vw / vh > ar) { const nh = vw / ar; bb = [vr[0], cy - nh / 2, vr[2], cy + nh / 2]; } else { const nw = vh * ar; bb = [cx - nw / 2, vr[1], cx + nw / 2, vr[3]]; }
+        pageScale = S.unitToM ? Math.round(((bb[2] - bb[0]) * S.unitToM * 1000) / (aw / pxPerMm)) : 0;
+      }
+      const img = renderRegion(bb, aw, ah, { light: true, overlay: overlayForExport });
+      const page = document.createElement('canvas'); page.width = W; page.height = H;
+      const g = page.getContext('2d');
+      g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+      g.drawImage(img, margin, margin);
+      g.strokeStyle = '#000'; g.lineWidth = Math.max(1, pxPerMm * 0.35); g.strokeRect(margin, margin, aw, ah);
+      const y0 = margin + ah;
+      g.strokeRect(margin, y0, aw, tb);
+      g.fillStyle = '#000'; g.textBaseline = 'middle';
+      g.font = `bold ${Math.round(4.5 * pxPerMm)}px sans-serif`; g.fillText(title || baseName(), margin + 3 * pxPerMm, y0 + tb * 0.32);
+      g.font = `${Math.round(3 * pxPerMm)}px sans-serif`;
+      const info = [`${t('file')}: ${S.fileName}`, layouts[S.layoutIndex].name, idxs.length > 1 ? `${pages.length + 1} / ${idxs.length}` : '',
+        pageScale ? `${t('pdfScale')}${pageScale}` : '', S.units ? `${t('drawingUnit')}: ${S.units}` : '', S.geo.active ? S.geo.crs.name : '', new Date().toLocaleString('tr-TR')].filter(Boolean).join('   ·   ');
+      g.fillText(info, margin + 3 * pxPerMm, y0 + tb * 0.72);
+      const nx = W - margin - 8 * pxPerMm, ny = y0 + tb / 2;
+      g.beginPath(); g.moveTo(nx, ny - 5 * pxPerMm); g.lineTo(nx + 2.5 * pxPerMm, ny + 4 * pxPerMm); g.lineTo(nx, ny + 2 * pxPerMm); g.lineTo(nx - 2.5 * pxPerMm, ny + 4 * pxPerMm); g.closePath(); g.fill();
+      g.font = `bold ${Math.round(3 * pxPerMm)}px sans-serif`; g.textAlign = 'center'; g.fillText('K', nx, ny - 7 * pxPerMm); g.textAlign = 'left';
+      if (pageScale && S.unitToM) {
+        const worldPerPx = (bb[2] - bb[0]) / aw;
+        const barM = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000].find(v => v / (worldPerPx * S.unitToM) > 25 * pxPerMm) || 1000;
+        const px = barM / (worldPerPx * S.unitToM);
+        const bx = nx - 20 * pxPerMm - px, by = y0 + tb * 0.7;
+        g.fillRect(bx, by, px / 2, 1.5 * pxPerMm); g.strokeRect(bx, by, px, 1.5 * pxPerMm);
+        g.font = `${Math.round(2.5 * pxPerMm)}px sans-serif`; g.fillText('0', bx, by - 2 * pxPerMm); g.fillText(barM + ' m', bx + px - 3 * pxPerMm, by - 2 * pxPerMm);
+      }
+      pages.push({ jpeg: page.toDataURL('image/jpeg', 0.92).split(',')[1], pw: W, ph: H });
     }
-    const img = renderRegion(bb, aw, ah, { light: true, overlay: overlayForExport });
-    const page = document.createElement('canvas'); page.width = W; page.height = H;
-    const g = page.getContext('2d');
-    g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
-    g.drawImage(img, margin, margin);
-    g.strokeStyle = '#000'; g.lineWidth = Math.max(1, pxPerMm * 0.35); g.strokeRect(margin, margin, aw, ah);
-    const y0 = margin + ah;
-    g.strokeRect(margin, y0, aw, tb);
-    g.fillStyle = '#000'; g.textBaseline = 'middle';
-    g.font = `bold ${Math.round(4.5 * pxPerMm)}px sans-serif`; g.fillText(title || baseName(), margin + 3 * pxPerMm, y0 + tb * 0.32);
-    g.font = `${Math.round(3 * pxPerMm)}px sans-serif`;
-    const info = [`${t('file')}: ${S.fileName}`, S.scene.layouts[S.layoutIndex].name, scaleN ? `${t('pdfScale')}${scaleN}` : '', S.units ? `${t('drawingUnit')}: ${S.units}` : '', S.geo.active ? S.geo.crs.name : '', new Date().toLocaleString('tr-TR')].filter(Boolean).join('   ·   ');
-    g.fillText(info, margin + 3 * pxPerMm, y0 + tb * 0.72);
-    const nx = W - margin - 8 * pxPerMm, ny = y0 + tb / 2;
-    g.beginPath(); g.moveTo(nx, ny - 5 * pxPerMm); g.lineTo(nx + 2.5 * pxPerMm, ny + 4 * pxPerMm); g.lineTo(nx, ny + 2 * pxPerMm); g.lineTo(nx - 2.5 * pxPerMm, ny + 4 * pxPerMm); g.closePath(); g.fill();
-    g.font = `bold ${Math.round(3 * pxPerMm)}px sans-serif`; g.textAlign = 'center'; g.fillText('K', nx, ny - 7 * pxPerMm); g.textAlign = 'left';
-    if (scaleN && S.unitToM) {
-      const worldPerPx = (bb[2] - bb[0]) / aw;
-      const barM = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000].find(v => v / (worldPerPx * S.unitToM) > 25 * pxPerMm) || 1000;
-      const px = barM / (worldPerPx * S.unitToM);
-      const bx = nx - 20 * pxPerMm - px, by = y0 + tb * 0.7;
-      g.fillRect(bx, by, px / 2, 1.5 * pxPerMm); g.strokeRect(bx, by, px, 1.5 * pxPerMm);
-      g.font = `${Math.round(2.5 * pxPerMm)}px sans-serif`; g.fillText('0', bx, by - 2 * pxPerMm); g.fillText(barM + ' m', bx + px - 3 * pxPerMm, by - 2 * pxPerMm);
-    }
-    const jpeg = page.toDataURL('image/jpeg', 0.92).split(',')[1];
-    const pdf = buildPdf(jpeg, W, H, wmm, hmm, title || baseName());
+    const pdf = buildPdf(pages, wmm, hmm, title || baseName());
     const name = baseName() + '_' + stamp() + '.pdf';
     const driveAct = Drive.signedIn() && Ed.has('driveUpload') ? { label: tt('driveUpload', "Drive'a yükle"), fn: () => Drive.uploadWithPicker({ b64: pdf, name, mime: 'application/pdf' }) } : undefined;
-    if (A() && A().saveFile) { const r = A().saveFile(pdf, name, 'application/pdf', true); toast(r ? t('pdfDone') + ': ' + r : t('pdfFail'), { type: r ? 'ok' : 'error', ms: 6000, action: r ? driveAct : undefined }); }
-    else { const a = document.createElement('a'); a.href = 'data:application/pdf;base64,' + pdf; a.download = name; a.click(); toast(t('pdfDone'), { type: 'ok', action: driveAct }); }
+    const done = t('pdfDone') + (pages.length > 1 ? ` (${pages.length} ${t('pagesN')})` : '');
+    if (A() && A().saveFile) { const r = A().saveFile(pdf, name, 'application/pdf', true); toast(r ? done + ': ' + r : t('pdfFail'), { type: r ? 'ok' : 'error', ms: 6000, action: r ? driveAct : undefined }); }
+    else { const a = document.createElement('a'); a.href = 'data:application/pdf;base64,' + pdf; a.download = name; a.click(); toast(done, { type: 'ok', action: driveAct }); }
     hide('docPanel');
   } catch (e) { fail(e); }
-  setLoading(null);
+  finally {
+    S.layoutIndex = keep.li; S.prims = keep.prims; S.tree = keep.tree; S.ext = keep.ext; S.selected = keep.sel;
+    if (all) { S.cacheValid = false; requestRender(); }   // başka düzen çizildi: ekran önbelleği bayat
+    setLoading(null);                                     // erken çıkışta da yükleme örtüsü kapanır
+  }
 }
-/** Tek sayfalık, JPEG gömülü PDF (base64) */
-function buildPdf(jpegB64, pw, ph, wmm, hmm, title) {
-  const bin = atob(jpegB64);
+/**
+ * JPEG gömülü PDF (base64). pages: [{jpeg, pw, ph}] — her öğe bir sayfadır, hepsi aynı kâğıt ölçüsünde.
+ * Nesne numaraları sayfa sayısına göre üretilir: 1 katalog, 2 sayfa ağacı, sonra sayfa başına üç nesne
+ * (sayfa, içerik, resim), en sonda künye.
+ */
+function buildPdf(pages, wmm, hmm, title) {
+  const list = Array.isArray(pages) ? pages : [pages];
   const Wpt = wmm * 72 / 25.4, Hpt = hmm * 72 / 25.4;
   const parts = [];
   const enc = new TextEncoder();
@@ -1625,21 +1811,26 @@ function buildPdf(jpegB64, pw, ph, wmm, hmm, title) {
   const push = (s) => { const b = typeof s === 'string' ? enc.encode(s) : s; parts.push(b); offset += b.length; };
   push('%PDF-1.4\n');
   const obj = (n, body) => { xref[n] = offset; push(`${n} 0 obj\n${body}\nendobj\n`); };
+  const pageObj = (i) => 3 + i * 3;                 // sayfa i → 3+3i, içeriği 4+3i, resmi 5+3i
+  const infoObj = 3 + list.length * 3;
   obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
-  obj(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
-  obj(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${Wpt.toFixed(2)} ${Hpt.toFixed(2)}] /Contents 4 0 R /Resources << /XObject << /Im1 5 0 R >> >> >>`);
-  const content = `q ${Wpt.toFixed(2)} 0 0 ${Hpt.toFixed(2)} 0 0 cm /Im1 Do Q`;
-  obj(4, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
-  xref[5] = offset;
-  push(`5 0 obj\n<< /Type /XObject /Subtype /Image /Width ${pw} /Height ${ph} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${bin.length} >>\nstream\n`);
-  const img = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) img[i] = bin.charCodeAt(i);
-  push(img); push('\nendstream\nendobj\n');
+  obj(2, `<< /Type /Pages /Kids [${list.map((_, i) => `${pageObj(i)} 0 R`).join(' ')}] /Count ${list.length} >>`);
+  for (let i = 0; i < list.length; i++) {
+    const pg = list[i], bin = atob(pg.jpeg);
+    obj(pageObj(i), `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${Wpt.toFixed(2)} ${Hpt.toFixed(2)}] /Contents ${pageObj(i) + 1} 0 R /Resources << /XObject << /Im1 ${pageObj(i) + 2} 0 R >> >> >>`);
+    const content = `q ${Wpt.toFixed(2)} 0 0 ${Hpt.toFixed(2)} 0 0 cm /Im1 Do Q`;
+    obj(pageObj(i) + 1, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+    xref[pageObj(i) + 2] = offset;
+    push(`${pageObj(i) + 2} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${pg.pw} /Height ${pg.ph} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${bin.length} >>\nstream\n`);
+    const img = new Uint8Array(bin.length); for (let j = 0; j < bin.length; j++) img[j] = bin.charCodeAt(j);
+    push(img); push('\nendstream\nendobj\n');
+  }
   const esc2 = (s) => s.replace(/[^\x20-\x7e]/g, '?').replace(/[()\\]/g, '\\$&');
-  obj(6, `<< /Title (${esc2(title)}) /Producer (DWG OfficeZip) /CreationDate (D:${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}) >>`);
+  obj(infoObj, `<< /Title (${esc2(title)}) /Producer (DWG OfficeZip) /CreationDate (D:${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}) >>`);
   const xrefPos = offset;
-  let x = 'xref\n0 7\n0000000000 65535 f \n';
-  for (let i = 1; i <= 6; i++) x += String(xref[i]).padStart(10, '0') + ' 00000 n \n';
-  push(x + `trailer\n<< /Size 7 /Root 1 0 R /Info 6 0 R >>\nstartxref\n${xrefPos}\n%%EOF\n`);
+  let x = `xref\n0 ${infoObj + 1}\n0000000000 65535 f \n`;
+  for (let i = 1; i <= infoObj; i++) x += String(xref[i]).padStart(10, '0') + ' 00000 n \n';
+  push(x + `trailer\n<< /Size ${infoObj + 1} /Root 1 0 R /Info ${infoObj} 0 R >>\nstartxref\n${xrefPos}\n%%EOF\n`);
   const total = parts.reduce((a, b) => a + b.length, 0);
   const out = new Uint8Array(total); let o = 0; for (const p of parts) { out.set(p, o); o += p.length; }
   let s = ''; for (let i = 0; i < out.length; i += 0x8000) s += String.fromCharCode.apply(null, out.subarray(i, i + 0x8000));
@@ -1826,7 +2017,7 @@ async function onFilePicked(purpose, id, name, size) {
     if (purpose.startsWith('xref:')) { await loadXref(Number(purpose.slice(5)), await fetchFile(id), name); return; }
     if (purpose.startsWith('img:')) { loadImageFile(purpose.slice(4), '/file/' + id); return; }
     if (purpose === 'photo' && pendingPhotoPoint) {
-      const txt = (await askText(t('notePrompt'), '', { multiline: true })) || '';
+      const txt = (await askText(t('notePrompt'), '', { multiline: true, words: true })) || '';
       addNote({ type: 'photo', pts: [pendingPhotoPoint], color: S.noteColor, photo: id, text: txt });
       loadPhoto(id); pendingPhotoPoint = null; drawOverlay();
     }
@@ -1855,7 +2046,7 @@ async function fileForPurpose(purpose, f) {
     else if (purpose === 'photo' && pendingPhotoPoint) {
       const id = 'blob_' + Date.now();
       loadPhoto(id, URL.createObjectURL(f));
-      addNote({ type: 'photo', pts: [pendingPhotoPoint], color: S.noteColor, photo: id, text: (await askText(t('notePrompt'), '', { multiline: true })) || '' });
+      addNote({ type: 'photo', pts: [pendingPhotoPoint], color: S.noteColor, photo: id, text: (await askText(t('notePrompt'), '', { multiline: true, words: true })) || '' });
       pendingPhotoPoint = null; drawOverlay();
     }
   } catch (e) { fail(e); }
@@ -1920,7 +2111,7 @@ async function checkUpdate(manual) {
 // ---------------------------------------------------------------------------
 // Başlangıç
 // ---------------------------------------------------------------------------
-window.dwgApp = { loadCurrent, onFilePicked, onLocation, onBack, loadBytes, zoomExtents, render, toScreen, toWorld, state: S, notes, editor, setMode, setLayout, refreshRecent: buildRecent,
+window.dwgApp = { loadCurrent, onFilePicked, onLocation, onBack, loadBytes, zoomExtents, render, toScreen, toWorld, state: S, notes, editor, setMode, setLayout, refreshRecent: buildRecent, showInfo,
   onQr: (text) => { try { const s = String(text || '').trim(); if (s) onQr(s); } catch (e) { console.warn(e); } },   // Android ACTION_SEND / EXTRA_TEXT
   onLocationError: (m) => { const perm = /kalıcı olarak reddedildi|permanently denied/i.test(String(m)); const openSet = A() && A().openAppSettings ? () => A().openAppSettings() : null;
     toast('GPS: ' + m, perm && openSet ? { ms: 8000, action: { label: tt('settings', 'Ayarlar'), fn: openSet } } : undefined); },
@@ -1928,7 +2119,11 @@ window.dwgApp = { loadCurrent, onFilePicked, onLocation, onBack, loadBytes, zoom
   docs: Docs, drive: Drive, onGoogle: (ok, json) => Drive.onGoogle(ok, json), onDrive: (id, ok, json) => Drive.onDrive(id, ok, json), onDriveProgress: (id, d, tot) => Drive.onProgress(id, d, tot), openDrive: () => Drive.open(),
   open: Open, openCenter: (tab) => Open.open(tab), onFsRoot: (obj) => Open.onFsRoot(obj), onFs: (id, ok, json) => Open.onFs(id, ok, json),
   home: Home, cloud: Cloud, onWebDav: (id, ok, json) => Cloud.onWebDav(id, ok, json), goHome, refreshMenu,
-  edition: () => Ed.tier(), tier: () => Ed.tier(), has: (id) => Ed.has(id), isPro: () => Ed.isPro(), openProPanel: () => Ed.openProPanel(), proInfo: () => Ed.proInfo(), onEdition: (ed, reason) => Ed.onEdition(String(ed || ''), String(reason || '')), onAd: (reason, shown) => Ed.onAd(String(reason || ''), !!shown), __ads: Ed.__ads };
+  edition: () => Ed.tier(), tier: () => Ed.tier(), has: (id) => Ed.has(id), isPro: () => Ed.isPro(), openProPanel: () => Ed.openProPanel(), proInfo: () => Ed.proInfo(), onEdition: (ed, reason) => Ed.onEdition(String(ed || ''), String(reason || '')), onAd: (reason, shown) => Ed.onAd(String(reason || ''), !!shown), __ads: Ed.__ads,
+  // sınama kancaları: çok sayfalı PDF kurucusu, metin toplayıcı ve ölçüm dökümü
+  __pdf: { build: (pages, wmm, hmm, title) => buildPdf(pages, wmm, hmm, title) },
+  __text: { collect: (prims) => collectTexts(prims || S.prims), csvCell },
+  __measure: { text: () => measureText() } };
 ensureStatusChips();
 Ed.initEdition({ toast, rebuildToolbar: () => editor.rebuild(), refreshMenu });   // Ücretsiz / Pro: menü, karşılama kartı, Pro paneli, Drive düğmeleri; reklam zamanlayıcısı; onEdition → şerit yeniden kurulur
 D.initDisplay({ requestRender, drawOverlay, toast, openDoc, show, hide, buildLayerList, settings, saveSettings, editorTheme, zoomExtents, zoomBy, fitPrims, viewHistory, setLayout, editor, ui: uiPrefs(), basemaps: BASEMAPS, haptic });

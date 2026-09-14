@@ -398,3 +398,42 @@ export function snapPoint(prims, w, tol, modes, prev) {
   }
   return best;
 }
+
+/**
+ * Üçgen ağın alan ve hacim ölçüleri (3B). vtx: düz Float32Array (x,y,z…), idx: üçgen köşe dizini.
+ *
+ *   total    bütün üçgenlerin gerçek (eğimli) alanı toplamı — yüzey alanı
+ *   lateral  normali yataya yakın üçgenler: yanal (düşey) yüzeyler. Sınır cosLimit = |nz|/‖n‖;
+ *            0,5 düşeyden en çok 30° sapan yüzey demektir.
+ *   flat     geri kalan (yatayımsı) üçgenlerin gerçek alanı
+ *   top      normali yukarı bakan üçgenlerin XY izdüşümü — üstten görünen plan alanı
+ *   bottom   normali aşağı bakan üçgenlerin XY izdüşümü
+ *   volume   işaretli hacim toplamının mutlak değeri; yalnız KAPALI ağda hacimdir
+ *   tris     üçgen sayısı
+ *
+ * Alanlar çizim birimi karesindedir; çağıran gerekirse S.unitToM ile metreye çevirir.
+ */
+export function meshMetrics(vtx, idx, cosLimit = 0.5) {
+  const out = { total: 0, lateral: 0, flat: 0, top: 0, bottom: 0, volume: 0, tris: 0 };
+  if (!vtx || !idx || idx.length < 3) return out;
+  let vol = 0;
+  for (let i = 0; i + 2 < idx.length; i += 3) {
+    const a = idx[i] * 3, b = idx[i + 1] * 3, c = idx[i + 2] * 3;
+    const ax = vtx[a], ay = vtx[a + 1], az = vtx[a + 2];
+    const bx = vtx[b], by = vtx[b + 1], bz = vtx[b + 2];
+    const cx = vtx[c], cy = vtx[c + 1], cz = vtx[c + 2];
+    const ux = bx - ax, uy = by - ay, uz = bz - az;
+    const vx = cx - ax, vy = cy - ay, vz = cz - az;
+    const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    const n = Math.hypot(nx, ny, nz);
+    if (!(n > 0)) continue;                 // yozlaşmış üçgen: alana da hacme de katılmaz
+    const area = n / 2;
+    out.tris++;
+    out.total += area;
+    if (Math.abs(nz) / n <= cosLimit) out.lateral += area; else out.flat += area;
+    if (nz > 0) out.top += nz / 2; else out.bottom += -nz / 2;
+    vol += (ax * (by * cz - bz * cy) + bx * (cy * az - cz * ay) + cx * (ay * bz - az * by)) / 6;
+  }
+  out.volume = Math.abs(vol);
+  return out;
+}

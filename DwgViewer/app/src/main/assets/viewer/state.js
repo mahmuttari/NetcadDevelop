@@ -26,6 +26,7 @@ export const S = {
   notesOn: false, noteTool: 'select', noteColor: '#ff3b30',
   geo: new GeoRef(), gps: { on: false, follow: false, lon: null, lat: null, acc: 0, heading: null, t: 0 },
   basemap: { id: 'none', url: '', opacity: 0.8, wms: '' },
+  prec: 3, precPad: false,       // ölçü ve koordinat okumalarında ondalık basamak sayısı ve son sıfır yazımı
   lastRenderMs: 0, cacheValid: false, cacheView: null, gestureActive: false,
 };
 
@@ -60,10 +61,22 @@ export const visibleRect = () => [S.view.cx - S.W / (2 * S.view.scale), S.view.c
 export const UNITS = { 0: '', 1: 'inç', 2: 'ft', 3: 'mil', 4: 'mm', 5: 'cm', 6: 'm', 7: 'km', 8: 'µin', 9: 'mils', 10: 'yd', 11: 'Å', 12: 'nm', 13: 'µm', 14: 'dm', 15: 'dam', 16: 'hm', 17: 'Gm' };
 export const UNIT_TO_M = { 1: 0.0254, 2: 0.3048, 3: 1609.344, 4: 0.001, 5: 0.01, 6: 1, 7: 1000, 8: 2.54e-8, 9: 2.54e-5, 10: 0.9144, 11: 1e-10, 12: 1e-9, 13: 1e-6, 14: 0.1, 15: 10, 16: 100, 17: 1e9 };
 
-const nf3 = new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 3 });
-const nf2 = new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 2 });
-const nf0 = new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 0 });
-export function fmt(v, d = 3) { if (v == null || !isFinite(v)) return '–'; return (d === 2 ? nf2 : d === 0 ? nf0 : nf3).format(v); }
+/*
+ * Sayı biçimleme. Basamak sayısı çağrıda verilmezse kullanıcının ayarı (S.prec) geçerlidir;
+ * açı gibi basamağı sabit olması gereken yerler değeri açıkça geçer ve ayardan etkilenmez.
+ * S.precPad açıksa son sıfırlar yazılır (12,50 gibi) — cetvel okumasında basamak sayısı sabit kalır.
+ */
+const nfCache = new Map();
+function nfOf(d, pad) {
+  const key = d + (pad ? 'p' : '');
+  let f = nfCache.get(key);
+  if (!f) { f = new Intl.NumberFormat('tr-TR', { maximumFractionDigits: d, minimumFractionDigits: pad ? d : 0 }); nfCache.set(key, f); }
+  return f;
+}
+/** Ondalık basamak sayısı sınırı (ayar bu aralıkta tutulur) */
+export const PREC_MIN = 0, PREC_MAX = 6;
+export const clampPrec = (n) => { const v = Math.round(Number(n)); return isFinite(v) ? Math.max(PREC_MIN, Math.min(PREC_MAX, v)) : 3; };
+export function fmt(v, d) { if (v == null || !isFinite(v)) return '–'; return nfOf(clampPrec(d == null ? S.prec : d), S.precPad).format(v); }
 export const fmtUnit = (v, d) => fmt(v, d) + (S.units ? ' ' + S.units : '');
 
 /** yerel depolama (Android'de dosya, tarayıcıda localStorage) */

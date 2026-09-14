@@ -170,7 +170,7 @@ export class ToolManager {
   /** yazı düzenleme kutusu (uygulama içi diyalog) */
   async editText(p) {
     const old = p.lines.join('\n');
-    const txt = await askText(t('textPrompt'), old, { multiline: true });
+    const txt = await askText(t('textPrompt'), old, { multiline: true, words: true });
     if (txt !== null && txt !== old) this.api.run({ op: 'edittext', keys: [p.key], text: txt });
     this.api.render();
   }
@@ -210,7 +210,7 @@ export class ToolManager {
       case 'arc3': if (n === 3) { const arc = arc3(this.pts[0], this.pts[1], this.pts[2]); if (arc) this.commit({ type: 'ARC', pts: [[arc.cx, arc.cy, this.pts[0][2]]], r: arc.r, a0: arc.a0, a1: arc.a1 }); else A.toast(t('collinear')); this.pts = []; this.step = 0; } else this.step = n; break;
       case 'point': this.commit({ type: 'POINT', pts: [p] }); this.pts = []; break;
       case 'text': {
-        const txt = await askText(t('textPrompt'), '', { multiline: true });
+        const txt = await askText(t('textPrompt'), '', { multiline: true, words: true });
         if (txt) { const h = await askText(t('textHeightPrompt'), String(A.textHeight()), { type: 'number' }); const hv = parseFloat(String(h || '').replace(',', '.')); this.commit({ type: 'TEXT', pts: [p], text: txt, h: hv > 0 ? hv : A.textHeight() }); }
         this.pts = []; break;
       }

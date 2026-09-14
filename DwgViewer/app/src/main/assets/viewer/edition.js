@@ -93,7 +93,9 @@ export const FEATURE_TIER = new Map([
   ['t:pline3d', 'super'], ['t:face3d', 'super'], ['t:setz', 'super'],
   ['3:move', 'super'], ['3:setz', 'super'], ['3:del', 'super'], ['3:pline', 'super'],
   // --- mühendislik eklentileri (yalnız Super)
-  ['profile', 'super'], ['compare', 'super'], ['savedelta', 'super'], ['driveUpload', 'super'],
+  ['profile', 'super'], ['compare', 'super'], ['savedelta', 'super'], ['driveUpload', 'super'], ['area3d', 'super'],
+  // --- 2B çıktı eklentileri
+  ['textout', 'premium'],
 ]);
 
 /** Özelliğin istediği basamak ('free' kısıtsız demektir) */
