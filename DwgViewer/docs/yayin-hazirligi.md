@@ -10,9 +10,19 @@ Kimlik bilgileri:
 | Alan | Değer |
 |---|---|
 | Paket adı | `com.mahmuttari.dwgviewer` |
-| İmza sertifikası SHA-1 | `24:D2:D3:A7:ED:FB:FB:93:16:5F:75:D0:E7:D8:93:B6:FD:54:D5:A7` |
+| Yükleme anahtarı SHA-1 | `F9:10:2B:55:C8:62:6A:39:4A:44:FA:75:3F:09:5C:5D:BD:B6:36:B6` |
+| Yükleme anahtarı SHA-256 | `50:C1:2D:CB:F6:83:9C:31:49:97:B0:06:D8:27:E1:40:50:16:16:A2:48:FB:B8:6E:34:CA:AF:1D:3D:E4:12:AB` |
+| Play uygulama imzalama SHA-1 | Play Console › Uygulama bütünlüğü sayfasından alınır; OAuth istemcisine ikinci parmak izi olarak eklenir |
 | Geliştirici hesabı | mahmuttari@gmail.com |
 | Yetkili alan adı | mahmuttari.github.io |
+
+> **İmza anahtarı değişti (14 Eylül 2026).** İlk anahtar (`keystore/dwgviewer.jks`,
+> SHA-1 `24:D2:D3:A7:…`) parolasıyla birlikte herkese açık depoya girmişti; yakılmış
+> sayılıp yerine `dwgviewer-upload` üretildi (RSA 4096, 2056'ya kadar geçerli). Yeni
+> anahtar depoda **durmaz**: yerelde `keystore.properties`, CI'da GitHub Actions
+> secrets (`DWG_KEYSTORE_BASE64`, `DWG_KEYSTORE_PASSWORD`, `DWG_KEY_PASSWORD`).
+> Eski anahtarla imzalı kurulumlar yeni sürüme güncellenmez; bir kez kaldırılıp
+> yeniden kurulmaları gerekir. Eski anahtar bir daha **kullanılmaz**.
 
 ---
 
@@ -123,6 +133,7 @@ Uygulamada bu değerlendirmenin bakacağı noktalar için yapılmış olanlar:
 | Sertifika güveni | Varsayılan korunuyor, yalnız sistem sertifikaları güvenilir (Android 7+ davranışı) |
 | Gereksiz izin | Konum ve kamera isteğe bağlı özellikler için, `uses-feature required="false"` |
 | Kod karartma | R8 küçültme açık |
+| İmzalama sırrı | Anahtar ve parolalar depoda değil: yerelde `keystore.properties`, CI'da Actions secrets. Herkese açık depoya düşmüş ilk anahtar 14 Eylül 2026'da bırakıldı, yerine RSA-4096 yükleme anahtarı üretildi |
 | Yerelleştirme | Arayüz onbeş dilde; APK yalnız bu dillerin kaynağını taşır (`resourceConfigurations`), dil dosyaları uygulamanın içindedir, çeviri için ağa çıkılmaz |
 | Zafiyetli bağımlılık | junrar 7.5.5, Play Billing 7.1.1, play-services-ads 23.6.0, AndroidX Core 1.13.1 |
 
@@ -178,11 +189,23 @@ uyuşmazsa uygulama kaldırılır. Aşağıdaki cevaplar uygulamanın davranış
    dalını sunuyor; yayımlama push'tan yaklaşık yirmi saniye sonra tamamlandı. Bu adres
    Google onay ekranının **Uygulama gizlilik politikası bağlantısı** alanına ve Play
    listelemesinin gizlilik politikası alanına yazılacak adrestir.
-3. Gerçek AdMob kimlikleri.
-4. Play Console kaydı. Uygulama oluştururken **mevcut imza anahtarını yükleyin**, yoksa
-   Play kendi anahtarıyla imzalar, SHA-1 değişir ve Google girişi yayında çalışmaz.
+3. ~~İmza anahtarını yenile.~~ **Tamamlandı (14 Eylül 2026).** Yükleme anahtarı
+   `dwgviewer-upload`; depoda değil, yerelde `keystore.properties` ve CI'da Actions
+   secrets (`DWG_KEYSTORE_BASE64`, `DWG_KEYSTORE_PASSWORD`, `DWG_KEY_PASSWORD`).
+   **Sizde bekleyen iki iş:** (a) bu üç secret'ı GitHub'a ekleyin — eklenene kadar CI
+   çıktısı imzasızdır ve adım `::warning::` basar; (b) yeni SHA-1'i
+   (`F9:10:2B:55:C8:62:6A:39:4A:44:FA:75:3F:09:5C:5D:BD:B6:36:B6`) Google Cloud'daki
+   Android OAuth istemcisine işleyin, yoksa Google ile giriş `invalid_request` verir.
+4. Gerçek AdMob kimlikleri.
+5. Play Console kaydı. **Play App Signing açık bırakılır**: yukarıdaki anahtar *yükleme*
+   anahtarı olarak kaydedilir, uygulamayı Google kendi sertifikasıyla imzalar. O
+   sertifikanın SHA-1'i (Play Console › **Uygulama bütünlüğü**) aynı OAuth istemcisine
+   **ikinci parmak izi** olarak eklenmelidir; eklenmezse mağazadan kuran kullanıcıda
+   Google ile giriş çalışmaz, sizde çalışmaya devam ettiği için gözden kaçar.
+   Yüklenecek dosya APK değil **AAB**'dir: CI'nın `DwgGoruntuleyici-aab` çıktısı
+   (ya da yerelde `./gradlew bundleRelease`).
    Mağaza kaydı arayüzle aynı **onbeş dilde** doldurulur; hazır metinler
    [`magaza-metinleri.md`](magaza-metinleri.md) dosyasındadır.
-5. `dwg_pro` ürünü ve lisans anahtar çifti.
-6. Mağaza görselleri, marka güvenli simge.
-7. Doğrulama başvurusu ve CASA.
+6. `dwg_pro` ürünü ve lisans anahtar çifti.
+7. Mağaza görselleri, marka güvenli simge.
+8. Doğrulama başvurusu ve CASA.

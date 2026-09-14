@@ -21,6 +21,26 @@ if (!gitBranch || gitBranch == "HEAD") {
 }
 def gitSha = gitOut(["git", "rev-parse", "--short", "HEAD"], "yok")
 
+/*
+ * İmza bilgileri DEPODA DURMAZ. Sıra: ortam değişkeni (CI secrets) → keystore.properties (yerel, .gitignore'da)
+ * → -P proje özelliği. Hiçbiri yoksa release imzasız derlenir; derleme kırılmaz ama çıktı Play'e yüklenemez.
+ * Bir anahtar herkese açık bir yere düştüğü an yakılmış sayılır: 2026-09-14'te eski anahtar (SHA-1 24:D2:…)
+ * bu yüzden bırakıldı, yerine dwgviewer-upload alındı.
+ */
+def ksProps = new Properties()
+def ksPropsFile = rootProject.file("keystore.properties")
+if (ksPropsFile.exists()) ksPropsFile.withInputStream { ksProps.load(it) }
+def signVal = { String env, String key ->
+    def v = System.getenv(env) ?: ksProps.getProperty(key) ?: project.findProperty(env)
+    return v == null ? null : v.toString().trim() ?: null
+}
+def ksPath = signVal("DWG_KEYSTORE", "storeFile")
+def ksPass = signVal("DWG_KEYSTORE_PASSWORD", "storePassword")
+def ksAlias = signVal("DWG_KEY_ALIAS", "keyAlias")
+def ksKeyPass = signVal("DWG_KEY_PASSWORD", "keyPassword")
+def canSign = ksPath && ksPass && ksAlias && ksKeyPass && rootProject.file(ksPath).exists()
+if (!canSign) logger.lifecycle("UYARI: imza bilgisi yok, release İMZASIZ derlenecek (keystore.properties ya da DWG_* ortam değişkenleri).")
+
 android {
     namespace "com.mahmuttari.dwgviewer"
     compileSdk 34
@@ -29,8 +49,8 @@ android {
         applicationId "com.mahmuttari.dwgviewer"
         minSdk 26
         targetSdk 34
-        versionCode 38
-        versionName "7.15"
+        versionCode 39
+        versionName "7.16"
 
         // Uygulamanın taşıdığı diller. Listede olmayan bir dilde kurulan cihaz İngilizce'ye düşer;
         // bağımlılıkların (AndroidX, Play) 85 dilde etiketi APK'ye girmez. Yeni dil eklerken bu liste,
@@ -66,10 +86,12 @@ android {
 
     signingConfigs {
         release {
-            storeFile rootProject.file(DWG_KEYSTORE)
-            storePassword DWG_KEYSTORE_PASSWORD
-            keyAlias DWG_KEY_ALIAS
-            keyPassword DWG_KEY_PASSWORD
+            if (canSign) {
+                storeFile rootProject.file(ksPath)
+                storePassword ksPass
+                keyAlias ksAlias
+                keyPassword ksKeyPass
+            }
         }
     }
 
@@ -79,7 +101,7 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
-            signingConfig signingConfigs.release
+            signingConfig canSign ? signingConfigs.release : null
             // AGP'nin sürüm-kontrol damgası git kökünü bulamaz (NO_SUPPORTED_VCS_FOUND); kimlik GIT_SHA ile gömülür
             vcsInfo {
                 include false

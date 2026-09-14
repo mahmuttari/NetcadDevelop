@@ -11,5 +11,10 @@ package-lock.json
 tools/out/
 captures/
 .kotlin/
-# Çevrimdışı lisans kodlarını imzalayan özel anahtar (tools/license_gen.mjs keygen); depoya girmez
-keystore/license_private.pem
+# İmzalama sırları depoya GİRMEZ: uygulama imza anahtarı, çevrimdışı lisans özel anahtarı ve parola dosyası.
+# (Depo herkese açıktır; buraya düşen bir anahtar yakılmış sayılır ve yenisiyle değiştirilmesi gerekir.)
+keystore/
+keystore.properties
+# Play bundle'ı depoya girmez: her sürümde ~7,6 MB'lık ikili birikir. CI her koşuda üretir
+# (DwgGoruntuleyici-aab çıktısı) ve v* etiketinde Releases sayfasına yükler.
+release/*.aab

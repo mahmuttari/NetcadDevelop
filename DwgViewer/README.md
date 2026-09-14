@@ -1,4 +1,4 @@
-# DWG OfficeZip (Android) — v7.15
+# DWG OfficeZip (Android) — v7.16
 
 AutoCAD **DWG** ve **DXF** çizimlerini telefonda açan, çevrimdışı çalışan
 Android uygulaması. Dosya cihazdan dışarı çıkmaz; çözümleme telefonun
@@ -186,8 +186,13 @@ uygulamaya gelir. Bunun için bir kez Google Cloud Console'da:
    yayın durumu "Testing" ise **Test users** listesine kendi hesabınızı ekleyin.
 3. **Credentials → Create credentials → OAuth client ID → Android**:
    paket adı `com.mahmuttari.dwgviewer`, SHA-1 imza parmak izi
-   `24:D2:D3:A7:ED:FB:FB:93:16:5F:75:D0:E7:D8:93:B6:FD:54:D5:A7`
-   (`keystore/dwgviewer.jks`).
+   `F9:10:2B:55:C8:62:6A:39:4A:44:FA:75:3F:09:5C:5D:BD:B6:36:B6`
+   (yükleme anahtarı `keystore/dwgviewer-upload.jks`; depoda değildir).
+   Play App Signing açıldıktan sonra Google API'lerin gördüğü parmak izi
+   **Play'in kendi uygulama imzalama sertifikasıdır** — Play Console ›
+   Uygulama bütünlüğü sayfasından alınıp aynı OAuth istemcisine **ikinci
+   parmak izi olarak** eklenir; yoksa mağazadan kurulan uygulamada Google
+   ile giriş çalışmaz.
 4. Oluşan istemci kimliğini `gradle.properties` içindeki
    `GOOGLE_CLIENT_ID=` satırına yazın ve APK'yı yeniden derleyin.
    Kimlik boşsa uygulama "Google istemci kimliği bu sürüme henüz işlenmedi"
@@ -310,6 +315,7 @@ RAR (junrar), gerçek Google Drive ve Android PdfRenderer yalnız cihazda
 | 7.7 | 30 | 2026-09-13 | Word 97-2003 (.doc) belgeleri doğrudan açılır: bağımsız MS-DOC çözümleyicisi (`doc.js`: CFB, FIB, parça tablosu, FKP, stiller, listeler, tablolar, alanlar, resimler, dipnotlar, bölümler), DOCX ile ortak sayfa / akış görünümü; Word 6 / 95 yalnız metin; `samples/doc/` derlemi ve `test_doc.mjs` |
 | 7.8 | 31 | 2026-09-13 | ".doc" uzantılı RTF, Word HTML, MHTML, DOCX ve düz metin içerik baytlardan tanınıp açılır (`docalt.js`: RTF çözümleyicisi, HTML temizleyici, MHTML ayrıştırıcı); tanınmayan içerikte ilk baytlar iletide gösterilir |
 | 7.9 | 32 | 2026-09-13 | Uygulama adı **DWG OfficeZip** oldu (paket adı ve APK dosya adı değişmedi: kurulu sürümler güncellenmeye devam eder). PDF ve Word düzenleme Pro özelliği olarak eklendi (`pdfedit.js` açıklama katmanı ve pdf-lib çıktısı, `docedit.js` yerinde düzenleme ve OOXML / DOCX yazıcı); yayın hazırlığı: Google belirteçleri Keystore ile şifreleniyor, Google alan adlarında şifresiz trafik yasak, gizlilik politikası ve doğrulama evrakı |
+| 7.16 | 39 | 2026-09-14 | **İmza anahtarı değiştirildi.** İlk anahtar parolasıyla birlikte herkese açık depoda duruyordu; yakılmış sayılıp yerine `dwgviewer-upload` üretildi (RSA 4096, PKCS12, 2056'ya kadar; SHA-1 `F9:10:2B:55:C8:62:6A:39:4A:44:FA:75:3F:09:5C:5D:BD:B6:36:B6`). İmza bilgisi artık depoda **durmuyor**: yerelde `keystore.properties`, CI'da Actions secrets; anahtar yoksa release imzasız derlenir ve uyarı verilir. CI ayrıca Play için **AAB** üretip ayrı bir çıktı olarak yüklüyor. Eski anahtarla kurulmuş uygulamalar bu sürüme güncellenmez, bir kez kaldırılıp yeniden kurulmalıdır; yeni SHA-1'in Google OAuth istemcisine işlenmesi gerekir |
 | 7.15 | 38 | 2026-09-13 | **Yeni dosya oluşturma ve tablo/metin düzenleme**: ana ekranda "Yeni dosya" düğmesi ve araç karosu altı biçimde boş dosya üretiyor (DXF, DOCX, XLSX, PDF, TXT, CSV; `viewer/newdoc.js`), dosya cihaza yazılıp normal açma yolundan açılıyor. Excel sayfası ve CSV artık hücre ızgarasında düzenlenebiliyor (satır/sütun ekleme, çok sayfalı XLSX yazıcı `xlsxBook`), düz metin dosyaları metin kutusunda; kaydedilen kopya yeni dosya olarak veriliyor |
 | 7.14 | 37 | 2026-09-13 | Excel görünümü kullanılabilir hâle geldi: kaydırma tek kutuda (`.xlsx-wrap`) iki eksende, sütun başlığı satırı üstte ve satır numarası sütunu solda donuyor, yakınlaştırma düğmeleri (− %100 +) ve iki parmak; yakınlaştırma yazı boyuyla yapılıyor ki yapışkan hücreler bozulmasın, kenarlıklar bu yüzden `border-collapse: separate` |
 | 7.13 | 36 | 2026-09-13 | Drive hataları anlaşılır iletiye çevriliyor (`drive.friendly`): kapsam eksikse "Drive izni verilmemiş… çıkış yapıp yeniden giriş yapın" ve tek dokunuşla yeniden giriş düğmesi, Drive API kapalıysa bunu söyleyen ileti — ham İngilizce `insufficient authentication scopes` yerine |
