@@ -34,6 +34,106 @@ abonelikleri tarayıp en yükseğini bildirir.
 | Değişiklikleri kaydetme (delta) | – | – | – | ✓ |
 | Google Drive'a yükleme | – | – | – | ✓ |
 
+## Rakip kıyası: DWG FastView (Türkiye / Google Play, 14.09.2026)
+
+Fiyatlar uygulamanın kendi satın alma sayfasından okundu.
+
+| Paket | Rakip aylık | Rakip yıllık | Yıllık / aylık |
+|---|---|---|---|
+| Ad-Free | 54,99 TL | 499,99 TL | 9,1× |
+| Premium | 346,99 TL | 2.499,99 TL | 7,2× |
+| Super | 539,99 TL | 2.539,99 TL | 4,7× |
+
+**Bizim eski fiyatlarımızla karşılaştırma.** Aylıkta her kademede rakibin
+altındaydık (−27 / −14 / −17 %), ama **yıllıkta üstüne çıkıyorduk**:
+Premium yıllık +%20, Super yıllık **+%77**. Sebebi, bu belgede daha önce
+savunduğum "yıllık = aylığın 10 katı" kuralıydı. O kural genel yazılım
+aboneliğinde doğrudur; bu kategoride değil. Ölçüm bunu gösteriyor: rakip
+yıllıkta %24 – %61 arasında indirim veriyor, çünkü mobil abonelikte tutundurma
+düşüktür ve bir yıllık geliri peşin almak yeğlenir. Kural düzeltildi.
+
+Rakibin kendi hatası da kayda geçirilmeli: **Premium yıllık 2.499,99 ile Super
+yıllık 2.539,99 arasında yalnız 40 TL (%1,6) fark var.** Bu, ilk fiyat
+önerisinde düzelttiğimiz "yıllıkta iki paket birbirine yapışıyor" hatasının
+daha ağır hâlidir; Premium yıllık onlarda ölü üründür. Bizim tabloda bu boşluk
+%29'dur.
+
+### Yeni fiyatlar
+
+| Paket | Aylık | Yıllık | Yıllık / aylık | Yıllıkta indirim | Rakibe göre aylık | Rakibe göre yıllık |
+|---|---|---|---|---|---|---|
+| Ad-Free | 39,99 TL | 299,99 TL | 7,5× | %37 | −%27 | −%40 |
+| Premium | 249,99 TL | 1.699,99 TL | 6,8× | %43 | −%28 | −%32 |
+| Super | 399,99 TL | 2.199,99 TL | 5,5× | %54 | −%26 | −%13 |
+
+Premium → Super farkı aylıkta %60, yıllıkta %29: iki üründe de yükseltmenin
+gerekçesi var, hiçbiri ölü değil. Yeni uygulamayız ve özellik sayımız
+rakibinkinin altında; her satırda onun altında kalmak bilinçli konumlandırmadır.
+
+### Rakibin Ad-Free'si
+
+Rakibin Ad-Free katmanının **tek** ayrıcalığı vardır: "reklamları kapat".
+Bizimki de öyle (`edition.js` FEATURE_TIER'da adfree'ye bağlı tek kimlik yok,
+tek fark `noAds()`). Bu tasarım pazar lideriyle birebir örtüşüyor, değişmemeli.
+
+### Kademelemenin mantığı farklı
+
+Rakip Premium ile Super'i **platformla** ayırıyor (mobil / Windows / web);
+mobil ayrıcalık listeleri neredeyse aynı. Biz **yetenekle** ayırıyoruz
+(2B çizim-düzenleme premium, 3B ve mühendislik araçları super). Tek platformlu
+bir üründe bizimki daha dürüsttür, ama Super'in +%60'ı hak ettiğini mağaza
+metninin açıkça göstermesi gerekir.
+
+## Rakipte olup bizde olmayanlar — yol haritası
+
+Dört bağımsız denetçi rakibin 78 satırlık listesini bizim 101 yeteneğimizle
+eşledi; tekrarlar ayıklandığında 58 ayrı özellik kalıyor. **22 başlık bizde
+yok**; 28'inin karşılığı var; 26 yeteneğimizin rakipte karşılığı yok.
+
+### 1. Ucuz — veri zaten hazır (önce bunlar)
+
+| Özellik | Neden ucuz | Kademe | Durum |
+|---|---|---|---|
+| Blok sayma + grafik istatistik | sayımlar `S.counts`, blok adı `info.name` | free | **v7.27'de eklendi** |
+| Yüzey / yanal alan | ağ üçgenleri bellekte (`p.vtx`, `p.idx`) | super | sırada |
+| Çok sayfalı PDF | düzenler `scene.layouts` içinde | premium | sırada |
+| Metin çıkarma (arama sonucunu dışa aktar) | arama sonucu zaten toplanıyor | premium | sırada |
+| Ölçümü paylaşma | köprü hazır (`MainActivity.share`) | free | sırada |
+| Ondalık hassasiyeti ayarı | tek `fmt()` çağrısı | free | sırada |
+| Hazır ifadeler (Useful Words) | sabit liste + son kullanılanlar | free | sırada |
+
+### 2. Orta — var olan düzenleme çekirdeğine eklenir
+
+Ölçülendirme (dimension) oluşturma · ölçümü çizime işaretleme · revizyon bulutu ·
+numaralandırma · artımlı kopya · yazı yüksekliğini değiştirme · çizimde
+bul-değiştir · öznitelik düzenleme · explode · tarama (hatch) oluşturma ·
+kalınlık (extrusion) atama · dolgu alanı ölçümü · 3B açıklama.
+
+### 3. Ağır — yeni altyapı ister
+
+3B geometrik ölçüm ailesi (nokta-doğru, nokta-düzlem, doğru-doğru, doğru-düzlem,
+düzlem-düzlem, düzlemler arası açı, akıllı açı) · blok kütüphanesi (oluştur /
+ekle / kütüphaneye at) · toplu (batch) işlem · 3B biçim dönüştürme (OBJ/STL) ·
+tablo çıkarma · **PDF→CAD** · pano ile dosyalar arası yapıştırma.
+
+### Rakipte hiç olmayan üstünlüklerimiz
+
+Pencereli DWG okuma (7,09 milyon nesnelik dosyayı açabilme) · kot/eğim profili ·
+yalnız değişenleri DXF yazma · ofis belgesi açma **ve düzenleme** + yeni dosya
+oluşturma · GPS, harita altlığı, ITRF96/ED50 dâhil koordinat sistemleri ·
+XREF ve eksik resim bağlama · notta fotoğraf iğnesi · kullanıcının **kendi**
+bulutu (Drive + WebDAV/Nextcloud) — rakibin 10 GB'lık satıcı deposundan hem
+sınırsız hem gizlilik açısından üstün · ZIP/RAR gezgini · onbeş dil ·
+eldiven kipi ve güneş modu.
+
+### Önerilen iki kademe düzeltmesi
+
+Rakip **çizim karşılaştırmayı** ve **bulut depolamayı** Premium'da veriyor;
+bizde ikisi de Super'de. `edition.js` FEATURE_TIER'da `compare` ve
+`driveUpload` premium'a alınırsa Premium rakiple denk olur. `profile`
+(kot/eğim profili) Super'de kalmalı — rakipte karşılığı yok, Super'in gerçek
+gerekçesi odur.
+
 ## Fiyatlar
 
 Fiyatlar **kodda değil Play Console'da** tanımlıdır; uygulama onları
@@ -42,9 +142,13 @@ Play'e girilecek değerlerdir.
 
 | Paket | Aylık | Yıllık | Yıllığın aylık karşılığı | Yıllık / aylık |
 |---|---|---|---|---|
-| Ad-Free | 39,99 TL | 399,99 TL | 33,33 TL | 10,0× |
-| Premium | 299,99 TL | 2.999,99 TL | 250,00 TL | 10,0× |
-| Super | 449,99 TL | 4.499,99 TL | 375,00 TL | 10,0× |
+| Ad-Free | 39,99 TL | 299,99 TL | 25,00 TL | 7,5× |
+| Premium | 249,99 TL | 1.699,99 TL | 141,67 TL | 6,8× |
+| Super | 399,99 TL | 2.199,99 TL | 183,33 TL | 5,5× |
+
+Bu değerler pazar ölçümüne dayanır; gerekçesi yukarıdaki **Rakip kıyası**
+bölümündedir. Daha önce burada savunulan "yıllık = aylığın 10 katı" kuralı
+bu kategoride geçerli değildir ve terk edilmiştir.
 
 **Neden 10 kat.** Yıllık fiyatın aylığın 10 katı olması sektörde
 yerleşik kuraldır ve "yıllık alırsanız iki ay bedava" diye tek cümleyle

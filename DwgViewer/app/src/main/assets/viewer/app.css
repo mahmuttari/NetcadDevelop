@@ -708,3 +708,7 @@ html[dir="rtl"] #cv, html[dir="rtl"] #cv3d, html[dir="rtl"] .stage { direction: 
 .kv-copy small { display: block; color: var(--muted); font-size: calc(11px * var(--fs)); }
 .kv-copy code { display: block; font-size: calc(12px * var(--fs)); word-break: break-all; line-height: 1.35; }
 html[dir="rtl"] .kv-copy { text-align: right; }
+
+/* Sayım panelindeki oransal çubuk: değerin yanında, satır yüksekliğini bozmadan */
+.cbar { display: inline-block; vertical-align: middle; width: 84px; height: 6px; margin-left: 8px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.cbar i { display: block; height: 100%; background: var(--accent); }

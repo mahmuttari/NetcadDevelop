@@ -1011,6 +1011,7 @@ function menuAction(act) {
   if (needDoc.includes(act) && !S.hasDoc) { toast(t('openFirst')); return; }
   switch (act) {
     case 'info': showDocInfo(); break;
+    case 'count': showCount(); break;
     case 'layouts': showLayouts(); break;
     case 'notes': toggleNotes(!S.notesOn); break;
     case 'profile': setMode(S.mode === 'profile' ? 'view' : 'profile'); break;
@@ -1061,6 +1062,36 @@ function showDocInfo() {
   rows.push(['<strong>' + t('types') + '</strong>']);
   for (const k of Object.keys(c).sort((a, b) => c[b] - c[a])) rows.push([trType(k), c[k]]);
   openDoc(t('info'), kv(rows));
+}
+
+/**
+ * Sayım paneli: blok adına göre yerleştirme sayısı ve varlık türü dağılımı, yanlarında oransal çubuk.
+ * Blok yerleştirmeleri ilkellerden değil TANITICIDAN sayılır: bir INSERT patlatıldığında onlarca ilkel
+ * üretir, hepsi aynı tanıtıcıyı taşır; tanıtıcı kümesi gerçek yerleştirme sayısını verir.
+ */
+function showCount() {
+  const blocks = new Map(), seen = new Set();
+  for (const p of S.prims) {
+    const i = p.info;
+    if (!i || i.t !== 'INSERT' || !i.name) continue;
+    const key = i.name + '\u0000' + (i.h || '');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    blocks.set(i.name, (blocks.get(i.name) || 0) + 1);
+  }
+  const c = S.counts || {};
+  const bar = (n, max) => `<div class="cbar"><i style="width:${Math.max(2, Math.round(100 * n / (max || 1)))}%"></i></div>`;
+  const rows = [];
+  const bl = [...blocks].sort((a, b) => b[1] - a[1]);
+  const bmax = bl.length ? bl[0][1] : 0;
+  rows.push(['<strong>' + t('countBlocks') + '</strong>', bl.length ? String(bl.reduce((n, x) => n + x[1], 0)) : '0']);
+  if (!bl.length) rows.push([t('countNone')]);
+  for (const [name, n] of bl.slice(0, 200)) rows.push([name, n + bar(n, bmax)]);
+  const tl = Object.keys(c).map(k => [k, c[k]]).sort((a, b) => b[1] - a[1]);
+  const tmax = tl.length ? tl[0][1] : 0;
+  rows.push(['<strong>' + t('countTypes') + '</strong>', String(S.entityCount || 0)]);
+  for (const [k, n] of tl) rows.push([trType(k), n + bar(n, tmax)]);
+  openDoc(t('count'), kv(rows));
 }
 /** derleme kimliği (kısa git SHA; Bridge.buildId) — Hakkında satırına ve hata kaydı başlığına eklenir */
 function buildIdText() { try { return A() && A().buildId ? ' · ' + A().buildId() : ''; } catch (_) { return ''; } }
