@@ -49,8 +49,8 @@ android {
         applicationId "com.mahmuttari.dwgviewer"
         minSdk 26
         targetSdk 34
-        versionCode 40
-        versionName "7.17"
+        versionCode 41
+        versionName "7.18"
 
         // Uygulamanın taşıdığı diller. Listede olmayan bir dilde kurulan cihaz İngilizce'ye düşer;
         // bağımlılıkların (AndroidX, Play) 85 dilde etiketi APK'ye girmez. Yeni dil eklerken bu liste,
@@ -75,12 +75,17 @@ android {
         buildConfigField "String", "ADMOB_INTERSTITIAL_ID", "\"" + admobInt + "\""
         manifestPlaceholders = [googleRedirectScheme: gscheme, admobAppId: admobApp]
 
-        // Pro yetkisi çalışma zamanında: Google Play tek seferlik ürün (PRO_SKU) ya da çevrimdışı lisans kodu.
+        // Yetki çalışma zamanında: üç Google Play aboneliği (adfree < premium < super) ya da çevrimdışı lisans kodu.
+        // Her abonelikte iki temel plan vardır (aylık, yıllık); kimlikleri Play Console'daki yazımla birebir aynı olmalı.
         // LICENSE_PUBLIC_KEY: RSA-2048 açık anahtar, Base64 X.509 SubjectPublicKeyInfo (tools/license_gen.mjs keygen);
         // boşsa lisans kodu özelliği kapalıdır.
-        def proSku = (project.findProperty("PRO_SKU") ?: "").toString().trim() ?: "dwg_pro"
+        def sku = { String k, String d -> (project.findProperty(k) ?: "").toString().trim() ?: d }
         def licPub = (project.findProperty("LICENSE_PUBLIC_KEY") ?: "").toString().replaceAll("\\s", "")
-        buildConfigField "String", "PRO_SKU", "\"" + proSku + "\""
+        buildConfigField "String", "SKU_ADFREE", "\"" + sku("SKU_ADFREE", "dwg_adfree") + "\""
+        buildConfigField "String", "SKU_PREMIUM", "\"" + sku("SKU_PREMIUM", "dwg_premium") + "\""
+        buildConfigField "String", "SKU_SUPER", "\"" + sku("SKU_SUPER", "dwg_super") + "\""
+        buildConfigField "String", "PLAN_MONTHLY", "\"" + sku("PLAN_MONTHLY", "monthly") + "\""
+        buildConfigField "String", "PLAN_YEARLY", "\"" + sku("PLAN_YEARLY", "yearly") + "\""
         buildConfigField "String", "LICENSE_PUBLIC_KEY", "\"" + licPub + "\""
     }
 

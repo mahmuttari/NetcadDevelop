@@ -17,7 +17,7 @@
  *  çizilip PNG olarak gömülür. Çizgiler vektör kalır.
  */
 import { t } from './i18n.js';
-import { isPro, gate } from './edition.js';
+import { gate } from './edition.js';
 
 const tt = (k, tr) => { const v = t(k); return v === k ? tr : v; };
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -400,4 +400,4 @@ export function toolbarHtml(st) {
     + `<button type="button" class="btn small" data-pe="cancel">${esc(t('cancel'))}</button>`;
 }
 
-export const canEdit = () => isPro() || gate('docEdit');
+export const canEdit = () => gate('docEdit');   // gate yetiyorsa true, yetmiyorsa kutuyu açıp false döner

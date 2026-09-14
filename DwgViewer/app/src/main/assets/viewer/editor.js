@@ -22,7 +22,7 @@ import { t, applyI18n, addStrings } from './i18n.js';
 import { TAU } from './geom.js';
 import * as D from './display.js';
 import { askText } from './dialog.js';
-import { isPro, gate, PRO_ONLY } from './edition.js';
+import { has, gate } from './edition.js';
 
 const $ = (id) => document.getElementById(id);
 const tt = (k, tr) => { const v = t(k); return v === k ? tr : v; };
@@ -226,14 +226,13 @@ function tileHtml(it, tabId) {
 function groupHtml(g, tabId) {
   return `<div class="tb-group"><div class="tb-tiles">${g.items.map(it => tileHtml(it, tabId)).join('')}</div><div class="tb-caption" data-i18n="${esc(g.cap)}">${esc(t(g.cap))}</div></div>`;
 }
-/** Ücretsiz sürümde PRO_ONLY karolar çizilmez; boş kalan grup da çizilmez */
+/** Basamağın yetmediği karolar çizilmez; boş kalan grup da çizilmez */
 function editionGroups(groups) {
-  if (isPro()) return groups;
-  return groups.map(g => ({ ...g, items: g.items.filter(it => !PRO_ONLY.has(it.act)) })).filter(g => g.items.length);
+  return groups.map(g => ({ ...g, items: g.items.filter(it => has(it.act)) })).filter(g => g.items.length);
 }
 function rowGroups(tab) {
   if (tab.id === 'display') return editionGroups(ed.is3D() ? DISPLAY_3D : DISPLAY_2D);
-  if (tab.id === 'fav') { const items = ui.favs.filter(a => TILE[a] && (isPro() || !PRO_ONLY.has(a))).map(a => TILE[a]); return items.length ? [{ cap: 'grpFav', items }] : []; }
+  if (tab.id === 'fav') { const items = ui.favs.filter(a => TILE[a] && has(a)).map(a => TILE[a]); return items.length ? [{ cap: 'grpFav', items }] : []; }
   return editionGroups(tab.groups);
 }
 function rowHtml(tab) {
@@ -241,7 +240,7 @@ function rowHtml(tab) {
   const inner = gs.length ? gs.map(g => groupHtml(g, tab.id)).join('') : `<div class="tb-empty" data-i18n="favEmpty">${esc(t('favEmpty'))}</div>`;
   return `<div class="tb-row" data-for="${tab.id}" ${tab.id === ed.tab ? '' : 'hidden'}>${inner}</div>`;
 }
-function tabList() { const tabs = isPro() ? TABS : TABS.filter(x => !PRO_ONLY.has(x.id)); return ui.favs.length ? [{ id: 'fav', i18n: 'tabFav', icon: 'i-star', groups: [] }, ...tabs] : tabs; }
+function tabList() { const tabs = TABS.filter(x => has(x.id)); return ui.favs.length ? [{ id: 'fav', i18n: 'tabFav', icon: 'i-star', groups: [] }, ...tabs] : tabs; }
 function buildToolbar() {
   const tb = $('toolbar');
   const tabs = tabList();

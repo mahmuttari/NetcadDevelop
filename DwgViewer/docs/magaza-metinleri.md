@@ -13,6 +13,18 @@ Play Console › Ana mağaza kaydı › Dil ekle yolundan her dil için
 **kısa açıklama** (en çok 80 karakter) ve **tam açıklama** (en çok 4.000
 karakter) aşağıdaki metinlerle doldurulur.
 
+> **Varsayılan dil `en-US`'tir.** Çevirisi girilmemiş bir dildeki kullanıcı
+> İngilizce listelemeyi görür; bu yüzden İngilizce metin eksiksiz olmalıdır.
+> Listeleme dili kullanıcının **Play Store dilinden** gelir, ülkesinden değil.
+
+> **Paketler.** Uygulama v7.18'den beri dört basamaklıdır (ücretsiz, Ad-Free,
+> Premium, Super) ve ücretli basamaklar **abonelik**tir. Tam açıklamalarda
+> "tek seferlik satın alma" ya da "Pro" ifadesi kullanılmaz; paketlerin
+> içeriği ve fiyat kurgusu [`paketler.md`](paketler.md) dosyasındadır.
+> Play, abonelik içeren uygulamalarda tam açıklamada fiyat yazılmasını
+> zorunlu tutmaz — fiyat mağaza kartında zaten görünür, metne yazılan sabit
+> rakam para birimi değişince yanlış kalır.
+
 | Play dil kodu | Dil |
 |---|---|
 | tr-TR | Türkçe (varsayılan) |

@@ -162,7 +162,7 @@ uyuşmazsa uygulama kaldırılır. Aşağıdaki cevaplar uygulamanın davranış
 | Yaklaşık konum | Hayır | Hayır | — | Yalnız cihazda anlık kullanılır, kaydedilmez |
 | Tam konum | Hayır | Hayır | — | Yalnız cihazda anlık kullanılır, kaydedilmez |
 | Fotoğraf | Hayır | Hayır | — | Kamera yalnız QR okumada, görüntü saklanmaz |
-| Uygulama içi satın alma geçmişi | Evet | Hayır | Evet | Uygulama işlevi (Pro yetkisi) |
+| Uygulama içi satın alma geçmişi | Evet | Hayır | Evet | Uygulama işlevi (abonelik basamağı: Ad-Free / Premium / Super) |
 | Cihaz veya diğer kimlikler | Evet | Evet | Hayır | Reklam (yalnız ücretsiz sürüm, AdMob) |
 | Kilitlenme günlükleri | Hayır | Hayır | — | Yerel hata kaydı, kullanıcı isterse kendisi paylaşır |
 
@@ -206,6 +206,10 @@ uyuşmazsa uygulama kaldırılır. Aşağıdaki cevaplar uygulamanın davranış
    (ya da yerelde `./gradlew bundleRelease`).
    Mağaza kaydı arayüzle aynı **onbeş dilde** doldurulur; hazır metinler
    [`magaza-metinleri.md`](magaza-metinleri.md) dosyasındadır.
-6. `dwg_pro` ürünü ve lisans anahtar çifti.
+6. **Abonelikler** ve lisans anahtar çifti. Üç abonelik (`dwg_adfree`,
+   `dwg_premium`, `dwg_super`), her birinde `monthly` ve `yearly` temel planı;
+   ürün kimlikleri, fiyat tablosu, fiyatlandırma gerekçesi ve ücretsiz deneme
+   önerisi [`paketler.md`](paketler.md) dosyasındadır. Tek seferlik `dwg_pro`
+   ürünü **kullanılmaz**; uygulama v7.18'den beri abonelik okur.
 7. Mağaza görselleri, marka güvenli simge.
 8. Doğrulama başvurusu ve CASA.

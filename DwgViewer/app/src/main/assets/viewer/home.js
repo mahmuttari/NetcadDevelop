@@ -15,7 +15,7 @@ import { S, store } from './state.js';
 import { t } from './i18n.js';
 import * as Open from './open.js';
 import * as Cloud from './cloud.js';
-import { isPro, PRO_ONLY } from './edition.js';
+import { has, need, tier, rank, tierName } from './edition.js';
 
 const $ = (id) => document.getElementById(id);
 const tt = (k, tr) => { const v = t(k); return v === k ? tr : v; };
@@ -119,18 +119,20 @@ function setFilesSeg(seg, force) {
 export function renderCloud() { Cloud.renderExplorer($('cloudBody')); }
 export function renderTools() {
   const grid = $('toolsGrid'); if (!grid) return;
-  const pro = isPro();
-  grid.innerHTML = TOOLS.filter(x => !(x.id === 'pro' && pro)).map((x, i) => {
-    const locked = !!x.pro && !pro, dim = !!x.needsDoc && !(S && S.hasDoc);
-    return `<button type="button" class="tool${dim ? ' dim' : ''}" data-tool="${x.id}" data-pro="${locked ? 1 : 0}" aria-label="${esc(t(x.i18n))}"><span class="tool-ic tool-c${(i % 8) + 1}">${ICON(x.icon)}</span><span class="lb">${esc(t(x.i18n))}</span>${locked ? `<span class="pro-badge">${esc(tt('proBadge', 'PRO'))}</span>` : ''}</button>`;
+  // 'pro' karosu yalnız en üst pakette gizlenir; kilitli araçlar gereken paketin adıyla rozetlenir
+  const top = rank(tier()) >= rank('super');
+  grid.innerHTML = TOOLS.filter(x => !(x.id === 'pro' && top)).map((x, i) => {
+    const locked = !has(x.id), dim = !!x.needsDoc && !(S && S.hasDoc);
+    const badge = locked ? tierName(need(x.id)) : '';
+    return `<button type="button" class="tool${dim ? ' dim' : ''}" data-tool="${x.id}" data-pro="${locked ? 1 : 0}" data-need="${locked ? esc(need(x.id)) : ''}" aria-label="${esc(t(x.i18n))}"><span class="tool-ic tool-c${(i % 8) + 1}">${ICON(x.icon)}</span><span class="lb">${esc(t(x.i18n))}</span>${locked ? `<span class="pro-badge">${esc(badge)}</span>` : ''}</button>`;
   }).join('');
 }
 function runTool(id) {
   const x = TOOLS.find(y => y.id === id); if (!x) return;
-  if (x.pro && !isPro()) { call(api.openProPanel); return; }   // ana ekran tanıtım yüzeyidir: Pro aracı Pro panelini açar
+  if (!has(x.id)) { call(api.openProPanel); return; }   // ana ekran tanıtım yüzeyidir: kilitli araç paket panelini açar
   if (x.needsDoc && !(S && S.hasDoc)) { call(api.toast, t('openFirst')); return; }
   if (x.needsDoc) hide();   // çizim bellekte: araç çizim üzerinde çalışır
   call(x.run, api);
 }
-/** PRO_ONLY ile tutarlılık denetimi (sınama): pro işaretli araçlar PRO_ONLY'de olmalı */
-export const proToolIds = () => TOOLS.filter(x => x.pro).map(x => x.id).filter(id => PRO_ONLY.has(id));
+/** FEATURE_TIER ile tutarlılık denetimi (sınama): pro işaretli araçlar ücretli bir basamak istemeli */
+export const proToolIds = () => TOOLS.filter(x => x.pro).map(x => x.id).filter(id => need(id) !== 'free');

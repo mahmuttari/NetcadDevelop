@@ -14,7 +14,7 @@
 import { fmt, store } from './state.js';
 import { t } from './i18n.js';
 import { CP857, decodeCp } from './codepage.js';
-import { isPro } from './edition.js';
+import { has } from './edition.js';
 import { docToHtml } from './doc.js';
 import { sniffDoc, sniffHint, rtfToHtml, htmlToParts, mhtmlParts, decodeHtmlBytes } from './docalt.js';
 import * as PdfEdit from './pdfedit.js';
@@ -383,7 +383,7 @@ function renderActs(d) {
   if (android && d.id) h += `<button type="button" class="btn icon" data-doc="open" title="${esc(tt('docOpenWith', 'Başka uygulamayla aç'))}" aria-label="${esc(tt('docOpenWith', 'Başka uygulamayla aç'))}">${ICON('i-export')}</button>`;
   if (android && d.id) h += `<button type="button" class="btn icon" data-doc="share" title="${esc(tt('share', 'Paylaş'))}" aria-label="${esc(tt('share', 'Paylaş'))}">${ICON('i-more')}</button>`;
   if (android && d.id) h += `<button type="button" class="btn icon" data-doc="keep" title="${esc(tt('docKeep', 'Çevrimdışı sakla'))}" aria-label="${esc(tt('docKeep', 'Çevrimdışı sakla'))}">${ICON('i-save')}</button>`;
-  if (isPro() && api && api.driveAvailable && api.driveAvailable()) h += `<button type="button" class="btn icon" data-doc="drive" title="${esc(tt('driveUpload', "Drive'a yükle"))}" aria-label="${esc(tt('driveUpload', "Drive'a yükle"))}">${ICON('i-drive')}</button>`;
+  if (has('driveUpload') && api && api.driveAvailable && api.driveAvailable()) h += `<button type="button" class="btn icon" data-doc="drive" title="${esc(tt('driveUpload', "Drive'a yükle"))}" aria-label="${esc(tt('driveUpload', "Drive'a yükle"))}">${ICON('i-drive')}</button>`;
   els.acts.innerHTML = h;
 }
 export function close() {
@@ -727,7 +727,7 @@ const GRID_MAX = 1000;
 let editing = null;
 const editable = (k) => k === 'pdf' || isWord(k) || k === 'xlsx' || k === 'text';
 function editBtn() {
-  if (!cur || !editable(cur.kind) || !isPro()) return '';
+  if (!cur || !editable(cur.kind) || !has('docEdit')) return '';
   return `<span class="sp"></span><button type="button" class="btn small" data-doc="edit">${ICON('i-pen')} ${esc(tt('docEdit', 'Düzenle'))}</button>`;
 }
 const b64of = (u8) => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, Math.min(u8.length, i + 0x8000))); return btoa(s); };

@@ -14,7 +14,8 @@ import java.security.spec.X509EncodedKeySpec;
  * Çevrimdışı Pro lisans kodu doğrulaması.
  *
  * Kod biçimi: "DWGPRO-" + base64url(payload) + "." + base64url(imza). payload UTF-8 JSON
- * {"p":"dwg_pro","n":"<lisans sahibi adı>","e":<bitiş epoch saniye ya da 0>}. İmza RSA-2048 SHA256withRSA ile
+ * {"p":"<basamak>","n":"<lisans sahibi adı>","e":<bitiş epoch saniye ya da 0>}; basamak
+ * "adfree" | "premium" | "super". Eski kodlardaki "dwg_pro" değeri "super" sayılır. İmza RSA-2048 SHA256withRSA ile
  * base64url(payload) DİZESİNİN UTF-8 baytları üzerinden alınır (tools/license_gen.mjs aynı baytları imzalar; JSON
  * yeniden serileştirilmez, böylece anahtar sırası ya da boşluk farkı imzayı bozmaz). Açık anahtar
  * BuildConfig.LICENSE_PUBLIC_KEY (Base64 X.509 SubjectPublicKeyInfo); boşsa özellik kapalıdır ve her kod reddedilir.
@@ -24,12 +25,19 @@ public final class License {
 
     private License() { }
 
+    /** payload'daki p alanını basamağa çevirir; eski tek ürünlü kodlar (dwg_pro) tam yetki sayılır */
+    private static String tierOf(String p) {
+        if (p == null) return Tier.FREE;
+        if ("dwg_pro".equals(p) || "pro".equals(p)) return Tier.SUPER;
+        return Tier.norm(p);
+    }
+
     /** Açık anahtar tanımlı mı (lisans kodu özelliği açık mı)? */
     public static boolean enabled() { return BuildConfig.LICENSE_PUBLIC_KEY != null && !BuildConfig.LICENSE_PUBLIC_KEY.isEmpty(); }
 
     /**
-     * Kodu doğrular: imza açık anahtarla, p == PRO_SKU, e == 0 ya da e > şimdi.
-     * @return payload JSON'u (p, n, e) ya da null (geçersiz / süresi dolmuş / özellik kapalı)
+     * Kodu doğrular: imza açık anahtarla, p tanınan bir basamak, e == 0 ya da e > şimdi.
+     * @return payload JSON'u (p basamağa normalleştirilmiş, n, e) ya da null (geçersiz / süresi dolmuş / kapalı)
      */
     public static JSONObject verify(String code) {
         if (!enabled() || code == null) return null;
@@ -49,7 +57,9 @@ public final class License {
             if (!sig.verify(b64url(sigB64))) return null;
 
             JSONObject p = new JSONObject(new String(b64url(payloadB64), StandardCharsets.UTF_8));
-            if (!BuildConfig.PRO_SKU.equals(p.optString("p"))) return null;
+            String tier = tierOf(p.optString("p"));
+            if (Tier.FREE.equals(tier)) return null;
+            p.put("p", tier);   // çağıran doğrudan basamağı okur
             long exp = p.optLong("e", 0);
             if (exp != 0 && exp <= System.currentTimeMillis() / 1000L) return null;
             return p;

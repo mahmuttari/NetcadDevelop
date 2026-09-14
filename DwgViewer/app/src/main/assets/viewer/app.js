@@ -716,7 +716,9 @@ function kv(pairs) {
     ? `<div class="full">${p[0]}</div>`
     : `<div class="k">${esc(p[0])}</div><div class="v">${p[2] ? p[1] : esc(String(p[1]))}</div>`).join('');
 }
-function openDoc(title, html) { $('docTitle').textContent = title; $('docBody').innerHTML = html; $('docBody').onclick = null; show('docPanel'); }
+// Tek alt sayfa kuralı: #docPanel açılırken paket paneli kapanır. İkisi de .panel.bottom'dır ve paket paneli
+// üç kartla ekranın yarısını kaplar; açık kalırsa altındaki panelin düğmelerini örter (Ayarlar › Kaydet erişilemez olur).
+function openDoc(title, html) { Ed.closeProPanel(); $('docTitle').textContent = title; $('docBody').innerHTML = html; $('docBody').onclick = null; show('docPanel'); }
 function copyText(text) {
   if (A() && A().copy) A().copy(text);
   else if (navigator.clipboard) navigator.clipboard.writeText(text).catch(() => {});
@@ -1055,7 +1057,7 @@ function showDocInfo() {
 /** derleme kimliği (kısa git SHA; Bridge.buildId) — Hakkında satırına ve hata kaydı başlığına eklenir */
 function buildIdText() { try { return A() && A().buildId ? ' · ' + A().buildId() : ''; } catch (_) { return ''; } }
 function showAbout() {
-  const ver = (A() && A().appVersion ? A().appVersion() : 'web') + (A() && A().versionCode ? ` (${A().versionCode()})` : '') + buildIdText() + ' · ' + (Ed.isPro() ? t('editionPro') : t('editionFree'));
+  const ver = (A() && A().appVersion ? A().appVersion() : 'web') + (A() && A().versionCode ? ` (${A().versionCode()})` : '') + buildIdText() + ' · ' + Ed.tierName(Ed.tier());
   const rows = [[t('aboutApp'), t('welcomeTitle') + ' ' + ver], [t('aboutParser'), t('aboutParserText')],
     [t('aboutSupported'), t('aboutSupportedText')],
     [t('aboutLimits'), t('aboutLimitsText')],
@@ -1505,7 +1507,7 @@ function savePng(dataUrl, name) {
   if (A() && A().savePng) A().savePng(data.split(',')[1], name);
   else { const a = document.createElement('a'); a.href = data; a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 1000); }
   lastPng = { b64: data.split(',')[1], name };
-  toast(tt('pngSaved', 'PNG kaydedildi'), { type: 'ok', action: Drive.signedIn() && Ed.isPro() ? { label: tt('driveUpload', "Drive'a yükle"), fn: () => Drive.uploadWithPicker({ b64: lastPng.b64, name: lastPng.name, mime: 'image/png' }) } : undefined });
+  toast(tt('pngSaved', 'PNG kaydedildi'), { type: 'ok', action: Drive.signedIn() && Ed.has('driveUpload') ? { label: tt('driveUpload', "Drive'a yükle"), fn: () => Drive.uploadWithPicker({ b64: lastPng.b64, name: lastPng.name, mime: 'image/png' }) } : undefined });
 }
 let lastPng = null;
 const baseName = () => (S.fileName || 'cizim').replace(/\.(dwg|dxf)$/i, '');
@@ -1569,7 +1571,7 @@ async function makePdf(title, paper, orient, scaleN, dpi) {
     const jpeg = page.toDataURL('image/jpeg', 0.92).split(',')[1];
     const pdf = buildPdf(jpeg, W, H, wmm, hmm, title || baseName());
     const name = baseName() + '_' + stamp() + '.pdf';
-    const driveAct = Drive.signedIn() && Ed.isPro() ? { label: tt('driveUpload', "Drive'a yükle"), fn: () => Drive.uploadWithPicker({ b64: pdf, name, mime: 'application/pdf' }) } : undefined;
+    const driveAct = Drive.signedIn() && Ed.has('driveUpload') ? { label: tt('driveUpload', "Drive'a yükle"), fn: () => Drive.uploadWithPicker({ b64: pdf, name, mime: 'application/pdf' }) } : undefined;
     if (A() && A().saveFile) { const r = A().saveFile(pdf, name, 'application/pdf', true); toast(r ? t('pdfDone') + ': ' + r : t('pdfFail'), { type: r ? 'ok' : 'error', ms: 6000, action: r ? driveAct : undefined }); }
     else { const a = document.createElement('a'); a.href = 'data:application/pdf;base64,' + pdf; a.download = name; a.click(); toast(t('pdfDone'), { type: 'ok', action: driveAct }); }
     hide('docPanel');
@@ -1829,7 +1831,7 @@ window.dwgApp = { loadCurrent, onFilePicked, onLocation, onBack, loadBytes, zoom
   docs: Docs, drive: Drive, onGoogle: (ok, json) => Drive.onGoogle(ok, json), onDrive: (id, ok, json) => Drive.onDrive(id, ok, json), onDriveProgress: (id, d, tot) => Drive.onProgress(id, d, tot), openDrive: () => Drive.open(),
   open: Open, openCenter: (tab) => Open.open(tab), onFsRoot: (obj) => Open.onFsRoot(obj), onFs: (id, ok, json) => Open.onFs(id, ok, json),
   home: Home, cloud: Cloud, onWebDav: (id, ok, json) => Cloud.onWebDav(id, ok, json), goHome, refreshMenu,
-  edition: () => Ed.edition(), isPro: () => Ed.isPro(), openProPanel: () => Ed.openProPanel(), proInfo: () => Ed.proInfo(), onEdition: (ed, reason) => Ed.onEdition(String(ed || ''), String(reason || '')), onAd: (reason, shown) => Ed.onAd(String(reason || ''), !!shown), __ads: Ed.__ads };
+  edition: () => Ed.tier(), tier: () => Ed.tier(), has: (id) => Ed.has(id), isPro: () => Ed.isPro(), openProPanel: () => Ed.openProPanel(), proInfo: () => Ed.proInfo(), onEdition: (ed, reason) => Ed.onEdition(String(ed || ''), String(reason || '')), onAd: (reason, shown) => Ed.onAd(String(reason || ''), !!shown), __ads: Ed.__ads };
 ensureStatusChips();
 Ed.initEdition({ toast, rebuildToolbar: () => editor.rebuild(), refreshMenu });   // Ücretsiz / Pro: menü, karşılama kartı, Pro paneli, Drive düğmeleri; reklam zamanlayıcısı; onEdition → şerit yeniden kurulur
 D.initDisplay({ requestRender, drawOverlay, toast, openDoc, show, hide, buildLayerList, settings, saveSettings, editorTheme, zoomExtents, zoomBy, fitPrims, viewHistory, setLayout, editor, ui: uiPrefs(), basemaps: BASEMAPS, haptic });

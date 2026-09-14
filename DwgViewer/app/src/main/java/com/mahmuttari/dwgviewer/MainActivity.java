@@ -148,17 +148,16 @@ public class MainActivity extends Activity {
         webdav = new WebDav(this);
         pro = new Pro(this);
         ads = new Ads(this);
-        if (!isPro()) ads.init();
+        if (showsAds()) ads.init();
         // her açılışta Play sahipliği yeniden doğrulanır; hizmet yoksa sessizce geçilir, kayıtlı yetkiye dokunulmaz
         billing = new Billing(this, new Billing.Listener() {
-            @Override public void onVerified(boolean owned, boolean restore) {
-                if (owned) { boolean changed = pro.set("play", null, 0); if (changed || restore) editionChanged("restored"); }
+            @Override public void onVerified(String tier, boolean restore) {
+                if (!Tier.FREE.equals(tier)) { boolean changed = pro.set("play", tier, null, 0, ""); if (changed || restore) editionChanged("restored"); }
                 else if (pro.clearPlay()) editionChanged("revoked");
                 else if (restore) editionChanged("none");
             }
             @Override public void onPurchase(String state) {
-                if ("purchased".equals(state)) pro.set("play", null, 0);
-                editionChanged(state);
+                editionChanged(state);   // basamak zaten onVerified ile yazıldı
             }
             @Override public void onReady() {
                 // yetki değişmedi; boş neden JS'te sessizdir, yalnız açık Pro paneli yeniden çizilir (fiyat, Satın al / Geri yükle etkin)
@@ -347,7 +346,10 @@ public class MainActivity extends Activity {
     }
 
     // ---- Pro yetkisi ----------------------------------------------------------------------------
-    private boolean isPro() { return pro != null && "pro".equals(pro.edition()); }
+    /** Reklam gösterilecek mi? Hiçbir abonelik ya da lisans yoksa (basamak free) evet. */
+    private boolean showsAds() { return pro == null || Tier.showsAds(pro.edition()); }
+    /** Herhangi bir ücretli basamak var mı? (reklamın kapanma ölçütü) */
+    private boolean paid() { return !showsAds(); }
 
     /**
      * Yetki değişimi/olayı JS'e bildirilir: onEdition("pro"|"free", reason); reason: "purchased" | "cancelled" | "pending" |
@@ -356,14 +358,14 @@ public class MainActivity extends Activity {
      */
     private void editionChanged(String reason) {
         String ed = pro.edition();
-        if ("pro".equals(ed)) { if (ads != null) ads.destroy(); }
+        if (paid()) { if (ads != null) ads.destroy(); }
         else if (ads == null || "revoked".equals(reason)) { ads = new Ads(this); ads.init(); }
         jsWhenReady("window.dwgApp && window.dwgApp.onEdition(" + JSONObject.quote(ed) + "," + JSONObject.quote(reason) + ")");
         scheduleLicenseExpiry();
     }
 
     /** Süreli lisansın bitişinde çalışır: Pro.get() süresi dolan kaydı siler; yetki düştüyse JS'e "revoked" bildirilir */
-    private final Runnable licenseExpiry = () -> { if (pro != null && !isPro()) editionChanged("revoked"); };
+    private final Runnable licenseExpiry = () -> { if (pro != null && showsAds()) editionChanged("revoked"); };
     /**
      * Süreli lisans (exp > 0) uygulama açıkken biterse yetki düşüşü bekletilmeden bildirilsin: bitişten 1 s sonra
      * editionChanged("revoked") planlanır (şerit, reklam zamanlayıcısı ve panel Pro'da kalmasın). Önceki plan iptal edilir;
@@ -371,8 +373,7 @@ public class MainActivity extends Activity {
      */
     private void scheduleLicenseExpiry() {
         mainHandler.removeCallbacks(licenseExpiry);
-        JSONObject e = pro == null ? null : pro.get();
-        long exp = e == null ? 0 : e.optLong("exp", 0);
+        long exp = pro == null ? 0 : pro.nextExpiry();   // iki kaynaktan en yakın bitiş
         if (exp <= 0) return;
         long delay = Math.max(0, exp * 1000L - System.currentTimeMillis()) + 1000L;
         mainHandler.postDelayed(licenseExpiry, delay);
@@ -890,25 +891,50 @@ public class MainActivity extends Activity {
         @JavascriptInterface public String updateUrl() { return BuildConfig.UPDATE_URL; }
         /** Derleme kimliği: kısa git commit numarası ('yok' ise git bulunamadı) */
         @JavascriptInterface public String buildId() { return BuildConfig.GIT_SHA; }
-        /** O anki yetki: "pro" | "free" (JS özellik kapılarını buna göre kurar; onEdition ile değişebilir) */
+        /** O anki basamak: "free" | "adfree" | "premium" | "super" (JS kapıları buna göre kurar; onEdition ile değişir) */
         @JavascriptInterface public String edition() { return pro.edition(); }
-        /** Pro paneli için: {edition, source:"play"|"license"|"none", name, exp, price, billingReady, licenseEnabled} */
+        /**
+         * Paket paneli için:
+         * {edition, source:"play"|"license"|"none", name, exp, plan, billingReady, licenseEnabled,
+         *  prices:{"adfree":{"monthly":"…","yearly":"…"}, "premium":{…}, "super":{…}}}
+         */
         @JavascriptInterface
         public String proInfo() {
             try {
-                JSONObject e = pro.get(), o = new JSONObject();
+                JSONObject e = pro.current(), o = new JSONObject();
                 o.put("edition", pro.edition());
                 o.put("source", e == null ? "none" : e.optString("source", "none"));
                 o.put("name", e == null ? "" : e.optString("name", ""));
                 o.put("exp", e == null ? 0 : e.optLong("exp", 0));
-                o.put("price", billing == null ? "" : billing.price());
+                o.put("plan", e == null ? "" : e.optString("plan", ""));
                 o.put("billingReady", billing != null && billing.ready());
                 o.put("licenseEnabled", License.enabled());
+                JSONObject prices = new JSONObject();
+                if (billing != null) for (java.util.Map.Entry<String, String> en : billing.allPrices().entrySet()) {
+                    String[] parts = en.getKey().split("/", 2);
+                    if (parts.length != 2) continue;
+                    JSONObject t = prices.optJSONObject(parts[0]);
+                    if (t == null) { t = new JSONObject(); prices.put(parts[0], t); }
+                    t.put(parts[1], en.getValue());
+                }
+                o.put("prices", prices);
                 return o.toString();
             } catch (Exception ex) { return "{}"; }
         }
-        /** Play satın alma akışı; sonuç onEdition(ed, "purchased" | "cancelled" | "pending" | "error:<mesaj>") */
-        @JavascriptInterface public void buyPro() { runOnUiThread(() -> { if (isPro()) editionChanged("restored"); else if (billing != null) billing.buy(); }); }
+        /**
+         * Abonelik akışı; tier: "adfree"|"premium"|"super", plan: "monthly"|"yearly".
+         * Sonuç onEdition(basamak, "purchased" | "cancelled" | "pending" | "error:<mesaj>").
+         * Aynı basamak zaten etkinse akış açılmaz, yalnız yetki tazelenir.
+         */
+        @JavascriptInterface
+        public void buyPro(String tier, String plan) {
+            final String t = Tier.norm(tier), pl = plan == null ? "" : plan;
+            runOnUiThread(() -> {
+                if (Tier.FREE.equals(t)) return;
+                if (t.equals(pro.edition())) { editionChanged("restored"); return; }
+                if (billing != null) billing.buy(t, pl);
+            });
+        }
         /** Play sahipliğini yeniden sorar; sonuç onEdition(ed, "restored" | "none" | "error:<mesaj>") */
         @JavascriptInterface public void restorePro() { runOnUiThread(() -> { if (billing != null) billing.verify(true); }); }
         /** Çevrimdışı lisans kodu: doğrulanırsa yetki yazılır ve onEdition("pro","license") yollanır */
@@ -916,18 +942,18 @@ public class MainActivity extends Activity {
         public boolean activateLicense(String code) {
             JSONObject p = License.verify(code);
             if (p == null) return false;
-            pro.set("license", p.optString("n", ""), p.optLong("e", 0));
+            pro.set("license", p.optString("p", ""), p.optString("n", ""), p.optLong("e", 0), "");
             runOnUiThread(() -> editionChanged("license"));
             return true;
         }
         /** Pro yetkisi yokken yüklü bir geçiş reklamı hazırsa true; Pro'da her zaman false */
-        @JavascriptInterface public boolean adsAvailable() { return !isPro() && ads != null && ads.ready(); }
+        @JavascriptInterface public boolean adsAvailable() { return showsAds() && ads != null && ads.ready(); }
         /** Geçiş reklamı isteği (reason: "open" | "interval"); sonuç JS'e onAd(reason, shown) ile döner; Pro'da hemen false */
         @JavascriptInterface
         public void showAd(String reason) {
             final String r = reason == null ? "" : reason;
             runOnUiThread(() -> {
-                if (isPro() || ads == null) { js("window.dwgApp && window.dwgApp.onAd(" + JSONObject.quote(r) + ",false)"); return; }
+                if (paid() || ads == null) { js("window.dwgApp && window.dwgApp.onAd(" + JSONObject.quote(r) + ",false)"); return; }
                 ads.show(r, shown -> js("window.dwgApp && window.dwgApp.onAd(" + JSONObject.quote(r) + "," + shown + ")"));
             });
         }

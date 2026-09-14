@@ -15,40 +15,56 @@ import com.android.billingclient.api.PurchasesUpdatedListener;
 import com.android.billingclient.api.QueryProductDetailsParams;
 import com.android.billingclient.api.QueryPurchasesParams;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
- * Google Play Faturalandırma: Pro tek seferlik, tüketilmeyen ürün (BuildConfig.PRO_SKU).
+ * Google Play Faturalandırma: üç ABONELİK (adfree &lt; premium &lt; super), her birinde iki temel plan
+ * (BuildConfig.PLAN_MONTHLY, BuildConfig.PLAN_YEARLY).
  *
- * Akış: connect() → bağlanınca queryPurchasesAsync(INAPP) ile sahiplik doğrulanır (PURCHASED + acknowledge) ve
- * ürün fiyatı (formattedPrice) alınır. Sonuçlar {@link Listener} ile ana iş parçacığına döner:
- * onVerified(owned): Play "sahip" ya da "değil" dedi (hizmet yoksa çağrılmaz); onPurchase(state, msg):
- * satın alma akışının sonucu ("purchased" | "cancelled" | "pending" | "error:<mesaj>"); onReady(): bağlantı kuruldu ve
- * ürün sorgusu bitti (panel açıkken bağlanıldıysa fiyat ve düğmeler yenilensin). Play hizmeti yoksa
- * (BILLING_UNAVAILABLE vb.) ready() false kalır ve hata yutulur; bağlantı koparsa bir sonraki istekte yeniden
- * bağlanılır. Yaşam döngüsü: onDestroy'da destroy().
+ * Akış: connect() → bağlanınca üç ürünün ayrıntısı sorgulanır (temel plan başına biçimli fiyat) ve
+ * queryPurchasesAsync(SUBS) ile sahiplik doğrulanır. Kullanıcı birden çok abonelik taşıyabildiği için
+ * yetki, etkin aboneliklerin EN YÜKSEK basamağıdır.
+ *
+ * Basamak değiştirme: Play, aboneliklerde yükseltme/düşürmeyi destekler. Elde etkin bir abonelik varken
+ * başka bir basamak satın alınırsa akış {@link BillingFlowParams.SubscriptionUpdateParams} ile başlatılır;
+ * Play eski aboneliği iptal edip farkı oranlar (CHARGE_PRORATED_PRICE). Bu olmadan kullanıcı iki aboneliği
+ * birden öder.
+ *
+ * Sonuçlar {@link Listener} ile ana iş parçacığına döner:
+ *   onVerified(tier, restore) — Play'e göre geçerli basamak ("free" hiç abonelik yoksa)
+ *   onPurchase(state)         — "purchased" | "cancelled" | "pending" | "error:&lt;mesaj&gt;"
+ *   onReady()                 — bağlantı kuruldu ve ürün sorgusu bitti (açık panel fiyatları yeniler)
+ * Play hizmeti yoksa ready() false kalır ve hata yutulur. Yaşam döngüsü: onDestroy'da destroy().
  */
 public class Billing implements PurchasesUpdatedListener {
     private static final String TAG = "DwgViewerBilling";
     private static final int RECONNECT_MAX = 3;
 
     public interface Listener {
-        /** Açılış/geri yükleme doğrulaması: Play'e göre Pro sahibi mi? (restore: restorePro() isteğinden geldiyse true) */
-        void onVerified(boolean owned, boolean restore);
+        /** Açılış/geri yükleme doğrulaması: Play'e göre geçerli basamak; restore: restorePro() isteğinden geldiyse true */
+        void onVerified(String tier, boolean restore);
         /** Satın alma akışı sonucu: "purchased" | "cancelled" | "pending" | "error:<mesaj>" */
         void onPurchase(String state);
-        /** Play bağlantısı kuruldu ve ürün ayrıntısı (fiyat) sorgusu sonuçlandı: açık Pro paneli fiyat / düğmeleri yenileyebilir */
+        /** Play bağlantısı kuruldu ve ürün ayrıntısı sorgusu sonuçlandı */
         void onReady();
     }
 
     private final Activity act;
     private final Listener listener;
     private BillingClient client;
-    private ProductDetails product;
+    /** basamak → ProductDetails (abonelik) */
+    private final Map<String, ProductDetails> products = new HashMap<>();
+    /** "<basamak>/<plan>" → biçimli fiyat ("₺299,99") */
+    private final Map<String, String> prices = new HashMap<>();
+    /** Etkin abonelik satın alma jetonu (basamak değiştirmede eskisini bildirmek için) */
+    private String activeToken;
+    private String activeTier = Tier.FREE;
     private boolean ready, connecting;
     private int reconnects;
-    /** Bağlantı kurulunca yapılacak iş (satın alma ya da geri yükleme isteği bağlantıdan önce gelirse) */
     private Runnable pending;
 
     public Billing(Activity act, Listener listener) {
@@ -60,17 +76,17 @@ public class Billing implements PurchasesUpdatedListener {
             .build();
     }
 
-    /** Play hizmetine bağlı ve ürün sorgulanabilir mi? */
     public boolean ready() { return ready && client != null && client.isReady(); }
 
-    /** Play'den gelen biçimli fiyat ("₺149,99"); henüz alınmadıysa "" */
-    public String price() {
-        if (product == null) return "";
-        ProductDetails.OneTimePurchaseOfferDetails o = product.getOneTimePurchaseOfferDetails();
-        return o == null ? "" : o.getFormattedPrice();
+    /** Biçimli fiyat ("₺299,99"); henüz alınmadıysa "" */
+    public String price(String tier, String plan) {
+        String v = prices.get(tier + "/" + plan);
+        return v == null ? "" : v;
     }
 
-    /** Bağlanır; bağlanınca sahiplik doğrulanır ve fiyat alınır. Zaten bağlıysa boşa düşer. */
+    /** Play'in bildiği bütün fiyatlar: {"premium":{"monthly":"₺299,99","yearly":"…"}, …} */
+    public Map<String, String> allPrices() { return new HashMap<>(prices); }
+
     public void connect() { connect(null); }
 
     private void connect(Runnable then) {
@@ -85,21 +101,20 @@ public class Billing implements PurchasesUpdatedListener {
                     connecting = false;
                     if (r.getResponseCode() == BillingClient.BillingResponseCode.OK) {
                         ready = true; reconnects = 0;
-                        queryProduct();
+                        queryProducts(null);
                         verify(false);
                         runPending();
                     } else {
                         ready = false;
                         Log.w(TAG, "kurulum: " + r.getResponseCode() + " " + r.getDebugMessage());
                         Runnable p = pending; pending = null;
-                        if (p != null) listener.onPurchase("error:" + msg(r));
+                        if (p != null) listener.onPurchase("error:" + msg(r, ""));
                     }
                 });
             }
             @Override public void onBillingServiceDisconnected() {
                 act.runOnUiThread(() -> {
                     connecting = false; ready = false;
-                    // Play hizmeti koptu; sınırlı sayıda yeniden denenir, sonrası bir sonraki istekte
                     if (reconnects++ < RECONNECT_MAX) connect(null);
                 });
             }
@@ -108,55 +123,102 @@ public class Billing implements PurchasesUpdatedListener {
 
     private void runPending() { Runnable p = pending; pending = null; if (p != null) p.run(); }
 
-    /** Ürün ayrıntıları (fiyat ve satın alma akışı için ProductDetails) */
-    private void queryProduct() {
-        if (!ready()) return;
-        QueryProductDetailsParams q = QueryProductDetailsParams.newBuilder().setProductList(Collections.singletonList(
-            QueryProductDetailsParams.Product.newBuilder().setProductId(BuildConfig.PRO_SKU).setProductType(BillingClient.ProductType.INAPP).build())).build();
-        client.queryProductDetailsAsync(q, (r, list) -> act.runOnUiThread(() -> {
-            if (r.getResponseCode() == BillingClient.BillingResponseCode.OK && list != null && !list.isEmpty()) product = list.get(0);
-            else Log.w(TAG, "ürün: " + r.getResponseCode() + " " + r.getDebugMessage());
-            if (ready()) listener.onReady();   // fiyat gelmemiş olsa da bağlantı hazır: panel "Satın al"ı etkinleştirir
+    /** Üç aboneliğin ayrıntısı ve temel plan fiyatları; then != null ise sorgu bitince çalışır */
+    private void queryProducts(Runnable then) {
+        if (!ready()) { if (then != null) then.run(); return; }
+        List<QueryProductDetailsParams.Product> list = new ArrayList<>();
+        for (String tier : new String[]{ Tier.ADFREE, Tier.PREMIUM, Tier.SUPER }) {
+            String sku = Tier.sku(tier);
+            if (sku.isEmpty()) continue;
+            list.add(QueryProductDetailsParams.Product.newBuilder().setProductId(sku).setProductType(BillingClient.ProductType.SUBS).build());
+        }
+        QueryProductDetailsParams q = QueryProductDetailsParams.newBuilder().setProductList(list).build();
+        client.queryProductDetailsAsync(q, (r, details) -> act.runOnUiThread(() -> {
+            if (r.getResponseCode() == BillingClient.BillingResponseCode.OK && details != null) {
+                for (ProductDetails d : details) {
+                    String tier = Tier.ofSku(d.getProductId());
+                    if (Tier.FREE.equals(tier)) continue;
+                    products.put(tier, d);
+                    List<ProductDetails.SubscriptionOfferDetails> offers = d.getSubscriptionOfferDetails();
+                    if (offers == null) continue;
+                    for (ProductDetails.SubscriptionOfferDetails o : offers) {
+                        String plan = o.getBasePlanId();
+                        List<ProductDetails.PricingPhase> ph = o.getPricingPhases().getPricingPhaseList();
+                        if (ph == null || ph.isEmpty()) continue;
+                        // Son evre yinelenen (asıl) fiyattır; önündekiler deneme süresi ya da tanıtım fiyatıdır
+                        String formatted = ph.get(ph.size() - 1).getFormattedPrice();
+                        if (formatted != null && !formatted.isEmpty()) prices.put(tier + "/" + plan, formatted);
+                    }
+                }
+            } else Log.w(TAG, "ürün: " + r.getResponseCode() + " " + r.getDebugMessage());
+            if (ready()) listener.onReady();
+            if (then != null) then.run();
         }));
     }
 
-    /** Sahiplik doğrulaması: queryPurchasesAsync(INAPP); PURCHASED + PRO_SKU → sahip (gerekirse acknowledge) */
+    /** Sahiplik doğrulaması: queryPurchasesAsync(SUBS); en yüksek basamak kazanır, onaylanmamışlar onaylanır */
     public void verify(boolean restore) {
         if (!ready()) { connect(() -> verify(restore)); return; }
-        client.queryPurchasesAsync(QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.INAPP).build(),
+        client.queryPurchasesAsync(QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.SUBS).build(),
             (r, purchases) -> act.runOnUiThread(() -> {
                 if (r.getResponseCode() != BillingClient.BillingResponseCode.OK) {
                     Log.w(TAG, "sorgu: " + r.getResponseCode() + " " + r.getDebugMessage());
-                    if (restore) listener.onVerified(false, true); // istek üzerine geldiyse "bulunamadı" denir; açılışta yetkiye dokunulmaz
+                    if (restore) listener.onVerified(Tier.FREE, true);   // istek üzerine geldiyse "bulunamadı"; açılışta yetkiye dokunulmaz
                     return;
                 }
-                boolean owned = false;
-                for (Purchase p : purchases) if (isPro(p)) { owned = true; acknowledge(p); }
-                listener.onVerified(owned, restore);
+                String best = Tier.FREE, token = null;
+                if (purchases != null) for (Purchase p : purchases) {
+                    if (p.getPurchaseState() != Purchase.PurchaseState.PURCHASED) continue;
+                    String t = tierOf(p);
+                    if (Tier.FREE.equals(t)) continue;
+                    acknowledge(p);
+                    if (Tier.rank(t) >= Tier.rank(best)) { best = t; token = p.getPurchaseToken(); }
+                }
+                activeTier = best; activeToken = token;
+                listener.onVerified(best, restore);
             }));
     }
 
-    /** Satın alma akışını başlatır; sonuç onPurchasesUpdated ile döner */
-    public void buy() {
-        if (!ready()) { connect(this::buy); return; }
-        if (product == null) {
-            // ürün henüz gelmedi: bir kez daha sorgulanır, ardından denenir
-            QueryProductDetailsParams q = QueryProductDetailsParams.newBuilder().setProductList(Collections.singletonList(
-                QueryProductDetailsParams.Product.newBuilder().setProductId(BuildConfig.PRO_SKU).setProductType(BillingClient.ProductType.INAPP).build())).build();
-            client.queryProductDetailsAsync(q, (r, list) -> act.runOnUiThread(() -> {
-                if (r.getResponseCode() == BillingClient.BillingResponseCode.OK && list != null && !list.isEmpty()) { product = list.get(0); launch(); }
-                else listener.onPurchase("error:" + (list == null || list.isEmpty() ? "Ürün Play'de bulunamadı (" + BuildConfig.PRO_SKU + ")" : msg(r)));
-            }));
-            return;
+    /** Satın alma / basamak değiştirme akışı; tier: adfree|premium|super, plan: monthly|yearly */
+    public void buy(String tier, String plan) {
+        final String t = Tier.norm(tier);
+        final String pl = BuildConfig.PLAN_YEARLY.equals(plan) ? BuildConfig.PLAN_YEARLY : BuildConfig.PLAN_MONTHLY;
+        if (Tier.FREE.equals(t)) return;
+        if (!ready()) { connect(() -> buy(t, pl)); return; }
+        if (products.get(t) == null) { queryProducts(() -> launch(t, pl)); return; }
+        launch(t, pl);
+    }
+
+    private void launch(String tier, String plan) {
+        ProductDetails d = products.get(tier);
+        if (d == null) { listener.onPurchase("error:Abonelik Play'de bulunamadı (" + Tier.sku(tier) + ")"); return; }
+        String offer = offerToken(d, plan);
+        if (offer == null) { listener.onPurchase("error:Temel plan Play'de bulunamadı (" + Tier.sku(tier) + " / " + plan + ")"); return; }
+        BillingFlowParams.Builder b = BillingFlowParams.newBuilder().setProductDetailsParamsList(Collections.singletonList(
+            BillingFlowParams.ProductDetailsParams.newBuilder().setProductDetails(d).setOfferToken(offer).build()));
+        // Elde etkin bir abonelik varsa yenisi onun yerine geçer; yoksa kullanıcı iki aboneliği birden öder
+        if (activeToken != null && !Tier.FREE.equals(activeTier)) {
+            b.setSubscriptionUpdateParams(BillingFlowParams.SubscriptionUpdateParams.newBuilder()
+                .setOldPurchaseToken(activeToken)
+                .setSubscriptionReplacementMode(BillingFlowParams.SubscriptionUpdateParams.ReplacementMode.CHARGE_PRORATED_PRICE)
+                .build());
         }
-        launch();
+        BillingResult r = client.launchBillingFlow(act, b.build());
+        if (r.getResponseCode() != BillingClient.BillingResponseCode.OK) listener.onPurchase("error:" + msg(r, Tier.sku(tier)));
     }
 
-    private void launch() {
-        BillingFlowParams p = BillingFlowParams.newBuilder().setProductDetailsParamsList(Collections.singletonList(
-            BillingFlowParams.ProductDetailsParams.newBuilder().setProductDetails(product).build())).build();
-        BillingResult r = client.launchBillingFlow(act, p);
-        if (r.getResponseCode() != BillingClient.BillingResponseCode.OK) listener.onPurchase("error:" + msg(r));
+    /** Temel plan kimliğine karşılık gelen teklif jetonu; deneme/tanıtım teklifi varsa o tercih edilir */
+    private static String offerToken(ProductDetails d, String plan) {
+        List<ProductDetails.SubscriptionOfferDetails> offers = d.getSubscriptionOfferDetails();
+        if (offers == null) return null;
+        String base = null;
+        for (ProductDetails.SubscriptionOfferDetails o : offers) {
+            if (!plan.equals(o.getBasePlanId())) continue;
+            // offerId dolu olan bir teklif (ücretsiz deneme / tanıtım fiyatı) varsa kullanıcı lehinedir
+            if (o.getOfferId() != null && !o.getOfferId().isEmpty()) return o.getOfferToken();
+            base = o.getOfferToken();
+        }
+        return base;
     }
 
     @Override
@@ -164,35 +226,44 @@ public class Billing implements PurchasesUpdatedListener {
         act.runOnUiThread(() -> {
             int code = r.getResponseCode();
             if (code == BillingClient.BillingResponseCode.USER_CANCELED) { listener.onPurchase("cancelled"); return; }
-            if (code != BillingClient.BillingResponseCode.OK) { listener.onPurchase("error:" + msg(r)); return; }
-            boolean pendingSeen = false, owned = false;
+            if (code != BillingClient.BillingResponseCode.OK) { listener.onPurchase("error:" + msg(r, "")); return; }
+            boolean pendingSeen = false;
+            String best = Tier.FREE;
             if (purchases != null) for (Purchase p : purchases) {
-                if (!p.getProducts().contains(BuildConfig.PRO_SKU)) continue;
-                if (p.getPurchaseState() == Purchase.PurchaseState.PURCHASED) { owned = true; acknowledge(p); }
-                else if (p.getPurchaseState() == Purchase.PurchaseState.PENDING) pendingSeen = true;
+                String t = tierOf(p);
+                if (Tier.FREE.equals(t)) continue;
+                if (p.getPurchaseState() == Purchase.PurchaseState.PURCHASED) {
+                    acknowledge(p);
+                    if (Tier.rank(t) >= Tier.rank(best)) { best = t; activeToken = p.getPurchaseToken(); }
+                } else if (p.getPurchaseState() == Purchase.PurchaseState.PENDING) pendingSeen = true;
             }
-            listener.onPurchase(owned ? "purchased" : pendingSeen ? "pending" : "error:Satın alma sonucu boş");
+            if (!Tier.FREE.equals(best)) { activeTier = best; listener.onVerified(best, false); listener.onPurchase("purchased"); }
+            else listener.onPurchase(pendingSeen ? "pending" : "error:Satın alma sonucu boş");
         });
     }
 
-    private boolean isPro(Purchase p) { return p.getPurchaseState() == Purchase.PurchaseState.PURCHASED && p.getProducts().contains(BuildConfig.PRO_SKU); }
+    /** Satın almanın taşıdığı en yüksek basamak */
+    private static String tierOf(Purchase p) {
+        String best = Tier.FREE;
+        for (String sku : p.getProducts()) best = Tier.max(best, Tier.ofSku(sku));
+        return best;
+    }
 
-    /** Onaylanmamış satın alma 3 gün içinde onaylanmazsa Play iade eder; sonuç yalnız günlüğe yazılır */
+    /** Onaylanmamış abonelik 3 gün içinde onaylanmazsa Play iade eder; sonuç yalnız günlüğe yazılır */
     private void acknowledge(Purchase p) {
         if (p.isAcknowledged() || !ready()) return;
         client.acknowledgePurchase(AcknowledgePurchaseParams.newBuilder().setPurchaseToken(p.getPurchaseToken()).build(),
             r -> { if (r.getResponseCode() != BillingClient.BillingResponseCode.OK) Log.w(TAG, "onay: " + r.getResponseCode() + " " + r.getDebugMessage()); });
     }
 
-    /** Kullanıcıya gösterilecek kısa hata metni */
-    private static String msg(BillingResult r) {
+    private static String msg(BillingResult r, String sku) {
         String d = r.getDebugMessage();
         switch (r.getResponseCode()) {
             case BillingClient.BillingResponseCode.BILLING_UNAVAILABLE: return "Google Play Faturalandırma bu cihazda kullanılamıyor";
             case BillingClient.BillingResponseCode.SERVICE_UNAVAILABLE:
             case BillingClient.BillingResponseCode.NETWORK_ERROR: return "Google Play'e ulaşılamadı (ağ)";
-            case BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED: return "Bu ürün zaten satın alınmış; 'Satın alımı geri yükle' deneyin";
-            case BillingClient.BillingResponseCode.ITEM_UNAVAILABLE: return "Ürün Play'de bulunamadı (" + BuildConfig.PRO_SKU + ")";
+            case BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED: return "Bu abonelik zaten etkin; 'Aboneliği geri yükle' deneyin";
+            case BillingClient.BillingResponseCode.ITEM_UNAVAILABLE: return "Abonelik Play'de bulunamadı" + (sku.isEmpty() ? "" : " (" + sku + ")");
             case BillingClient.BillingResponseCode.DEVELOPER_ERROR: return "Faturalandırma yapılandırma hatası";
             default: return (d == null || d.isEmpty() ? "Google Play hatası" : d) + " (" + r.getResponseCode() + ")";
         }
@@ -200,6 +271,6 @@ public class Billing implements PurchasesUpdatedListener {
 
     public void destroy() {
         if (client != null) { try { client.endConnection(); } catch (Exception ignored) { } client = null; }
-        ready = false; product = null; pending = null;
+        ready = false; products.clear(); prices.clear(); pending = null; activeToken = null; activeTier = Tier.FREE;
     }
 }
