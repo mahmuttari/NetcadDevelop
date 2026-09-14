@@ -13,7 +13,7 @@ export default {
   layerCount: 'लेयर', entity: 'वस्तुएँ', openFirst: 'पहले कोई DWG फ़ाइल खोलें।', textShown: 'पाठ दिखाया गया', textHidden: 'पाठ छिपाया गया',
   file: 'फ़ाइल', version: 'संस्करण', unit: 'इकाई (INSUNITS)', entityCount: 'वस्तुओं की संख्या', primCount: 'खींचे गए मूल तत्व', solidDiag: 'ठोस मॉडल', layerN: 'लेयर', blockN: 'ब्लॉक परिभाषाएँ',
   xRange: 'X परास', yRange: 'Y परास', size: 'चौड़ाई × ऊँचाई', types: 'वस्तु के प्रकार',
-  layer: 'लेयर', color: 'रंग', ltype: 'रेखा प्रकार', lweight: 'रेखा की मोटाई', length: 'लंबाई', start: 'आरंभ', end: 'अंत', vertices: 'शीर्ष',
+  layer: 'लेयर', color: 'रंग', ltype: 'रेखा प्रकार', lweight: 'रेखा की मोटाई', length: 'लंबाई', start: 'आरंभ', end: 'अंत', vertices: 'शीर्ष', triCount: 'त्रिभुज',
   closed: 'बंद', yes: 'हाँ', area: 'क्षेत्रफल', width: 'चौड़ाई', pattern: 'पैटर्न', center: 'केंद्र', radius: 'त्रिज्या', circumference: 'परिधि', arcLen: 'चाप की लंबाई', angle: 'कोण',
   textK: 'पाठ', height: 'ऊँचाई', rotation: 'घूर्णन', position: 'स्थिति', handle: 'हैंडल', block: 'ब्लॉक का नाम', insPoint: 'निवेशन बिंदु', scale: 'मापनी',
   attrs: 'गुण', xdata: 'विस्तारित डेटा (XDATA)', measVal: 'मापा गया मान', measText: 'विमा पाठ', dimStyle: 'विमा शैली', tag: 'टैग', fromLayer: 'लेयर अनुसार', fromBlock: 'ब्लॉक अनुसार',

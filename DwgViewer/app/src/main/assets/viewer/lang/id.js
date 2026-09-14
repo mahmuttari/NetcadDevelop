@@ -13,7 +13,7 @@ export default {
   layerCount: 'layer', entity: 'objek', openFirst: 'Buka berkas DWG terlebih dahulu.', textShown: 'Teks ditampilkan', textHidden: 'Teks disembunyikan',
   file: 'Berkas', version: 'Versi', unit: 'Satuan (INSUNITS)', entityCount: 'Objek', primCount: 'Primitif tergambar', solidDiag: 'Model solid', layerN: 'Layer', blockN: 'Definisi blok',
   xRange: 'Rentang X', yRange: 'Rentang Y', size: 'Lebar × Tinggi', types: 'Jenis objek',
-  layer: 'Layer', color: 'Warna', ltype: 'Jenis garis', lweight: 'Ketebalan garis', length: 'Panjang', start: 'Awal', end: 'Akhir', vertices: 'Simpul',
+  layer: 'Layer', color: 'Warna', ltype: 'Jenis garis', lweight: 'Ketebalan garis', length: 'Panjang', start: 'Awal', end: 'Akhir', vertices: 'Simpul', triCount: 'Segitiga',
   closed: 'Tertutup', yes: 'Ya', area: 'Luas', width: 'Lebar', pattern: 'Pola', center: 'Pusat', radius: 'Jari-jari', circumference: 'Keliling lingkaran', arcLen: 'Panjang busur', angle: 'Sudut',
   textK: 'Teks', height: 'Tinggi', rotation: 'Rotasi', position: 'Posisi', handle: 'Pengenal', block: 'Nama blok', insPoint: 'Titik sisip', scale: 'Skala',
   attrs: 'Atribut', xdata: 'Data diperluas (XDATA)', measVal: 'Nilai ukur', measText: 'Teks dimensi', dimStyle: 'Gaya dimensi', tag: 'Tanda', fromLayer: 'DariLayer', fromBlock: 'DariBlok',

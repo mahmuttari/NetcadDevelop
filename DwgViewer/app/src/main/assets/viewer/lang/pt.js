@@ -13,7 +13,7 @@ export default {
   layerCount: 'camadas', entity: 'objetos', openFirst: 'Abra primeiro um ficheiro DWG.', textShown: 'Texto visível', textHidden: 'Texto oculto',
   file: 'Ficheiro', version: 'Versão', unit: 'Unidade (INSUNITS)', entityCount: 'Objetos', primCount: 'Primitivas desenhadas', solidDiag: 'Modelos sólidos', layerN: 'Camadas', blockN: 'Definições de bloco',
   xRange: 'Intervalo X', yRange: 'Intervalo Y', size: 'Largura × Altura', types: 'Tipos de objeto',
-  layer: 'Camada', color: 'Cor', ltype: 'Tipo de linha', lweight: 'Espessura de linha', length: 'Comprimento', start: 'Início', end: 'Fim', vertices: 'Vértices',
+  layer: 'Camada', color: 'Cor', ltype: 'Tipo de linha', lweight: 'Espessura de linha', length: 'Comprimento', start: 'Início', end: 'Fim', vertices: 'Vértices', triCount: 'Triângulos',
   closed: 'Fechado', yes: 'Sim', area: 'Área', width: 'Largura', pattern: 'Padrão', center: 'Centro', radius: 'Raio', circumference: 'Circunferência', arcLen: 'Comprimento do arco', angle: 'Ângulo',
   textK: 'Texto', height: 'Altura', rotation: 'Rotação', position: 'Posição', handle: 'Identificador', block: 'Nome do bloco', insPoint: 'Ponto de inserção', scale: 'Escala',
   attrs: 'Atributos', xdata: 'Dados estendidos (XDATA)', measVal: 'Medição', measText: 'Texto da cota', dimStyle: 'Estilo de cota', tag: 'Etiqueta', fromLayer: 'PorCamada', fromBlock: 'PorBloco',

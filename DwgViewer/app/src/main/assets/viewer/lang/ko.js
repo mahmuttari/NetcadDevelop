@@ -13,7 +13,7 @@ export default {
   layerCount: '도면층', entity: '객체', openFirst: '먼저 DWG 파일을 여세요.', textShown: '문자를 표시했습니다', textHidden: '문자를 숨겼습니다',
   file: '파일', version: '버전', unit: '단위(INSUNITS)', entityCount: '객체 수', primCount: '그린 기본 요소', solidDiag: '솔리드 모델', layerN: '도면층', blockN: '블록 정의',
   xRange: 'X 범위', yRange: 'Y 범위', size: '너비 × 높이', types: '객체 종류',
-  layer: '도면층', color: '색상', ltype: '선종류', lweight: '선 굵기', length: '길이', start: '시작', end: '끝', vertices: '정점',
+  layer: '도면층', color: '색상', ltype: '선종류', lweight: '선 굵기', length: '길이', start: '시작', end: '끝', vertices: '정점', triCount: '삼각형',
   closed: '닫힘', yes: '예', area: '면적', width: '너비', pattern: '패턴', center: '중심', radius: '반지름', circumference: '원둘레', arcLen: '호 길이', angle: '각도',
   textK: '문자', height: '높이', rotation: '회전', position: '위치', handle: '핸들', block: '블록 이름', insPoint: '삽입점', scale: '축척',
   attrs: '속성', xdata: '확장 데이터(XDATA)', measVal: '측정값', measText: '치수 문자', dimStyle: '치수 스타일', tag: '태그', fromLayer: '도면층별', fromBlock: '블록별',

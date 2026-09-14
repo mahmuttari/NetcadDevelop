@@ -13,7 +13,7 @@ export default {
   layerCount: '图层', entity: '对象', openFirst: '请先打开一个 DWG 文件。', textShown: '文字已显示', textHidden: '文字已隐藏',
   file: '文件', version: '版本', unit: '单位（INSUNITS）', entityCount: '对象数', primCount: '绘制的图元', solidDiag: '实体模型', layerN: '图层', blockN: '块定义',
   xRange: 'X 范围', yRange: 'Y 范围', size: '宽 × 高', types: '对象类型',
-  layer: '图层', color: '颜色', ltype: '线型', lweight: '线宽', length: '长度', start: '起点', end: '终点', vertices: '顶点',
+  layer: '图层', color: '颜色', ltype: '线型', lweight: '线宽', length: '长度', start: '起点', end: '终点', vertices: '顶点', triCount: '三角形',
   closed: '闭合', yes: '是', area: '面积', width: '宽度', pattern: '图案', center: '圆心', radius: '半径', circumference: '周长', arcLen: '弧长', angle: '角度',
   textK: '文字', height: '高度', rotation: '旋转', position: '位置', handle: '句柄', block: '块名', insPoint: '插入点', scale: '比例',
   attrs: '属性', xdata: '扩展数据（XDATA）', measVal: '测量值', measText: '标注文字', dimStyle: '标注样式', tag: '标记', fromLayer: '随层', fromBlock: '随块',

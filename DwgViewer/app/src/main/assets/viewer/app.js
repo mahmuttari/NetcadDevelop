@@ -768,7 +768,13 @@ function showInfo(p) {
     rows.push([t('textK'), p.lines.join('\n')], [t('height'), fmt(p.h) + u], [t('rotation'), fmt(p.rot * 180 / Math.PI, 2) + '°'], [t('position'), fmt(p.x) + ' ; ' + fmt(p.y)]);
     if (sub === 'ATTRIB') rows.push([t('tag'), inf.tag]);
   } else if (p.k === 3) rows.push([t('file'), inf.file]);
-  else rows.push([t('position'), fmt(p.x) + ' ; ' + fmt(p.y) + zTxt(p.z)]);
+  else if (p.k === 5) {                                   // ağ gövdesi: konum yok, geometrisi dizilerde
+    const b = p.bb;
+    rows.push([t('triCount'), fmt(p.idx.length / 3, 0)], [t('vertices'), fmt(p.vtx.length / 3, 0)],
+      [t('size'), fmt(b[2] - b[0]) + ' × ' + fmt(b[3] - b[1]) + u],
+      [t('center'), fmt((b[0] + b[2]) / 2) + ' ; ' + fmt((b[1] + b[3]) / 2)],
+      [t('elev'), fmt(p.zmin) + ' … ' + fmt(p.zmax) + u]);
+  } else rows.push([t('position'), fmt(p.x) + ' ; ' + fmt(p.y) + zTxt(p.z)]);
   if (inf.attrs && inf.attrs.length) { rows.push(['<strong>' + t('attrs') + '</strong>']); for (const a of inf.attrs) rows.push([a[0] || '–', a[1]]); }
   if (inf.xd && inf.xd.length) { rows.push(['<strong>' + t('xdata') + '</strong>']); for (const x of inf.xd) rows.push([x[0], x[1]]); }
   rows.push([t('handle'), inf.h]);
@@ -785,7 +791,7 @@ function ensureInfoActions() {
   row.addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-ia]'); if (!b || !infoPrim) return;
     const p = infoPrim;
-    if (b.dataset.ia === 'measure') { const pts = p.k === 0 ? flatten(p.ops) : [[p.x, p.y]]; hide('infoPanel'); setMode('measure'); if (pts[0]) { S.measure.push([pts[0][0], pts[0][1], undefined]); updateMeasure(); drawOverlay(); } }
+    if (b.dataset.ia === 'measure') { const pts = p.k === 0 ? flatten(p.ops) : p.k === 5 ? [[(p.bb[0] + p.bb[2]) / 2, (p.bb[1] + p.bb[3]) / 2]] : [[p.x, p.y]]; hide('infoPanel'); setMode('measure'); if (pts[0]) { S.measure.push([pts[0][0], pts[0][1], undefined]); updateMeasure(); drawOverlay(); } }
     else if (b.dataset.ia === 'iso') isolateLayers([p.lay]);
     else if (b.dataset.ia === 'samelayer') {
       const same = S.prims.filter(q => q.lay === p.lay && q.k !== 4 && primVisible(q));
@@ -800,6 +806,7 @@ $('infoCopy').addEventListener('click', () => {
   const p = infoPrim, inf = p.info || {};
   let txt;
   if (p.k === 0) txt = flatten(p.ops).map(q => fmt(q[0]) + ';' + fmt(q[1])).join('\n');
+  else if (p.k === 5) txt = fmt((p.bb[0] + p.bb[2]) / 2) + ';' + fmt((p.bb[1] + p.bb[3]) / 2) + ';' + fmt((p.zmin + p.zmax) / 2);
   else if (inf.t === 'INSERT') txt = fmt(inf.x) + ';' + fmt(inf.y) + (inf.z ? ';' + fmt(inf.z) : '');
   else txt = fmt(p.x) + ';' + fmt(p.y);
   copyText(txt);

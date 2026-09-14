@@ -13,7 +13,7 @@ export default {
   layerCount: 'слоёв', entity: 'объектов', openFirst: 'Сначала откройте файл DWG.', textShown: 'Текст показан', textHidden: 'Текст скрыт',
   file: 'Файл', version: 'Версия', unit: 'Единица (INSUNITS)', entityCount: 'Объектов', primCount: 'Отрисовано примитивов', solidDiag: 'Твердотельные модели', layerN: 'Слои', blockN: 'Определения блоков',
   xRange: 'Диапазон X', yRange: 'Диапазон Y', size: 'Ширина × Высота', types: 'Типы объектов',
-  layer: 'Слой', color: 'Цвет', ltype: 'Тип линии', lweight: 'Вес линии', length: 'Длина', start: 'Начало', end: 'Конец', vertices: 'Вершины',
+  layer: 'Слой', color: 'Цвет', ltype: 'Тип линии', lweight: 'Вес линии', length: 'Длина', start: 'Начало', end: 'Конец', vertices: 'Вершины', triCount: 'Треугольники',
   closed: 'Замкнуто', yes: 'Да', area: 'Площадь', width: 'Ширина', pattern: 'Образец', center: 'Центр', radius: 'Радиус', circumference: 'Длина окружности', arcLen: 'Длина дуги', angle: 'Угол',
   textK: 'Текст', height: 'Высота', rotation: 'Поворот', position: 'Положение', handle: 'Дескриптор', block: 'Имя блока', insPoint: 'Точка вставки', scale: 'Масштаб',
   attrs: 'Атрибуты', xdata: 'Расширенные данные (XDATA)', measVal: 'Измеренное значение', measText: 'Текст размера', dimStyle: 'Размерный стиль', tag: 'Метка', fromLayer: 'ПоСлою', fromBlock: 'ПоБлоку',

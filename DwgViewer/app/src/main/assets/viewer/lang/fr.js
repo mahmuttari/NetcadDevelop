@@ -13,7 +13,7 @@ export default {
   layerCount: 'calques', entity: 'objets', openFirst: 'Ouvrez d\'abord un fichier DWG.', textShown: 'Texte affiché', textHidden: 'Texte masqué',
   file: 'Fichier', version: 'Version', unit: 'Unité (INSUNITS)', entityCount: 'Objets', primCount: 'Primitives dessinées', solidDiag: 'Modèles solides', layerN: 'Calques', blockN: 'Définitions de bloc',
   xRange: 'Plage X', yRange: 'Plage Y', size: 'Largeur × Hauteur', types: 'Types d\'objet',
-  layer: 'Calque', color: 'Couleur', ltype: 'Type de ligne', lweight: 'Épaisseur de ligne', length: 'Longueur', start: 'Début', end: 'Fin', vertices: 'Sommets',
+  layer: 'Calque', color: 'Couleur', ltype: 'Type de ligne', lweight: 'Épaisseur de ligne', length: 'Longueur', start: 'Début', end: 'Fin', vertices: 'Sommets', triCount: 'Triangles',
   closed: 'Fermé', yes: 'Oui', area: 'Surface', width: 'Largeur', pattern: 'Motif', center: 'Centre', radius: 'Rayon', circumference: 'Circonférence', arcLen: 'Longueur d\'arc', angle: 'Angle',
   textK: 'Texte', height: 'Hauteur', rotation: 'Rotation', position: 'Position', handle: 'Identifiant', block: 'Nom du bloc', insPoint: 'Point d\'insertion', scale: 'Échelle',
   attrs: 'Attributs', xdata: 'Données étendues (XDATA)', measVal: 'Mesure', measText: 'Texte de cote', dimStyle: 'Style de cote', tag: 'Étiquette', fromLayer: 'DuCalque', fromBlock: 'DuBloc',

@@ -13,7 +13,7 @@ export default {
   layerCount: 'lớp', entity: 'đối tượng', openFirst: 'Hãy mở một tệp DWG trước.', textShown: 'Đã hiện chữ', textHidden: 'Đã ẩn chữ',
   file: 'Tệp', version: 'Phiên bản', unit: 'Đơn vị (INSUNITS)', entityCount: 'Số đối tượng', primCount: 'Nguyên thể đã vẽ', solidDiag: 'Mô hình khối đặc', layerN: 'Lớp', blockN: 'Định nghĩa khối',
   xRange: 'Khoảng X', yRange: 'Khoảng Y', size: 'Rộng × Cao', types: 'Loại đối tượng',
-  layer: 'Lớp', color: 'Màu', ltype: 'Kiểu nét', lweight: 'Bề dày nét', length: 'Chiều dài', start: 'Bắt đầu', end: 'Kết thúc', vertices: 'Đỉnh',
+  layer: 'Lớp', color: 'Màu', ltype: 'Kiểu nét', lweight: 'Bề dày nét', length: 'Chiều dài', start: 'Bắt đầu', end: 'Kết thúc', vertices: 'Đỉnh', triCount: 'Tam giác',
   closed: 'Khép kín', yes: 'Có', area: 'Diện tích', width: 'Chiều rộng', pattern: 'Mẫu', center: 'Tâm', radius: 'Bán kính', circumference: 'Chu vi đường tròn', arcLen: 'Chiều dài cung', angle: 'Góc',
   textK: 'Chữ', height: 'Chiều cao', rotation: 'Góc xoay', position: 'Vị trí', handle: 'Mã đối tượng', block: 'Tên khối', insPoint: 'Điểm chèn', scale: 'Tỷ lệ',
   attrs: 'Thuộc tính', xdata: 'Dữ liệu mở rộng (XDATA)', measVal: 'Giá trị đo', measText: 'Chữ kích thước', dimStyle: 'Kiểu kích thước', tag: 'Thẻ', fromLayer: 'TheoLớp', fromBlock: 'TheoKhối',

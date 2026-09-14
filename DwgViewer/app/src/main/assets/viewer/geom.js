@@ -232,9 +232,26 @@ export function primDist(p, w) {
   if (p.k === 2) return Math.hypot(p.x - w[0], p.y - w[1]);
   if (p.k === 1) return (w[0] >= p.bb[0] && w[0] <= p.bb[2] && w[1] >= p.bb[1] && w[1] <= p.bb[3]) ? Math.hypot(p.x - w[0], p.y - w[1]) * 0.25 : Infinity;
   if (p.k === 3) return pointInPoly(p.quad, w[0], w[1]) ? 0 : Infinity;
-  if (p.k === 5) {                                   // ağ ilkeli: sınır kutusuna uzaklık (milyonlarca üçgen taranmaz)
-    const b = p.bb;
-    return Math.hypot(Math.max(b[0] - w[0], 0, w[0] - b[2]), Math.max(b[1] - w[1], 0, w[1] - b[3]));
+  if (p.k === 5) {
+    /*
+     * Ağ ilkeli 2B'de yalnız KENARLARIYLA çizilir (render.js), o yüzden yalnız kenarlarından seçilir.
+     * Sınır kutusuna uzaklık verilemez: kutunun içinde sıfır döner ve büyük bir gövde, altındaki
+     * çizgi, yazı ve ölçüleri seçilemez hâle getirir. Çok büyük gövdede parça atlanır — sonuç yalnız
+     * BÜYÜR (gerçek uzaklığın üstünde kalır), asla sahte sıfır üretmez.
+     */
+    const g = p.seg;
+    if (!g || !g.length) return Infinity;
+    const x = w[0], y = w[1];
+    const step = g.length > 1200000 ? 6 * Math.ceil(g.length / 1200000) : 6;
+    let best = Infinity;
+    for (let i = 0; i + 5 < g.length; i += step) {
+      const ax = g[i], ay = g[i + 1], bx = g[i + 3], by = g[i + 4];
+      if (x - best > (ax > bx ? ax : bx) || (ax < bx ? ax : bx) - x > best
+        || y - best > (ay > by ? ay : by) || (ay < by ? ay : by) - y > best) continue;   // ucuz kutu elemesi
+      const d = segDist(x, y, ax, ay, bx, by);
+      if (d < best) best = d;
+    }
+    return best;
   }
   let best = Infinity, lx = 0, ly = 0, sx = 0, sy = 0;
   for (const o of p.ops) {
@@ -305,11 +322,7 @@ export class RTree {
 /** Yol ilkelinden doğru parçaları [x1,y1,x2,y2,z1,z2] ve yayları toplar */
 function segmentsOf(p) {
   const segs = [], arcs = [];
-  if (p.k === 5) {                                   // ağ ilkeli: kenarları yakalamaya açılır, çok büyükse atlanır
-    const g = p.seg;
-    if (g && g.length && g.length <= 120000) for (let i = 0; i + 5 < g.length; i += 6) segs.push([g[i], g[i + 1], g[i + 3], g[i + 4], g[i + 2], g[i + 5]]);
-    return { segs, arcs };
-  }
+
   let lx = 0, ly = 0, lz, sx = 0, sy = 0, sz;
   for (const o of p.ops) {
     if (o[0] === 0) { lx = sx = o[1]; ly = sy = o[2]; lz = sz = o[3]; continue; }
@@ -346,6 +359,21 @@ export function snapPoint(prims, w, tol, modes, prev) {
   for (const p of prims) {
     if (p.k === 2) { if (modes.has('node') || modes.has('end')) test(p.x, p.y, 'node', p.z); continue; }
     if (p.k === 4) { if (modes.has('ins')) test(p.x, p.y, 'ins', p.z); continue; }
+    if (p.k === 5) {                                 // ağ ilkeli: kenar dizisi doğrudan taranır (segmentsOf'a kopyalanmaz)
+      const g = p.seg;
+      if (!g || !g.length || g.length > 1200000) continue;
+      for (let i = 0; i + 5 < g.length; i += 6) {
+        const x1 = g[i], y1 = g[i + 1], z1 = g[i + 2], x2 = g[i + 3], y2 = g[i + 4], z2 = g[i + 5];
+        if ((x1 < x2 ? x1 : x2) - tol > w[0] || (x1 > x2 ? x1 : x2) + tol < w[0]) continue;   // tolerans penceresi (kayıpsız eleme)
+        if ((y1 < y2 ? y1 : y2) - tol > w[1] || (y1 > y2 ? y1 : y2) + tol < w[1]) continue;
+        if (modes.has('end')) { test(x1, y1, 'end', z1); test(x2, y2, 'end', z2); }
+        if (modes.has('mid')) test((x1 + x2) / 2, (y1 + y2) / 2, 'mid', (z1 + z2) / 2);
+        if (modes.has('per') && prev) { const f = segFoot(prev[0], prev[1], x1, y1, x2, y2); if (f) test(f[0], f[1], 'per'); }
+        if (modes.has('nea')) { const f = segFoot(w[0], w[1], x1, y1, x2, y2); if (f) test(f[0], f[1], 'nea'); }
+        if (modes.has('int') && allSegs.length < 400) allSegs.push([x1, y1, x2, y2, z1, z2]);
+      }
+      continue;
+    }
     if (p.k !== 0) continue;
     const { segs, arcs } = segmentsOf(p);
     for (const s of segs) {

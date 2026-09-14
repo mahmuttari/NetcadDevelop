@@ -13,7 +13,7 @@ export default {
   layerCount: 'Layer', entity: 'Objekte', openFirst: 'Öffnen Sie zuerst eine DWG-Datei.', textShown: 'Text eingeblendet', textHidden: 'Text ausgeblendet',
   file: 'Datei', version: 'Version', unit: 'Einheit (INSUNITS)', entityCount: 'Objekte', primCount: 'Gezeichnete Primitive', solidDiag: 'Volumenmodelle', layerN: 'Layer', blockN: 'Blockdefinitionen',
   xRange: 'X-Bereich', yRange: 'Y-Bereich', size: 'Breite × Höhe', types: 'Objekttypen',
-  layer: 'Layer', color: 'Farbe', ltype: 'Linientyp', lweight: 'Linienstärke', length: 'Länge', start: 'Anfang', end: 'Ende', vertices: 'Stützpunkte',
+  layer: 'Layer', color: 'Farbe', ltype: 'Linientyp', lweight: 'Linienstärke', length: 'Länge', start: 'Anfang', end: 'Ende', vertices: 'Stützpunkte', triCount: 'Dreiecke',
   closed: 'Geschlossen', yes: 'Ja', area: 'Fläche', width: 'Breite', pattern: 'Muster', center: 'Mittelpunkt', radius: 'Radius', circumference: 'Umfang', arcLen: 'Bogenlänge', angle: 'Winkel',
   textK: 'Text', height: 'Höhe', rotation: 'Drehung', position: 'Position', handle: 'Handle', block: 'Blockname', insPoint: 'Einfügepunkt', scale: 'Maßstab',
   attrs: 'Attribute', xdata: 'Erweiterte Daten (XDATA)', measVal: 'Messwert', measText: 'Maßtext', dimStyle: 'Bemaßungsstil', tag: 'Kennzeichen', fromLayer: 'VonLayer', fromBlock: 'VonBlock',

@@ -13,7 +13,7 @@ export default {
   layerCount: '画層', entity: 'オブジェクト', openFirst: '先に DWG ファイルを開いてください。', textShown: '文字を表示しました', textHidden: '文字を非表示にしました',
   file: 'ファイル', version: 'バージョン', unit: '単位（INSUNITS）', entityCount: 'オブジェクト数', primCount: '描画プリミティブ', solidDiag: 'ソリッドモデル', layerN: '画層', blockN: 'ブロック定義',
   xRange: 'X 範囲', yRange: 'Y 範囲', size: '幅 × 高さ', types: 'オブジェクトの種類',
-  layer: '画層', color: '色', ltype: '線種', lweight: '線の太さ', length: '長さ', start: '始点', end: '終点', vertices: '頂点',
+  layer: '画層', color: '色', ltype: '線種', lweight: '線の太さ', length: '長さ', start: '始点', end: '終点', vertices: '頂点', triCount: '三角形',
   closed: '閉じている', yes: 'はい', area: '面積', width: '幅', pattern: 'パターン', center: '中心', radius: '半径', circumference: '円周', arcLen: '円弧長', angle: '角度',
   textK: '文字', height: '高さ', rotation: '回転', position: '位置', handle: 'ハンドル', block: 'ブロック名', insPoint: '挿入点', scale: '尺度',
   attrs: '属性', xdata: '拡張データ（XDATA）', measVal: '計測値', measText: '寸法値', dimStyle: '寸法スタイル', tag: 'タグ', fromLayer: 'ByLayer', fromBlock: 'ByBlock',

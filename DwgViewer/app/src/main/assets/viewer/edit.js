@@ -123,11 +123,33 @@ export function transformPrim(p, m, dz = 0) {
   return p;
 }
 export function setPrimZ(p, z) {
+  if (p.k === 5) {
+    // ağ gövdesi yassıltılamaz (k=0'daki gibi bütün z'leri eşitlemek gövdeyi dejenere ederdi): taban kotu z'ye taşınır
+    const dz = z - (p.zmin != null ? p.zmin : 0);
+    if (dz) {
+      const V = p.vtx, G = p.seg;
+      if (V) for (let i = 2; i < V.length; i += 3) V[i] += dz;
+      if (G) for (let i = 2; i < G.length; i += 3) G[i] += dz;
+      if (p.zmin != null) { p.zmin += dz; p.zmax += dz; }
+    }
+    return;                                        // p.bb yalnız x-y taşır, değişmez
+  }
   if (p.k === 0) for (const o of p.ops) { if (o[0] === 0 || o[0] === 1) o[3] = z; else if (o[0] === 2 || o[0] === -2) o[6] = z; }
   else p.z = z;
   if (p.ent) { p.ent.pts = (p.ent.pts || []).map(q => [q[0], q[1], z]); }
 }
-export const clonePrim = (p) => { const c = JSON.parse(JSON.stringify({ ...p, info: undefined })); c.info = p.info; return c; };
+/**
+ * İlkelin derin kopyası. Ağ ilkelinin (k=5) yazılı dizileri JSON turundan geçirilemez — Float32Array
+ * düz nesneye ({"0":…}) döner ve geri alma/kopyalama sahneyi bozardı. Köşe ve kenar dizileri
+ * kopyalanır (transformPrim onları YERİNDE değiştirir); üçgen indeksleri hiçbir yerde değişmediği
+ * için paylaşılır.
+ */
+/** DXF'e yazılacak en çok üçgen: üstü atlanır (üçgen başına ~14 satır) */
+const DXF_MAX_FACE = 200000;
+export const clonePrim = (p) => {
+  if (p.k === 5) return { ...p, vtx: p.vtx ? p.vtx.slice() : p.vtx, seg: p.seg ? p.seg.slice() : p.seg, idx: p.idx, bb: p.bb ? p.bb.slice() : p.bb, info: p.info };
+  const c = JSON.parse(JSON.stringify({ ...p, info: undefined })); c.info = p.info; return c;
+};
 
 /** Kapalı ya da açık çokgeni d kadar ötele (pozitif = sola). Yalnız doğru parçalı yollar. */
 export function offsetPoints(pts, d, closed) {
@@ -354,6 +376,26 @@ export function writeDxf(prims, layers, opts = {}) {
         continue;
       }
       if (p.k === 2) { common('POINT', p, 'AcDbPoint'); w(10, f6(p.x)); w(20, f6(p.y)); w(30, f6(p.z || 0)); continue; }
+      if (p.k === 5) {
+        // ağ gövdesi: üçgenler 3DFACE, kenarlar LINE olarak yazılır (yoksa katı geometri DXF'e hiç girmez).
+        // Çok büyük gövdede yüzler atlanır, kenarlar her zaman yazılır — dosya bellek taşırmasın.
+        const V = p.vtx, I = p.idx, G = p.seg;
+        const nTri = I ? (I.length / 3) | 0 : 0;
+        if (nTri > 0 && nTri <= DXF_MAX_FACE) {
+          for (let i = 0; i + 2 < I.length; i += 3) {
+            const a = I[i] * 3, b = I[i + 1] * 3, c = I[i + 2] * 3;
+            if (a + 2 >= V.length || b + 2 >= V.length || c + 2 >= V.length) continue;
+            common('3DFACE', p, 'AcDbFace');
+            for (const [q, v] of [[0, a], [1, b], [2, c], [3, c]]) { w(10 + q, f6(V[v])); w(20 + q, f6(V[v + 1])); w(30 + q, f6(V[v + 2])); }
+            if (G && G.length) w(70, 15);          // gerçek kenarlar LINE olarak yazılıyor: üçgenleme kenarları gizli
+          }
+        }
+        if (G) for (let i = 0; i + 5 < G.length; i += 6) {
+          common('LINE', p, 'AcDbLine');
+          w(10, f6(G[i])); w(20, f6(G[i + 1])); w(30, f6(G[i + 2])); w(11, f6(G[i + 3])); w(21, f6(G[i + 4])); w(31, f6(G[i + 5]));
+        }
+        continue;
+      }
       if (p.k !== 0) continue;
       const ops = p.ops;
       if (ops.length === 2 && ops[1][0] === 2 && Math.abs((ops[1][5] - ops[1][4]) - TAU) < 1e-9) {

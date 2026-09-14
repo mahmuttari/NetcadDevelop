@@ -150,6 +150,7 @@ class GrowU32 {
 /** kırışıklık eşiği: bu açıdan keskin komşu yüzler ayrı köşe alır (düz yüzey düz kalır, kavis yumuşar) */
 const COS_CREASE = Math.cos(30 * Math.PI / 180);
 /** etkileşim sadeleştirmesi eşikleri: ağ indeksi (üçgen×3), yavaş kare süresi, ardışıklık aralığı, durulma gecikmesi */
+const MESH_PICK_V = 8;   // ağ gövdesi başına yakalama/seçim için örneklenen köşe sayısı
 const FAST_MESH_IDX = 2000000, FAST_FRAME_MS = 45, FAST_GAP_MS = 350, FAST_SETTLE_MS = 220;
 
 const PRESET_ANGLES = {
@@ -216,8 +217,6 @@ export class View3D {
     this.bufs = {};
     this._n = { lines: 0, edges: 0, tris: 0, pts: 0, txt: 0, mesh: 0, grid: 0, axes: 0, sel: 0, clipBox: 0, bgq: 0 };
     this._nIdx = { mesh: 0 };
-    // 32 bit indeks: ağ ilkelleri paylaşılan köşelerle indeksli çizilsin (yoksa eski genişletilmiş yola düşülür)
-    this.u32 = !!gl.getExtension('OES_element_index_uint');
     this.counts = { lines: 0, tris: 0, pts: 0, grid: 0, axes: 0, sel: 0 };
     this.src = {};            // yeniden renklendirme / yeniden yükleme kaynakları (konum, renk, katman, normal)
     this.layerNames = []; this.layerRGB = new Float32Array(0); this.layerIdx = new Map();
@@ -249,6 +248,8 @@ export class View3D {
     const prog = gl.createProgram(); gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS)); gl.linkProgram(prog);
     if (!gl.getProgramParameter(prog, gl.LINK_STATUS) && !gl.isContextLost()) throw new Error(gl.getProgramInfoLog(prog));
     this.prog = prog; gl.useProgram(prog);
+    // 32 bit indeks eklentisi BAĞLAM BAŞINA etkindir: bağlam kaybından sonra yeniden istenmeli
+    this.u32 = !!gl.getExtension('OES_element_index_uint');
     this.aPos = gl.getAttribLocation(prog, 'aPos'); this.aCol = gl.getAttribLocation(prog, 'aCol'); this.aNrm = gl.getAttribLocation(prog, 'aNrm');
     this.u = {};
     for (const n of ['uMVP', 'uZ', 'uPointSize', 'uOff', 'uColorMode', 'uFg', 'uZmin', 'uZmax', 'uClipMin', 'uClipInv', 'uEye', 'uFadeRange', 'uAlpha', 'uOverride', 'uClip', 'uLit', 'uLightDir', 'uAmbient', 'uIntensity', 'uFade', 'uBg', 'uJitter', 'uSeed', 'uHull', 'uFlat', 'uFlatZ', 'uShade', 'uGray', 'uViewDir', 'uPersp', 'uHullBack']) this.u[n] = gl.getUniformLocation(prog, n);
@@ -464,7 +465,13 @@ export class View3D {
         }
         for (let i = 0; i + 5 < S2.length; i += 6) { push(B.edges, S2[i], S2[i + 1], S2[i + 2]); push(B.edges, S2[i + 3], S2[i + 4], S2[i + 5]); }
         if (!S2.length && !useIdx) for (let i = 0; i + 2 < V.length; i += 3) bbx(V[i], V[i + 1], V[i + 2]);
-        continue;                                             // yakalama köşesi eklenmez: milyonlarca köşe listeye sığmaz
+        // yakalama/seçim köşeleri: bütün köşeler listeye sığmaz (milyonlarca), gövde başına en çok
+        // MESH_PICK_V tanesi eşit aralıkla örneklenir — 3B'de gövde seçilebilir kalsın diye
+        {
+          const nvp = V.length / 3;
+          if (nvp) { const st = Math.max(1, Math.ceil(nvp / MESH_PICK_V)); for (let i = 0; i < nvp; i += st) vert(V[i * 3], V[i * 3 + 1], V[i * 3 + 2], p); }
+        }
+        continue;
       }
       const isFace = !!(p.face || (p.closed && FACE_ETS.has(p.et)) || p.fill);
       const LB = isFace ? B.edges : B.lines;
@@ -543,11 +550,18 @@ export class View3D {
       this.uploadCol(n, out);
     }
   }
+  /**
+   * Sahnede yüzey var mı? Üçgenler İKİ tampona dağılır: kapalı çokgenlerden üretilenler genişletilmiş
+   * `tris` tamponunda, ağ ilkellerinden (k=5) gelenler indeksli `mesh` tamponunda. Yalnız birine bakan
+   * bir kapı, bütün yüzeyleri ağ ilkelinden gelen bir modelde (ör. çok yüzlü ağlardan oluşan çelik model)
+   * yanlışlıkla kapanır ve tek üçgen çizilmez.
+   */
+  _hasFaces() { return ((this._n.tris | 0) + (this._nIdx.mesh | 0)) > 0; }
   /** etkin stil bayrakları (stil ön ayarı + kullanıcı geçersiz kılmaları) */
   _styleFx() {
     const o = this.opts, st = View3D.STYLES[o.style] || View3D.STYLES.wireframe;
     return {
-      faces: this._n.tris ? st.faces : (st.faces === 'xray' ? 'xray' : 'none'), edges: o.edges === 'none' ? false : o.edges === 'facet' ? true : st.edges !== false, depth: st.depth !== false,
+      faces: this._hasFaces() ? st.faces : (st.faces === 'xray' ? 'xray' : 'none'), edges: o.edges === 'none' ? false : o.edges === 'facet' ? true : st.edges !== false, depth: st.depth !== false,
       shade: st.shade || 0, gray: st.gray || 0, quality: o.lightQuality === 'smooth' || st.quality === 'smooth' ? 'smooth' : 'faceted',
       specular: o.specular || !!st.specular, silhouette: o.silhouette || !!st.silhouette, jitter: Math.max(o.jitter, st.jitter || 0), overhang: Math.max(o.overhang, st.overhang || 0), shadow: o.shadow,
     };
@@ -914,7 +928,7 @@ export class View3D {
     const px = 2 / cv.width, py = 2 / cv.height;
     const darkEdge = lum(bg) > 0.5 ? [0.1, 0.1, 0.1] : [0.05, 0.05, 0.05];
     // zemin gölgesi: yüzeyler ızgara kotuna yatırılır
-    if (fx.shadow && this._n.tris) {
+    if (fx.shadow && this._hasFaces()) {
       const gz = (o.gridZ === 'zero' ? 0 : o.gridZ === 'custom' ? (+o.gridZValue || 0) : this.bb[2]) - this.origin[2];
       gl.uniform1i(u.uFlat, 1); gl.uniform1f(u.uFlatZ, gz * this.zScale - this.radius * 1e-4);
       gl.uniform4f(u.uOverride, lum(bg) > 0.5 ? 0.35 : 0.02, lum(bg) > 0.5 ? 0.35 : 0.02, lum(bg) > 0.5 ? 0.38 : 0.04, 1);
@@ -922,7 +936,7 @@ export class View3D {
       gl.uniform1i(u.uFlat, 0); gl.uniform4f(u.uOverride, 0, 0, 0, 0);
     }
     // siluet: kameradan uzağa şişirilmiş koyu kabuk (yüzeyler üstüne çizilince yalnız çevre kalır)
-    if (fx.silhouette && this._n.tris && fx.faces !== 'none' && fx.faces !== 'xray') {
+    if (fx.silhouette && this._hasFaces() && fx.faces !== 'none' && fx.faces !== 'xray') {
       this._ensureSmooth();
       gl.uniform1f(u.uHull, this._worldPerPixel(c) * o.silhouetteWidth);   // piksel cinsinden siluet kalınlığı (yakınlaşınca kalınlaşmaz)
       gl.uniform1f(u.uHullBack, HULL_BACK);                                // kabuk bakış doğrultusunda bu kadar siluet kalınlığı geriye (gölgelendiriciye bkz.)
@@ -1003,7 +1017,7 @@ export class View3D {
   }
   /** indeksli çizim: köşeler paylaşıldığı için köşe gölgelendirici üçgen sayısının üçte biri kadar çalışır */
   _drawIdx(name, mode, alpha, withNrm) {
-    const n = this._nIdx[name]; if (!n) return;
+    const n = this._nIdx[name]; if (!n || !this.u32) return;
     const gl = this.gl;
     gl.bindBuffer(gl.ARRAY_BUFFER, this.bufs[name + ':pos']);
     gl.enableVertexAttribArray(this.aPos); gl.vertexAttribPointer(this.aPos, 3, gl.FLOAT, false, 0, 0);
@@ -1129,7 +1143,7 @@ export class View3D {
   hudText() {
     const c = this.cam, u = this.units ? ' ' + this.units : '';
     let s = `${t('hudYaw')} ${fmtNum(c.yaw * 180 / Math.PI, 0)}°  ${t('hudPitch')} ${fmtNum(c.pitch * 180 / Math.PI, 0)}°  Z×${fmtNum(this.zScale, 2)}  ${t('hudGrid')} ${fmtNum(this.gridStep)}${u}  ${c.persp ? t('hudPersp') : t('hudOrtho')}`;
-    if (!this._n.tris) s += ' · ' + t('hudNoFaces');
+    if (!this._hasFaces()) s += ' · ' + t('hudNoFaces');
     return s;
   }
   /**

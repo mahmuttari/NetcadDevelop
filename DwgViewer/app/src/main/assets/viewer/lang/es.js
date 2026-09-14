@@ -13,7 +13,7 @@ export default {
   layerCount: 'capas', entity: 'objetos', openFirst: 'Abra primero un archivo DWG.', textShown: 'Texto visible', textHidden: 'Texto oculto',
   file: 'Archivo', version: 'Versión', unit: 'Unidad (INSUNITS)', entityCount: 'Objetos', primCount: 'Primitivas dibujadas', solidDiag: 'Modelos sólidos', layerN: 'Capas', blockN: 'Definiciones de bloque',
   xRange: 'Rango X', yRange: 'Rango Y', size: 'Ancho × Alto', types: 'Tipos de objeto',
-  layer: 'Capa', color: 'Color', ltype: 'Tipo de línea', lweight: 'Grosor de línea', length: 'Longitud', start: 'Inicio', end: 'Fin', vertices: 'Vértices',
+  layer: 'Capa', color: 'Color', ltype: 'Tipo de línea', lweight: 'Grosor de línea', length: 'Longitud', start: 'Inicio', end: 'Fin', vertices: 'Vértices', triCount: 'Triángulos',
   closed: 'Cerrada', yes: 'Sí', area: 'Área', width: 'Ancho', pattern: 'Patrón', center: 'Centro', radius: 'Radio', circumference: 'Circunferencia', arcLen: 'Longitud de arco', angle: 'Ángulo',
   textK: 'Texto', height: 'Altura', rotation: 'Rotación', position: 'Posición', handle: 'Identificador', block: 'Nombre del bloque', insPoint: 'Punto de inserción', scale: 'Escala',
   attrs: 'Atributos', xdata: 'Datos extendidos (XDATA)', measVal: 'Medición', measText: 'Texto de cota', dimStyle: 'Estilo de cota', tag: 'Etiqueta', fromLayer: 'PorCapa', fromBlock: 'PorBloque',

@@ -13,7 +13,7 @@ export default {
   layerCount: 'طبقة', entity: 'كائن', openFirst: 'افتح ملف DWG أولًا.', textShown: 'النص ظاهر', textHidden: 'النص مخفي',
   file: 'الملف', version: 'الإصدار', unit: 'الوحدة (INSUNITS)', entityCount: 'عدد الكائنات', primCount: 'العناصر المرسومة', solidDiag: 'المجسمات الصلبة', layerN: 'الطبقات', blockN: 'تعريفات الكتل',
   xRange: 'مدى X', yRange: 'مدى Y', size: 'العرض × الارتفاع', types: 'أنواع الكائنات',
-  layer: 'الطبقة', color: 'اللون', ltype: 'نوع الخط', lweight: 'وزن الخط', length: 'الطول', start: 'البداية', end: 'النهاية', vertices: 'الرؤوس',
+  layer: 'الطبقة', color: 'اللون', ltype: 'نوع الخط', lweight: 'وزن الخط', length: 'الطول', start: 'البداية', end: 'النهاية', vertices: 'الرؤوس', triCount: 'مثلثات',
   closed: 'مغلق', yes: 'نعم', area: 'المساحة', width: 'العرض', pattern: 'النمط', center: 'المركز', radius: 'نصف القطر', circumference: 'المحيط', arcLen: 'طول القوس', angle: 'الزاوية',
   textK: 'نص', height: 'الارتفاع', rotation: 'الدوران', position: 'الموضع', handle: 'المعرّف', block: 'اسم الكتلة', insPoint: 'نقطة الإدراج', scale: 'المقياس',
   attrs: 'السمات', xdata: 'بيانات موسّعة (XDATA)', measVal: 'قيمة القياس', measText: 'نص البُعد', dimStyle: 'نمط البُعد', tag: 'الوسم', fromLayer: 'حسب الطبقة', fromBlock: 'حسب الكتلة',
