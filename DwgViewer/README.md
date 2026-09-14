@@ -1,4 +1,4 @@
-# DWG OfficeZip (Android) — v7.18
+# DWG OfficeZip (Android) — v7.19
 
 AutoCAD **DWG** ve **DXF** çizimlerini telefonda açan, çevrimdışı çalışan
 Android uygulaması. Dosya cihazdan dışarı çıkmaz; çözümleme telefonun
@@ -315,6 +315,7 @@ RAR (junrar), gerçek Google Drive ve Android PdfRenderer yalnız cihazda
 | 7.7 | 30 | 2026-09-13 | Word 97-2003 (.doc) belgeleri doğrudan açılır: bağımsız MS-DOC çözümleyicisi (`doc.js`: CFB, FIB, parça tablosu, FKP, stiller, listeler, tablolar, alanlar, resimler, dipnotlar, bölümler), DOCX ile ortak sayfa / akış görünümü; Word 6 / 95 yalnız metin; `samples/doc/` derlemi ve `test_doc.mjs` |
 | 7.8 | 31 | 2026-09-13 | ".doc" uzantılı RTF, Word HTML, MHTML, DOCX ve düz metin içerik baytlardan tanınıp açılır (`docalt.js`: RTF çözümleyicisi, HTML temizleyici, MHTML ayrıştırıcı); tanınmayan içerikte ilk baytlar iletide gösterilir |
 | 7.9 | 32 | 2026-09-13 | Uygulama adı **DWG OfficeZip** oldu (paket adı ve APK dosya adı değişmedi: kurulu sürümler güncellenmeye devam eder). PDF ve Word düzenleme Pro özelliği olarak eklendi (`pdfedit.js` açıklama katmanı ve pdf-lib çıktısı, `docedit.js` yerinde düzenleme ve OOXML / DOCX yazıcı); yayın hazırlığı: Google belirteçleri Keystore ile şifreleniyor, Google alan adlarında şifresiz trafik yasak, gizlilik politikası ve doğrulama evrakı |
+| 7.19 | 42 | 2026-09-14 | **Yükleme yüzdesi** (örtüde ilerleme çubuğu + %): indirmede bayt/uzunluk oranı, DXF çözümleme ve sahne kurmada işçinin bildirdiği oran; ölçülemeyen DWG çözümlemesinde çubuk gizlenir, uydurma yüzde gösterilmez. **Bellek hatasının kökü giderildi**: `libredwg-web.wasm` başlangıçta **1 GB** rezerve ediyordu (statik verisi yalnız 1,95 MB), ikili bellek bölümü yamalanıp **64 MB**'a indirildi, 4 GB tavan korundu — WebView'ın işleyici tavanı cihazın boş belleğinden bağımsız olduğu için büyük dosyalar bu yüzden düşüyordu. Hata iletisi de düzeltildi: artık tarayıcı motorunun tavanını söylüyor ve dosya boyutu, o anki yığın, patlayan aşama yazıyor |
 | 7.18 | 41 | 2026-09-14 | **Tek Pro yerine dört basamaklı abonelik**: `free < adfree < premium < super`. Ad-Free reklamı kaldırır, Premium 2B çizim/düzenleme ile belge düzenlemeyi açar, Super 3B, kot profili, karşılaştırma, delta kaydı ve Drive'a yüklemeyi ekler. Özellik → basamak eşlemesi tek kaynakta (`edition.js FEATURE_TIER`); şerit, araç karoları, menü ve belge düğmeleri hep oradan beslenir. Google Play tarafı tek seferlik üründen **aboneliğe** geçti: üç ürün × iki temel plan (aylık, yıllık), sahip olunanların en yükseği geçerli, basamak değiştirmede `SubscriptionUpdateParams` ile oransal ücret. Lisans kodu artık basamak taşıyor (`--tier`). Paket paneli üç kartlı, her kartta aylık ve yıllık fiyat. Ayrıca: bir alt sayfa açılırken paket paneli kapanıyor (üç kartla uzayan panel Ayarlar'ın Kaydet düğmesini örtüyordu) |
 | 7.17 | 40 | 2026-09-14 | **Gerçek AdMob kimlikleri işlendi** (yayıncı `2417242373034448`): uygulama kimliği manifest'e `com.google.android.gms.ads.APPLICATION_ID` olarak, geçiş reklamı birimi `BuildConfig.ADMOB_INTERSTITIAL_ID` olarak gömüldü; Google'ın test kimlikleri bırakıldı. Reklam yalnız Pro yetkisi olmayan kullanıcıya gösterilir, Pro'da SDK başlatılmaz; AEA ve Birleşik Krallık'ta onay ekranı UMP ile çıkar |
 | 7.16 | 39 | 2026-09-14 | **İmza anahtarı değiştirildi.** İlk anahtar parolasıyla birlikte herkese açık depoda duruyordu; yakılmış sayılıp yerine `dwgviewer-upload` üretildi (RSA 4096, PKCS12, 2056'ya kadar; SHA-1 `F9:10:2B:55:C8:62:6A:39:4A:44:FA:75:3F:09:5C:5D:BD:B6:36:B6`). İmza bilgisi artık depoda **durmuyor**: yerelde `keystore.properties`, CI'da Actions secrets; anahtar yoksa release imzasız derlenir ve uyarı verilir. CI ayrıca Play için **AAB** üretip ayrı bir çıktı olarak yüklüyor. Eski anahtarla kurulmuş uygulamalar bu sürüme güncellenmez, bir kez kaldırılıp yeniden kurulmalıdır; yeni SHA-1'in Google OAuth istemcisine işlenmesi gerekir |
@@ -339,6 +340,19 @@ JSON: `{"paftalar":[{"ad":"K-12.dwg","url":"https://…/K-12.dwg"}]}`
 içeren bir HTML dizin listesi.
 
 ## Lisans
+
+> **wasm yaması — güncellemede kaybolur, yeniden uygulanmalıdır.**
+> `lib/wasm/libredwg-web.wasm` dosyasının bellek bölümü elle düzeltilmiştir:
+> paketten geldiği hâliyle başlangıçta **16.384 sayfa (1 GB)** rezerve ediyor,
+> oysa statik verisi 1,95 MB'ta bitiyor. Bu peşin ayırma, Android WebView'ın
+> işleyici başına koyduğu bellek tavanına takılıp büyük çizimlerde "bellek
+> yetersiz" hatasına yol açıyordu (cihazın boş belleğiyle ilgisi yok).
+> Başlangıç **1.024 sayfaya (64 MB)** indirildi; tavan 65.536 sayfada (4 GB)
+> bırakıldı ve büyüme zaten destekli (`emscripten_resize_heap` → `growMemory`).
+> Sayı, LEB128'in aynı bayt uzunluğunda (kanonik olmayan) biçimiyle yazıldı;
+> böylece bölüm boyu ve dosyadaki uzaklıklar kaymadı. **Kütüphane
+> yükseltilirse bu yama yeniden uygulanmalı**, yoksa hata geri gelir.
+> Denetim: `WebAssembly.validate` ve `tools/test_core.mjs` (yedi DWG sürümü).
 
 Çözümleyici LibreDWG'dir (GNU GPL v3); bu yüzden uygulamanın kaynak kodu
 da GPL v3 ile dağıtılır. Üçüncü taraf bileşenler (ayrıntı:
