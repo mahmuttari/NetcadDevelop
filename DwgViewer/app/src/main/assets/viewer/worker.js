@@ -20,7 +20,19 @@ const msgOf = (e) => String((e && e.message) || e);
 /** Emscripten abort / bellek hatası: modül bir daha kullanılamaz, lib sıfırlanıp yeniden kurulur */
 const isAbort = (e) => (typeof WebAssembly !== 'undefined' && e instanceof WebAssembly.RuntimeError) || /abort|unreachable|memory access|out of memory|RangeError|WebAssembly\.Memory/i.test(msgOf(e));
 const isMem = (e) => /memory|bellek|OUTOFMEM|RangeError/i.test(msgOf(e));
-const memMsg = (n) => `Dosya cihaz belleğine sığmadı (${(n / 1048576).toFixed(1)} MB). Çizimi PURGE/AUDIT ile küçültüp ya da parçalayıp yeniden deneyin.`;
+/** wasm yığınının o anki boyutu (MB); modül kurulmamışsa 0 */
+function heapMB() {
+  try { const h = lib && lib.wasmInstance && lib.wasmInstance.HEAPU8; return h ? Math.round(h.length / 1048576) : 0; } catch (_) { return 0; }
+}
+/**
+ * Bellek hatası iletisi. CİHAZIN toplam belleğiyle ilgili DEĞİLDİR: Android WebView her işleyici sürecine
+ * ayrı bir tavan koyar ve wasm yığını büyürken eski ile yeni tampon bir an birlikte durur, yani tepe
+ * ihtiyaç son boyutun yaklaşık iki katıdır. Bu yüzden telefonda boş bellek olsa da hata alınabilir.
+ * İletide dosya boyutu ve o anki yığın yazılır — destek için gereken iki sayı bunlar.
+ */
+const memMsg = (n, stage) => `Çizim tarayıcı motorunun bellek tavanına takıldı`
+  + ` (dosya ${(n / 1048576).toFixed(1)} MB, ayrılan yığın ${heapMB()} MB${stage ? ', aşama: ' + stage : ''}).`
+  + ` Cihazın boş belleğiyle ilgisi yoktur. Çizimi AutoCAD'de PURGE/AUDIT ile küçültmek ya da paftaya bölmek çözer.`;
 const countEntities = (db) => { let n = (db.entities || []).length; for (const r of ((db.tables && db.tables.BLOCK_RECORD && db.tables.BLOCK_RECORD.entries) || [])) n += (r.entities || []).length; return n; };
 
 async function readDb(bytes, id) {
@@ -35,7 +47,7 @@ async function readDb(bytes, id) {
   postMessage({ id, stage: 'lib' });
   if (!lib) {
     try { lib = await LibreDwg.create(); }
-    catch (e) { lib = null; throw new Error(isMem(e) ? memMsg(u8.length) : 'Çözümleyici başlatılamadı: ' + msgOf(e)); }
+    catch (e) { lib = null; throw new Error(isMem(e) ? memMsg(u8.length, 'çözümleyici kurulumu') : 'Çözümleyici başlatılamadı: ' + msgOf(e)); }
   }
   postMessage({ id, stage: 'parse' });
   // sarmalayıcının dwg_read_data'sı hata kodunu yutar (yalnız OUTOFMEM fırlatır); dosya doğrudan okunur, kod değerlendirilir
@@ -47,12 +59,12 @@ async function readDb(bytes, id) {
     res = W.dwg_read_file('tmp.dwg');
   } catch (e) {
     if (isAbort(e)) lib = null;
-    throw new Error(isMem(e) ? memMsg(u8.length) : 'LibreDWG dosyayı çözemedi: ' + msgOf(e));
+    throw new Error(isMem(e) ? memMsg(u8.length, 'DWG okuma') : 'LibreDWG dosyayı çözemedi: ' + msgOf(e));
   } finally { try { W.FS.unlink('/tmp.dwg'); } catch (_) { /* yok */ } }
   const code = res ? (res.error | 0) : ERR.INVALIDDWG;
   if (!res || !res.data || (code & ERR.OUTOFMEM)) {
     try { if (res && res.data) W.dwg_abandon(res.data); } catch (_) { /* yoksay */ }
-    throw new Error((code & ERR.OUTOFMEM) ? memMsg(u8.length) : `LibreDWG dosyayı çözemedi (bozuk ya da şifreli olabilir; hata kodu ${code}).`);
+    throw new Error((code & ERR.OUTOFMEM) ? memMsg(u8.length, 'DWG okuma') : `LibreDWG dosyayı çözemedi (bozuk ya da şifreli olabilir; hata kodu ${code}).`);
   }
   const dwg = res.data;
   const critical = code >= ERR.CLASSESNOTFOUND ? code : 0;   // DWG_ERR_CRITICAL: CLASSESNOTFOUND (128) ve üstü; sağlam dosyalarda 64/68 kalır
@@ -61,7 +73,7 @@ async function readDb(bytes, id) {
   try { try { cp = lib.dwg_get_codepage(dwg) | 0; } catch (_) { cp = 0; } db = lib.convert(dwg); db.raw3d = collectRaw3D(lib, dwg, db); db.sortents = collectSortents(lib, dwg, db); attachEed(lib, dwg, db, head, cp); }
   catch (e) {
     if (isAbort(e)) lib = null;
-    throw new Error(isMem(e) ? memMsg(u8.length) : (critical ? `DWG bozuk ya da kesik (LibreDWG hata kodu ${code}): ` : 'LibreDWG dosyayı çözemedi: ') + msgOf(e));
+    throw new Error(isMem(e) ? memMsg(u8.length, 'nesne dönüşümü') : (critical ? `DWG bozuk ya da kesik (LibreDWG hata kodu ${code}): ` : 'LibreDWG dosyayı çözemedi: ') + msgOf(e));
   } finally { try { if (lib) lib.dwg_free(dwg); } catch (_) { /* yoksay */ } }
   if (critical && !countEntities(db)) throw new Error(`DWG bozuk ya da kesik (LibreDWG hata kodu ${code}); dosyayı yeniden kopyalayın ya da AutoCAD RECOVER ile onarın.`);
   db.readWarn = suspect;                                        // kritik kod ya da CRC hatası + varlık var: çizim eksik olabilir, ana iş parçacığı uyarır

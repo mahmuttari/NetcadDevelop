@@ -1342,7 +1342,7 @@ function showCompare() {
 async function setCompare(buf, name) {
   setLoading(t('loading'), name);
   try {
-    const res = await runWorker({ cmd: 'parse', bytes: buf, name }, st => setLoading(stageText(st), name));
+    const res = await runWorker({ cmd: 'parse', bytes: buf, name }, (st, pct) => setLoading(stageText(st), name, pct));
     const B = res.scene.layouts[0].prims.filter(p => p.k !== 4);
     const Aprims = S.scene.layouts[0].prims;
     const sigB = new Set(), sigA = new Set();
@@ -1377,7 +1377,7 @@ async function loadXref(idx, buf, name) {
   const x = S.scene.xrefs[idx];
   setLoading(t('loading'), name);
   try {
-    const res = await runWorker({ cmd: 'xref', bytes: buf, name, inserts: x.inserts, prefix: x.name }, st => setLoading(stageText(st), name));
+    const res = await runWorker({ cmd: 'xref', bytes: buf, name, inserts: x.inserts, prefix: x.name }, (st, pct) => setLoading(stageText(st), name, pct));
     const model = S.scene.layouts[0];
     for (const l of res.xref.layers) if (!S.layers.has(l.name)) S.layers.set(l.name, { ...l });
     Object.assign(S.ltypes, res.xref.ltypes);
@@ -1432,11 +1432,9 @@ async function fetchIndex(url) {
   } catch (e) { list.innerHTML = `<div class="muted">${esc(t('error'))}: ${esc(e.message)}</div>`; }
 }
 async function downloadDwg(url, name) {
-  setLoading(t('download'), name);
+  setLoading(t('download'), name, 0);
   try {
-    const r = await fetch(url, { cache: 'no-store' });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const buf = await r.arrayBuffer();
+    const buf = await fetchBuf(url, (p) => setLoading(t('download'), name, p));
     if (A() && A().saveBytes) {
       const id = A().saveBytes(name, await bufToB64(buf));
       if (id) { toast(t('downloaded') + ': ' + name); A().openDownload(id); }
@@ -1612,7 +1610,52 @@ function buildPdf(jpegB64, pw, ph, wmm, hmm, title) {
 // ---------------------------------------------------------------------------
 // Yükleme
 // ---------------------------------------------------------------------------
-function setLoading(text, sub) { if (text == null) { hide('loading'); return; } $('loadingText').textContent = text; $('loadingSub').textContent = sub || ''; show('loading'); }
+/**
+ * Yükleme örtüsü. pct verilirse (0-100) ilerleme çubuğu ve yüzde görünür; verilmezse çubuk gizlenir ve
+ * yalnız dönen gösterge kalır. Ölçülemeyen aşamada uydurma yüzde gösterilmez — bekleyen kullanıcıya
+ * yanlış bilgi vermek, hiç bilgi vermemekten kötüdür.
+ */
+function setLoading(text, sub, pct) {
+  if (text == null) { hide('loading'); return; }
+  $('loadingText').textContent = text;
+  $('loadingSub').textContent = sub || '';
+  const prog = $('loadingProg');
+  if (prog) {
+    const on = typeof pct === 'number' && isFinite(pct);
+    prog.hidden = !on;
+    if (on) {
+      const v = Math.max(0, Math.min(100, Math.round(pct)));
+      $('loadingFill').style.width = v + '%';
+      $('loadingPct').textContent = '%' + v;
+      prog.querySelector('.lbar').setAttribute('aria-valuenow', String(v));
+    }
+  }
+  show('loading');
+}
+/**
+ * Akıştan okuyarak indirir ve yüzdeyi bildirir. Content-Length yoksa ya da gövde akış vermiyorsa
+ * doğrudan arrayBuffer'a düşer (yüzde gösterilmez, çubuk da çıkmaz).
+ */
+async function fetchBuf(url, onPct) {
+  const r = await fetch(url, { cache: 'no-store' });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const total = Number(r.headers.get('content-length') || 0);
+  if (!onPct || !total || !r.body || typeof r.body.getReader !== 'function') return r.arrayBuffer();
+  const reader = r.body.getReader();
+  const chunks = [];
+  let done = 0, last = -1;
+  for (;;) {
+    const { value, done: fin } = await reader.read();
+    if (fin) break;
+    chunks.push(value); done += value.length;
+    const p = Math.min(99, Math.round(100 * done / total));   // 100 yalnız iş bitince yazılır
+    if (p !== last) { last = p; onPct(p); }
+  }
+  const out = new Uint8Array(done);
+  let off = 0;
+  for (const c of chunks) { out.set(c, off); off += c.length; }
+  return out.buffer;
+}
 { const b = $('loadingCancel'); if (b) b.addEventListener('click', () => { cancelJobs(tt('cancelled', 'İptal edildi')); setLoading(null); toast(tt('cancelled', 'İptal edildi')); }); }
 function fail(err) {
   if (err && err.cancelled) { console.warn(err.message); return; }   // iptal: yeni yükleme sürüyor, modal ona ait
@@ -1639,9 +1682,9 @@ async function loadBytes(buf, name, size) {
   const mb = fmt(bytes / 1024 / 1024, 2) + ' MB';
   if (bytes > BIG_FILE_MB * 1048576 && !(await askConfirm(`${name} · ${mb}. ${t('bigFileAsk')}`))) { setLoading(null); return; }
   const my = ++loadSeq;
-  setLoading(t('loading'), name + ' · ' + mb);
+  setLoading(t('loading'), name + ' · ' + mb, 0);
   try {
-    let res = await runWorker({ cmd: 'parse', bytes: buf, name }, (st, pct) => setLoading(stageText(st), name + ' · ' + mb + (pct != null ? ' · %' + pct : '')));
+    let res = await runWorker({ cmd: 'parse', bytes: buf, name }, (st, pct) => setLoading(stageText(st), name + ' · ' + mb, pct));
     const scene = res.scene; res = null;   // yapısal klon: büyük dosyada referansı erken düşür
     await setScene(scene, name, bytes);
     // özet toast'ından sonra (toast tek satırdır, hemen üstüne yazılırsa görünmez)
@@ -1704,10 +1747,9 @@ function saveThumb() {
     buildRecent();
   } catch (_) { /* yoksay */ }
 }
-async function fetchFile(id) {
-  const r = await fetch('/file/' + id, { cache: 'no-store' });
-  if (!r.ok) throw new Error('dosya okunamadı (HTTP ' + r.status + ')');
-  return r.arrayBuffer();
+async function fetchFile(id, onPct) {
+  try { return await fetchBuf('/file/' + id, onPct); }
+  catch (e) { throw new Error('dosya okunamadı (' + e.message + ')'); }
 }
 let loadingKey = null;   // Android'den aynı dosya iki kez gelirse (intent + onResume) ikincisi yok sayılır
 async function loadCurrent(name, size) {
@@ -1716,7 +1758,9 @@ async function loadCurrent(name, size) {
   loadingKey = key;
   try {
     if (!Docs.isCad(name) && Docs.kindOf(name) !== 'other') { setLoading(t('loading'), name); const ok = await Docs.openCurrent(name, size); setLoading(null); if (ok) return; }
-    setLoading(t('loading'), name); await loadBytes(await fetchFile('current'), name, size);
+    setLoading(t('loading'), name, 0);
+    const buf = await fetchFile('current', (p) => setLoading(t('loading'), name, p));
+    await loadBytes(buf, name, size);
   } catch (e) { fail(e); }
   finally { if (loadingKey === key) loadingKey = null; }
 }

@@ -262,6 +262,13 @@
     <div class="spinner"></div>
     <div id="loadingText" data-i18n="loading">Yükleniyor…</div>
     <div id="loadingSub" class="sub"></div>
+    <!-- İlerleme yüzdesi yalnız gerçek bir ölçü varken görünür (indirmede bayt/toplam, DXF ve sahne kurmada
+         işçinin bildirdiği oran). Ölçülemeyen aşamalarda (LibreDWG çözümlemesi) çubuk gizlenir ve dönen
+         gösterge tek başına kalır — uydurma bir yüzde göstermek beklemeyi yanıltıcı kılar. -->
+    <div id="loadingProg" class="lprog" hidden>
+      <div class="lbar" role="progressbar" aria-valuemin="0" aria-valuemax="100"><i id="loadingFill"></i></div>
+      <span id="loadingPct" class="lpct">%0</span>
+    </div>
     <button id="loadingCancel" class="btn small" type="button" data-i18n="cancel">Vazgeç</button>
   </div>
 
