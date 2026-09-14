@@ -94,7 +94,8 @@ metninin açıkça göstermesi gerekir.
 
 Dört bağımsız denetçi rakibin 78 satırlık listesini bizim 101 yeteneğimizle
 eşledi; tekrarlar ayıklandığında 58 ayrı özellik kalıyor. **22 başlık bizde
-yok**; 28'inin karşılığı var; 26 yeteneğimizin rakipte karşılığı yok.
+yoktu**; 28'inin karşılığı vardı; 26 yeteneğimizin rakipte karşılığı yok.
+**v7.27 ile bir, v7.28 ile altı, v7.29 ile kalan on beş başlık kapandı: liste bitti.**
 
 ### 1. Ucuz — veri zaten hazır (önce bunlar)
 
@@ -127,19 +128,58 @@ Bu yedisi v7.28 ile kapandı; **birinci öbekte açık madde kalmadı**. Ayrınt
 - **Hazır ifadeler** — yazı ve not kutularının üstünde çip sırası: dilin öntanımlı on iki ifadesi
   (`presetList`) ve kullanıcının son sekiz yazdığı. Liste cihazda kalır, hiçbir yere gönderilmez.
 
-### 2. Orta — var olan düzenleme çekirdeğine eklenir
+### 2. Orta — var olan düzenleme çekirdeğine eklenir · **v7.29'da tamamlandı**
 
-Ölçülendirme (dimension) oluşturma · ölçümü çizime işaretleme · revizyon bulutu ·
-numaralandırma · artımlı kopya · yazı yüksekliğini değiştirme · çizimde
-bul-değiştir · öznitelik düzenleme · explode · tarama (hatch) oluşturma ·
-kalınlık (extrusion) atama · dolgu alanı ölçümü · 3B açıklama.
+| Özellik | Nerede | Kademe |
+|---|---|---|
+| Ölçülendirme: doğrusal, yatay, düşey, yarıçap, çap, açı | Açıklama sekmesi ▸ Ölçülendirme | premium |
+| Ölçümü çizime işaretleme | Açıklama ▸ Ölçümü işle | premium |
+| Revizyon bulutu | Açıklama ▸ Revizyon bulutu | premium |
+| Numaralandırma (balon, artan) | Açıklama ▸ Numaralandır | premium |
+| Artımlı kopya (dikdörtgen + kutupsal dizi) | Düzenle ▸ Dizi | premium |
+| Yazı yüksekliğini değiştirme | Düzenle ▸ Yazı yüksekliği | premium |
+| Çizimde bul-değiştir | Düzenle ▸ Bul-değiştir | premium |
+| Öznitelik düzenleme | Düzenle ▸ Öznitelik | premium |
+| Explode (patlatma) | Düzenle ▸ Patlat | premium |
+| Tarama (hatch) oluşturma | Açıklama ▸ Tarama | premium |
+| Kalınlık (extrusion) atama | Düzenle ▸ Kalınlık | super |
+| Dolgu alanı ölçümü | Ölçü ▸ Dolgu alanı | **ücretsiz** |
+| 3B açıklama | 3B ▸ 3B açıklama | super |
 
-### 3. Ağır — yeni altyapı ister
+Ölçülendirme, iç modelde gerçek bir DXF `DIMENSION` varlığı değil **çizilmiş geometridir**
+(uzatma çizgileri + ölçü çizgisi + dolu ok başları + yazı). Bu bilinçli bir karardır:
+mobil çekirdekte ölçü stili yoktur, geometri her okuyucuda birebir aynı görünür ve DXF'e
+sorunsuz yazılır. Bedeli açıktır: **ilişkisel değildir** — ölçülen nesne taşınırsa ölçü
+değeri kendiliğinden güncellenmez, ve AutoCAD'de ölçü nesnesi olarak düzenlenemez.
+Parçalar `gid` ile gruplanır (biri seçilince hepsi seçilir) ve `itype: DIMENSION` damgası
+taşır, böylece "Ölçüleri gizle" süzgeci ok başlarını da gizler.
 
-3B geometrik ölçüm ailesi (nokta-doğru, nokta-düzlem, doğru-doğru, doğru-düzlem,
-düzlem-düzlem, düzlemler arası açı, akıllı açı) · blok kütüphanesi (oluştur /
-ekle / kütüphaneye at) · toplu (batch) işlem · 3B biçim dönüştürme (OBJ/STL) ·
-tablo çıkarma · **PDF→CAD** · pano ile dosyalar arası yapıştırma.
+### 3. Ağır — yeni altyapı ister · **v7.29'da tamamlandı**
+
+| Özellik | Nasıl çözüldü | Kademe |
+|---|---|---|
+| 3B geometrik ölçüm ailesi (7 ölçüm) | `measure3d.js` — nokta-doğru, nokta-düzlem, doğru-doğru, doğru-düzlem, düzlem-düzlem, düzlemler arası açı, akıllı açı | super |
+| Blok kütüphanesi (oluştur / kaydet / ekle) | `blocklib.js` — cihazda saklanan JSON kütüphane | premium |
+| Pano ile dosyalar arası yapıştırma | aynı çekirdek, `clipboard` anahtarı | premium |
+| Toplu (batch) işlem | `app.js` — çoklu dosya seçici + rapor / metin / DXF / PDF | super |
+| 3B biçim dönüştürme (OBJ / STL) | `export3d.js` — ikili ve ASCII STL, Wavefront OBJ | super |
+| Tablo çıkarma | `tablex.js` — çizilmiş ızgaradan satır/sütun okuma | premium |
+| PDF→CAD | `pdfcad.js` — pdf-lib ile içerik akışı çözülüp yorumlanır | super |
+
+**3B ölçüm ailesi neden kolay çıktı.** Yedi ölçümün hiçbiri kenar ya da yüzey seçimi
+istemiyor: hepsi yalnız NOKTALARLA tanımlanabiliyor (nokta-doğru 3 nokta, düzlem-düzlem
+6 nokta). Var olan `pickVertex` yettiği için ışın-üçgen kesişimi hiç gerekmedi.
+
+**PDF→CAD'in gerçek sınırları.** Yalnız vektör içerik çevrilir; gömülü resimler, kırpma
+yolları, saydamlık ve gölgelendirme aktarılmaz. Metinde harf ilerlemesi glif genişliğinden
+değil kabaca hesaplanır, Type0 / Identity-H fontlu yazılar atlanır — bunu kapatmanın tek
+yolu pdf.js'i yalnız `getTextContent` için yüklemektir (APK'ya ~1 MB). Taranmış (resim) PDF
+zaten vektör taşımaz; uygulama bu durumu ayrı bir iletiyle söyler.
+
+**Toplu işlemin dürüst tarifi.** Dosyalar sırayla AÇILIR: çözümleme işçide yapılır, sahne
+uygulamaya kurulur, işlem uygulanır. "Arka planda" iş görmek daha zarif görünürdü ama PDF
+çıktısı çizim ardalanının tamamını (katman görünürlüğü, tema, ölçek çubuğu) kullanır; ayrı
+bir yol açmak iki ayrı doğruluk kaynağı demekti. İşlem bitince açık olan çizim geri gelir.
 
 ### Rakipte hiç olmayan üstünlüklerimiz
 

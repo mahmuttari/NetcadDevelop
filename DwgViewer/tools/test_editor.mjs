@@ -95,10 +95,11 @@ await page.click('#toolbar [data-tab="3d"]'); await page.click('#toolbar [data-a
 }
 await shot('e_3d_iso');
 await page.click('#toolbar [data-act="v:top"]'); await page.waitForTimeout(200); await shot('e_3d_top');
-// 3B mesafe: iki köşe (vertices[0] ve [3])
+// 3B mesafe: iki köşe (vertices[0] ve [3]). Üstten görünüşte ikisi neredeyse AYNI piksele düşer;
+// iki dokunuş arası 320 ms'nin altında kalırsa 3B kaplama bunu çift dokunuş sayar ve seçim olmaz.
 await page.click('#toolbar [data-act="3:dist"]');
 const vs = await page.evaluate(() => { const v = window.dwgApp.editor.view3d(); const a = v.vertices[0], b = v.vertices[3]; return [v.project(a[0], a[1], a[2]), v.project(b[0], b[1], b[2])]; });
-{ const r = await page.locator('#cv3d').boundingBox(); await page.touchscreen.tap(r.x + vs[0][0], r.y + vs[0][1]); await page.waitForTimeout(200); await page.touchscreen.tap(r.x + vs[1][0], r.y + vs[1][1]); await page.waitForTimeout(300); }
+{ const r = await page.locator('#cv3d').boundingBox(); await page.touchscreen.tap(r.x + vs[0][0], r.y + vs[0][1]); await page.waitForTimeout(450); await page.touchscreen.tap(r.x + vs[1][0], r.y + vs[1][1]); await page.waitForTimeout(350); }
 {
   const d = (await page.locator('#docBody').innerText()).replace(/\n/g, ' | ');
   ok('6b 3B mesafe 646,248 mm, ΔZ 0', /3B mesafe \| 646,248 mm/.test(d) && /ΔZ \| 0 mm/.test(d), d.slice(0, 120));

@@ -94,8 +94,16 @@ export const FEATURE_TIER = new Map([
   ['3:move', 'super'], ['3:setz', 'super'], ['3:del', 'super'], ['3:pline', 'super'],
   // --- mühendislik eklentileri (yalnız Super)
   ['profile', 'super'], ['compare', 'super'], ['savedelta', 'super'], ['driveUpload', 'super'], ['area3d', 'super'],
+  // --- ölçülendirme ve açıklama (2B çizim: Premium)
+  ['t:dim', 'premium'], ['t:dimh', 'premium'], ['t:dimv', 'premium'], ['t:dimr', 'premium'], ['t:dimd', 'premium'], ['t:dima', 'premium'],
+  ['t:leader', 'premium'], ['t:cloud', 'premium'], ['t:balloon', 'premium'], ['t:hatch', 'premium'], ['markdim', 'premium'],
+  // --- 2B düzenleme eklentileri
+  ['t:array', 'premium'], ['t:explode', 'premium'], ['t:textsize', 'premium'], ['t:attr', 'premium'], ['findrep', 'premium'],
+  ['blocklib', 'premium'], ['copyclip', 'premium'], ['pasteclip', 'premium'],
   // --- 2B çıktı eklentileri
-  ['textout', 'premium'],
+  ['textout', 'premium'], ['tableout', 'premium'],
+  // --- 3B üretim, dönüştürme ve toplu işlem (Super)
+  ['t:thick', 'super'], ['3:geo', 'super'], ['3:note', 'super'], ['mesh3d', 'super'], ['batch', 'super'], ['pdfcad', 'super'],
 ]);
 
 /** Özelliğin istediği basamak ('free' kısıtsız demektir) */

@@ -22,6 +22,7 @@ import * as Open from './open.js';
 import * as Ed from './edition.js';
 import * as Home from './home.js';
 import * as Cloud from './cloud.js';
+import { writeDxf } from './edit.js';
 import { dwgObjectCount } from './dwgstat.js';
 
 const $ = (id) => document.getElementById(id);
@@ -1131,10 +1132,495 @@ function showTextOut() {
   $('txShare').onclick = () => { const b = build(); if (A() && A().shareText) A().shareText(t('textOut'), b.body); else copyText(b.body); };
 }
 
+// ---- ölçümü çizime işleme -----------------------------------------------------------------
+/**
+ * Son ölçüm sonucunu çizime kalıcı açıklama olarak yazar (ok başlı lider + değer).
+ * Kaynak, ölçü panelindeki son iki noktadır; ölçü kipi kapalıysa ya da tek nokta varsa uyarır.
+ * Ölçüm penceresi kapatıldığında sayı uçup gidiyordu — bu, ölçüyü paftaya sabitler.
+ */
+function markMeasurement() {
+  if (!Ed.gate('markdim')) return;
+  const m = S.measure;
+  if (m.length < 2) { toast(t('markNeedMeasure'), { type: 'warn' }); return; }
+  const a = m[m.length - 2], b = m[m.length - 1];
+  const d = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  if (!(d > 0)) { toast(t('markNeedMeasure'), { type: 'warn' }); return; }
+  const label = fmt(d) + (S.units ? ' ' + S.units : '');
+  const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] || 0)];
+  const off = Math.max(d * 0.25, (S.ext ? (S.ext[2] - S.ext[0]) : 100) / 40);
+  if (editor.addAnnot([mid, [mid[0] + off, mid[1] + off, mid[2]]], label)) toast(label, { type: 'ok' });
+  else toast(t('error'), { type: 'error' });
+}
+
+// ---- çizimde bul-değiştir -------------------------------------------------------------------
+/**
+ * Metin içinde tüm eşleşmeleri değiştirir. Büyük/küçük harf duyarsız aramada Türkçe kurallar geçerlidir
+ * (`toLocaleLowerCase('tr')` — I→ı, İ→i) ve dizi uzunluğu korunduğu için konumlar kaymaz.
+ * wholeWord: eşleşmenin iki yanında harf/rakam bulunmamalıdır.
+ */
+function replaceIn(src, find, rep, caseSensitive, wholeWord) {
+  const S0 = String(src == null ? '' : src);
+  const F = String(find == null ? '' : find);
+  if (!F) return { out: S0, n: 0 };
+  const hay = caseSensitive ? S0 : S0.toLocaleLowerCase('tr');
+  const nee = caseSensitive ? F : F.toLocaleLowerCase('tr');
+  const isW = (ch) => ch != null && /[\p{L}\p{N}_]/u.test(ch);
+  let out = '', i = 0, n = 0;
+  for (;;) {
+    const j = hay.indexOf(nee, i);
+    if (j < 0) break;
+    const okL = !wholeWord || !isW(S0[j - 1]);
+    const okR = !wholeWord || !isW(S0[j + nee.length]);
+    if (okL && okR) { out += S0.slice(i, j) + rep; i = j + nee.length; n++; }
+    else { out += S0.slice(i, j + 1); i = j + 1; }
+  }
+  return { out: out + S0.slice(i), n };
+}
+/** Bul-değiştir taraması: yazı ilkelleri ve blok öznitelikleri */
+function frScan(find, rep, opts) {
+  const texts = [], attrs = new Map();
+  let hits = 0;
+  if (!find) return { texts, attrs, hits };
+  const wantText = opts.scope !== 'attr', wantAttr = opts.scope !== 'text';
+  const seenIns = new Set();
+  for (const p of S.prims) {
+    if (p.k === 4) continue;
+    const inf = p.info || {};
+    const isAttr = p.et === 'ATTRIB' || p.et === 'ATTDEF';
+    if (wantText && p.k === 1 && !isAttr && p.lines && p.lines.length) {
+      const src = p.lines.join('\n');
+      const r = replaceIn(src, find, rep, opts.caseSensitive, opts.wholeWord);
+      if (r.n) { texts.push({ key: p.key, from: src, to: r.out, n: r.n, lay: p.lay }); hits += r.n; }
+    }
+    if (wantAttr && inf.attrs && inf.attrs.length && inf.h && !seenIns.has(inf.h)) {
+      seenIns.add(inf.h);
+      const items = [];
+      inf.attrs.forEach((a, i) => {
+        const r = replaceIn(a[1], find, rep, opts.caseSensitive, opts.wholeWord);
+        if (r.n) { items.push({ i, value: r.out, from: a[1], tag: a[0] }); hits += r.n; }
+      });
+      if (items.length) attrs.set(inf.h, { name: inf.name || '', items });
+    }
+  }
+  return { texts, attrs, hits };
+}
+function showFindReplace() {
+  if (!Ed.gate('findrep')) return;
+  const html = kv([
+    [t('findWhat'), `<input id="frFind" autocomplete="off" value="">`, 1],
+    [t('replaceWith'), `<input id="frRep" autocomplete="off" value="">`, 1],
+    [t('matchCase'), `<label class="chk"><input type="checkbox" id="frCase"> ${esc(t('matchCaseHint'))}</label>`, 1],
+    [t('wholeWord'), `<label class="chk"><input type="checkbox" id="frWord"> ${esc(t('wholeWordHint'))}</label>`, 1],
+    [t('scope'), `<select id="frScope"><option value="both">${esc(t('frBoth'))}</option><option value="text">${esc(t('frTexts'))}</option><option value="attr">${esc(t('frAttrs'))}</option></select>`, 1],
+    [`<div class="full" id="frInfo"><span class="muted">${esc(t('frHint'))}</span></div>`],
+    [`<div class="full btns"><button class="btn small" id="frScanBtn">${esc(t('frScan'))}</button><button class="btn primary small" id="frGo">${esc(t('frReplaceAll'))}</button></div>`]]);
+  openDoc(t('findRep'), html);
+  const read = () => ({
+    find: $('frFind').value, rep: $('frRep').value,
+    caseSensitive: $('frCase').checked, wholeWord: $('frWord').checked, scope: $('frScope').value,
+  });
+  const preview = () => {
+    const o = read();
+    if (!o.find) { $('frInfo').innerHTML = `<span class="muted">${esc(t('frHint'))}</span>`; return null; }
+    const r = frScan(o.find, o.rep, o);
+    const rows = [];
+    for (const x of r.texts.slice(0, 12)) rows.push(`${esc(x.from.replace(/\n/g, ' ').slice(0, 40))} → <b>${esc(x.to.replace(/\n/g, ' ').slice(0, 40))}</b>`);
+    for (const [, g] of [...r.attrs].slice(0, 6)) for (const it of g.items.slice(0, 2)) rows.push(`${esc(g.name)}.${esc(it.tag)}: ${esc(String(it.from).slice(0, 30))} → <b>${esc(String(it.value).slice(0, 30))}</b>`);
+    const total = r.texts.length + [...r.attrs.values()].reduce((a, g) => a + g.items.length, 0);
+    $('frInfo').innerHTML = total
+      ? `<strong>${fmt(r.hits, 0)}</strong> ${esc(t('frHits'))} · ${fmt(total, 0)} ${esc(t('frObjects'))}<div class="muted" style="margin-top:6px">${rows.join('<br>')}${total > rows.length ? '<br>…' : ''}</div>`
+      : `<span class="muted">${esc(t('noResult'))}</span>`;
+    return r;
+  };
+  $('frScanBtn').onclick = preview;
+  $('frFind').addEventListener('input', () => { if ($('frFind').value.length >= 2) preview(); });
+  $('frGo').onclick = () => {
+    const o = read();
+    if (!o.find) { toast(t('frHint'), { type: 'warn' }); return; }
+    const r = frScan(o.find, o.rep, o);
+    const cmds = [];
+    if (r.texts.length) cmds.push({ op: 'settexts', items: r.texts.map(x => ({ key: x.key, text: x.to })) });
+    for (const [h, g] of r.attrs) cmds.push({ op: 'attrib', h, items: g.items.map(it => ({ i: it.i, value: it.value })) });
+    if (!cmds.length) { toast(t('noResult'), { type: 'warn' }); return; }
+    if (editor.runCmd({ op: 'group', cmds })) { toast(t('frDone') + ' · ' + fmt(r.hits, 0)); hide('docPanel'); }
+    else toast(t('error'), { type: 'error' });
+  };
+}
+
+
+// ---- 3B dışa aktarma (OBJ / STL) ------------------------------------------------------------
+const fmtSize = (n) => (n == null || !(n >= 0) ? '' : n < 1024 ? n + ' B' : n < 1048576 ? fmt(n / 1024, 1) + ' KB' : fmt(n / 1048576, 2) + ' MB');
+/** Uint8Array → base64 (köprünün saveFile'ı base64 ister) */
+function b64bytes(u8) {
+  let bin = '';
+  for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+/** İkili dosyayı kaydeder / paylaşır; köprü yoksa tarayıcıda indirir */
+function saveBinFile(u8, name, mime) {
+  const b64 = b64bytes(u8);
+  const driveAct = Drive.signedIn() && Ed.has('driveUpload') ? { label: tt('driveUpload', "Drive'a yükle"), fn: () => Drive.uploadWithPicker({ b64, name, mime }) } : undefined;
+  if (A() && A().saveFile) { const r = A().saveFile(b64, name, mime, true); toast(r ? t('saved') + ': ' + r : t('error'), { type: r ? 'ok' : 'error', ms: 6000, action: r ? driveAct : undefined }); return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([u8], { type: mime })); a.download = name;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+  toast(t('saved'), { type: 'ok', action: driveAct });
+}
+/**
+ * Katı ve ağ gövdelerini OBJ ya da STL olarak yazar. Üçgen sayısı ve tahminî dosya boyutu
+ * ÖNCE gösterilir: 9 milyon üçgenlik bir modelde ikili STL 450 MB eder ve telefonda
+ * kaydedilemez; kullanıcı bunu kaydete basmadan önce görmelidir.
+ */
+async function showMeshExport() {
+  if (!Ed.gate('mesh3d')) return;
+  let E3;
+  try { E3 = await import('./export3d.js'); } catch (e) { console.warn(e); toast(t('error'), { type: 'error' }); return; }
+  const st = E3.meshStats(S.prims);
+  if (!st.tris) { toast(t('mesh3None'), { type: 'warn' }); return; }
+  const html = kv([
+    [t('outFormat'), `<select id="m3Fmt"><option value="obj">OBJ</option><option value="stl">STL</option><option value="stla">STL (ASCII)</option></select>`, 1],
+    [t('mesh3Bodies'), fmt(st.bodies, 0)],
+    [t('triCount'), fmt(st.tris, 0)],
+    [t('vertices'), fmt(st.verts, 0)],
+    [t('mesh3Size'), `OBJ ≈ ${fmtSize(st.bytesObj)} · STL ${fmtSize(st.bytesStl)}`],
+    [t('mesh3ByLayer'), `<label class="chk"><input type="checkbox" id="m3Lay" checked> ${esc(t('mesh3ByLayerHint'))}</label>`, 1],
+    [`<div class="full muted">${esc(t('mesh3Note'))}</div>`],
+    [`<div class="full btns"><button class="btn primary small" id="m3Go">${esc(t('save'))}</button></div>`]]);
+  openDoc(t('mesh3Title'), html);
+  $('m3Go').onclick = async () => {
+    const kind = $('m3Fmt').value, byLayer = $('m3Lay').checked;
+    setLoading(t('mesh3Title'), fmt(st.tris, 0));
+    await new Promise(r => setTimeout(r, 30));
+    try {
+      const opts = { name: baseName(), byLayer, unitToM: 1, maxTris: 3000000 };
+      const name = baseName() + '_' + stamp() + (kind === 'obj' ? '.obj' : '.stl');
+      if (kind === 'obj') {
+        const txt = E3.objText(S.prims, opts);
+        if (!txt) { toast(t('mesh3TooBig'), { type: 'error', ms: 6000 }); return; }
+        saveTextFile(txt, name, 'model/obj');
+      } else if (kind === 'stla') {
+        const txt = E3.stlText(S.prims, opts);
+        if (!txt) { toast(t('mesh3TooBig'), { type: 'error', ms: 6000 }); return; }
+        saveTextFile(txt, name, 'model/stl');
+      } else {
+        const buf = E3.stlBinary(S.prims, opts);
+        if (!buf) { toast(t('mesh3TooBig'), { type: 'error', ms: 6000 }); return; }
+        saveBinFile(buf, name, 'model/stl');
+      }
+      hide('docPanel');
+    } catch (e) { fail(e); }
+    finally { setLoading(null); }
+  };
+}
+
+
+// ---- PDF → CAD -------------------------------------------------------------------------------
+/*
+ * Bir PDF sayfasının vektör içeriğini çizim nesnelerine çevirir. Rehber, keşif eki ya da idareden
+ * gelen pafta çoğu zaman yalnız PDF olarak gelir; bu, o paftadaki çizgileri ölçülebilir ve
+ * düzenlenebilir hâle getirir. Dönüşüm pdfcad.js'te; burada yalnız dosya seçimi, ölçek ve sunum var.
+ */
+let pdfCad = null;                    // { bytes, name, pages }
+const PDFCAD_UNITS = [['0.352778', 'mm'], ['0.0352778', 'cm'], ['0.000352778', 'm'], ['1', 'pt'], ['0.0138889', 'inç']];
+async function pdfCadFromBytes(buf, name) {
+  let PC;
+  try { PC = await import('./pdfcad.js'); } catch (e) { console.warn(e); toast(t('error'), { type: 'error' }); return; }
+  setLoading(t('pdfcadTitle'), name);
+  let pages = 0;
+  try { pages = await PC.pdfPageCount(buf); } catch (e) { console.warn(e); }
+  setLoading(null);
+  if (!pages) { toast(t('pdfcadNoPages'), { type: 'error', ms: 5000 }); return; }
+  pdfCad = { bytes: buf, name, pages };
+  pdfCadDialog(PC);
+}
+function pdfCadDialog(PC) {
+  const d = pdfCad;
+  const html = kv([
+    [t('file'), esc(d.name)],
+    [t('pageN'), `<input id="pcPage" type="number" min="1" max="${d.pages}" value="1"> / ${d.pages}`, 1],
+    [t('pdfcadUnit'), `<select id="pcUnit">${PDFCAD_UNITS.map(u => `<option value="${u[0]}"${u[1] === 'mm' ? ' selected' : ''}>1 pt = ${u[0]} ${u[1]}</option>`).join('')}</select>`, 1],
+    [t('pdfcadScale'), `<input id="pcScale" type="number" step="any" value="1">`, 1],
+    [t('layer'), `<input id="pcLayer" value="PDF">`, 1],
+    [t('pdfcadText'), `<label class="chk"><input type="checkbox" id="pcText" checked> ${esc(t('pdfcadTextHint'))}</label>`, 1],
+    [`<div class="full muted">${esc(t('pdfcadNote'))}</div>`],
+    [`<div class="full" id="pcInfo"></div>`],
+    [`<div class="full btns"><button class="btn primary small" id="pcGo">${esc(t('create'))}</button></div>`]]);
+  openDoc(t('pdfcadTitle'), html);
+  $('pcGo').onclick = () => void pdfCadRun(PC);
+}
+async function pdfCadRun(PC) {
+  const d = pdfCad; if (!d) return;
+  const page = Math.max(1, Math.min(d.pages, Number($('pcPage').value) || 1)) - 1;
+  const unit = Number($('pcUnit').value) || 1;
+  const extra = Number($('pcScale').value) || 1;
+  const layer = ($('pcLayer').value || 'PDF').trim() || 'PDF';
+  const wantText = $('pcText').checked;
+  setLoading(t('pdfcadTitle'), String(page + 1));
+  await new Promise(r => setTimeout(r, 30));
+  try {
+    if (!S.hasDoc) {
+      // Elde çizim yoksa boş bir DXF açılır: dönüşümün nesneleri bir belgeye eklenmek zorundadır
+      const u8 = new Uint8Array(await New.newBytes('dxf'));
+      await loadBytes(u8.buffer, baseNameOf(d.name) + '.dxf', u8.length);
+      if (!S.hasDoc) { toast(t('openFirst'), { type: 'warn' }); return; }
+    }
+    const scale = unit * extra;
+    const res = await PC.pdfToEnts(d.bytes, page, { scale, layer, color: 256, text: wantText, tol: scale * 0.05 });
+    if (!res) { toast(t('pdfcadFail'), { type: 'error', ms: 6000 }); return; }
+    const st = res.stats || {};
+    if (!res.ents.length) {
+      const why = st.inflate === false ? t('pdfcadNoInflate') : t('pdfcadNoVector');
+      toast(why, { type: 'warn', ms: 7000 });
+      const info = $('pcInfo'); if (info) info.innerHTML = `<span class="muted">${esc(why)}</span>`;
+      return;
+    }
+    if (!S.layers.has(layer)) editor.runCmd({ op: 'layer', name: layer, color: -1 });   // 256 ACI dizisinde yoktur; -1 = öntanımlı ön plan rengi
+    if (!editor.addEnts(res.ents)) { toast(t('error'), { type: 'error' }); return; }
+    zoomExtents();
+    toast(`${t('pdfcadDone')} · ${fmt(res.ents.length, 0)} ${t('prims')}`, { type: 'ok', ms: 5000 });
+    hide('docPanel');
+  } catch (e) { fail(e); }
+  finally { setLoading(null); }
+}
+const baseNameOf = (n) => String(n || 'pdf').replace(/\.[^.]+$/, '');
+async function showPdfCad() {
+  if (!Ed.gate('pdfcad')) return;
+  // Ekranda zaten bir PDF açıksa onu kullan: kullanıcının belgeyi kapatıp aynı dosyayı
+  // yeniden seçmesi anlamsız bir adımdır (bu işlev Diğer menüsünde belge kipinde de durur).
+  const d = Docs.isOpen() ? Docs.current() : null;
+  if (d && d.kind === 'pdf' && (d.bytes || d.id)) {
+    try {
+      const buf = d.bytes ? (d.bytes.buffer || d.bytes) : await fetchFile(d.id);
+      await pdfCadFromBytes(buf, d.name || 'belge.pdf');
+      return;
+    } catch (e) { console.warn(e); }
+  }
+  if (pdfCad) { let PC; try { PC = await import('./pdfcad.js'); } catch (e) { console.warn(e); return; } pdfCadDialog(PC); return; }
+  pickFile('pdfcad', 'application/pdf');
+}
+
+
+// ---- tablo çıkarma ---------------------------------------------------------------------------
+/*
+ * Çizime ÇİZİLMİŞ tabloyu (ızgara çizgileri + hücre yazıları) okuyup CSV'ye çevirir. Arama alanı
+ * ekrandaki görünümdür: kullanıcı tabloya yakınlaşır ve düğmeye basar. Böylece paftadaki onlarca
+ * çizgi arasından hangisinin tablo olduğunu tahmin etmek gerekmez — kadraj kararı kullanıcınındır.
+ */
+async function showTableOut() {
+  if (!Ed.gate('tableout')) return;
+  let TX;
+  try { TX = await import('./tablex.js'); } catch (e) { console.warn(e); toast(t('error'), { type: 'error' }); return; }
+  const rect = visibleRect();
+  const res = TX.extractTable(S.prims.filter(p => primVisible(p)), rect, {});
+  if (!res || !res.rows || !res.rows.length) { toast(t('tableNone'), { type: 'warn', ms: 6000 }); return; }
+  const rows = res.rows;
+  const prev = rows.slice(0, 10).map(r => `<tr>${r.slice(0, 8).map(c => `<td>${esc(String(c).slice(0, 24))}</td>`).join('')}</tr>`).join('');
+  const html = kv([
+    [t('tableSize'), `${fmt(res.ny, 0)} × ${fmt(res.nx, 0)}`],
+    [`<div class="full tbl-prev"><table>${prev}</table>${rows.length > 10 ? `<div class="muted">…</div>` : ''}</div>`],
+    [`<div class="full muted">${esc(t('tableNote'))}</div>`],
+    [`<div class="full btns"><button class="btn primary small" id="tbSave">${esc(t('save'))}</button><button class="btn small" id="tbCopy">${esc(tt('copyClip', 'Panoya kopyala'))}</button><button class="btn small" id="tbShare">${esc(t('share'))}</button></div>`]]);
+  openDoc(t('tableTitle'), html);
+  const csv = '﻿' + TX.tableCsv(rows, ';');
+  $('tbSave').onclick = () => { saveTextFile(csv, baseName() + '_tablo_' + stamp() + '.csv', 'text/csv'); hide('docPanel'); };
+  $('tbCopy').onclick = () => copyText(TX.tableCsv(rows, '\t'));
+  $('tbShare').onclick = () => { const txt = TX.tableCsv(rows, '\t'); if (A() && A().shareText) A().shareText(t('tableTitle'), txt); else copyText(txt); };
+}
+
+
+// ---- toplu işlem -----------------------------------------------------------------------------
+/*
+ * Birden çok dosyaya aynı işlemi uygular. Dosyalar çoklu seçiciyle alınır (Android'de
+ * ACTION_OPEN_DOCUMENT + EXTRA_ALLOW_MULTIPLE, tarayıcıda <input multiple>).
+ *
+ * Her dosya SIRAYLA açılır: çözümleme işçide (worker) yapılır, sahne uygulamaya kurulur, işlem
+ * uygulanır ve sıradakine geçilir. Sahneyi kurmak yerine "arka planda" iş görmek daha zarif
+ * görünürdü ama PDF çıktısı çizim ardalanının tamamını (katman görünürlüğü, tema, ölçek çubuğu)
+ * kullanır; ayrı bir yol açmak iki ayrı doğruluk kaynağı demekti. Bitince açık olan çizim
+ * geri yüklenir.
+ */
+let batchFiles = null;
+const BATCH_OPS = ['report', 'text', 'dxf', 'pdf'];
+async function showBatch() {
+  if (!Ed.gate('batch')) return;
+  if (A() && A().pickFiles) { try { A().pickFiles('batch', '*/*'); return; } catch (e) { console.warn(e); } }
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.multiple = true; inp.style.display = 'none';
+  inp.onchange = () => {
+    const list = [...(inp.files || [])].map(f => ({ file: f, name: f.name, size: f.size }));
+    inp.remove();
+    if (list.length) batchDialog(list);
+  };
+  document.body.appendChild(inp); inp.click();
+}
+/** Android çoklu seçici sonucu */
+function onFilesPicked(purpose, json) {
+  let list = [];
+  try { list = JSON.parse(json || '[]'); } catch (e) { console.warn(e); }
+  if (purpose !== 'batch' || !list.length) return;
+  batchDialog(list.map(f => ({ id: f.id, name: f.name, size: f.size })));
+}
+function batchDialog(list) {
+  batchFiles = list.filter(f => Docs.isCad(f.name));
+  const skipped = list.length - batchFiles.length;
+  if (!batchFiles.length) { toast(t('batchNoCad'), { type: 'warn', ms: 5000 }); return; }
+  const html = kv([
+    [t('batchFiles'), `${fmt(batchFiles.length, 0)}${skipped ? ` (${fmt(skipped, 0)} ${t('batchSkipped')})` : ''}`],
+    [t('batchOp'), `<select id="btOp">
+      <option value="report">${esc(t('batchReport'))}</option>
+      <option value="text">${esc(t('batchText'))}</option>
+      <option value="dxf">${esc(t('batchDxf'))}</option>
+      <option value="pdf">${esc(t('batchPdf'))}</option></select>`, 1],
+    [t('paper'), `<select id="btPaper">${Object.keys(PAPERS).map(k => `<option ${k === 'A3' ? 'selected' : ''}>${k}</option>`).join('')}</select>`, 1],
+    [`<div class="full list">${batchFiles.map(f => `<div class="item">${esc(f.name)}<small>${fmtSize(f.size)}</small></div>`).join('')}</div>`],
+    [`<div class="full muted">${esc(t('batchNote'))}</div>`],
+    [`<div class="full btns"><button class="btn primary small" id="btGo">${esc(t('batchRun'))}</button></div>`]]);
+  openDoc(t('batchTitle'), html);
+  $('btGo').onclick = () => void runBatch($('btOp').value, $('btPaper').value);
+}
+async function runBatch(op, paper) {
+  if (!batchFiles || !batchFiles.length || !BATCH_OPS.includes(op)) return;
+  hide('docPanel');
+  const files = batchFiles.slice();
+  const keep = S.hasDoc ? { scene: S.scene, name: S.fileName, size: (S.fileKey.split('_').pop() | 0) } : null;
+  const report = [], texts = [];
+  let done = 0, failed = 0;
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    setLoading(t('batchTitle'), `${f.name} (${i + 1}/${files.length})`, 100 * i / files.length);
+    try {
+      const buf = f.file ? await f.file.arrayBuffer() : await fetchFile(f.id);
+      const res = await runWorker({ cmd: 'parse', bytes: buf, name: f.name, objects: 0 });
+      const scene = res.scene;
+      await setScene(scene, f.name, f.size || buf.byteLength);
+      zoomExtents();
+      if (op === 'report') {
+        const e = S.ext || [0, 0, 0, 0];
+        report.push([f.name, f.size || '', S.version, S.units, S.entityCount, S.layers.size, S.blockCount,
+          fmt(e[0]), fmt(e[1]), fmt(e[2]), fmt(e[3])]);
+      } else if (op === 'text') {
+        for (const r of collectTexts(S.prims)) texts.push([f.name, r.txt, r.tag, r.type, r.lay, fmt(r.x), fmt(r.y), fmt(r.z)]);
+      } else if (op === 'dxf') {
+        const txt = writeDxf(S.scene.layouts[0].prims, S.layers, { ltypes: S.ltypes });
+        saveTextFile(txt, baseName() + '.dxf', 'application/dxf');
+      } else if (op === 'pdf') {
+        await makePdf(baseName(), paper || 'A3', 'l', 0, 150, false);
+      }
+      done++;
+    } catch (e) { console.warn('batch', f.name, e); failed++; }
+  }
+  // toplu çıktılar tek dosyada
+  try {
+    if (op === 'report' && report.length) {
+      const head = [t('file'), t('size'), t('version'), t('drawingUnit'), t('entity'), t('layerN'), t('blockN'), 'Xmin', 'Ymin', 'Xmax', 'Ymax'];
+      saveTextFile('﻿' + [head, ...report].map(r => r.map(csvCell).join(';')).join('\r\n'), 'toplu_rapor_' + stamp() + '.csv', 'text/csv');
+    } else if (op === 'text' && texts.length) {
+      const head = [t('file'), t('textK'), t('tag'), t('typeCol'), t('layer'), 'X', 'Y', 'Z'];
+      saveTextFile('﻿' + [head, ...texts].map(r => r.map(csvCell).join(';')).join('\r\n'), 'toplu_metin_' + stamp() + '.csv', 'text/csv');
+    }
+  } catch (e) { console.warn(e); }
+  // açık olan çizimi geri getir
+  try { if (keep && keep.scene) await setScene(keep.scene, keep.name, keep.size); } catch (e) { console.warn(e); }
+  setLoading(null);
+  batchFiles = null;
+  toast(`${t('batchDone')} · ${fmt(done, 0)}/${fmt(files.length, 0)}` + (failed ? ` · ${fmt(failed, 0)} ${t('batchFailed')}` : ''), { type: failed ? 'warn' : 'ok', ms: 7000 });
+}
+
+
+// ---- blok kütüphanesi ve pano -----------------------------------------------------------------
+/*
+ * Blok kütüphanesi ve pano CİHAZDA saklanır, dosyada değil: amaç zaten aynı detayı başka çizimlere
+ * taşımaktır. Eklenen blok, iç modelimizde bir INSERT değil bileşen nesnelerdir — DXF yazıcımız
+ * blokları zaten patlatılmış yazdığı için sonuç her okuyucuda aynıdır ve nesneler tek tek düzenlenebilir.
+ *
+ * Yerleştirme noktası: nesneler GÖRÜNÜMÜN ORTASINA konur ve hemen seçili kalır; kullanıcı Taşı
+ * aracıyla yerine sürükler. Ekranda ayrı bir "yerleştirme kipi" açmak, mobilde fazladan bir adım
+ * ve fazladan bir iptal yolu demekti.
+ */
+let BL = null;
+async function blockLib() {
+  if (BL) return BL;
+  try { BL = await import('./blocklib.js'); } catch (e) { console.warn(e); toast(t('error'), { type: 'error' }); return null; }
+  return BL;
+}
+/** Seçili ilkelleri taşınabilir varlıklara çevirir; çevrilemeyenler (resim, ekleme noktası) atlanır */
+function selectionEnts(L) {
+  const sel = editor.selection();
+  const ents = sel.map(p => L.primToEnt(p)).filter(Boolean);
+  return { sel, ents };
+}
+/** Varlıkları görünümün ortasına yerleştirip ekler ve seçili bırakır */
+function placeEntsAtCenter(L, ents, base) {
+  const c = [S.view.cx, S.view.cy];
+  const b = base && isFinite(base[0]) ? base : L.entsBBox(ents);
+  const bx = b.length === 4 ? (b[0] + b[2]) / 2 : b[0], by = b.length === 4 ? (b[1] + b[3]) / 2 : b[1];
+  const moved = L.moveEnts(ents, c[0] - bx, c[1] - by, 0);
+  const n0 = S.prims.length;
+  if (!editor.addEnts(moved)) return 0;
+  const added = S.prims.slice(n0);
+  editor.setSelection(added);
+  requestRender();                     // nesneler görünümün ortasına kondu: görünüm değiştirilmez
+  return added.length;
+}
+async function showBlockLib() {
+  const L = await blockLib(); if (!L) return;
+  if (!Ed.gate('blocklib')) return;
+  const list = L.listBlocks(store);
+  const items = list.length
+    ? list.map(b => `<div class="item" data-blk="${esc(b.name)}">${esc(b.name)}<small>${fmt(b.n, 0)} ${esc(t('prims'))} · ${fmt(b.w, 0)}×${fmt(b.h, 0)} · <a href="#" data-del="${esc(b.name)}">${esc(t('delete'))}</a></small></div>`).join('')
+    : `<div class="muted">${esc(t('blockNone'))}</div>`;
+  const html = kv([
+    [`<div class="full btns"><button class="btn primary small" id="blkNew">${esc(t('blockSave'))}</button></div>`],
+    [`<div class="full muted">${esc(t('blockInsertHint'))}</div>`],
+    [`<div class="full list">${items}</div>`]]);
+  openDoc(t('blockTitle'), html);
+  $('blkNew').onclick = async () => {
+    const { sel, ents } = selectionEnts(L);
+    if (!ents.length) { toast(sel.length ? t('error') : t('blockNoSel'), { type: 'warn' }); return; }
+    const name = await askText(t('blockName'), '', { maxlength: 60 });
+    if (!name || !name.trim()) return;
+    const bb = L.entsBBox(ents);
+    if (!L.saveBlock(store, name, ents, [(bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2])) { toast(t('blockTooBig'), { type: 'error', ms: 5000 }); return; }
+    toast(t('blockSaved') + ': ' + name.trim(), { type: 'ok' });
+    showBlockLib();
+  };
+  $('docBody').onclick = async (ev) => {
+    const del = ev.target.closest('[data-del]');
+    if (del) {
+      ev.preventDefault();
+      if (!(await askConfirm(t('blockDelAsk') + ' ' + del.dataset.del))) return;
+      L.deleteBlock(store, del.dataset.del); toast(t('blockDeleted')); showBlockLib(); return;
+    }
+    const it = ev.target.closest('[data-blk]');
+    if (!it) return;
+    const b = L.loadBlock(store, it.dataset.blk);
+    if (!b || !b.ents.length) { toast(t('error'), { type: 'error' }); return; }
+    const n = placeEntsAtCenter(L, b.ents, b.base);
+    hide('docPanel');
+    toast(n ? `${t('blockInserted')} · ${fmt(n, 0)}` : t('error'), { type: n ? 'ok' : 'error' });
+  };
+}
+async function clipCopySelection() {
+  const L = await blockLib(); if (!L) return;
+  if (!Ed.gate('copyclip')) return;
+  const { sel, ents } = selectionEnts(L);
+  if (!ents.length) { toast(sel.length ? t('error') : t('blockNoSel'), { type: 'warn' }); return; }
+  const bb = L.entsBBox(ents);
+  if (!L.clipWrite(store, ents, [(bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2])) { toast(t('blockTooBig'), { type: 'error', ms: 5000 }); return; }
+  toast(`${t('clipCopied')} · ${fmt(ents.length, 0)}`, { type: 'ok' });
+}
+async function clipPaste() {
+  const L = await blockLib(); if (!L) return;
+  if (!Ed.gate('pasteclip')) return;
+  const c = L.clipRead(store);
+  if (!c || !c.ents || !c.ents.length) { toast(t('clipEmpty'), { type: 'warn' }); return; }
+  const n = placeEntsAtCenter(L, c.ents, c.base);
+  toast(n ? `${t('clipPasted')} · ${fmt(n, 0)}` : t('error'), { type: n ? 'ok' : 'error' });
+}
+
 // ---- diğer menüsü --------------------------------------------------------------------
 $('btnMore').addEventListener('click', () => { $('moreMenu').hidden = !$('moreMenu').hidden; });
 /** Belge kipinde (PDF / Word / Excel / arşiv / resim / metin) Diğer menüsünde yalnız genel eylemler kalır; çizim eylemleri gizlenir */
-const MENU_GENERAL = new Set(['drive', 'server', 'qr', 'settings', 'about', 'pro', 'home']);
+const MENU_GENERAL = new Set(['drive', 'server', 'qr', 'settings', 'about', 'pro', 'home', 'pdfcad', 'batch']);
 /** Diğer menüsü görünürlüğü TEK yerde: yetki (edition.js) + belge kipi + belge varlığı. edition.js applyEdition de buraya gelir. */
 function refreshMenu() {
   const doc = document.body.classList.contains('docmode');
@@ -1150,7 +1636,7 @@ $('btnExtents').addEventListener('click', () => zoomExtents());
 function menuAction(act) {
   closeMenu();
   if (!Ed.gate(act)) return;   // Ücretsiz sürümde Pro eylemi (notes / profile / compare / pdf): yükseltme kutusu
-  const needDoc = ['info', 'layouts', 'notes', 'profile', 'compare', 'xrefs', 'views', 'png', 'pdf', 'textout'];
+  const needDoc = ['info', 'layouts', 'notes', 'profile', 'compare', 'xrefs', 'views', 'png', 'pdf', 'textout', 'markdim', 'findrep', 'blocklib', 'copyclip', 'pasteclip', 'mesh3d', 'tableout'];
   if (needDoc.includes(act) && !S.hasDoc) { toast(t('openFirst')); return; }
   switch (act) {
     case 'info': showDocInfo(); break;
@@ -1177,6 +1663,15 @@ function menuAction(act) {
     case 'png': savePng(); break;
     case 'pdf': showPdf(); break;
     case 'textout': showTextOut(); break;
+    case 'markdim': markMeasurement(); break;
+    case 'findrep': showFindReplace(); break;
+    case 'blocklib': showBlockLib(); break;
+    case 'copyclip': clipCopySelection(); break;
+    case 'pasteclip': void clipPaste(); break;
+    case 'mesh3d': showMeshExport(); break;
+    case 'tableout': showTableOut(); break;
+    case 'batch': void showBatch(); break;
+    case 'pdfcad': void showPdfCad(); break;
     case 'server': showServer(); break;
     case 'qr': startQr(); break;
     case 'settings': showSettings(); break;
@@ -2014,6 +2509,7 @@ async function onFilePicked(purpose, id, name, size) {
     if (purpose === 'open') { await loadCurrent(name, size); return; }
     if (purpose.startsWith('upload:')) { const info = JSON.parse(A().docOpen(id) || '{}'); if (info.error) throw new Error(info.error); Drive.upload({ fileId: info.id, name, mime: Docs.kindOf(name) === 'cad' ? 'application/acad' : 'application/octet-stream', folder: purpose.slice(7) }); return; }
     if (purpose === 'compare') { await setCompare(await fetchFile(id), name); return; }
+    if (purpose === 'pdfcad') { await pdfCadFromBytes(await fetchFile(id), name); return; }
     if (purpose.startsWith('xref:')) { await loadXref(Number(purpose.slice(5)), await fetchFile(id), name); return; }
     if (purpose.startsWith('img:')) { loadImageFile(purpose.slice(4), '/file/' + id); return; }
     if (purpose === 'photo' && pendingPhotoPoint) {
@@ -2041,6 +2537,7 @@ async function fileForPurpose(purpose, f) {
   try {
     if (purpose === 'open') { Open.noteFile(f); if (Docs.isCad(f.name) || Docs.kindOf(f.name) === 'other') await loadBytes(await f.arrayBuffer(), f.name, f.size); else await Docs.openBlob(f); }
     else if (purpose === 'compare') await setCompare(await f.arrayBuffer(), f.name);
+    else if (purpose === 'pdfcad') await pdfCadFromBytes(await f.arrayBuffer(), f.name);
     else if (purpose.startsWith('xref:')) await loadXref(Number(purpose.slice(5)), await f.arrayBuffer(), f.name);
     else if (purpose.startsWith('img:')) loadImageFile(purpose.slice(4), URL.createObjectURL(f));
     else if (purpose === 'photo' && pendingPhotoPoint) {
@@ -2112,7 +2609,7 @@ async function checkUpdate(manual) {
 // Başlangıç
 // ---------------------------------------------------------------------------
 window.dwgApp = { loadCurrent, onFilePicked, onLocation, onBack, loadBytes, zoomExtents, render, toScreen, toWorld, state: S, notes, editor, setMode, setLayout, refreshRecent: buildRecent, showInfo,
-  onQr: (text) => { try { const s = String(text || '').trim(); if (s) onQr(s); } catch (e) { console.warn(e); } },   // Android ACTION_SEND / EXTRA_TEXT
+  onFilesPicked, onQr: (text) => { try { const s = String(text || '').trim(); if (s) onQr(s); } catch (e) { console.warn(e); } },   // Android ACTION_SEND / EXTRA_TEXT
   onLocationError: (m) => { const perm = /kalıcı olarak reddedildi|permanently denied/i.test(String(m)); const openSet = A() && A().openAppSettings ? () => A().openAppSettings() : null;
     toast('GPS: ' + m, perm && openSet ? { ms: 8000, action: { label: tt('settings', 'Ayarlar'), fn: openSet } } : undefined); },
   display: D, toast, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, savePng, getSettings: () => settings, requestRender, openDisplayOptions, showSettings, showNewDoc,
@@ -2123,7 +2620,9 @@ window.dwgApp = { loadCurrent, onFilePicked, onLocation, onBack, loadBytes, zoom
   // sınama kancaları: çok sayfalı PDF kurucusu, metin toplayıcı ve ölçüm dökümü
   __pdf: { build: (pages, wmm, hmm, title) => buildPdf(pages, wmm, hmm, title) },
   __text: { collect: (prims) => collectTexts(prims || S.prims), csvCell },
-  __measure: { text: () => measureText() } };
+  __measure: { text: () => measureText() },
+  __fr: { scan: (find, rep, opts) => frScan(find, rep, opts || {}), replace: (src, f, r, cs, ww) => replaceIn(src, f, r, cs, ww) },
+  action: (a) => menuAction(a) };
 ensureStatusChips();
 Ed.initEdition({ toast, rebuildToolbar: () => editor.rebuild(), refreshMenu });   // Ücretsiz / Pro: menü, karşılama kartı, Pro paneli, Drive düğmeleri; reklam zamanlayıcısı; onEdition → şerit yeniden kurulur
 D.initDisplay({ requestRender, drawOverlay, toast, openDoc, show, hide, buildLayerList, settings, saveSettings, editorTheme, zoomExtents, zoomBy, fitPrims, viewHistory, setLayout, editor, ui: uiPrefs(), basemaps: BASEMAPS, haptic });

@@ -235,7 +235,8 @@ const menuVisible = () => [...document.querySelectorAll('#moreMenu [data-act]')]
     ok('2a çizim yokken PDF: docmode, ana ekran gizli, şerit gizli', r.docView && r.docmode && !r.home && !r.homemode && r.tbDisp === 'none' && !r.hasDoc, JSON.stringify(r));
     await page.click('#btnMore'); await page.waitForTimeout(60);
     const vis = await ev(menuVisible);
-    ok('2b Pro + belge kipi: menüde pro yok, yalnız genel eylemler', JSON.stringify(vis) === JSON.stringify(['about', 'drive', 'home', 'qr', 'server', 'settings']), vis.join(','));
+    // v7.29: PDF→CAD ve toplu işlem belge kipinde de erişilebilir (ekrandaki PDF'i çizime çevirmek için)
+    ok('2b Pro + belge kipi: menüde pro yok, yalnız genel eylemler', JSON.stringify(vis) === JSON.stringify(['about', 'batch', 'drive', 'home', 'pdfcad', 'qr', 'server', 'settings']), vis.join(','));
     await ev(() => window.dwgApp.onBack());
     await page.click('#docView [data-doc="close"]'); await page.waitForTimeout(150);
     const r2 = await ev(shellState);

@@ -72,6 +72,8 @@ public class MainActivity extends Activity {
     private static final String ORIGIN = "https://appassets.androidplatform.net";
     private static final String START_URL = ORIGIN + "/assets/viewer/index.html";
     private static final int REQ_PICK = 1001;
+    /** Son açılan seçicinin çoklu seçim isteyip istemediği (toplu işlem) */
+    private boolean pickMulti = false;
     private static final int REQ_TREE = 1002;
     private static final int REQ_LOCATION = 2001;
     private static final int REQ_CAMERA = 2002;
@@ -535,10 +537,14 @@ public class MainActivity extends Activity {
     }
 
     // ---- dosya seçici ---------------------------------------------------------------------
-    private void openPicker(String purpose, String mime) {
+    private void openPicker(String purpose, String mime) { openPicker(purpose, mime, false); }
+
+    private void openPicker(String purpose, String mime, boolean multi) {
         pickPurpose = purpose == null ? "open" : purpose;
+        pickMulti = multi;
         Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         i.addCategory(Intent.CATEGORY_OPENABLE);
+        if (multi) i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
         // kalıcı izin: 'son dosyalar' uygulama yeniden başladıktan sonra da açılsın
         i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         i.setType(mime == null || mime.isEmpty() ? "*/*" : mime);
@@ -566,7 +572,28 @@ public class MainActivity extends Activity {
             if (tree == null) jsWhenReady("window.dwgApp && window.dwgApp.onFsRoot && window.dwgApp.onFsRoot(null)"); else onTreePicked(tree);
             return;
         }
-        if (requestCode != REQ_PICK || resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        if (requestCode != REQ_PICK || resultCode != RESULT_OK || data == null) return;
+        if (pickMulti) {
+            // çoklu seçim: her URI'ye bir yuva verilir ve JS'e tek çağrıda liste gönderilir
+            android.content.ClipData cd = data.getClipData();
+            org.json.JSONArray arr = new org.json.JSONArray();
+            int n = cd != null ? cd.getItemCount() : (data.getData() != null ? 1 : 0);
+            for (int k = 0; k < n; k++) {
+                Uri u = cd != null ? cd.getItemAt(k).getUri() : data.getData();
+                if (u == null) continue;
+                String sid = "slot_" + (++slotSeq);
+                slots.put(sid, u);
+                try {
+                    JSONObject o = new JSONObject();
+                    o.put("id", sid); o.put("name", queryName(u)); o.put("size", querySize(u));
+                    arr.put(o);
+                } catch (Exception e) { Log.w(TAG, "pickFiles", e); }
+            }
+            pickMulti = false;
+            js("window.dwgApp && window.dwgApp.onFilesPicked && window.dwgApp.onFilesPicked(" + JSONObject.quote(pickPurpose) + "," + JSONObject.quote(arr.toString()) + ")");
+            return;
+        }
+        if (data.getData() == null) return;
         Uri uri = data.getData();
         if ("open".equals(pickPurpose)) {
             setCurrent(uri, false);
@@ -857,7 +884,9 @@ public class MainActivity extends Activity {
     // ---- JS köprüsü ---------------------------------------------------------------------------
     private class Bridge {
         @JavascriptInterface public void openFilePicker() { runOnUiThread(() -> openPicker("open", "*/*")); }
-        @JavascriptInterface public void pickFile(String purpose, String mime) { runOnUiThread(() -> openPicker(purpose, mime)); }
+        @JavascriptInterface public void pickFile(String purpose, String mime) { runOnUiThread(() -> openPicker(purpose, mime, false)); }
+        /** Çoklu seçim (toplu işlem): seçilen her dosya için bir yuva açılır, JS'e liste hâlinde bildirilir */
+        @JavascriptInterface public void pickFiles(String purpose, String mime) { runOnUiThread(() -> openPicker(purpose, mime, true)); }
 
         @JavascriptInterface
         public String getPendingFile() {

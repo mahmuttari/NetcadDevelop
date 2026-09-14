@@ -2,14 +2,17 @@
  * Düzenleme çekirdeği.
  *
  *  - Varlık tanımı (ent): kullanıcının çizdiği nesnelerin taşınabilir biçimi
- *      { type:'LINE'|'LWPOLYLINE'|'POLYLINE3D'|'CIRCLE'|'ARC'|'POINT'|'TEXT'|'3DFACE',
- *        pts:[[x,y,z]…], r, a0, a1, closed, text, h, rot, layer, color (ACI ya da -1) }
+ *      { type:'LINE'|'LWPOLYLINE'|'POLYLINE3D'|'CIRCLE'|'ARC'|'POINT'|'TEXT'|'3DFACE'
+ *            |'SOLID'|'HATCH'|'CLOUD'|'DIMENSION'|'EXTRUDE',
+ *        pts:[[x,y,z]…], r, a0, a1, closed, text, h, rot, layer, color (ACI ya da -1),
+ *        itype: bilgi türü üstüne yazımı (ör. ok başı SOLID ama bilgide DIMENSION görünsün),
+ *        gid:   grup kimliği — aynı ölçülendirmenin / balonun bütün parçaları birlikte seçilir }
  *  - entToPrim(): tanımı çizilebilir ilkele çevirir (scene.js ilkel biçimi)
  *  - transformPrim(): ilkele 2B afin dönüşüm + Δz uygular
  *  - EditDoc: komut günlüğü (add/delete/xform/props/setz), geri al / yinele, kalıcılık
  *  - writeDxf(): sahne + düzenlemeler → ASCII DXF (AC1015); bloklar patlatılmış hâlde
  */
-import { TAU, mul, apply, isSim, simScale, simRot, det, arcPts, ellipsePts, opsBBox, flatten } from './geom.js';
+import { TAU, mul, apply, isSim, simScale, simRot, det, arcPts, ellipsePts, opsBBox, flatten, cloudOps, extrudeMesh } from './geom.js';
 import { FG, ACI } from './scene.js';
 
 const R2D = 180 / Math.PI;
@@ -23,6 +26,8 @@ export function entToPrim(ent, layers) {
   const lay = layers.get(ent.layer);
   const col = ent.color === -1 || ent.color == null ? (lay ? lay.color : FG) : (ent.color >= 1 && ent.color <= 255 ? ACI[ent.color] : FG);
   const info = { t: ent.type, h: ent.id, lay: ent.layer, ci: ent.color == null ? 256 : ent.color, col, lt: '', lw: lay ? lay.lw : 25, edited: true, text: ent.text };
+  if (ent.itype) info.t = ent.itype;            // ok başı SOLID'dir ama ölçü süzgeci onu da gizlemelidir
+  if (ent.gid) info.gid = ent.gid;              // grup: parçalar birlikte seçilir, birlikte silinir
   const base = { col, lay: ent.layer, lw: lay ? lay.lw : 25, lt: null, lts: 1, info, et: ent.type, key: ent.id, ent };
   const P = ent.pts || [];
   switch (ent.type) {
@@ -51,6 +56,66 @@ export function entToPrim(ent, layers) {
       const h = ent.h || 2.5, lines = String(ent.text).split('\n');
       const R = Math.hypot(Math.max(...lines.map(l => l.length)) * h * 0.75, h * (1 + 1.667 * (lines.length - 1)));
       return { ...base, k: 1, x: p[0], y: p[1], z: p[2] || 0, h, rot: ent.rot || 0, lines, ha: ent.ha || 0, va: ent.va || 0, ws: 1, obl: 0, spacing: 1, bb: [p[0] - R, p[1] - R, p[0] + R, p[1] + R] };
+    }
+    case 'SOLID': {                                   // dolu çokgen: ok başı, işaret
+      if (P.length < 3) return null;
+      const ops = P.map((p, i) => [i ? 1 : 0, p[0], p[1], p[2] || 0]);
+      return { ...base, k: 0, ops, closed: true, fill: true, alpha: ent.alpha == null ? 1 : ent.alpha, w: 0, bb: opsBBox(ops) };
+    }
+    case 'HATCH': {                                   // dolu tarama; sınır kapalı çokgen
+      if (P.length < 3) return null;
+      const ops = P.map((p, i) => [i ? 1 : 0, p[0], p[1], p[2] || 0]);
+      info.pattern = ent.pattern || 'SOLID'; info.solid = true;
+      return { ...base, k: 0, ops, closed: true, fill: true, alpha: ent.alpha == null ? 1 : ent.alpha, w: 0, bb: opsBBox(ops) };
+    }
+    case 'CLOUD': {                                   // revizyon bulutu: yol üzerinde dışa kabaran yaylar
+      const ops = cloudOps(P, ent.r || 0, ent.closed !== false);
+      if (!ops) return null;
+      return { ...base, k: 0, ops, closed: false, fill: false, alpha: 1, w: ent.width || 0, bb: opsBBox(ops) };
+    }
+    case 'DIMENSION': {                               // çok parçalı yol + isteğe bağlı yay (açı ölçüsü)
+      const ops = [];
+      for (const sg of ent.segs || []) {
+        if (!sg || sg.length < 2) continue;
+        ops.push([0, sg[0][0], sg[0][1], sg[0][2] || 0]);
+        for (let i = 1; i < sg.length; i++) ops.push([1, sg[i][0], sg[i][1], sg[i][2] || 0]);
+      }
+      for (const a of ent.arcs || []) {
+        if (!a || a.length < 7) continue;
+        ops.push([0, a[1] + a[3] * Math.cos(a[4]), a[2] + a[3] * Math.sin(a[4]), a[6] || 0]);   // yay her zaman a[4] açısından başlar
+        ops.push(a.slice());
+      }
+      if (!ops.length) return null;
+      if (ent.measure != null) info.meas = ent.measure;
+      return { ...base, k: 0, ops, closed: false, fill: false, alpha: 1, w: 0, bb: opsBBox(ops) };
+    }
+    case 'PATH': {                                    // ham yol: yay ve elips bilgisi korunur (blok, pano)
+      const ops = (ent.ops || []).map(o => o.slice());
+      if (ops.length < 2) return null;
+      // ent.ops OLUŞTURMA ANI’nın görüntüsüdür; ilkel sonradan taşınırsa transformPrim yalnız p.ops’u
+      // günceller. Bloğa ya da panoya yeniden alırken primToEnt p.ops’u okur, bu yüzden ayrışma olmaz.
+      return { ...base, k: 0, ops, closed: !!ent.closed, fill: !!ent.fill, alpha: ent.alpha == null ? 1 : ent.alpha, w: ent.width || 0, bb: opsBBox(ops) };
+    }
+    case 'MESH': {                                    // hazır üçgen ağı (blok, pano)
+      const V = ent.vtx, I = ent.idx;
+      if (!V || !V.length || !I || !I.length) return null;
+      const vtx = V instanceof Float32Array ? V.slice() : new Float32Array(V);
+      const idx = I instanceof Uint32Array ? I.slice() : new Uint32Array(I);
+      const seg = ent.seg && ent.seg.length ? (ent.seg instanceof Float32Array ? ent.seg.slice() : new Float32Array(ent.seg)) : new Float32Array(0);
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+      for (let i = 0; i + 2 < vtx.length; i += 3) {
+        if (vtx[i] < x0) x0 = vtx[i]; if (vtx[i] > x1) x1 = vtx[i];
+        if (vtx[i + 1] < y0) y0 = vtx[i + 1]; if (vtx[i + 1] > y1) y1 = vtx[i + 1];
+        if (vtx[i + 2] < z0) z0 = vtx[i + 2]; if (vtx[i + 2] > z1) z1 = vtx[i + 2];
+      }
+      if (!isFinite(x0)) return null;
+      return { ...base, k: 5, vtx, idx, seg, bb: [x0, y0, x1, y1], zmin: z0, zmax: z1, face: true, alpha: 1, w: 0 };
+    }
+    case 'EXTRUDE': {                                 // 2B profile kalınlık: üçgen ağ gövdesi
+      if (P.length < 2) return null;
+      const m = extrudeMesh(P.map(q => [q[0], q[1], q[2] || 0]), ent.h, ent.closed !== false, ent.cap !== false);
+      if (!m) return null;
+      return { ...base, k: 5, vtx: m.vtx, idx: m.idx, seg: m.seg, bb: m.bb, zmin: m.zmin, zmax: m.zmax, face: true, alpha: 1, w: 0 };
     }
     default: return null;
   }
@@ -270,6 +335,110 @@ export class EditDoc {
         for (const p of ps) { p.lines = String(cmd.text).split('\n'); if (p.ent) p.ent = { ...p.ent, text: cmd.text }; if (p.info) p.info = { ...p.info, text: cmd.text, edited: true }; }
         return () => { ps.forEach((p, i) => Object.assign(p, snaps[i])); };
       }
+      case 'array': {
+        // artımlı kopya: bütün kopyalar TEK komutta oluşur, tek geri almayla kalkar
+        const ps = this.find(cmd.keys);
+        if (!ps.length) return null;
+        const created = [];
+        for (const it of cmd.items || []) {
+          ps.forEach((p, i) => {
+            const c = clonePrim(p);
+            c.key = (it.newKeys && it.newKeys[i]) || newId();
+            c.info = { ...p.info, h: c.key, edited: true };
+            if (c.ent) c.ent = { ...c.ent, id: c.key };
+            transformPrim(c, it.m, it.dz || 0);
+            C.insert(c); created.push(c);
+          });
+        }
+        if (!created.length) return null;
+        C.rebuild();
+        return () => { for (const p of created) C.remove(p); C.rebuild(); };
+      }
+      case 'textheight': {
+        const ps = this.find(cmd.keys).filter(p => p.k === 1 && p.h > 0);
+        if (!ps.length) return null;
+        const snaps = ps.map(p => clonePrim(p));
+        for (const p of ps) {
+          const h = cmd.h > 0 ? cmd.h : (cmd.factor > 0 ? p.h * cmd.factor : p.h);
+          if (!(h > 0)) continue;
+          p.h = h;
+          if (p.ent) p.ent = { ...p.ent, h };
+          p.info = { ...p.info, edited: true };
+          const R = Math.hypot(Math.max(...p.lines.map(l => l.length)) * p.h * 0.75 * (p.ws || 1), p.h * (1 + 1.667 * (p.lines.length - 1)));
+          p.bb = [p.x - R, p.y - R, p.x + R, p.y + R];
+        }
+        C.rebuild();
+        return () => { ps.forEach((p, i) => Object.assign(p, snaps[i])); C.rebuild(); };
+      }
+      case 'settexts': {
+        // her anahtara AYRI metin: bul-değiştir tek geri almayla döner
+        const map = new Map((cmd.items || []).map(it => [it.key, it.text]));
+        const ps = C.prims().filter(p => map.has(p.key) && p.k === 1);
+        if (!ps.length) return null;
+        const snaps = ps.map(p => ({ lines: p.lines, ent: p.ent, info: p.info, bb: p.bb }));
+        for (const p of ps) {
+          const txt = String(map.get(p.key));
+          p.lines = txt.split('\n');
+          if (p.ent) p.ent = { ...p.ent, text: txt };
+          p.info = { ...p.info, text: txt, edited: true };
+          const R = Math.hypot(Math.max(...p.lines.map(l => l.length)) * p.h * 0.75 * (p.ws || 1), p.h * (1 + 1.667 * (p.lines.length - 1)));
+          p.bb = [p.x - R, p.y - R, p.x + R, p.y + R];
+        }
+        C.rebuild();
+        return () => { ps.forEach((p, i) => Object.assign(p, snaps[i])); C.rebuild(); };
+      }
+      case 'attrib': {
+        // Blok özniteliği: hem ATTRIB yazısı hem yerleştirmenin paylaşılan bilgi listesi güncellenir.
+        // Bir yerleştirmenin BÜTÜN ilkelleri AYNI info nesnesini taşır; yeni liste hepsine birden verilir,
+        // yoksa bilgi panelinde eski değer kalırdı. Birden çok öznitelik tek komutta değişir.
+        const group = C.prims().filter(p => p.info && p.info.h === cmd.h);
+        if (!group.length) return null;
+        const info0 = group[0].info;
+        const attrs = info0.attrs || [];
+        const items = (cmd.items || []).filter(it => attrs[it.i]);
+        if (!items.length) return null;
+        const texts = group.filter(p => p.k === 1 && (p.et === 'ATTRIB' || p.et === 'ATTDEF'));
+        const snaps = texts.map(p => ({ p, lines: p.lines, bb: p.bb }));
+        const next = attrs.map(a => a.slice());
+        for (const it of items) {
+          next[it.i] = [attrs[it.i][0], String(it.value)];
+          const target = texts[it.i];
+          if (!target) continue;
+          target.lines = String(it.value).split('\n');
+          const R = Math.hypot(Math.max(...target.lines.map(l => l.length)) * target.h * 0.75 * (target.ws || 1), target.h * (1 + 1.667 * (target.lines.length - 1)));
+          target.bb = [target.x - R, target.y - R, target.x + R, target.y + R];
+        }
+        const newInfo = { ...info0, attrs: next, edited: true };
+        for (const p of group) if (p.info === info0) p.info = newInfo;
+        C.rebuild();
+        return () => {
+          for (const p of group) if (p.info === newInfo) p.info = info0;
+          for (const sN of snaps) { sN.p.lines = sN.lines; sN.p.bb = sN.bb; }
+          C.rebuild();
+        };
+      }
+      case 'group': {
+        // Birden çok alt komutu TEK geçmiş adımı olarak uygular (bul-değiştir gibi karma işlemler).
+        // Alt komutlar günlüğe ayrı ayrı yazılmaz; yalnız 'group' yazılır ve yeniden oynatılır.
+        const restores = [];
+        for (const sub of cmd.cmds || []) { const r = this.apply(sub); if (r) restores.push(r); }
+        if (!restores.length) return null;
+        return () => { for (const r of restores.slice().reverse()) r(); };
+      }
+      case 'explode': {
+        // blok yerleştirmesini parçalarına ayırır: her ilkel kendi kimliğini alır, blok bağı kalkar.
+        // Kimlikler komutun içinde saklanır; böylece kayıtlı günlük yeniden oynatıldığında aynı anahtarlar çıkar.
+        const group = C.prims().filter(p => p.info && p.info.h === cmd.h && p.info.t === 'INSERT');
+        if (!group.length) return null;
+        const snaps = group.map(p => ({ p, info: p.info, key: p.key }));
+        group.forEach((p, i) => {
+          const id = (cmd.ids && cmd.ids[i]) || (cmd.h + '_x' + i);
+          p.key = id;
+          p.info = { ...p.info, t: p.et || 'LINE', h: id, name: undefined, attrs: undefined, exploded: true, edited: true };
+        });
+        C.rebuild();
+        return () => { for (const sN of snaps) { sN.p.info = sN.info; sN.p.key = sN.key; } C.rebuild(); };
+      }
       default: return null;
     }
   }
@@ -398,6 +567,42 @@ export function writeDxf(prims, layers, opts = {}) {
       }
       if (p.k !== 0) continue;
       const ops = p.ops;
+      if (p.fill && (p.et === 'HATCH' || p.et === 'SOLID' || p.et === 'TRACE')) {
+        // Dolu yüzeyler gerçek DXF varlığı olarak yazılır; LWPOLYLINE'a düşürmek dolguyu kaybettirirdi.
+        // Alt yollar ayrı sınırdır (moveto her seferinde yeni yol açar).
+        const parts = []; let cur = null;
+        for (const o of ops) {
+          if (o[0] === 0) { cur = [[o[1], o[2]]]; parts.push(cur); }
+          else if (cur) { const qs = o[0] === 1 ? [[o[1], o[2]]] : flatten([o]); for (const q of qs) cur.push([q[0], q[1]]); }
+        }
+        const paths = parts.filter(a => a.length >= 3);
+        const elev = (ops[0] && ops[0][3]) || 0;
+        if (paths.length && p.et !== 'HATCH' && paths.length === 1 && paths[0].length <= 4) {
+          // Üç ya da dört köşeli dolu: DXF SOLID. Köşe sırası 1-2-4-3'tür, üçgende 4 = 3.
+          const q = paths[0];
+          const A = q[0], B = q[1], Cc = q[2], Dd = q.length > 3 ? q[3] : q[2];
+          common('SOLID', p, 'AcDbTrace');
+          w(10, f6(A[0])); w(20, f6(A[1])); w(30, f6(elev));
+          w(11, f6(B[0])); w(21, f6(B[1])); w(31, f6(elev));
+          w(12, f6(Dd[0])); w(22, f6(Dd[1])); w(32, f6(elev));
+          w(13, f6(Cc[0])); w(23, f6(Cc[1])); w(33, f6(elev));
+          continue;
+        }
+        if (paths.length) {
+          common('HATCH', p, 'AcDbHatch');
+          w(10, 0); w(20, 0); w(30, f6(elev));
+          w(210, 0); w(220, 0); w(230, 1);
+          w(2, 'SOLID'); w(70, 1); w(71, 0);
+          w(91, paths.length);
+          for (const part of paths) {
+            w(92, 3); w(72, 0); w(73, 1); w(93, part.length);       // 92: dış sınır (1) + çokgen (2)
+            for (const q of part) { w(10, f6(q[0])); w(20, f6(q[1])); }
+            w(97, 0);
+          }
+          w(75, paths.length > 1 ? 1 : 0); w(76, 1); w(98, 0);
+          continue;
+        }
+      }
       if (ops.length === 2 && ops[1][0] === 2 && Math.abs((ops[1][5] - ops[1][4]) - TAU) < 1e-9) {
         const o = ops[1]; common('CIRCLE', p, 'AcDbCircle'); w(10, f6(o[1])); w(20, f6(o[2])); w(30, f6(o[6] || 0)); w(40, f6(o[3])); continue;
       }

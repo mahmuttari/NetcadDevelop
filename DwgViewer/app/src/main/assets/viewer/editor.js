@@ -21,7 +21,8 @@ import { bgColor, fgColor } from './render.js';
 import { t, applyI18n, addStrings } from './i18n.js';
 import { TAU } from './geom.js';
 import * as D from './display.js';
-import { askText } from './dialog.js';
+import { askText, askForm } from './dialog.js';
+import { leaderEnts } from './annot.js';
 import { has, gate } from './edition.js';
 
 const $ = (id) => document.getElementById(id);
@@ -79,27 +80,33 @@ const TABS = [
   { id: 'view', i18n: 'tabView', icon: 'i-eye', groups: [
     { cap: 'grpNav', items: [T('extents', 'i-fit', 'Sığdır', 'Fit', 'Çizimin tamamını ekrana sığdırır', 'Zoom to the drawing extents'), T('zoomwin', 'i-zoom-window', 'Pencere', 'Window', 'Sürüklenen dikdörtgene yakınlaştırır', 'Zoom into a dragged rectangle'), T('prevview', 'i-prev', 'Önceki', 'Previous', 'Önceki görünüme döner', 'Previous view'), T('nextview', 'i-next', 'Sonraki', 'Next', 'Sonraki görünüme geçer', 'Next view'), T('goto', 'i-goto', 'Koordinat', 'Go to', 'X,Y ya da enlem/boylam girerek gider', 'Go to X,Y or lat/lon'), T('home', 'i-home', 'Ana görünüm', 'Home', 'Kaydedilmiş ana görünüme döner', 'Saved home view')] },
     { cap: 'grpPanels', items: [T('layers', 'i-layers', 'Katmanlar', 'Layers', 'Katman görünürlüğü, izolasyon, soldurma', 'Layer visibility, isolate, fade'), T('search', 'i-search', 'Ara', 'Search', 'Yazı, katman, blok, öznitelik ara', 'Find text, layers, blocks'), T('info', 'i-info', 'Bilgi', 'Info', 'Çizim bilgisi', 'Drawing info'), T('count', 'i-count', 'Sayım', 'Count', 'Blok ve varlık sayımı, oransal dağılım', 'Block and entity counts with a bar chart'), T('views', 'i-bookmark', 'Görünümler', 'Views', 'Kayıtlı görünümler ve yer imleri', 'Saved views'), T('layouts', 'i-layout', 'Sayfalar', 'Layouts', 'Model / kâğıt sayfa düzenleri', 'Model / paper layouts'), T('notes', 'i-pen', 'Notlar', 'Notes', 'Kırmızı kalem notları', 'Redline notes'), T('gps', 'i-gps', 'GPS', 'GPS', 'Konumu çizimde gösterir', 'Show position on the drawing'), T('basemap', 'i-map', 'Altlık', 'Basemap', 'Harita altlığı', 'Map basemap'), T('compare', 'i-compare', 'Karşılaştır', 'Compare', 'İki revizyonu karşılaştırır', 'Compare two revisions'), T('drive', 'i-drive', 'Drive', 'Drive', 'Google Drive: dosya aç, yükle', 'Google Drive: open and upload files'), T('display', 'i-sliders', 'Ekran ayarları', 'Display options', 'Tema, ön ayarlar, süzgeçler, çizgiler, ızgara…', 'Theme, presets, filters, lines, grid…')] },
-    { cap: 'grpOut', items: [T('pdf', 'i-pdf', 'PDF', 'PDF', 'Ölçekli PDF oluşturur', 'Create a scaled PDF'), T('png', 'i-image', 'PNG', 'PNG', 'Görünümü resim olarak kaydeder', 'Save the view as an image'), T('savedxf', 'i-save', 'DXF kaydet', 'Save DXF', 'Düzenlenmiş çizimi DXF olarak kaydeder', 'Save the edited drawing as DXF'), T('savedelta', 'i-export', 'Değişiklikler', 'Changes', 'Yalnız değişen nesneleri DXF olarak kaydeder', 'Save only changed objects'), T('textout', 'i-textout', 'Metin çıkar', 'Extract text', 'Çizimdeki bütün yazıları CSV olarak dışa aktarır', 'Export every text in the drawing as CSV')] },
+    { cap: 'grpOut', items: [T('pdf', 'i-pdf', 'PDF', 'PDF', 'Ölçekli PDF oluşturur', 'Create a scaled PDF'), T('png', 'i-image', 'PNG', 'PNG', 'Görünümü resim olarak kaydeder', 'Save the view as an image'), T('savedxf', 'i-save', 'DXF kaydet', 'Save DXF', 'Düzenlenmiş çizimi DXF olarak kaydeder', 'Save the edited drawing as DXF'), T('savedelta', 'i-export', 'Değişiklikler', 'Changes', 'Yalnız değişen nesneleri DXF olarak kaydeder', 'Save only changed objects'), T('textout', 'i-textout', 'Metin çıkar', 'Extract text', 'Çizimdeki bütün yazıları CSV olarak dışa aktarır', 'Export every text in the drawing as CSV'), T('mesh3d', 'i-cube', '3B dışa aktar', 'Export 3D', 'Katı ve ağ gövdelerini OBJ ya da STL olarak yazar', 'Write solids and meshes as OBJ or STL'), T('tableout', 'i-table', 'Tablo çıkar', 'Extract table', 'Çizimdeki tabloyu ızgaradan okuyup CSV yapar', 'Read a drawn table grid and export it as CSV'), T('batch', 'i-batch', 'Toplu işlem', 'Batch', 'Birden çok dosyaya aynı işlemi uygular', 'Apply the same operation to many files'), T('pdfcad', 'i-pdfcad', 'PDF→CAD', 'PDF→CAD', 'PDF sayfasının vektör içeriğini çizime çevirir', 'Convert a PDF page vector content into drawing objects')] },
     { cap: 'grpHist', items: [T('undo', 'i-undo', 'Geri al', 'Undo'), T('redo', 'i-redo', 'Yinele', 'Redo'), T('more', 'i-more', 'Diğer', 'More', 'Diğer işlevler menüsü', 'More functions')] } ] },
   { id: 'display', i18n: 'tabDisplay', icon: 'i-sliders', groups: [] },   // satır içeriği 2B/3B'ye göre üretilir
   { id: 'measure', i18n: 'tabMeasure', icon: 'i-dist', groups: [
-    { cap: 'grpMeasure', items: [T('t:dist', 'i-dist', 'Mesafe', 'Distance', 'Noktalar arası mesafe, ΔX/ΔY, açı', 'Distance between points'), T('t:area', 'i-area', 'Alan', 'Area', 'Kapalı alan ve çevre', 'Closed area and perimeter'), T('t:angle', 'i-angle', 'Açı', 'Angle', 'Üç noktayla açı', 'Angle by three points'), T('t:radius', 'i-radius', 'Yarıçap', 'Radius', 'Daire / yay yarıçapı', 'Circle / arc radius'), T('t:coord', 'i-coord', 'Koordinat', 'Coordinate', 'Noktanın koordinatını okur', 'Read point coordinates'), T('profile', 'i-profile', 'Profil', 'Profile', 'Kot / eğim profili', 'Elevation / slope profile')] },
+    { cap: 'grpMeasure', items: [T('t:dist', 'i-dist', 'Mesafe', 'Distance', 'Noktalar arası mesafe, ΔX/ΔY, açı', 'Distance between points'), T('t:area', 'i-area', 'Alan', 'Area', 'Kapalı alan ve çevre', 'Closed area and perimeter'), T('t:angle', 'i-angle', 'Açı', 'Angle', 'Üç noktayla açı', 'Angle by three points'), T('t:radius', 'i-radius', 'Yarıçap', 'Radius', 'Daire / yay yarıçapı', 'Circle / arc radius'), T('t:coord', 'i-coord', 'Koordinat', 'Coordinate', 'Noktanın koordinatını okur', 'Read point coordinates'), T('t:fillarea', 'i-fill', 'Dolgu alanı', 'Fill area', 'Kapalı alanın içine dokunun; alan, çevre ve dönüşümler', 'Tap inside a closed area for its area and perimeter'), T('profile', 'i-profile', 'Profil', 'Profile', 'Kot / eğim profili', 'Elevation / slope profile')] },
     { cap: 'grpHelpers', items: [T('osnap', 'i-snap', 'Yakalama', 'Osnap', 'Nesne yakalamayı açar / kapatır', 'Toggle object snap'), T('grid', 'i-grid', 'Izgara', 'Grid'), T('crosshair', 'i-crosshair', 'Artı imleç', 'Crosshair')] } ] },
   { id: 'draw', i18n: 'tabDraw', icon: 'i-pen', groups: [
     { cap: 'grpDraw2', items: [T('t:line', 'i-line', 'Çizgi', 'Line', 'İki nokta ya da @uzunluk<açı', 'Two points or @length<angle'), T('t:pline', 'i-pline', 'Polyline', 'Polyline', 'Çok köşeli çizgi; Bitir / Kapat', 'Multi-vertex line'), T('t:rect', 'i-rect', 'Dikdörtgen', 'Rectangle'), T('t:circle', 'i-circle', 'Daire', 'Circle', 'Merkez + yarıçap', 'Center + radius'), T('t:arc3', 'i-arc', 'Yay', 'Arc', 'Üç noktadan yay', 'Three-point arc'), T('t:point', 'i-point', 'Nokta', 'Point'), T('t:text', 'i-text', 'Yazı', 'Text', 'Konum, metin ve yükseklik', 'Position, text and height')] },
     { cap: 'grpDraw3', items: [T('t:pline3d', 'i-pline3d', '3B Polyline', '3D Polyline', 'x,y,z köşeli çizgi', 'Vertices with z'), T('t:face3d', 'i-face', '3B Yüzey', '3D Face', 'Üç / dört köşeli yüzey', 'Three / four vertex face')] },
     { cap: 'grpCur', items: [T('layer', 'i-layers', 'Katman', 'Layer', 'Geçerli katman ve yeni katman', 'Current layer'), T('color', 'i-palette', 'Renk', 'Color', 'Geçerli renk (ACI)', 'Current color')] },
     { cap: 'grpHist', items: [T('undo', 'i-undo', 'Geri al', 'Undo'), T('redo', 'i-redo', 'Yinele', 'Redo')] } ] },
+  { id: 'annot', i18n: 'tabAnnot', icon: 'i-dim', groups: [
+    { cap: 'grpDim', items: [T('t:dim', 'i-dim', 'Doğrusal ölçü', 'Linear', 'İki nokta + ölçü çizgisi; eğik ölçü', 'Two points + dimension line; aligned'), T('t:dimh', 'i-dim-h', 'Yatay ölçü', 'Horizontal', 'Yatay mesafeyi ölçülendirir', 'Dimension the horizontal distance'), T('t:dimv', 'i-dim-v', 'Düşey ölçü', 'Vertical', 'Düşey mesafeyi ölçülendirir', 'Dimension the vertical distance'), T('t:dimr', 'i-radius', 'Yarıçap', 'Radius', 'Daire ya da yaya dokunun', 'Tap a circle or arc'), T('t:dimd', 'i-diameter', 'Çap', 'Diameter', 'Daire ya da yaya dokunun', 'Tap a circle or arc'), T('t:dima', 'i-angle', 'Açı ölçüsü', 'Angular', 'Tepe + iki kol', 'Vertex + two arms')] },
+    { cap: 'grpMark', items: [T('t:leader', 'i-leader', 'Açıklama', 'Leader', 'Ok başlı kılavuz çizgi ve yazı', 'Leader line with an arrow and text'), T('t:cloud', 'i-cloud', 'Revizyon bulutu', 'Revision cloud', 'Değişen bölgeyi bulutla çevreler', 'Cloud around a revised area'), T('t:balloon', 'i-balloon', 'Numaralandır', 'Numbering', 'Artan numaralı balon; her dokunuşta bir sonraki', 'Balloon with an auto-incrementing number'), T('t:hatch', 'i-hatch', 'Tarama', 'Hatch', 'Kapalı alanın içine dokunun, dolgu ekler', 'Tap inside a closed area to fill it'), T('markdim', 'i-dim', 'Ölçümü işle', 'Mark measurement', 'Son ölçüm sonucunu açıklama olarak çizime yazar', 'Write the last measurement onto the drawing')] },
+    { cap: 'grpCur', items: [T('layer', 'i-layers', 'Katman', 'Layer'), T('color', 'i-palette', 'Renk', 'Color')] },
+    { cap: 'grpHist', items: [T('undo', 'i-undo', 'Geri al', 'Undo'), T('redo', 'i-redo', 'Yinele', 'Redo')] } ] },
   { id: 'edit', i18n: 'tabEdit', icon: 'i-select', groups: [
     { cap: 'grpSel', items: [T('t:select', 'i-select', 'Seç', 'Select', 'Dokunarak seçim; Tümü düğmesiyle hepsi', 'Tap to select'), T('props', 'i-props', 'Özellikler', 'Properties', 'Seçimin katmanı ve rengi', 'Layer and color of the selection')] },
     { cap: 'grpXform', items: [T('t:move', 'i-move', 'Taşı', 'Move'), T('t:copy', 'i-copy', 'Kopyala', 'Copy'), T('t:rotate', 'i-rotate', 'Döndür', 'Rotate'), T('t:scale', 'i-scale', 'Ölçekle', 'Scale'), T('t:mirror', 'i-mirror', 'Aynala', 'Mirror'), T('t:offset', 'i-offset', 'Ofset', 'Offset')] },
-    { cap: 'grpModify', items: [T('t:del', 'i-trash', 'Sil', 'Delete'), T('t:setz', 'i-z', 'Kot ata', 'Set Z', 'Seçime Z kotu atar', 'Assign elevation'), T('t:edittext', 'i-edittext', 'Yazı düzenle', 'Edit text')] },
+    { cap: 'grpModify', items: [T('t:del', 'i-trash', 'Sil', 'Delete'), T('t:setz', 'i-z', 'Kot ata', 'Set Z', 'Seçime Z kotu atar', 'Assign elevation'), T('t:edittext', 'i-edittext', 'Yazı düzenle', 'Edit text'), T('t:array', 'i-array', 'Dizi', 'Array', 'Dikdörtgen ya da kutupsal artımlı kopya', 'Rectangular or polar incremental copy'), T('t:thick', 'i-thick', 'Kalınlık', 'Thickness', '2B nesneye yükseklik vererek 3B gövde üretir', 'Extrude 2D objects into 3D bodies'), T('t:explode', 'i-explode', 'Patlat', 'Explode', 'Blok yerleştirmesini parçalarına ayırır', 'Break a block insertion into its parts'), T('t:textsize', 'i-textsize', 'Yazı yüksekliği', 'Text height', 'Seçili yazıların yüksekliğini değiştirir', 'Change the height of selected texts'), T('t:attr', 'i-attr', 'Öznitelik', 'Attributes', 'Blok özniteliklerini düzenler', 'Edit block attributes'), T('findrep', 'i-findrep', 'Bul-değiştir', 'Find & replace', 'Çizimdeki yazılarda toplu değiştirme', 'Bulk replace across drawing texts')] },
+    { cap: 'grpBlock', items: [T('blocklib', 'i-block', 'Blok kütüphanesi', 'Block library', 'Seçimden blok oluştur, kaydet, çizime ekle', 'Create, save and insert blocks'), T('copyclip', 'i-copy', 'Panoya kopyala', 'Copy to clipboard', 'Seçimi panoya alır; başka çizimde yapıştırılır', 'Copy the selection for pasting into another drawing'), T('pasteclip', 'i-paste', 'Panodan yapıştır', 'Paste', 'Panodaki nesneleri bu çizime ekler', 'Paste clipboard objects into this drawing')] },
     { cap: 'grpHist', items: [T('undo', 'i-undo', 'Geri al', 'Undo'), T('redo', 'i-redo', 'Yinele', 'Redo')] } ] },
   { id: '3d', i18n: 'tab3d', icon: 'i-cube', groups: [
     { cap: 'grpView3', items: [T('3d', 'i-3d', '3B aç/kapat', '3D on/off', 'Tek parmak döndürür, iki parmak kaydırır / yakınlaştırır', 'One finger orbits, two fingers pan / zoom'), T('fit3', 'i-fit', 'Sığdır', 'Fit'), T('v:iso', 'i-iso', 'İzometrik', 'Isometric'), T('v:top', 'i-top', 'Üst', 'Top'), T('v:front', 'i-front', 'Ön', 'Front'), T('v:left', 'i-left', 'Sol', 'Left'), T('v:right', 'i-right', 'Sağ', 'Right'), T('v:back', 'i-back', 'Arka', 'Back'), T('v:bottom', 'i-bottom', 'Alt', 'Bottom')] },
     { cap: 'grpCam3', items: [T('persp', 'i-eye', 'Perspektif', 'Perspective', 'Perspektif / ortografik', 'Perspective / orthographic'), T('zscale', 'i-zscale', 'Z abartı', 'Z scale', 'Düşey abartı çarpanı', 'Vertical exaggeration'), T('cam3', 'i-camera', 'Yer imleri', 'Bookmarks', 'Kamera konumlarını kaydeder', 'Save camera positions'), T('turn3', 'i-turn', 'Döner tabla', 'Turntable')] },
     { cap: 'grpStyle3', items: [T('vstyle', 'i-vs-wireframe', 'Görsel stil', 'Visual style', 'Tel kafes, gizli çizgi, gölgeli, gerçekçi, kavramsal, gri, eskiz, röntgen', 'Wireframe, hidden, shaded, realistic, conceptual, gray, sketchy, x-ray'), T('edges3', 'i-edges', 'Kenarlar', 'Edges', 'Yüzey kenar çizgilerini aç/kapat (stilin varsayılanını geçersiz kılar)', 'Toggle face edge lines (overrides the style default)'), T('color3', 'i-palette', 'Renk', 'Color', 'Nesne, katman, kot, tek renk', 'Entity, layer, elevation, mono'), T('clip3', 'i-clip', 'Kesit', 'Clip', 'Z aralığı ve kesit kutusu', 'Z range and clip box')] },
-    { cap: 'grpTools3', items: [T('3:select', 'i-select', 'Seç', 'Select'), T('3:dist', 'i-dist', '3B mesafe', '3D distance', 'Köşeler arası eğik mesafe, ΔZ, eğim', 'Slope distance between vertices'), T('3:move', 'i-move', 'Taşı (3B)', 'Move (3D)'), T('3:pline', 'i-pline3d', '3B Polyline', '3D Polyline'), T('3:setz', 'i-z', 'Kot ata', 'Set Z'), T('3:del', 'i-trash', 'Sil', 'Delete'), T('undo', 'i-undo', 'Geri al', 'Undo')] } ] },
+    { cap: 'grpTools3', items: [T('3:select', 'i-select', 'Seç', 'Select'), T('3:dist', 'i-dist', '3B mesafe', '3D distance', 'Köşeler arası eğik mesafe, ΔZ, eğim', 'Slope distance between vertices'), T('3:move', 'i-move', 'Taşı (3B)', 'Move (3D)'), T('3:pline', 'i-pline3d', '3B Polyline', '3D Polyline'), T('3:geo', 'i-geo3', '3B geometrik ölçüm', '3D geometry measure', 'Nokta-doğru, nokta-düzlem, doğru-doğru, doğru-düzlem, düzlem-düzlem uzaklığı ve açı', 'Point-line, point-plane, line-line, line-plane, plane-plane distance and angle'), T('3:note', 'i-note3', '3B açıklama', '3D note', 'Seçilen 3B noktaya açıklama etiketi koyar', 'Place an annotation at a picked 3D point'), T('3:setz', 'i-z', 'Kot ata', 'Set Z'), T('3:del', 'i-trash', 'Sil', 'Delete'), T('undo', 'i-undo', 'Geri al', 'Undo')] } ] },
 ];
 const DISPLAY_2D = [
   { cap: 'grpTheme', items: [T('theme', 'i-theme', 'Koyu / açık', 'Dark / light', 'Arka plan temasını değiştirir', 'Switch the background theme'), T('sun', 'i-sun', 'Güneş', 'Sun', 'Güneş altında okunaklı yüksek kontrast', 'High contrast for sunlight'), T('display', 'i-sliders', 'Ekran ayarları', 'Display options', 'Tema, ön ayarlar, süzgeçler, çizgiler, ızgara…', 'Theme, presets, filters, lines, grid…')] },
@@ -151,6 +158,7 @@ export function initEditor(a) {
     copy: (t) => api.copyText(t),
     lonLat: (x, y) => S.geo.active ? S.geo.toLonLat(x, y) : null,
     visiblePrims: () => S.prims.filter(p => !(S.layers.get(p.lay) && !S.layers.get(p.lay).visible)),
+    allPrims: () => (S.scene ? S.scene.layouts[0].prims : []),
   });
   ed.tools = tools;
   applyUi({ store: false });
@@ -399,7 +407,8 @@ function act(name, btn) {
     case 'nextview': if (api.viewHistory) api.viewHistory.forward(); break;
     case 'goto': call(api.gotoCoord); break;
     case 'home': if (!D.gotoHome()) { api.zoomExtents(); api.toast(tt('noHome', 'Ana görünüm kaydedilmemiş; Görünümler › Ana görünüm yap'), 2500); } break;
-    case 'layers': case 'search': case 'notes': case 'gps': case 'pdf': case 'png': case 'more': case 'profile': case 'info': case 'views': case 'layouts': case 'basemap': case 'compare': case 'drive': case 'count': case 'textout': api.action(name); break;
+    case 'layers': case 'search': case 'notes': case 'gps': case 'pdf': case 'png': case 'more': case 'profile': case 'info': case 'views': case 'layouts': case 'basemap': case 'compare': case 'drive': case 'count': case 'textout':
+    case 'markdim': case 'findrep': case 'blocklib': case 'copyclip': case 'pasteclip': case 'mesh3d': case 'tableout': case 'batch': case 'pdfcad': api.action(name); break;
     case 'osnap': toggleOsnap(); break;
     case 'display': call(api.openDisplayOptions, { seg: ed.is3D() ? '3d' : '2d' }); break;
     case 'undo': if (doc && doc.undo()) { refreshUndo(); api.requestRender(); if (ed.is3D()) { refresh3D(); v3.render(); } api.toast(t('undone')); } break;
@@ -734,10 +743,49 @@ function tap3D(sx, sy) {
     if (keys.length) { doc.run({ op: 'xform', keys, m: [1, 0, 0, 1, b[0] - a[0], b[1] - a[1]], dz: b[2] - a[2] }); refreshUndo(); api.toast(t('moved')); }
     ed.sel.clear(); ed.m3 = null; showPrompt(null); markActive(null);
     if (keys.length) refresh3D(); else v3.setSelection(ed.sel);   // sahne yalnız taşıma bitince yeniden kurulur
+  } else if (m.name === 'geo') {
+    void geoStep();
+    return;
+  } else if (m.name === 'note') {
+    void noteStep(hit.p);
+    return;
   } else if (m.name === 'pline') { /* Bitir ile tamamlanır */ }
   prompt3D();
   v3.render(); overlay3D();
 }
+/** Çizim birimine göre öntanımlı yazı yüksekliği (araç yöneticisiyle aynı ölçüt) */
+const textH = () => Math.max(1e-6, (S.ext ? (S.ext[2] - S.ext[0]) : 100) / 200);
+/**
+ * Dışarıdan (app.js) açıklama eklemek: ölçüm sonucunu çizime işleme, 3B açıklama, PDF→CAD çıktısı.
+ * Kimlik, katman ve renk burada verilir; çağıranın bunları bilmesi gerekmez.
+ */
+ed.addEnts = (ents) => {
+  if (!doc || !ents || !ents.length) return false;
+  const list = ents.filter(Boolean).map(e => ({ ...e, id: newId(), layer: e.layer || ed.curLayer, color: e.color == null ? ed.curColor : e.color }));
+  if (!list.length) return false;
+  const ok = doc.run({ op: 'add', ents: list });
+  refreshUndo(); api.requestRender();
+  if (ed.is3D()) { refresh3D(); if (v3) v3.render(); }
+  return ok;
+};
+/** Lider (ok + kırık çizgi + yazı) ekler; pts en az iki nokta */
+ed.addAnnot = (pts, text) => {
+  const r = leaderEnts(pts, text, { h: textH() * 2.2, layer: ed.curLayer, color: ed.curColor, gid: newId() });
+  return r ? ed.addEnts(r.ents) : false;
+};
+/** Ham komut çalıştırma (bul-değiştir, blok yapıştırma): geri alma yığını ve çizim tazelenir */
+ed.runCmd = (cmd) => {
+  if (!doc) return false;
+  const ok = doc.run(cmd);
+  refreshUndo(); api.requestRender();
+  if (ed.is3D()) { refresh3D(); if (v3) v3.render(); }
+  return ok;
+};
+/** Geçerli seçim (app.js panelleri için) */
+ed.selection = () => [...ed.sel];
+ed.setSelection = (list) => { ed.sel.clear(); for (const p of list || []) ed.sel.add(p); if (ed.is3D() && v3) v3.setSelection(ed.sel); api.drawOverlay(); };
+ed.textHeight = textH;
+
 async function start3DTool(name) {
   if (!gate('3:' + name)) { markActive(null); return; }
   ed.m3 = { name, pts: [] };
@@ -752,11 +800,70 @@ async function start3DTool(name) {
     doc.run({ op: 'delete', keys: [...ed.sel].map(p => p.key) }); ed.sel.clear(); refreshUndo(); refresh3D(); v3.render(); overlay3D(); api.toast(t('deleted')); ed.m3 = null; markActive(null); return;
   }
   if (name === 'move' && !ed.sel.size) { api.toast(t('select3First')); ed.m3 = null; return; }
+  if (name === 'geo') {
+    const M = await geoMod();
+    if (!M) { ed.m3 = null; markActive(null); return; }
+    const res = await askForm(t('geo3Title'), [{ id: 'mode', label: t('geo3Mode'), type: 'select', value: geoLast, options: M.MODES.map(m => [m.id, t('geo3_' + m.id)]) }], { ok: t('ok') });
+    if (!res) { ed.m3 = null; markActive(null); return; }
+    geoLast = res.mode;
+    const md = M.MODES.find(x => x.id === res.mode);
+    ed.m3 = { name: 'geo', mode: res.mode, pts: [], need: M.needsOf(res.mode), min: md ? md.min : M.needsOf(res.mode) };
+  }
   prompt3D();
+}
+/** 3B ölçüm çekirdeği yalnız kullanıldığında yüklenir */
+let geoM = null, geoLast = 'ptline';
+async function geoMod() {
+  if (geoM) return geoM;
+  try { geoM = await import('./measure3d.js'); } catch (e) { console.warn(e); api.toast(t('error'), { type: 'error' }); return null; }
+  return geoM;
+}
+/** 3B ölçüm sonucunu satırlara çevirir: modül i18n ANAHTARI verir, metni burada kurarız */
+function geoRows(res) {
+  const u = S.units ? ' ' + S.units : '';
+  const out = [];
+  for (const [key, val, kind] of res.rows || []) {
+    const label = t(key);
+    if (val == null) { out.push([label, '\u2013']); continue; }
+    if (kind === 'deg') out.push([label, fmt(val, 2) + '\u00b0']);
+    else if (kind === 'bool') out.push([label, val ? t('yes') : t('no')]);
+    else if (kind === 'pt') out.push([label, Array.isArray(val) ? val.map(v => fmt(v)).join(' ; ') : String(val)]);
+    else out.push([label, fmt(val) + u]);
+  }
+  return out;
+}
+/** Yeterli nokta toplandıysa ölçümü hesaplar ve gösterir; yoksa istem güncellenir */
+async function geoStep() {
+  const m = ed.m3; if (!m || m.name !== 'geo') return;
+  const M = await geoMod(); if (!M) return;
+  // 'smartangle' en az üç noktayla (tepe açısı) sonuç verir, dördüncüyle (iki doğru arası açı)
+  // sonucu tazeler: min'e ulaşınca gösterilir, need'e ulaşınca noktalar sıfırlanır
+  if (m.pts.length < (m.min || m.need)) { prompt3D(); v3.render(); overlay3D(); return; }
+  const res = M.compute(m.mode, m.pts.slice());
+  if (!res) api.toast(t('geo3Degenerate'), { type: 'warn' });
+  else showResult([[t('geo3Mode'), t('geo3_' + m.mode)], ...geoRows(res)]);
+  m.guides = res && typeof M.guides === 'function' ? M.guides(m.mode, m.pts.slice()) : null;
+  if (m.pts.length >= m.need) m.pts = [];
+  prompt3D(); v3.render(); overlay3D();
+}
+/** 3B açıklama: seçilen köşeye ok başlı etiket konur (etiket o köşenin kotundadır) */
+async function noteStep(p) {
+  const m = ed.m3; if (!m) return;
+  const txt = await askText(t('note3Prompt'), '', { words: true });
+  if (txt) {
+    const d = Math.max(1e-6, (S.ext ? (S.ext[2] - S.ext[0]) : 100) / 30);
+    ed.addAnnot([[p[0], p[1], p[2]], [p[0] + d, p[1] + d, p[2]]], txt);
+    api.toast(txt.slice(0, 40));
+  }
+  m.pts = [];
+  prompt3D(); if (v3) v3.render(); overlay3D();
 }
 function prompt3D() {
   const m = ed.m3; if (!m) return;
-  const txt = { select: `${t('p3Select')} [${ed.sel.size} ${t('selCount')}]`, dist: m.pts.length ? t('p3Dist2') : t('p3Dist1'), move: m.pts.length ? t('p3Move2') : t('p3Move1'), pline: `${t('p3Pline')} [${m.pts.length} ${t('pointsN')}] · ${t('finish')}` }[m.name];
+  const txt = m.name === 'geo'
+    ? `${t('geo3_' + m.mode)} · ${t('geo3Pick')} [${m.pts.length}/${m.need}]`
+    : m.name === 'note' ? t('p3Note')
+      : { select: `${t('p3Select')} [${ed.sel.size} ${t('selCount')}]`, dist: m.pts.length ? t('p3Dist2') : t('p3Dist1'), move: m.pts.length ? t('p3Move2') : t('p3Move1'), pline: `${t('p3Pline')} [${m.pts.length} ${t('pointsN')}] · ${t('finish')}` }[m.name];
   $('cmdBar').hidden = false; $('cmdText').textContent = txt;
   $('cmdInput').hidden = m.name !== 'pline'; $('cmdInput').placeholder = 'x,y,z';
   $('cmdBtns').innerHTML = (m.name === 'pline' ? `<button type="button" data-cmd3="finish">${esc(t('finishBtn'))}</button>` : '') + (m.pts.length ? `<button type="button" data-cmd3="back">${esc(t('backBtn'))}</button>` : '') + `<button type="button" data-cmd3="cancel">${esc(t('cancelBtn'))}</button>`;
@@ -788,6 +895,16 @@ function overlay3D() {
     const ps = ed.m3.pts.map(p => v3.project(p[0], p[1], p[2]));
     c.beginPath(); ps.forEach((p, i) => i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1])); c.stroke();
     ps.forEach((p, i) => { c.beginPath(); c.arc(p[0], p[1], 5, 0, TAU); c.fill(); c.fillStyle = '#fff'; c.fillText(String(i + 1), p[0] + 7, p[1] - 7); c.fillStyle = acc; });
+  }
+  if (ed.m3 && ed.m3.name === 'geo' && ed.m3.guides && ed.m3.guides.length) {
+    // ölçülen dikme / izdüşüm: kesik çizgi, seçim renginden ayrı dursun diye yeşil
+    c.save(); c.strokeStyle = '#3ddc84'; c.lineWidth = 2; c.setLineDash([6, 4]);
+    for (const g of ed.m3.guides) {
+      if (!g || g.length < 2) continue;
+      const a = v3.project(g[0][0], g[0][1], g[0][2]), b = v3.project(g[1][0], g[1][1], g[1][2]);
+      c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke();
+    }
+    c.restore();
   }
   if (p3.snap) { const s = v3.project(p3.snap[0], p3.snap[1], p3.snap[2]); c.strokeStyle = '#3ddc84'; c.lineWidth = 2; c.strokeRect(s[0] - 7, s[1] - 7, 14, 14); }
 }

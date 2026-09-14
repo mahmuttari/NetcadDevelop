@@ -3,6 +3,8 @@
  *   askText(label, def, { type:'text'|'number', multiline, ph, ok, cancel, words }) → Promise<string|null>
  *   words:true → kutunun üstünde hazır ifade çipleri (son kullanılanlar önde); onaylanan metin listeye yazılır
  *   askConfirm(msg, { ok, cancel })                                       → Promise<boolean>
+ *   askForm(label, fields, { ok, cancel })                                → Promise<obj|null>
+ *     fields: [{ id, label, type:'number'|'text'|'select'|'check', value, options:[[deger,etiket]], min, max, step, hint }]
  *   isOpen() · cancel()   geri tuşu için (app.onBack)
  * Kutu #app içinde durur: tema, yazı ölçeği (--fs) ve eldiven modu kendiliğinden uygulanır.
  * Enter / Tamam onaylar, Esc / Vazgeç / geri tuşu kapatır. Aynı anda tek kutu açık kalır.
@@ -46,6 +48,7 @@ function finish(okPressed) {
   const d = $('askDlg'), c = cur; cur = null;
   let value = null;
   if (c.kind === 'confirm') value = !!okPressed;
+  else if (c.kind === 'form') value = okPressed ? true : null;   // alanları askForm okur; kutu kapanmadan önce DOM duruyor
   else if (okPressed) { const inp = d.querySelector('#askIn'); value = inp ? inp.value : ''; if (c.words) rememberWord(value); }
   d.hidden = true;
   try { if (c.prevFocus && typeof c.prevFocus.focus === 'function') c.prevFocus.focus(); } catch (_) { /* yok */ }
@@ -72,6 +75,7 @@ function fromQueue(kind, label) {
   if (!Array.isArray(hook.queue) || !hook.queue.length) return undefined;
   const v = hook.queue.shift();
   if (kind === 'confirm') return !(v === false || v === null || v === 'false' || v === '0' || v === '' || v === 0);
+  if (kind === 'form') return v === null || v === false ? null : v;      // form cevabı nesnedir, metne çevrilmez
   return v === null || v === false ? null : String(v);
 }
 const escA = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -87,6 +91,46 @@ export function askText(label, def = '', opts = {}) {
     : `<input id="askIn" class="opt-text" type="text" value="${val}" autocomplete="off"${ph} ${o.type === 'number' ? 'inputmode="decimal"' : ''}${o.maxlength ? ` maxlength="${o.maxlength}"` : ''}>`);
   return open('text', label, field, o);
 }
+/**
+ * Çok alanlı giriş (dizi sayıları, bul-değiştir, toplu işlem seçenekleri…).
+ * Vazgeçilirse null; onaylanırsa alan kimliklerinden değerlere bir nesne döner
+ * (number alanları sayıya çevrilir, check alanları boolean'dır).
+ * Sınama kancası: __ask.queue'ya nesne konursa kutu açılmadan o nesne döner.
+ */
+export function askForm(label, fields, opts = {}) {
+  const list = (fields || []).filter(f => f && f.id);
+  const q = fromQueue('form', label);
+  if (q !== undefined) {
+    if (q === null) return Promise.resolve(null);
+    const def = {}; for (const f of list) def[f.id] = f.value;
+    return Promise.resolve(typeof q === 'object' ? { ...def, ...q } : def);
+  }
+  const o = opts || {};
+  const row = (f) => {
+    const id = 'askF_' + f.id;
+    if (f.type === 'check') return `<label class="chk"><input type="checkbox" id="${id}" data-f="${escA(f.id)}" ${f.value ? 'checked' : ''}> ${escA(f.label)}</label>`;
+    let inp;
+    if (f.type === 'select') inp = `<select id="${id}" data-f="${escA(f.id)}">${(f.options || []).map(([v, t2]) => `<option value="${escA(v)}"${String(v) === String(f.value) ? ' selected' : ''}>${escA(t2)}</option>`).join('')}</select>`;
+    else inp = `<input id="${id}" data-f="${escA(f.id)}" type="text"${f.type === 'number' ? ' inputmode="decimal"' : ''} value="${escA(f.value == null ? '' : f.value)}" autocomplete="off">`;
+    return `<div class="ask-row"><span class="ask-lb">${escA(f.label)}</span>${inp}</div>`;
+  };
+  const html = `<div class="ask-form">${list.map(row).join('')}</div>`
+    + (o.hint ? `<div class="muted ask-hint">${escA(o.hint)}</div>` : '');
+  const pr = open('form', label, html, o);
+  return pr.then((v) => {
+    if (v === null) return null;
+    const out = {};
+    for (const f of list) {
+      const el = document.getElementById('askF_' + f.id);
+      if (!el) { out[f.id] = f.value; continue; }
+      if (f.type === 'check') out[f.id] = !!el.checked;
+      else if (f.type === 'number') { const n = parseFloat(String(el.value).replace(',', '.')); out[f.id] = isFinite(n) ? n : (f.value == null ? 0 : f.value); }
+      else out[f.id] = el.value;
+    }
+    return out;
+  });
+}
+
 /** Evet / hayır onayı */
 export function askConfirm(msg, opts = {}) {
   const q = fromQueue('confirm', msg); if (q !== undefined) return Promise.resolve(q);

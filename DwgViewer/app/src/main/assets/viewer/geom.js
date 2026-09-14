@@ -437,3 +437,259 @@ export function meshMetrics(vtx, idx, cosLimit = 0.5) {
   out.volume = Math.abs(vol);
   return out;
 }
+
+// ---------------------------------------------------------------------------------------
+// Çokgen üçgenlemesi (kulak kırpma)
+// ---------------------------------------------------------------------------------------
+/**
+ * Basit (kendini kesmeyen) çokgeni üçgenlere ayırır. pts: [[x,y]…] kapalı kabul edilir
+ * (son nokta ilkine eşitse yok sayılır). Dönüş: köşe DİZİNLERİ üçlüleri [i,j,k,…].
+ * Kulak kırpma O(n²)'dir; profil ve tarama sınırı gibi yüz köşeli çokgenler için fazlasıyla hızlıdır.
+ * Yön (saat yönü / tersi) kendiliğinden düzeltilir; dejenere üçgen üretilmez.
+ */
+export function triangulate(pts) {
+  const P = pts.slice();
+  if (P.length > 1) { const a = P[0], b = P[P.length - 1]; if (Math.abs(a[0] - b[0]) < 1e-12 && Math.abs(a[1] - b[1]) < 1e-12) P.pop(); }
+  const n = P.length;
+  if (n < 3) return [];
+  const idx = P.map((_, i) => i);
+  if (polyArea2(P) < 0) idx.reverse();                 // kulak kırpma saat yönü tersi ister
+  const out = [];
+  let guard = 2 * n;
+  while (idx.length > 3 && guard-- > 0) {
+    let clipped = false;
+    for (let i = 0; i < idx.length; i++) {
+      const a = idx[(i - 1 + idx.length) % idx.length], b = idx[i], c = idx[(i + 1) % idx.length];
+      if (!isEar(P, idx, a, b, c)) continue;
+      out.push([a, b, c]);
+      idx.splice(i, 1);
+      clipped = true;
+      break;
+    }
+    if (!clipped) break;                                // kendini kesen ya da dejenere çokgen: elde kalanı yelpaze yap
+  }
+  if (idx.length === 3) out.push([idx[0], idx[1], idx[2]]);
+  else if (idx.length > 3) for (let i = 1; i + 1 < idx.length; i++) out.push([idx[0], idx[i], idx[i + 1]]);
+  return out;
+}
+/** İşaretli iki katı alan (yön belirlemek için) */
+function polyArea2(P) { let s = 0; for (let i = 0, n = P.length; i < n; i++) { const a = P[i], b = P[(i + 1) % n]; s += a[0] * b[1] - b[0] * a[1]; } return s; }
+function isEar(P, idx, a, b, c) {
+  const A = P[a], B = P[b], C = P[c];
+  const cross = (B[0] - A[0]) * (C[1] - A[1]) - (B[1] - A[1]) * (C[0] - A[0]);
+  if (cross <= 1e-12) return false;                     // dışbükey değil (ya da dejenere)
+  for (const q of idx) {
+    if (q === a || q === b || q === c) continue;
+    if (inTri(P[q], A, B, C)) return false;
+  }
+  return true;
+}
+function inTri(p, a, b, c) {
+  const d = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1]);
+  if (Math.abs(d) < 1e-15) return false;
+  const u = ((b[1] - c[1]) * (p[0] - c[0]) + (c[0] - b[0]) * (p[1] - c[1])) / d;
+  const v = ((c[1] - a[1]) * (p[0] - c[0]) + (a[0] - c[0]) * (p[1] - c[1])) / d;
+  return u >= -1e-12 && v >= -1e-12 && u + v <= 1 + 1e-12;
+}
+
+// ---------------------------------------------------------------------------------------
+// 3B vektör ve geometrik ölçüm çekirdeği
+// ---------------------------------------------------------------------------------------
+/*
+ * Aşağıdaki işlevler 3B ölçüm ailesinin (nokta-doğru, nokta-düzlem, doğru-doğru, doğru-düzlem,
+ * düzlem-düzlem, düzlemler arası açı) hesap çekirdeğidir. Hepsi saf: girdi [x,y,z] dizileri,
+ * çıktı sayı ya da küçük nesne. Ekran, seçim ve birim çevrimi çağıranın işidir.
+ * Paralellik eşiği EPS_PAR: iki doğrultunun çapraz çarpım büyüklüğü bunun altındaysa paralel sayılır.
+ */
+const EPS_PAR = 1e-9;
+export const v3sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+export const v3add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+export const v3mul = (a, s) => [a[0] * s, a[1] * s, a[2] * s];
+export const v3dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+export const v3cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+export const v3len = (a) => Math.hypot(a[0], a[1], a[2]);
+export const v3norm = (a) => { const L = v3len(a); return L > 0 ? [a[0] / L, a[1] / L, a[2] / L] : [0, 0, 0]; };
+export const dist3 = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+/** İki doğrultu arasındaki dar açı, derece (0-90) */
+export const angleBetween = (u, v) => {
+  const lu = v3len(u), lv = v3len(v);
+  if (!(lu > 0) || !(lv > 0)) return NaN;
+  const c = Math.min(1, Math.max(-1, Math.abs(v3dot(u, v)) / (lu * lv)));
+  return Math.acos(c) * 180 / Math.PI;
+};
+/** Nokta – doğru (a,b) uzaklığı ve doğru üzerindeki dik ayağı */
+export function pointLine3(p, a, b) {
+  const d = v3sub(b, a), L2 = v3dot(d, d);
+  if (L2 < 1e-24) return { dist: dist3(p, a), foot: a.slice(), t: 0 };
+  const t = v3dot(v3sub(p, a), d) / L2;
+  const foot = v3add(a, v3mul(d, t));
+  return { dist: dist3(p, foot), foot, t };
+}
+/** Üç noktadan düzlem: {n (birim normal), d} — n·x = d; noktalar doğrusalsa null */
+export function planeFrom3(a, b, c) {
+  const n0 = v3cross(v3sub(b, a), v3sub(c, a));
+  if (v3len(n0) < EPS_PAR) return null;
+  const n = v3norm(n0);
+  return { n, d: v3dot(n, a), p0: a.slice() };
+}
+/** Nokta – düzlem işaretli uzaklığı ve düzlem üzerindeki izdüşümü */
+export function pointPlane3(p, pl) {
+  const s = v3dot(pl.n, p) - pl.d;
+  return { dist: Math.abs(s), signed: s, foot: v3sub(p, v3mul(pl.n, s)) };
+}
+/**
+ * Doğru – doğru: en kısa uzaklık, en yakın nokta çifti ve dar açı.
+ * Paralel doğrularda uzaklık nokta-doğru uzaklığıdır; kesişiyorlarsa uzaklık ~0 çıkar.
+ */
+export function lineLine3(a1, a2, b1, b2) {
+  const u = v3sub(a2, a1), v = v3sub(b2, b1), w = v3sub(a1, b1);
+  const A = v3dot(u, u), B = v3dot(u, v), C = v3dot(v, v), D = v3dot(u, w), E = v3dot(v, w);
+  const den = A * C - B * B;
+  const ang = angleBetween(u, v);
+  if (Math.abs(den) < EPS_PAR * Math.max(1, A * C)) {          // paralel
+    const r = pointLine3(b1, a1, a2);
+    return { dist: r.dist, parallel: true, angle: 0, pa: r.foot, pb: b1.slice() };
+  }
+  const s = (B * E - C * D) / den, t = (A * E - B * D) / den;
+  const pa = v3add(a1, v3mul(u, s)), pb = v3add(b1, v3mul(v, t));
+  return { dist: dist3(pa, pb), parallel: false, angle: ang, pa, pb };
+}
+/** Doğru – düzlem: kesişiyorsa uzaklık 0 ve kesişim noktası; paralelse uzaklık ve açı 0 */
+export function linePlane3(a, b, pl) {
+  const u = v3sub(b, a), dn = v3dot(pl.n, u);
+  const ang = 90 - angleBetween(u, pl.n);                       // doğru ile düzlem arasındaki açı
+  if (Math.abs(dn) < EPS_PAR * Math.max(1, v3len(u))) {         // paralel: uzaklık sabittir
+    return { dist: pointPlane3(a, pl).dist, parallel: true, angle: 0, at: null };
+  }
+  const t = (pl.d - v3dot(pl.n, a)) / dn;
+  return { dist: 0, parallel: false, angle: Math.abs(ang), at: v3add(a, v3mul(u, t)) };
+}
+/** Düzlem – düzlem: paralellerse uzaklık, değilse açı (0-90) */
+export function planePlane3(p1, p2) {
+  const ang = angleBetween(p1.n, p2.n);
+  const par = v3len(v3cross(p1.n, p2.n)) < 1e-7;
+  if (par) {
+    const s = v3dot(p1.n, p2.p0) - p1.d;
+    return { parallel: true, dist: Math.abs(s), angle: 0 };
+  }
+  return { parallel: false, dist: 0, angle: ang };
+}
+
+/**
+ * Revizyon bulutu: verilen yolu, dışa doğru kabaran r yarıçaplı yay dizisine çevirir.
+ * Dönüş, ilkel `ops` biçimindedir (bir moveto + yaylar). closed ise yol kapatılır.
+ * Yay uzunluğu yolun toplam uzunluğuna göre eşit bölünür, böylece köşelerde yarım yay kalmaz.
+ */
+export function cloudOps(pts, r, closed = true) {
+  const P = pts.filter(p => p && isFinite(p[0]) && isFinite(p[1]));
+  if (P.length < 2) return null;
+  const z = P[0][2] || 0;
+  const ring = closed ? P.concat([P[0]]) : P;
+  // yol boyunca eşit aralıklı örnek noktalar
+  let total = 0;
+  const segLen = [];
+  for (let i = 1; i < ring.length; i++) { const L = Math.hypot(ring[i][0] - ring[i - 1][0], ring[i][1] - ring[i - 1][1]); segLen.push(L); total += L; }
+  if (!(total > 0)) return null;
+  const R = r > 0 ? r : total / 40;
+  const chord = Math.min(2 * R * 0.95, total);            // yay kirişi çapı geçemez
+  const n = Math.max(closed ? 3 : 1, Math.round(total / chord));
+  const step = total / n;
+  const at = (s) => {                                      // yol üzerinde s uzunluğundaki nokta
+    let acc = 0;
+    for (let i = 0; i < segLen.length; i++) {
+      if (acc + segLen[i] >= s - 1e-12) { const t = segLen[i] > 0 ? (s - acc) / segLen[i] : 0; const a = ring[i], b = ring[i + 1]; return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; }
+      acc += segLen[i];
+    }
+    const last = ring[ring.length - 1];
+    return [last[0], last[1]];
+  };
+  const ccwPath = closed ? polyArea(P) > 0 : true;         // dışarı yön: saat yönü tersi yolda sola değil sağa
+  const ops = [];
+  const first = at(0);
+  ops.push([0, first[0], first[1], z]);
+  for (let i = 0; i < n; i++) {
+    const A = at(i * step), B = at(Math.min(total, (i + 1) * step));
+    const dx = B[0] - A[0], dy = B[1] - A[1], L = Math.hypot(dx, dy);
+    if (!(L > 1e-12)) continue;
+    const half = L / 2;
+    const rr = Math.max(R, half * 1.02);
+    const h = Math.sqrt(Math.max(0, rr * rr - half * half));
+    // dışa doğru birim normal (kapalı yolda çokgenin dışı, açık yolda solu)
+    const nx = ccwPath ? dy / L : -dy / L, ny = ccwPath ? -dx / L : dx / L;
+    const mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2;
+    const cx = mx - nx * h, cy = my - ny * h;              // merkez içeride: yay dışa kabarır
+    const a0 = Math.atan2(A[1] - cy, A[0] - cx), a1 = Math.atan2(B[1] - cy, B[0] - cx);
+    const am = Math.atan2(my + ny * (rr - h) - cy, mx + nx * (rr - h) - cx);
+    const norm = (v) => ((v % TAU) + TAU) % TAU;
+    const ccw = norm(am - a0) <= norm(a1 - a0);            // tepe noktası saat yönü tersi taramada mı?
+    ops.push([ccw ? 2 : -2, cx, cy, rr, a0, a1, z]);
+  }
+  return ops.length > 1 ? ops : null;
+}
+
+/**
+ * 2B profili düşeyde h kadar süpürerek üçgen ağ gövdesi üretir (kalınlık / extrusion).
+ *   prof   [[x,y,z]…] taban profili; kapalıysa son nokta ilkine eşit olabilir (atılır)
+ *   h      yükseklik (eksi olabilir: aşağı süpürür)
+ *   closed profil kapalı mı (yan yüzler halkayı tamamlar)
+ *   cap    kapalı profilde alt ve üst yüzler doldurulsun mu
+ * Dönüş: { vtx:Float32Array, idx:Uint32Array, seg:Float32Array, bb, zmin, zmax } — k=5 ilkelinin alanları.
+ */
+export function extrudeMesh(prof, h, closed = true, cap = true) {
+  if (!prof || prof.length < 2 || !isFinite(h) || h === 0) return null;
+  let ring = prof.map(p => [p[0], p[1], p[2] || 0]);
+  if (closed && ring.length > 2) {
+    const a = ring[0], b = ring[ring.length - 1];
+    if (Math.abs(a[0] - b[0]) < 1e-12 && Math.abs(a[1] - b[1]) < 1e-12) ring = ring.slice(0, -1);
+  }
+  const N = ring.length;
+  if (N < 2) return null;
+  const vtx = new Float32Array(N * 2 * 3);
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+  for (let i = 0; i < N; i++) {
+    const p = ring[i];
+    vtx[i * 3] = p[0]; vtx[i * 3 + 1] = p[1]; vtx[i * 3 + 2] = p[2];
+    const j = (N + i) * 3;
+    vtx[j] = p[0]; vtx[j + 1] = p[1]; vtx[j + 2] = p[2] + h;
+    if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0];
+    if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1];
+    if (p[2] < z0) z0 = p[2]; if (p[2] > z1) z1 = p[2];
+    if (p[2] + h < z0) z0 = p[2] + h; if (p[2] + h > z1) z1 = p[2] + h;
+  }
+  const tris = [];
+  const last = closed ? N : N - 1;
+  for (let i = 0; i < last; i++) {
+    const a = i, b = (i + 1) % N, c = N + i, d = N + ((i + 1) % N);
+    tris.push(a, b, d, a, d, c);
+  }
+  if (cap && closed && N >= 3) {
+    const t = triangulate(ring.map(p => [p[0], p[1]]));
+    for (const [a, b, c] of t) { tris.push(a, c, b); tris.push(N + a, N + b, N + c); }   // alt yüz aşağı, üst yüz yukarı bakar
+  }
+  const idx = new Uint32Array(tris);
+  const seg = [];
+  const push = (i, j) => { seg.push(vtx[i * 3], vtx[i * 3 + 1], vtx[i * 3 + 2], vtx[j * 3], vtx[j * 3 + 1], vtx[j * 3 + 2]); };
+  for (let i = 0; i < last; i++) { push(i, (i + 1) % N); push(N + i, N + ((i + 1) % N)); }
+  for (let i = 0; i < N; i++) push(i, N + i);
+  return { vtx, idx, seg: new Float32Array(seg), bb: [x0, y0, x1, y1], zmin: z0, zmax: z1 };
+}
+
+/**
+ * Verilen dünya noktasını içine alan EN KÜÇÜK kapalı ilkeli bulur (tarama ve dolgu alanı için).
+ * Yalnız kapalı ya da dolu k=0 yolları sayılır; iç içe alanlarda en küçüğü seçilir ki
+ * bir odanın içine dokunulduğunda bütün bina değil oda bulunsun.
+ * Dönüş: { prim, pts, area } ya da null.
+ */
+export function enclosingPrim(prims, x, y) {
+  let best = null, bestArea = Infinity;
+  for (const p of prims) {
+    if (!p || p.k !== 0 || !p.bb || !(p.closed || p.fill)) continue;
+    if (x < p.bb[0] || x > p.bb[2] || y < p.bb[1] || y > p.bb[3]) continue;
+    const pts = flatten(p.ops);
+    if (pts.length < 3) continue;
+    if (!pointInPoly(pts, x, y)) continue;
+    const a = Math.abs(polyArea(pts));
+    if (a > 0 && a < bestArea) { bestArea = a; best = { prim: p, pts, area: a }; }
+  }
+  return best;
+}

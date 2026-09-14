@@ -5,14 +5,16 @@
  *   snap(w) → {p:[x,y,z],kind}|null    pick(w) → prim|null      sel: Set<prim>
  *   prompt(text, opts)   → komut satırı metni ve giriş alanı ({input:'point'|'number'|'text'|null, buttons:[…]})
  *   run(cmd)             → EditDoc.run
- *   render()  overlay()  toast(msg)  result(rows)  layer()  color()  newKey()
+ *   render()  overlay()  toast(msg)  result(rows)  layer()  color()
+ *   visiblePrims()  allPrims()  copy(metin)  lonLat(x,y)  textHeight()
  *   fmt(v)   units()     unitToM()
  * Nokta girişi: dokunma (yakalamalı) ya da yazılı: "x,y" | "x,y,z" | "@dx,dy" | "@L<açı"
  */
-import { TAU, flatten, polyArea, pathLength, segDist, opsBBox } from './geom.js';
+import { TAU, flatten, polyArea, pathLength, segDist, opsBBox, enclosingPrim } from './geom.js';
 import { newId, offsetPoints } from './edit.js';
 import { t, addStrings } from './i18n.js';
-import { askText, askConfirm } from './dialog.js';
+import { askText, askConfirm, askForm } from './dialog.js';
+import { dimLinear, dimRadial, dimAngular, leaderEnts, cloudEnt, balloonEnts, arrayItems } from './annot.js';
 
 const R2D = 180 / Math.PI, D2R = Math.PI / 180;
 
@@ -44,11 +46,43 @@ export const TOOLS = {
   angle: { name: 'Açı', en: 'Angle', steps: ['Köşe (tepe) noktası', 'Birinci kol noktası', 'İkinci kol noktası'], stepsEn: ['Vertex point', 'First arm point', 'Second arm point'] },
   radius: { name: 'Yarıçap', en: 'Radius', steps: ['Daire ya da yaya dokunun'], stepsEn: ['Tap a circle or arc'] },
   coord: { name: 'Koordinat', en: 'Coordinate', steps: ['Noktaya dokunun'], stepsEn: ['Tap a point'] },
+  fillarea: { name: 'Dolgu alanı', en: 'Fill area', steps: ['Kapalı alanın içine dokunun'], stepsEn: ['Tap inside a closed area'] },
+  // ölçülendirme ve açıklama
+  dim: { name: 'Doğrusal ölçü', en: 'Linear dimension', steps: ['Birinci ölçü noktası', 'İkinci ölçü noktası', 'Ölçü çizgisinin yerini seçin'], stepsEn: ['First extension point', 'Second extension point', 'Pick the dimension line position'] },
+  dimh: { name: 'Yatay ölçü', en: 'Horizontal dimension', steps: ['Birinci ölçü noktası', 'İkinci ölçü noktası', 'Ölçü çizgisinin yerini seçin'], stepsEn: ['First extension point', 'Second extension point', 'Pick the dimension line position'] },
+  dimv: { name: 'Düşey ölçü', en: 'Vertical dimension', steps: ['Birinci ölçü noktası', 'İkinci ölçü noktası', 'Ölçü çizgisinin yerini seçin'], stepsEn: ['First extension point', 'Second extension point', 'Pick the dimension line position'] },
+  dimr: { name: 'Yarıçap ölçüsü', en: 'Radius dimension', steps: ['Daire ya da yaya dokunun'], stepsEn: ['Tap a circle or arc'] },
+  dimd: { name: 'Çap ölçüsü', en: 'Diameter dimension', steps: ['Daire ya da yaya dokunun'], stepsEn: ['Tap a circle or arc'] },
+  dima: { name: 'Açı ölçüsü', en: 'Angular dimension', steps: ['Tepe (köşe) noktası', 'Birinci kol noktası', 'İkinci kol noktası'], stepsEn: ['Vertex point', 'First arm point', 'Second arm point'] },
+  leader: { name: 'Açıklama', en: 'Leader note', steps: ['Ok ucunu seçin', 'Kırılma noktası seçin · Bitir'], stepsEn: ['Pick the arrow tip', 'Pick a bend point · Finish'] },
+  cloud: { name: 'Revizyon bulutu', en: 'Revision cloud', steps: ['Köşeleri seçin · Bitir'], stepsEn: ['Pick the corners · Finish'] },
+  balloon: { name: 'Numaralandırma', en: 'Numbering', steps: ['Balon konumunu seçin (numara artarak sürer)'], stepsEn: ['Pick the balloon position (the number keeps increasing)'] },
+  hatch: { name: 'Tarama', en: 'Hatch', steps: ['Doldurulacak kapalı alanın içine dokunun'], stepsEn: ['Tap inside the closed area to fill'] },
+  // düzenleme
+  array: { name: 'Dizi', en: 'Array', steps: ['Nesneleri seçin · Bitir'], stepsEn: ['Select objects · Finish'] },
+  thick: { name: 'Kalınlık', en: 'Thickness', steps: ['Nesneleri seçin · Bitir', 'Yüksekliği yazın'], stepsEn: ['Select objects · Finish', 'Type the height'] },
+  textsize: { name: 'Yazı yüksekliği', en: 'Text height', steps: ['Yazıları seçin · Bitir', 'Yüksekliği yazın'], stepsEn: ['Select texts · Finish', 'Type the height'] },
+  explode: { name: 'Patlat', en: 'Explode', steps: ['Blok yerleştirmesine dokunun'], stepsEn: ['Tap a block insertion'] },
+  attr: { name: 'Öznitelik düzenle', en: 'Edit attributes', steps: ['Blok yerleştirmesine dokunun'], stepsEn: ['Tap a block insertion'] },
 };
 { const tr = {}, en = {}; for (const [k, d] of Object.entries(TOOLS)) { tr['tool_' + k] = d.name; en['tool_' + k] = d.en || d.name; d.steps.forEach((st, i) => { tr[`tstep_${k}_${i}`] = st; en[`tstep_${k}_${i}`] = (d.stepsEn && d.stepsEn[i]) || st; }); } addStrings(tr, en); }
 const toolName = (k) => t('tool_' + k);
 const toolStep = (k, i) => t(`tstep_${k}_${i}`);
-const SELECT_TOOLS = new Set(['move', 'copy', 'rotate', 'scale', 'mirror', 'offset', 'del', 'setz']);
+const SELECT_TOOLS = new Set(['move', 'copy', 'rotate', 'scale', 'mirror', 'offset', 'del', 'setz', 'array', 'thick', 'textsize']);
+/** Sayı girişi bekleyen araçlar ve hangi adımda beklediği — TEK kaynak (say / typed / tap buraya bakar) */
+const NUMBER_STEP = { circle: 1, rotate: 2, scale: 2, offset: 1, setz: 1, thick: 1, textsize: 1 };
+/** Nokta değil NESNE (ya da kapalı alan) seçilerek çalışan araçlar */
+const OBJECT_TOOLS = new Set(['radius', 'edittext', 'dimr', 'dimd', 'explode', 'attr', 'hatch', 'fillarea']);
+/** Çok noktalı ölçülendirme / açıklama araçları: taslakları çizgi olarak gösterilir */
+const PATH_TOOLS = new Set(['dim', 'dimh', 'dimv', 'dima', 'leader', 'cloud']);
+/** Sonraki numara: sayıysa artar, harfle bitiyorsa harf ilerler ("A1"→"A2", "B"→"C") */
+function nextLabel(sN) {
+  const m = String(sN).match(/^(.*?)(\d+)$/);
+  if (m) return m[1] + String(parseInt(m[2], 10) + 1);
+  const c = String(sN).trim();
+  if (/^[A-Za-z]$/.test(c)) return String.fromCharCode(c.charCodeAt(0) + 1);
+  return c + '2';
+}
 
 export class ToolManager {
   constructor(api) {
@@ -68,7 +102,7 @@ export class ToolManager {
     const def = TOOLS[name];
     if (!def) return;
     this.cancel(true);
-    this.active = name; this.pts = []; this.step = 0; this.draft = null; this.results = [];
+    this.active = name; this.pts = []; this.step = 0; this.draft = null; this.results = []; this.balloonNext = null;
     if (SELECT_TOOLS.has(name)) {
       this.selecting = this.api.sel.size === 0;
       if (!this.selecting) { this.step = 1; }
@@ -77,7 +111,7 @@ export class ToolManager {
     this.say();
   }
   cancel(silent) {
-    if (this.active && this.active !== 'select' && this.pts.length && ['pline', 'pline3d', 'face3d', 'area'].includes(this.active)) this.finish();
+    if (this.active && this.active !== 'select' && this.pts.length && ['pline', 'pline3d', 'face3d', 'area', 'cloud'].includes(this.active)) this.finish();
     this.active = null; this.pts = []; this.step = 0; this.draft = null; this.selecting = false;
     if (!silent) { this.api.prompt(null); this.api.overlay(); }
   }
@@ -87,11 +121,10 @@ export class ToolManager {
     let text = toolName(this.active) + ': ';
     if (this.selecting) text += toolStep(this.active, 0) + `  [${this.api.sel.size} ${t('selCount')}]`;
     else text += toolStep(this.active, Math.min(this.step, def.steps.length - 1));
-    const numberTools = { circle: 1, rotate: 2, scale: 2, offset: 1, setz: 1 };
-    const wantsNumber = numberTools[this.active] != null && this.step === numberTools[this.active] && !this.selecting;
+    const wantsNumber = NUMBER_STEP[this.active] != null && this.step === NUMBER_STEP[this.active] && !this.selecting;
     const buttons = [];
-    if (this.selecting || ['pline', 'pline3d', 'face3d', 'area', 'copy', 'line', 'dist'].includes(this.active)) buttons.push('finish');
-    if (['pline', 'area'].includes(this.active) && this.pts.length > 2) buttons.push('close');
+    if (this.selecting || ['pline', 'pline3d', 'face3d', 'area', 'copy', 'line', 'dist', 'leader', 'cloud'].includes(this.active)) buttons.push('finish');
+    if (['pline', 'area', 'cloud'].includes(this.active) && this.pts.length > 2) buttons.push('close');
     if (this.pts.length) buttons.push('back');
     if (this.selecting) buttons.push('selall');
     buttons.push('cancel');
@@ -104,8 +137,7 @@ export class ToolManager {
     const s = String(text).trim().replace(/,/g, (m, i, str) => (str.indexOf(',') !== str.lastIndexOf(',') || /\d,\d{1,3}$/.test(str) && !/,.*,/.test(str) && false) ? ',' : ',');
     if (!s) return;
     if (this.selecting) return;
-    const numberTools = { circle: 1, rotate: 2, scale: 2, offset: 1, setz: 1 };
-    if (numberTools[this.active] != null && this.step === numberTools[this.active]) {
+    if (NUMBER_STEP[this.active] != null && this.step === NUMBER_STEP[this.active]) {
       const v = parseFloat(s.replace(',', '.'));
       if (!isFinite(v)) { this.api.toast(t('numberExpected')); return; }
       this.number = v;
@@ -140,30 +172,23 @@ export class ToolManager {
     if (!this.active) return false;
     if (this.selecting) {
       const p = this.api.pick(w);
-      if (p) { if (this.api.sel.has(p)) this.api.sel.delete(p); else this.api.sel.add(p); this.say(); this.api.overlay(); }
-      return true;
-    }
-    if (this.active === 'radius' || this.active === 'edittext') {
-      const p = this.api.pick(w);
-      if (!p) { this.api.toast(t('noObject')); return true; }
-      if (this.active === 'radius') {
-        const o = p.k === 0 ? p.ops.find(q => q[0] === 2 || q[0] === -2) : null;
-        if (!o) { this.api.toast(t('notCircle')); return true; }
-        const u = this.api.units();
-        this.api.result([[t('radius'), this.api.fmt(o[3]) + u], [t('diameter'), this.api.fmt(2 * o[3]) + u], [t('center'), this.api.fmt(o[1]) + ' ; ' + this.api.fmt(o[2])], [t('circumference'), this.api.fmt(pathLength(p.ops, p.closed)) + u]]);
-        this.draft = { circle: { c: [o[1], o[2]], r: o[3] } }; this.api.overlay();
-      } else {
-        if (p.k !== 1) { this.api.toast(t('notText')); return true; }
-        void this.editText(p);
+      if (p) {
+        // Grup damgası taşıyan parçalar (ölçülendirme, balon, lider) birlikte seçilir: biri taşınırsa hepsi taşınır
+        const gid = p.info && p.info.gid;
+        const group = gid ? this.api.visiblePrims().filter(q => q.info && q.info.gid === gid) : [p];
+        const on = this.api.sel.has(p);
+        for (const q of group) { if (on) this.api.sel.delete(q); else this.api.sel.add(q); }
+        this.say(); this.api.overlay();
       }
       return true;
     }
-    const numberTools = { circle: 1, rotate: 2, scale: 2, offset: 1, setz: 1 };
+    if (OBJECT_TOOLS.has(this.active)) { void this.objectTap(w); return true; }
     const sn = this.api.snap(w);
     const p = sn ? [sn.p[0], sn.p[1], sn.p[2] != null ? sn.p[2] : 0] : [w[0], w[1], 0];
-    if (numberTools[this.active] === this.step && this.active === 'scale') { this.api.toast(t('typeFactor')); return true; }
-    if (numberTools[this.active] === this.step && this.active === 'setz') { this.api.toast(t('typeZ')); return true; }
-    if (numberTools[this.active] === this.step && this.active === 'offset') { this.api.toast(t('typeDist')); return true; }
+    if (NUMBER_STEP[this.active] === this.step) {
+      const need = { scale: 'typeFactor', setz: 'typeZ', offset: 'typeDist', thick: 'typeHeight', textsize: 'typeHeight' }[this.active];
+      if (need) { this.api.toast(t(need)); return true; }
+    }
     void this.point(p, sn);
     return true;
   }
@@ -174,6 +199,159 @@ export class ToolManager {
     if (txt !== null && txt !== old) this.api.run({ op: 'edittext', keys: [p.key], text: txt });
     this.api.render();
   }
+  /**
+   * Nesneye (ya da kapalı alana) dokunarak çalışan araçlar. Ölçülendirmede dokunulan daireden
+   * yarıçap okunur, patlatmada ve öznitelikte dokunulan ilkelin BLOK bilgisi kullanılır.
+   */
+  async objectTap(w) {
+    const A = this.api, act = this.active;
+    if (act === 'hatch' || act === 'fillarea') { await this.regionTap(w); return; }
+    const p = A.pick(w);
+    if (!p) { A.toast(t('noObject')); return; }
+    if (act === 'radius' || act === 'dimr' || act === 'dimd') {
+      const o = p.k === 0 ? p.ops.find(q => q[0] === 2 || q[0] === -2) : null;
+      if (!o) { A.toast(t('notCircle')); return; }
+      const u = A.units();
+      if (act === 'radius') {
+        A.result([[t('radius'), A.fmt(o[3]) + u], [t('diameter'), A.fmt(2 * o[3]) + u], [t('center'), A.fmt(o[1]) + ' ; ' + A.fmt(o[2])], [t('circumference'), A.fmt(pathLength(p.ops, p.closed)) + u]]);
+        this.draft = { circle: { c: [o[1], o[2]], r: o[3] } }; A.overlay();
+        return;
+      }
+      const kind = act === 'dimd' ? 'diameter' : 'radius';
+      const label = (kind === 'diameter' ? '\u2300 ' : 'R ') + A.fmt(kind === 'diameter' ? 2 * o[3] : o[3]) + u;
+      const res = dimRadial(kind, [o[1], o[2], o[6] || 0], o[3], [w[0], w[1], o[6] || 0], this.annotOpts({ label }));
+      if (res) { this.commitMany(res.ents); A.toast(label); } else A.toast(t('dimFail'));
+      return;
+    }
+    if (act === 'edittext') {
+      if (p.k !== 1) { A.toast(t('notText')); return; }
+      await this.editText(p);
+      return;
+    }
+    const inf = p.info;
+    if (act === 'explode') {
+      if (!inf || inf.t !== 'INSERT') { A.toast(t('notBlock')); return; }
+      const group = A.allPrims().filter(q => q.info && q.info.h === inf.h && q.info.t === 'INSERT');
+      if (!group.length) { A.toast(t('notBlock')); return; }
+      const ids = group.map(() => newId());
+      if (A.run({ op: 'explode', h: inf.h, ids })) { A.toast(t('exploded') + ' \u00b7 ' + group.length); A.render(); }
+      return;
+    }
+    if (act === 'attr') {
+      if (!inf || !inf.attrs || !inf.attrs.length) { A.toast(t('noAttribs')); return; }
+      const fields = inf.attrs.map((a, i) => ({ id: 'a' + i, label: a[0] || ('#' + (i + 1)), type: 'text', value: a[1] }));
+      const res = await askForm(t('attrEdit') + (inf.name ? ' \u2014 ' + inf.name : ''), fields, { ok: t('apply') });
+      if (!res) return;
+      const items = [];
+      inf.attrs.forEach((a, i) => { const v = res['a' + i]; if (v != null && String(v) !== String(a[1])) items.push({ i, value: String(v) }); });
+      if (!items.length) return;
+      if (A.run({ op: 'attrib', h: inf.h, items })) { A.toast(t('applied')); A.render(); }
+    }
+  }
+  /** Kapalı alana dokunma: tarama ekler ya da alanı ölçer */
+  async regionTap(w) {
+    const A = this.api;
+    const reg = enclosingPrim(A.visiblePrims(), w[0], w[1]);
+    if (!reg) { A.toast(t('noRegion')); return; }
+    const u = A.units(), k = A.unitToM() || 1;
+    const z = (reg.prim.ops[0] && reg.prim.ops[0][3]) || 0;
+    const pts = reg.pts.map(q => [q[0], q[1], z]);
+    if (this.active === 'fillarea') {
+      const per = pathLength(reg.prim.ops, true);
+      const rows = [[t('area'), A.fmt(reg.area) + (u ? u + '\u00b2' : '')], [t('perimeter'), A.fmt(per) + u], [t('cornersN'), pts.length]];
+      if (k !== 1) rows.push([t('areaM2'), A.fmt(reg.area * k * k, 2) + ' m\u00b2'], [t('areaDa'), A.fmt(reg.area * k * k / 1000, 3) + ' da']);
+      else rows.push([t('areaDa'), A.fmt(reg.area / 1000, 3) + ' da'], [t('areaHa'), A.fmt(reg.area / 10000, 4) + ' ha']);
+      A.result(rows);
+      this.draft = { pts, segs: pts.slice(1).map((q, i) => [pts[i], q]), close: true, keep: true };
+      A.overlay();
+      return;
+    }
+    this.commitMany([{ type: 'HATCH', pts, alpha: 1 }]);
+    A.toast(t('hatchAdded') + ' \u00b7 ' + A.fmt(reg.area) + (u ? u + '\u00b2' : ''));
+  }
+  /** Açıklama üreticilerine verilen ortak seçenekler (yazı yüksekliği, katman, renk, grup) */
+  annotOpts(extra) {
+    const A = this.api;
+    return { h: A.textHeight() * 2.2, layer: A.layer(), color: A.color(), gid: newId(), ...(extra || {}) };
+  }
+  /** Birden çok varlığı TEK komutla ekler: tek geri alma, tek kayıt satırı */
+  commitMany(ents) {
+    const A = this.api;
+    const list = (ents || []).filter(Boolean).map(e => ({ ...e, id: newId(), layer: e.layer || A.layer(), color: e.color == null ? A.color() : e.color }));
+    if (!list.length) return false;
+    const ok = A.run({ op: 'add', ents: list });
+    A.render();
+    return ok;
+  }
+  /** Doğrusal / yatay / düşey ölçülendirme (üç nokta toplandığında) */
+  makeLinearDim() {
+    const A = this.api;
+    const kind = this.active === 'dimh' ? 'horizontal' : this.active === 'dimv' ? 'vertical' : 'aligned';
+    const [p1, p2, q] = this.pts;
+    const measure = kind === 'horizontal' ? Math.abs(p2[0] - p1[0]) : kind === 'vertical' ? Math.abs(p2[1] - p1[1]) : Math.hypot(p2[0] - p1[0], p2[1] - p1[1]);
+    if (!(measure > 1e-12)) { A.toast(t('dimFail')); return; }
+    const label = A.fmt(measure) + A.units();
+    const res = dimLinear(kind, p1, p2, q, this.annotOpts({ label }));
+    if (!res) { A.toast(t('dimFail')); return; }
+    this.commitMany(res.ents);
+    A.toast(label);
+  }
+  /** Açı ölçülendirmesi (tepe + iki kol) */
+  makeAngularDim() {
+    const A = this.api;
+    const [v, a, b] = this.pts;
+    let sweep = Math.atan2(b[1] - v[1], b[0] - v[0]) - Math.atan2(a[1] - v[1], a[0] - v[0]);
+    while (sweep <= -Math.PI) sweep += TAU;
+    while (sweep > Math.PI) sweep -= TAU;
+    const deg = Math.abs(sweep) * R2D;
+    if (!(deg > 1e-9)) { A.toast(t('dimFail')); return; }
+    const label = A.fmt(deg, 2) + '\u00b0';
+    const res = dimAngular(v, a, b, this.annotOpts({ label }));
+    if (!res) { A.toast(t('dimFail')); return; }
+    this.commitMany(res.ents);
+    A.toast(label);
+  }
+  /** Numaralandırma balonu; ilk dokunuşta başlangıç numarası sorulur, sonra kendiliğinden artar */
+  async makeBalloon(p) {
+    const A = this.api;
+    if (this.balloonNext == null) {
+      const v = await askText(t('balloonStart'), '1');
+      if (v === null) { this.cancel(); return; }
+      this.balloonNext = String(v).trim() || '1';
+    }
+    const ents = balloonEnts(p, this.balloonNext, this.annotOpts({}));
+    this.commitMany(ents);
+    A.toast(String(this.balloonNext));
+    this.balloonNext = nextLabel(this.balloonNext);
+  }
+  /** Dizi (artımlı kopya): seçim bittiğinde sayı kutusu açılır, bütün kopyalar tek komutta oluşur */
+  async runArray() {
+    const A = this.api;
+    const keys = [...A.sel].map(q => q.key);
+    if (!keys.length) { A.toast(t('selEmpty')); this.cancel(); return; }
+    const bb = [...A.sel].reduce((acc, q) => [Math.min(acc[0], q.bb[0]), Math.min(acc[1], q.bb[1]), Math.max(acc[2], q.bb[2]), Math.max(acc[3], q.bb[3])], [Infinity, Infinity, -Infinity, -Infinity]);
+    const w = isFinite(bb[0]) ? Math.max(bb[2] - bb[0], 1e-6) : 1, h = isFinite(bb[1]) ? Math.max(bb[3] - bb[1], 1e-6) : 1;
+    const res = await askForm(t('arrayTitle'), [
+      { id: 'kind', label: t('arrayKind'), type: 'select', value: 'rect', options: [['rect', t('arrayRect')], ['polar', t('arrayPolar')]] },
+      { id: 'nx', label: t('arrayCols'), type: 'number', value: 3 },
+      { id: 'ny', label: t('arrayRows'), type: 'number', value: 1 },
+      { id: 'dx', label: t('arrayDx'), type: 'number', value: Math.round(w * 1.2 * 1000) / 1000 },
+      { id: 'dy', label: t('arrayDy'), type: 'number', value: Math.round(h * 1.2 * 1000) / 1000 },
+      { id: 'n', label: t('arrayCount'), type: 'number', value: 6 },
+      { id: 'total', label: t('arrayAngle'), type: 'number', value: 360 },
+      { id: 'rotate', label: t('arrayRotate'), type: 'check', value: true },
+    ], { ok: t('apply'), hint: t('arrayHint') });
+    if (!res) { this.cancel(); return; }
+    const prm = res.kind === 'polar'
+      ? { n: res.n, total: res.total, rotate: res.rotate, center: [(bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2], base: [(bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2] }
+      : { nx: res.nx, ny: res.ny, dx: res.dx, dy: res.dy };
+    const items = arrayItems(res.kind === 'polar' ? 'polar' : 'rect', prm).map(it => ({ ...it, newKeys: keys.map(() => newId()) }));
+    if (!items.length) { A.toast(t('arrayNone')); this.cancel(); return; }
+    if (items.length * keys.length > 20000) { A.toast(t('arrayTooMany')); this.cancel(); return; }
+    if (A.run({ op: 'array', keys, items })) A.toast(t('arrayDone') + ' \u00b7 ' + (items.length + 1));
+    A.render();
+    this.done();
+  }
   onNumber(v) {
     const A = this.api;
     switch (this.active) {
@@ -182,6 +360,26 @@ export class ToolManager {
       case 'scale': { const c = this.pts[0]; if (!(v > 0)) { A.toast(t('factorPositive')); return; } this.xform([v, 0, 0, v, c[0] * (1 - v), c[1] * (1 - v)]); this.done(); break; }
       case 'setz': { A.run({ op: 'setz', keys: [...A.sel].map(p => p.key), z: v }); A.toast(t('zSet') + ': ' + A.fmt(v)); this.done(); break; }
       case 'offset': { this.number = v; this.step = 2; this.say(); break; }
+      case 'thick': {
+        if (!isFinite(v) || v === 0) { A.toast(t('numberExpected')); return; }
+        const ents = [];
+        for (const q of A.sel) {
+          if (q.k !== 0 || !q.ops || q.ops.length < 2) continue;
+          const z = (q.ops[0] && q.ops[0][3]) || 0;
+          const pts = flatten(q.ops).map(c => [c[0], c[1], z]);
+          if (pts.length < 2) continue;
+          const cl = !!(q.closed || q.fill);
+          ents.push({ type: 'EXTRUDE', pts, h: v, closed: cl, cap: cl, layer: q.lay, color: q.info && q.info.ci != null ? q.info.ci : 256 });
+        }
+        if (ents.length) { this.commitMany(ents); A.toast(t('thickDone') + ' \u00b7 ' + ents.length); } else A.toast(t('thickNone'));
+        this.done(); break;
+      }
+      case 'textsize': {
+        if (!(v > 0)) { A.toast(t('numberExpected')); return; }
+        const keys = [...A.sel].filter(q => q.k === 1).map(q => q.key);
+        if (keys.length) { A.run({ op: 'textheight', keys, h: v }); A.toast(t('applied') + ' \u00b7 ' + keys.length); } else A.toast(t('notText'));
+        this.done(); break;
+      }
       default: break;
     }
     A.render();
@@ -214,6 +412,16 @@ export class ToolManager {
         if (txt) { const h = await askText(t('textHeightPrompt'), String(A.textHeight()), { type: 'number' }); const hv = parseFloat(String(h || '').replace(',', '.')); this.commit({ type: 'TEXT', pts: [p], text: txt, h: hv > 0 ? hv : A.textHeight() }); }
         this.pts = []; break;
       }
+      case 'dim': case 'dimh': case 'dimv': {
+        if (n === 3) { this.makeLinearDim(); this.pts = []; this.step = 0; } else this.step = n;
+        break;
+      }
+      case 'dima': {
+        if (n === 3) { this.makeAngularDim(); this.pts = []; this.step = 0; } else this.step = n;
+        break;
+      }
+      case 'leader': case 'cloud': this.step = 1; break;
+      case 'balloon': { await this.makeBalloon(p); this.pts = []; break; }
       case 'move': case 'copy': case 'rotate': case 'scale': case 'mirror': case 'offset': await this.modifyPoint(); break;
       case 'dist': this.step = 1; this.showDist(); break;
       case 'angle': if (n === 3) { const [v, a, b] = this.pts; const ang = Math.abs(angDiff(Math.atan2(a[1] - v[1], a[0] - v[0]), Math.atan2(b[1] - v[1], b[0] - v[0]))) * R2D; A.result([[t('angle'), A.fmt(ang, 2) + '°'], [t('supplement'), A.fmt(360 - ang, 2) + '°'], [t('arm1'), A.fmt(Math.hypot(a[0] - v[0], a[1] - v[1])) + A.units()], [t('arm2'), A.fmt(Math.hypot(b[0] - v[0], b[1] - v[1])) + A.units()]]); this.draft = { segs: [[v, a], [v, b]], pts: this.pts.slice() }; this.pts = []; this.step = 0; } else this.step = n; break;
@@ -272,6 +480,7 @@ export class ToolManager {
       this.selecting = false;
       if (this.active === 'select') { this.cancel(); return; }
       if (this.active === 'del') { A.run({ op: 'delete', keys: [...A.sel].map(p => p.key) }); A.render(); A.toast(t('deleted')); this.done(); return; }
+      if (this.active === 'array') { void this.runArray(); return; }
       this.step = 1; this.say(); return;
     }
     const n = this.pts.length;
@@ -279,25 +488,48 @@ export class ToolManager {
     else if (this.active === 'pline3d' && n >= 2) { this.commit({ type: 'POLYLINE3D', pts: this.pts.slice() }); this.pts = []; this.step = 0; }
     else if (this.active === 'face3d' && n >= 3) { this.commit({ type: '3DFACE', pts: this.pts.slice(0, 4) }); this.pts = []; this.step = 0; }
     else if (this.active === 'area' && n >= 3) { this.showArea(); this.pts = []; this.step = 0; }
+    else if (this.active === 'leader' && n >= 2) { void this.finishLeader(); return; }
+    else if (this.active === 'cloud' && n >= 3) { this.finishCloud(); }
     else if (this.active === 'line' || this.active === 'dist') { this.pts = []; this.step = 0; }
     else if (this.active === 'copy') { this.done(); return; }
     this.draft = null; this.say(); A.overlay();
   }
+  /** Lider: yol tamamlandığında metin sorulur, ok + kırık çizgi + yazı tek komutta eklenir */
+  async finishLeader() {
+    const A = this.api;
+    const pts = this.pts.slice();
+    const txt = await askText(t('leaderPrompt'), '', { words: true });
+    if (txt) {
+      const r = leaderEnts(pts, txt, this.annotOpts({}));
+      if (r) this.commitMany(r.ents);
+    }
+    this.pts = []; this.step = 0; this.draft = null; this.say(); A.overlay();
+  }
+  /** Revizyon bulutu: yay yarıçapı çevrilen alanın büyüklüğünden türetilir */
+  finishCloud() {
+    const A = this.api;
+    const pts = this.pts.slice();
+    const bb = pts.reduce((a, q) => [Math.min(a[0], q[0]), Math.min(a[1], q[1]), Math.max(a[2], q[0]), Math.max(a[3], q[1])], [Infinity, Infinity, -Infinity, -Infinity]);
+    const r = Math.max(1e-9, Math.max(bb[2] - bb[0], bb[3] - bb[1]) / 22);
+    const e = cloudEnt(pts, r, { layer: A.layer(), color: A.color(), gid: newId() });
+    if (e) { this.commitMany(e); A.toast(t('cloudAdded')); } else A.toast(t('dimFail'));
+    this.pts = []; this.step = 0;
+  }
   close() {
     if (this.active === 'pline' && this.pts.length > 2) { this.commit({ type: 'LWPOLYLINE', pts: this.pts.slice(), closed: true }); this.pts = []; this.step = 0; this.draft = null; this.say(); this.api.overlay(); }
-    else if (this.active === 'area') this.finish();
+    else if (this.active === 'area' || this.active === 'cloud') this.finish();
   }
   back() { this.pts.pop(); this.step = Math.max(0, this.step - 1); this.updateDraft(); this.say(); this.api.overlay(); }
   selectAll() { for (const p of this.api.visiblePrims()) if (p.k !== 4) this.api.sel.add(p); this.say(); this.api.overlay(); }
 
   updateDraft() {
     const pts = this.pts;
-    if (['pline', 'pline3d', 'area', 'line', 'dist', 'face3d', 'mirror'].includes(this.active)) this.draft = { pts: pts.slice(), segs: pts.slice(1).map((q, i) => [pts[i], q]), close: this.active === 'area' || this.active === 'face3d' };
+    if (['pline', 'pline3d', 'area', 'line', 'dist', 'face3d', 'mirror', 'leader', 'cloud', 'dim', 'dimh', 'dimv'].includes(this.active)) this.draft = { pts: pts.slice(), segs: pts.slice(1).map((q, i) => [pts[i], q]), close: ['area', 'face3d', 'cloud'].includes(this.active) };
     else if (this.active === 'rect' && pts.length === 1) this.draft = { pts: pts.slice() };
     else if (this.active === 'circle' && pts.length === 1) this.draft = { pts: pts.slice() };
     else if (this.active === 'arc3') this.draft = { pts: pts.slice(), segs: pts.slice(1).map((q, i) => [pts[i], q]) };
     else if (['move', 'copy', 'rotate', 'scale', 'offset'].includes(this.active)) this.draft = { pts: pts.slice() };
-    else if (this.active === 'angle') this.draft = { pts: pts.slice(), segs: pts.slice(1).map(q => [pts[0], q]) };
+    else if (this.active === 'angle' || this.active === 'dima') this.draft = { pts: pts.slice(), segs: pts.slice(1).map(q => [pts[0], q]) };
   }
   showDist() {
     const A = this.api, m = this.pts, u = A.units();
