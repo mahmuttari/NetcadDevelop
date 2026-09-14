@@ -16,7 +16,7 @@ import { installTextDecoder } from './codepage.js';
 installTextDecoder(self);   // DOS857/DOS850: sarmalayıcı convert() sırasında new TextDecoder(encoding) çağırır, tarayıcı bu etiketleri tanımaz
 
 let lib = null;
-const msgOf = (e) => String((e && e.message) || e);
+const msgOf = (e) => (e == null ? '' : String(e.message || e));   // null/undefined: boş dize (ileti sonuna '[null]' eklenmesin)
 /** Emscripten abort / bellek hatası: modül bir daha kullanılamaz, lib sıfırlanıp yeniden kurulur */
 const isAbort = (e) => (typeof WebAssembly !== 'undefined' && e instanceof WebAssembly.RuntimeError) || /abort|unreachable|memory access|out of memory|RangeError|WebAssembly\.Memory/i.test(msgOf(e));
 const isMem = (e) => /memory|bellek|OUTOFMEM|RangeError/i.test(msgOf(e));
@@ -50,12 +50,16 @@ const memMsg = (n, stage, err) => {
   const mb = n / 1048576;
   const ceil = wasmCeilingMB();
   const raw = String(msgOf(err) || '').slice(0, 90);
-  // nesne başına ölçülen maliyet ~600 bayt (7.088.013 nesneli bir R2000 dosyası 4096 MB'lık wasm tavanını doldurup taştı)
-  const need = objCount ? Math.round(objCount * 600 / 1048576) : 0;
+  /*
+   * Nesne başına ölçülen maliyet ~800 bayttır: 7.088.013 nesneli 283,8 MB'lık bir R2000 dosyası
+   * LibreDWG'nin 64 bit YEREL derlemesinde 5.680 MB tepe bellekle okundu ((5680 - 284) / 7,088 milyon ≈ 800 B).
+   * Dosyanın kendisi de yığında durduğu için ona ekleniyor. Sayı içeriğe göre değişir, bu yüzden "en az" denir.
+   */
+  const need = objCount ? Math.round(mb + objCount * 800 / 1048576) : 0;
   return `Çizim tarayıcı motorunun bellek tavanına takıldı (dosya ${mb.toFixed(1)} MB`
     + `${objCount ? ', ' + objCount + ' nesne' : ''}`
     + `${stage ? ', aşama: ' + stage : ''}${ceil > 0 ? `, bu cihazda wasm tavanı ~${ceil} MB` : ''}).`
-    + (need ? ` Bu çizim için gereken bellek yaklaşık ${need} MB'dır.` : '')
+    + (need ? ` Bu çizim için gereken bellek en az ${need} MB'dır.` : '')
     + ` Cihazın boş belleğiyle ilgisi yoktur: WebAssembly 32 bittir, yığını hiçbir cihazda 4096 MB'ı geçemez`
     + ` ve WebView her sekmeye bundan da düşük bir tavan koyar.`
     + ` Çizimi AutoCAD'de PURGE/AUDIT ile küçültmek ya da paftaya bölmek çözer.`

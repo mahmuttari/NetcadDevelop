@@ -1677,10 +1677,11 @@ const STAGES = { lib: 'stageLib', parse: 'stageParse', scene: 'stageScene' };   
 const stageText = (st) => STAGES[st] ? t(STAGES[st]) : st;
 const BIG_FILE_MB = 80;   // bu boyutun üstünde açmadan önce onay istenir (bellek / süre)
 /*
- * Nesne sayısı eşiği. LibreDWG nesne başına ölçülen ~600 bayt yer tutar; WebAssembly 32 bit olduğu için
- * yığın hiçbir cihazda 4096 MB'ı geçemez. 2 milyon nesne bu bütçenin yaklaşık üçte birini yer ve Android
- * WebView'ın işleyici başına koyduğu tavan çoğu telefonda bundan da düşüktür — bu sayının üstünde açma
- * denemesi dakikalar sürüp bellek hatasıyla bitebilir, o yüzden başlamadan önce sorulur.
+ * Nesne sayısı eşiği. LibreDWG nesne başına ölçülen ~800 bayt yer tutar (7.088.013 nesneli bir dosya 64 bit
+ * yerel derlemede 5.680 MB tepe bellekle okundu); WebAssembly 32 bit olduğu için yığın hiçbir cihazda
+ * 4096 MB'ı geçemez, yani tavan yaklaşık 4,7 milyon nesnedir. 2 milyon nesne bu bütçenin yarısına yakınını
+ * yer ve Android WebView'ın işleyici başına koyduğu tavan birçok telefonda daha da düşüktür — bu sayının
+ * üstünde açma denemesi dakikalar sürüp bellek hatasıyla bitebilir, o yüzden başlamadan önce sorulur.
  */
 const HUGE_OBJ = 2000000;
 let loadSeq = 0;
