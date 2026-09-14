@@ -55,14 +55,11 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon --console=plain
 
+      # Beklenen paket adı ve etiket burada elle yazılmaz: release_check.mjs'deki tek tanım kullanılır.
+      # (Uygulama v7.9'da "DWG OfficeZip" adını aldı; burada kopyalanmış eski etiket adım başarısızlığına yol açmıştı.)
+      # Derlenen APK'nın badging bilgisi build.gradle ile, gömülü assets/viewer dosyaları da kaynakla bayt bayt karşılaştırılır.
       - name: APK sürümü, paket adı ve etiketi build.gradle ile aynı mı
-        run: |
-          vc=$(grep -oP 'versionCode \K\d+' app/build.gradle)
-          b=$("$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging app/build/outputs/apk/release/app-release.apk)
-          echo "$b" | grep -q "versionCode='$vc'" || { echo "APK versionCode, build.gradle ($vc) ile aynı değil"; exit 1; }
-          echo "$b" | grep -q "package: name='com.mahmuttari.dwgviewer'" || { echo "APK paket adı com.mahmuttari.dwgviewer değil"; exit 1; }
-          echo "$b" | grep -q "application-label:'DWG Görüntüleyici'" || { echo "APK etiketi 'DWG Görüntüleyici' değil"; exit 1; }
-          echo "$b" | grep -oP "package: name='[^']*'|versionName='[^']*'|application-label:'[^']*'"
+        run: node tools/release_check.mjs --apk app/build/outputs/apk/release/app-release.apk
 
       - name: APK'yı yeniden adlandır
         run: cp app/build/outputs/apk/release/app-release.apk DwgGoruntuleyici.apk
