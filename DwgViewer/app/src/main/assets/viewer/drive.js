@@ -13,6 +13,7 @@ import { t } from './i18n.js';
 import { kindOf, iconFor } from './docs.js';
 import { askText, askConfirm } from './dialog.js';
 import { gate } from './edition.js';
+import { skelList, emptyBox } from './skel.js';
 
 const $ = (id) => document.getElementById(id);
 const tt = (k, tr) => { const v = t(k); return v === k ? tr : v; };
@@ -115,7 +116,7 @@ function renderAccount() {
 async function load(more) {
   if (!signedIn()) { open(); return; }
   const list = $('driveList');
-  if (!more) { nav.pageToken = ''; nav.items = []; list.innerHTML = `<div class="muted">${esc(t('loading'))}</div>`; }
+  if (!more) { nav.pageToken = ''; nav.items = []; list.innerHTML = skelList(5); }
   nav.loading = true; renderCrumbs();
   try {
     const r = await call('list', { folder: nav.folder, q: nav.q, pageToken: nav.pageToken });
@@ -139,7 +140,9 @@ function renderList() {
   const items = nav.items;
   let h = '';
   if (nav.pick) h += `<div class="doc-card pick"><span>${esc(nav.pick.label || tt('pickFolderHere', 'Bu klasöre yükle'))}</span><button type="button" class="btn primary small" data-drive="pickhere">${esc(tt('uploadHere', 'Buraya yükle'))}</button></div>`;
-  if (!items.length) h += `<div class="muted">${esc(t('noResult'))}</div>`;
+  if (!items.length) h += nav.q
+    ? emptyBox('search', t('noResult'), tt('openNoResultText', 'Aradığınız ada uyan dosya yok; daha kısa bir parça yazmayı ya da süzgeci temizlemeyi deneyin.'))
+    : emptyBox('cloud', tt('openEmptyDir', 'Klasör boş'), tt('openEmptyDirText', 'Bu klasörde gösterilecek dosya yok.'));
   h += '<div class="list arc-list">';
   for (const f of items) {
     const isDir = f.mimeType === FOLDER, gdoc = !isDir && f.mimeType && f.mimeType.startsWith(GDOC);

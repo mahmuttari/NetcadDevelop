@@ -199,6 +199,37 @@ bizde ikisi de Super'de. `edition.js` FEATURE_TIER'da `compare` ve
 (kot/eğim profili) Super'de kalmalı — rakipte karşılığı yok, Super'in gerçek
 gerekçesi odur.
 
+## Paket kartının görünümü
+
+Panel `edition.js renderProPanel` / `tierCard` tarafından üretilir, biçemi
+`app.css`in "Pro paneli" bölümündedir. Tasarımın bağlayıcı kuralları:
+
+- **Her kademenin bir kimlik rengi vardır** ve o renk kartta dört yerde
+  tekrarlanır: üst şerit (`.tier-strip`), simge çipi (`.tier-ic`), satın
+  alma düğmesi ve kart çerçevesi. Renkler `:root` belirteçleridir —
+  `--t-adfree` (mavi), `--t-premium` (turuncu), `--t-super` (mor); kartın
+  kendi `--t` değişkeni bunlardan birine bağlanır, hiçbir yerde sabit renk
+  yazılmaz. Düğme yazısı `--t-ink`tir ve açık temalarda beyaza döner.
+- **Fiyat kodda tutulmaz.** Aylık fiyat Play'den gelen dizedir; yanındaki
+  "/ay" `perMonth` anahtarından okunur. Yıllık düğmedeki **−%NN** tasarruf
+  rozeti de yazılmaz, `priceNum()` iki fiyatı sayıya çevirip `savingOf()`
+  ile `1 − yıllık / (12 × aylık)` hesabından bulunur ve yalnız oran
+  %5-%95 arasındaysa basılır. Fiyat Play'de değişince rozet kendiliğinden
+  doğru kalır; tabloyu elle güncellemek gerekmez.
+- **"En çok seçilen" kurdelesi** (`tierPopular`) yalnız **Premium**
+  kartındadır. Orta paketi işaretlemek klasik üç paket kurgusunun
+  parçasıdır; hangi kartta duracağı `renderProPanel` içinde tek yerde
+  yazılıdır.
+- **Madde listesi yine `tierFeat_*` anahtarlarından gelir**; `|` ile
+  ayrılan parçalar onay imli satırlara açılır. Yani bir özellik paket
+  değiştirdiğinde düzeltilecek yer değişmedi (i18n.js + `lang/` altındaki
+  on üç dosya).
+- Panelin başındaki bant (`.pro-hero`) ücretsizken tanıtım metnini,
+  abonelikte etkin paketi ve kaynağını gösterir.
+
+Görüntüler `tools/shot_pro.mjs` ile altı düzende (beş tema + büyük yazı)
+alınır: `tools/out/pro/`.
+
 ## Fiyatlar
 
 Fiyatlar **kodda değil Play Console'da** tanımlıdır; uygulama onları

@@ -155,27 +155,65 @@ export function gate(id) {
 // ---------------------------------------------------------------------------------
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const dateText = (epochSec) => { try { return new Date(epochSec * 1000).toLocaleDateString(document.documentElement.lang === 'en' ? 'en-GB' : 'tr-TR'); } catch (_) { return String(epochSec); } };
-/** Paketin özellik satırları: "tierFeat_<basamak>" anahtarı, satırlar "|" ile ayrılır */
+/** Paketin özellik satırları: "tierFeat_<basamak>" anahtarı, satırlar "|" ile ayrılır.
+ * Her satırın önünde onay imi durur; im, kartın kendi renk belirtecini (--t) alır. */
 function featureList(x) {
   const raw = String(t('tierFeat_' + x));
-  return `<ul class="pro-features">${raw.split('|').map(v => v.trim()).filter(Boolean).map(v => `<li>${esc(v)}</li>`).join('')}</ul>`;
+  const li = raw.split('|').map(v => v.trim()).filter(Boolean)
+    .map(v => `<li><svg class="fic" aria-hidden="true"><use href="#i-check"/></svg><span>${esc(v)}</span></li>`).join('');
+  return `<ul class="pro-features">${li}</ul>`;
 }
+/**
+ * Biçimli fiyat metninden sayı çıkarır ("₺1.699,99" → 1699.99, "$4.99" → 4.99, "¥1,200" → 1200).
+ * Ondalık ayracı SONDAKİ bir ya da iki basamak kuralıyla bulunur; binlik ayracı ne olursa olsun atılır.
+ * Play'in biçimi ülkeye göre değiştiği için ayrıştırılamayan fiyatta NaN döner ve tasarruf rozeti çıkmaz.
+ */
+export function priceNum(str) {
+  const raw = String(str == null ? '' : str).replace(/[^\d.,]/g, '');
+  if (!raw) return NaN;
+  const m = raw.match(/[.,](\d{1,2})$/);
+  const v = m
+    ? Number(raw.slice(0, raw.length - m[0].length).replace(/[.,]/g, '') + '.' + m[1])
+    : Number(raw.replace(/[.,]/g, ''));
+  return isFinite(v) ? v : NaN;
+}
+/** Yıllık aboneliğin aylığa göre tasarruf oranı (0-1) ya da NaN */
+export function savingOf(info, x) {
+  const mo = priceNum(priceOf(info, x, 'monthly')), yr = priceNum(priceOf(info, x, 'yearly'));
+  if (!(mo > 0) || !(yr > 0)) return NaN;
+  const s = 1 - yr / (12 * mo);
+  return s > 0.05 && s < 0.95 ? s : NaN;
+}
+/** Basamağın kimlik simgesi (kart başlığındaki yuvarlak rozette) */
+const TIER_ICON = { adfree: 'i-noads', premium: 'i-pen', super: 'i-cube' };
 /** Bir paket kartı: ad, özellikler, aylık + yıllık fiyat düğmeleri */
 function tierCard(x, info, curTier) {
   const owned = curTier === x;
   const lower = rank(curTier) > rank(x);        // daha üst pakete sahip: bu kart bilgi amaçlı kalır
-  const cls = 'tier-card' + (owned ? ' owned' : '') + (lower ? ' dim' : '');
+  const popular = x === 'premium' && !owned && !lower;
+  const cls = 'tier-card t-' + x + (owned ? ' owned' : '') + (lower ? ' dim' : '') + (popular ? ' pop' : '');
+  const save = savingOf(info, x);
   let h = `<div class="${cls}" data-tier="${x}">`;
-  h += `<div class="tier-head"><span class="tier-name">${esc(tierName(x))}</span>`
+  h += `<span class="tier-strip" aria-hidden="true"></span>`;
+  if (popular) h += `<span class="tier-ribbon">${esc(tt('tierPopular', 'En çok seçilen'))}</span>`;
+  h += `<div class="tier-head">`
+    + `<span class="tier-ic" aria-hidden="true"><svg class="ic"><use href="#${TIER_ICON[x] || 'i-star'}"/></svg></span>`
+    + `<span class="tier-name">${esc(tierName(x))}</span>`
     + (owned ? `<span class="tier-badge">${esc(tt('tierActive', 'Etkin'))}</span>` : '') + `</div>`;
+  // Büyük okuma: aylık fiyat. Yoksa (Play hazır değil / tarayıcı) satır hiç çizilmez —
+  // boş bir fiyat kutusu, fiyatı gizlenmiş gibi durur.
+  const mo = priceOf(info, x, 'monthly');
+  if (mo && !owned && !lower) h += `<div class="tier-price"><b>${esc(mo)}</b><span>${esc(tt('perMonth', '/ay'))}</span></div>`;
   h += featureList(x);
   if (!owned && !lower && info.android) {
     h += `<div class="tier-buy">`;
     for (const plan of PLANS) {
       const price = priceOf(info, x, plan);
       const label = plan === 'yearly' ? tt('planYearly', 'Yıllık') : tt('planMonthly', 'Aylık');
+      const pill = plan === 'yearly' && save > 0
+        ? ` <i class="save" aria-label="${esc(tt('tierSave', 'yıllıkta tasarruf'))}">\u2212%${Math.round(save * 100)}</i>` : '';
       h += `<button type="button" class="btn${plan === 'yearly' ? ' primary' : ''}" data-pro="buy" data-tier="${x}" data-plan="${plan}"${info.billingReady ? '' : ' disabled'}>`
-        + `<span class="pl">${esc(label)}</span><span class="pr">${price ? esc(price) : esc(tt('proPriceNA', '—'))}</span></button>`;
+        + `<span class="pl">${esc(label)}${pill}</span><span class="pr">${price ? esc(price) : esc(tt('proPriceNA', '—'))}</span></button>`;
     }
     h += `</div>`;
   }
@@ -186,15 +224,20 @@ function renderProPanel() {
   const info = proInfo();
   const curTier = info.edition || tier();
   let html = '';
+  // Başlık bandı: paket sayfasının kimliği. Sahibi olana durum, olmayana kısa tanıtım yazılır.
   if (rank(curTier) > 0) {
     const planTxt = info.plan === 'yearly' ? tt('planYearly', 'Yıllık') : info.plan === 'monthly' ? tt('planMonthly', 'Aylık') : '';
     const src = info.source === 'license'
       ? t('proSrcLicense') + (info.name ? ' — ' + info.name : '') + (info.exp ? ' (' + t('proExpires') + ' ' + dateText(info.exp) + ')' : '')
       : info.source === 'play' ? t('proSrcPlay') + (planTxt ? ' — ' + planTxt : '') : '';
-    html += `<div class="full pro-status" data-pro-status="${esc(info.source)}" data-tier="${esc(curTier)}">`
-      + `<strong>${esc(tierName(curTier))}</strong>${src ? ' — ' + esc(src) : ''}</div>`;
+    html += `<div class="full pro-hero pro-status owned" data-pro-status="${esc(info.source)}" data-tier="${esc(curTier)}">`
+      + `<span class="pro-hero-ic t-${esc(curTier)}" aria-hidden="true"><svg class="ic"><use href="#${TIER_ICON[curTier] || 'i-star'}"/></svg></span>`
+      + `<span class="pro-hero-tx"><strong>${esc(tierName(curTier))}</strong>`
+      + `<small>${src ? esc(src) : esc(t('proFeaturesIntro'))}</small></span></div>`;
   } else {
-    html += `<div class="full">${esc(t('proFeaturesIntro'))}</div>`;
+    html += `<div class="full pro-hero">`
+      + `<span class="pro-hero-ic" aria-hidden="true"><svg class="ic"><use href="#i-star"/></svg></span>`
+      + `<span class="pro-hero-tx"><strong>${esc(t('goPro'))}</strong><small>${esc(t('proFeaturesIntro'))}</small></span></div>`;
   }
   html += `<div class="full tier-grid">${PAID_TIERS.map(x => tierCard(x, info, curTier)).join('')}</div>`;
   if (!info.android) {

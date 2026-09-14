@@ -24,6 +24,7 @@ import * as Home from './home.js';
 import * as Cloud from './cloud.js';
 import { writeDxf } from './edit.js';
 import { dwgObjectCount } from './dwgstat.js';
+import { skelList, emptyBox } from './skel.js';
 
 const $ = (id) => document.getElementById(id);
 const A = () => window.Android || null;
@@ -1288,7 +1289,7 @@ async function showMeshExport() {
   openDoc(t('mesh3Title'), html);
   $('m3Go').onclick = async () => {
     const kind = $('m3Fmt').value, byLayer = $('m3Lay').checked;
-    setLoading(t('mesh3Title'), fmt(st.tris, 0));
+    setLoading(t('mesh3Title'), fmt(st.tris, 0), undefined, 'out');
     await new Promise(r => setTimeout(r, 30));
     try {
       const opts = { name: baseName(), byLayer, unitToM: 1, maxTris: 3000000 };
@@ -1324,7 +1325,7 @@ const PDFCAD_UNITS = [['0.352778', 'mm'], ['0.0352778', 'cm'], ['0.000352778', '
 async function pdfCadFromBytes(buf, name) {
   let PC;
   try { PC = await import('./pdfcad.js'); } catch (e) { console.warn(e); toast(t('error'), { type: 'error' }); return; }
-  setLoading(t('pdfcadTitle'), name);
+  setLoading(t('pdfcadTitle'), name, undefined, 'doc');
   let pages = 0;
   try { pages = await PC.pdfPageCount(buf); } catch (e) { console.warn(e); }
   setLoading(null);
@@ -1354,7 +1355,7 @@ async function pdfCadRun(PC) {
   const extra = Number($('pcScale').value) || 1;
   const layer = ($('pcLayer').value || 'PDF').trim() || 'PDF';
   const wantText = $('pcText').checked;
-  setLoading(t('pdfcadTitle'), String(page + 1));
+  setLoading(t('pdfcadTitle'), String(page + 1), undefined, 'doc');
   await new Promise(r => setTimeout(r, 30));
   try {
     if (!S.hasDoc) {
@@ -1486,7 +1487,7 @@ async function runBatch(op, paper) {
   let done = 0, failed = 0;
   for (let i = 0; i < files.length; i++) {
     const f = files[i];
-    setLoading(t('batchTitle'), `${f.name} (${i + 1}/${files.length})`, 100 * i / files.length);
+    setLoading(t('batchTitle'), `${f.name} (${i + 1}/${files.length})`, 100 * i / files.length, op === 'pdf' ? 'out' : 'cad');
     try {
       const buf = f.file ? await f.file.arrayBuffer() : await fetchFile(f.id);
       const res = await runWorker({ cmd: 'parse', bytes: buf, name: f.name, objects: 0 });
@@ -1889,7 +1890,7 @@ function showNewDoc() {
     const k = New.kindOfNew(id);
     const full = name.toLowerCase().endsWith('.' + k.ext) ? name : name + '.' + k.ext;
     hide('docPanel');
-    setLoading(t('loading'), full);
+    setLoading(t('loading'), full, undefined, Docs.isCad(full) ? 'cad' : 'doc');
     try { await New.createAndOpen(id, full, { openBlob: (f, n) => Docs.openBlob(f, n) }); }
     catch (e) { console.warn(e); toast(tt('newFail', 'Yeni dosya oluşturulamadı') + ': ' + e.message, { type: 'error', ms: 6000 }); }
     finally { setLoading(null); }
@@ -2023,7 +2024,7 @@ function showCompare() {
   pickFile('compare', '*/*');
 }
 async function setCompare(buf, name) {
-  setLoading(t('loading'), name);
+  setLoading(t('loading'), name, undefined, 'cad');
   try {
     const res = await runWorker({ cmd: 'parse', bytes: buf, name }, (st, pct) => setLoading(stageText(st), name, pct));
     const B = res.scene.layouts[0].prims.filter(p => p.k !== 4);
@@ -2058,7 +2059,7 @@ function showXrefs() {
 }
 async function loadXref(idx, buf, name) {
   const x = S.scene.xrefs[idx];
-  setLoading(t('loading'), name);
+  setLoading(t('loading'), name, undefined, 'cad');
   try {
     const res = await runWorker({ cmd: 'xref', bytes: buf, name, inserts: x.inserts, prefix: x.name }, (st, pct) => setLoading(stageText(st), name, pct));
     const model = S.scene.layouts[0];
@@ -2095,7 +2096,7 @@ async function fetchIndex(url) {
   store.set('serverUrl', url);
   if (/\.(dwg|dxf)(\?.*)?$/i.test(url)) { downloadDwg(url, decodeURIComponent(url.split('/').pop().split('?')[0])); return; }
   const list = $('srvList');
-  list.innerHTML = `<div class="muted">${t('loading')}</div>`;
+  list.innerHTML = skelList(4);
   try {
     const r = await fetch(url, { cache: 'no-store' });
     if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -2110,12 +2111,13 @@ async function fetchIndex(url) {
       const re = /href="([^"]+\.(?:dwg|dxf))"/ig; let m;
       while ((m = re.exec(html))) files.push({ name: decodeURIComponent(m[1].split('/').pop()), url: new URL(m[1], url).href });
     }
-    list.innerHTML = files.length ? `<div class="list">` + files.map((f, i) => `<div class="item" data-f="${i}">${esc(f.name)}<small>${esc(f.url)}</small></div>`).join('') + `</div>` : `<div class="muted">${t('noResult')}</div>`;
+    list.innerHTML = files.length ? `<div class="list">` + files.map((f, i) => `<div class="item" data-f="${i}">${esc(f.name)}<small>${esc(f.url)}</small></div>`).join('') + `</div>`
+      : emptyBox('cloud', t('noResult'), tt('srvNoFiles', 'Bu adreste DWG ya da DXF dosyası bulunamadı.'));
     list.onclick = (ev) => { const it = ev.target.closest('[data-f]'); if (it) { const f = files[Number(it.dataset.f)]; downloadDwg(f.url, f.name); } };
   } catch (e) { list.innerHTML = `<div class="muted">${esc(t('error'))}: ${esc(e.message)}</div>`; }
 }
 async function downloadDwg(url, name) {
-  setLoading(t('download'), name, 0);
+  setLoading(t('download'), name, 0, 'cloud');
   try {
     const buf = await fetchBuf(url, (p) => setLoading(t('download'), name, p));
     if (A() && A().saveBytes) {
@@ -2215,7 +2217,7 @@ function showPdf() {
  * ayrı hesaplanır — farklı büyüklükteki düzenlere tek ölçek dayatılamaz.
  */
 async function makePdf(title, paper, orient, scaleN, dpi, all) {
-  setLoading(t('pdfTitle'), paper);
+  setLoading(t('pdfTitle'), paper, undefined, 'out');
   await new Promise(r => setTimeout(r, 30));
   const keep = { li: S.layoutIndex, prims: S.prims, tree: S.tree, ext: S.ext, sel: S.selected };
   try {
@@ -2340,8 +2342,21 @@ function buildPdf(pages, wmm, hmm, title) {
  * yalnız dönen gösterge kalır. Ölçülemeyen aşamada uydurma yüzde gösterilmez — bekleyen kullanıcıya
  * yanlış bilgi vermek, hiç bilgi vermemekten kötüdür.
  */
-function setLoading(text, sub, pct) {
-  if (text == null) { hide('loading'); return; }
+const LOAD_KINDS = ['cad', 'doc', 'out', 'd3', 'cloud'];
+function setLoading(text, sub, pct, kind) {
+  if (text == null) {
+    // Örtü kapanırken çeşit sınıfı da silinir: bir sonraki bekleme kendi görselini seçmezse
+    // öncekinin çizimi kalmasın.
+    const el = $('loading'); if (el) el.classList.remove(...LOAD_KINDS.map(k => 'load-' + k));
+    hide('loading'); return;
+  }
+  // Bekleme görseli yapılan işe göre değişir: çizim okunurken plan kendini çizer, belgede sayfa
+  // dizilir, dışa aktarmada sayfa cihazdan çıkar. Çeşit verilmezse önceki korunur — aynı işin
+  // ortasında görselin değişmesi, ilerleme sıfırlanmış gibi durur.
+  if (kind && LOAD_KINDS.includes(kind)) {
+    const el = $('loading');
+    if (el) for (const k of LOAD_KINDS) el.classList.toggle('load-' + k, k === kind);
+  }
   $('loadingText').textContent = text;
   $('loadingSub').textContent = sub || '';
   const prog = $('loadingProg');
@@ -2421,7 +2436,7 @@ async function loadBytes(buf, name, size) {
   const sub = name + ' · ' + mb + (objN ? ' · ' + fmt(objN, 0) + ' ' + t('objectsN') : '');
   if (objN > HUGE_OBJ && !(await askConfirm(`${name} · ${fmt(objN, 0)} ${t('objectsN')}. ${t('hugeObjAsk')}`))) { setLoading(null); return; }
   const my = ++loadSeq;
-  setLoading(t('loading'), sub, 0);
+  setLoading(t('loading'), sub, 0, 'cad');
   try {
     let res = await runWorker({ cmd: 'parse', bytes: buf, name, objects: objN }, (st, pct) => setLoading(stageText(st), sub, pct));
     const scene = res.scene; res = null;   // yapısal klon: büyük dosyada referansı erken düşür
@@ -2439,7 +2454,7 @@ async function loadBytes(buf, name, size) {
 /** R-ağacı: büyük sahnede önce bir kare bırakılır ki 'İndeks kuruluyor' yazısı çizilsin ve dokunma/geri tuşu işlensin */
 async function buildTree(prims) {
   if (prims.length < 100000) return new RTree(prims, p => p.bb);
-  setLoading(tt('indexing', 'İndeks kuruluyor…'), prims.length + ' ' + tt('prims', 'ilkel'));
+  setLoading(tt('indexing', 'İndeks kuruluyor…'), prims.length + ' ' + tt('prims', 'ilkel'), undefined, 'cad');
   await new Promise(r => setTimeout(r));
   return new RTree(prims, p => p.bb);
 }
@@ -2496,8 +2511,8 @@ async function loadCurrent(name, size) {
   if (loadingKey === key) return;
   loadingKey = key;
   try {
-    if (!Docs.isCad(name) && Docs.kindOf(name) !== 'other') { setLoading(t('loading'), name); const ok = await Docs.openCurrent(name, size); setLoading(null); if (ok) return; }
-    setLoading(t('loading'), name, 0);
+    if (!Docs.isCad(name) && Docs.kindOf(name) !== 'other') { setLoading(t('loading'), name, undefined, 'doc'); const ok = await Docs.openCurrent(name, size); setLoading(null); if (ok) return; }
+    setLoading(t('loading'), name, 0, 'cad');
     const buf = await fetchFile('current', (p) => setLoading(t('loading'), name, p));
     await loadBytes(buf, name, size);
   } catch (e) { fail(e); }

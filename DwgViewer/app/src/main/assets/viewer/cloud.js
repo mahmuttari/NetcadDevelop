@@ -15,6 +15,7 @@ import { fmt } from './state.js';
 import { kindOf, iconFor } from './docs.js';
 import * as Drive from './drive.js';
 import { askConfirm } from './dialog.js';
+import { skelList, emptyBox } from './skel.js';
 
 const $ = (id) => document.getElementById(id);
 const tt = (k, tr) => { const v = t(k); return v === k ? tr : v; };
@@ -163,9 +164,9 @@ function explorerHtml() {
   const parts = nav.path.split('/').filter(Boolean);
   let h = `<div class="cloud-explorer"><div class="doc-crumbs"><button type="button" class="chip" data-cloud="crumb" data-path="/">${ICON('i-link')} ${esc(nav.acc.name || nav.acc.url)}</button>` + parts.map((c, i) => `<span>›</span><button type="button" class="chip" data-cloud="crumb" data-path="${esc('/' + parts.slice(0, i + 1).join('/') + '/')}">${esc(c)}</button>`).join('') + `<span class="sp"></span><button type="button" class="lbtn" data-cloud="refresh" aria-label="${esc(t('refresh'))}">${ICON('i-turn')}</button></div>`;
   if (nav.error) h += `<div class="doc-card"><strong>${esc(tt('webdavError', 'WebDAV hatası'))}</strong><p>${esc(nav.error)}</p><div class="row"><button type="button" class="btn small" data-cloud="refresh">${esc(t('refresh'))}</button></div></div>`;
-  if (nav.loading) return h + `<div class="muted">${esc(t('loading'))}</div></div>`;
+  if (nav.loading) return h + skelList(5) + '</div>';
   const items = nav.items.slice().sort((a, b) => (b.dir ? 1 : 0) - (a.dir ? 1 : 0) || String(a.name).localeCompare(String(b.name), 'tr'));
-  if (!items.length && !nav.error) h += `<div class="muted">${esc(tt('openEmptyDir', 'Klasör boş'))}</div>`;
+  if (!items.length && !nav.error) h += emptyBox('folder', tt('openEmptyDir', 'Klasör boş'), tt('openEmptyDirText', 'Bu klasörde gösterilecek dosya yok.'));
   h += '<div class="list arc-list">';
   for (const it of items) {
     const meta = it.dir ? '' : [fmtSize(+it.size), it.time > 0 ? new Date(it.time).toLocaleDateString('tr-TR') : ''].filter(Boolean).join(' · ');

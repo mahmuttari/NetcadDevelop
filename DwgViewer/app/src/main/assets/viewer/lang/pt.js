@@ -496,4 +496,5 @@ export default {
   'th_3:geo': 'Distância e ângulo ponto-reta, ponto-plano, reta-reta, reta-plano, plano-plano',
   'tl_3:note': 'Nota 3D',
   'th_3:note': 'Coloca uma etiqueta de anotação no ponto 3D escolhido',
+  tierPopular: 'Mais escolhido', tierSave: 'economia no plano anual', perMonth: '/mês', openEmptyDirText: 'Não há ficheiros para mostrar nesta pasta.', openNoResultText: 'Nenhum ficheiro corresponde a esse nome; tente uma parte mais curta ou limpe o filtro.', srvNoFiles: 'Nenhum ficheiro DWG ou DXF foi encontrado neste endereço.',
 };

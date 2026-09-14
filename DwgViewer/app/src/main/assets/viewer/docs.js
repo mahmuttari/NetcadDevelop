@@ -21,6 +21,7 @@ import * as PdfEdit from './pdfedit.js';
 import * as DocEdit from './docedit.js';
 import { askText, askConfirm } from './dialog.js';
 import { xlsxBook, csvText } from './newdoc.js';
+import { skelDoc, skelThumb } from './skel.js';
 
 const $ = (id) => document.getElementById(id);
 const tt = (k, tr) => { const v = t(k); return v === k ? tr : v; };
@@ -363,7 +364,10 @@ async function show(d, opts = {}) {
   els.view.hidden = false; document.body.classList.add('docmode');
   els.name.textContent = d.name; els.meta.textContent = [fmtSize(d.size), kindLabel(d.kind)].filter(Boolean).join(' · ');
   els.view.querySelector('[data-doc="back"]').hidden = !stack.length;
-  els.tools.innerHTML = ''; els.body.innerHTML = `<div class="doc-loading">${esc(t('loading'))}</div>`; els.body.className = 'doc-body kind-' + d.kind; els.body.scrollTop = 0;
+  // Bekleme boşluğu, gelecek içeriğin biçimini gösterir: belge için sayfa iskeleti, görsel için
+  // ızgaralı önizleme kartı. İskelet süstür (aria-hidden); "Yükleniyor…" yanındaki görünmez
+  // metinden okunur.
+  els.tools.innerHTML = ''; els.body.innerHTML = `<div class="doc-loading">${d.kind === 'image' ? skelThumb() : skelDoc()}</div>`; els.body.className = 'doc-body kind-' + d.kind; els.body.scrollTop = 0;
   renderActs(d);
   call(api.onOpen, d);
   try {

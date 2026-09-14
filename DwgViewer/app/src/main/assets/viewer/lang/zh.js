@@ -297,4 +297,5 @@ export default {
   'th_t:explode': '把块参照拆分为组成对象', 'tl_t:textsize': '文字高度', 'th_t:textsize': '修改所选文字的高度', 'tl_t:attr': '属性', 'th_t:attr': '编辑块属性', tl_findrep: '查找替换',
   th_findrep: '批量替换图中的文字', tl_blocklib: '块库', th_blocklib: '创建、保存并插入块', tl_copyclip: '复制到剪贴板', th_copyclip: '复制所选内容以便粘贴到其他图形', tl_pasteclip: '粘贴',
   th_pasteclip: '把剪贴板中的对象粘贴到本图', 'tl_3:geo': '三维几何测量', 'th_3:geo': '点-线、点-面、线-线、线-面、面-面的距离与夹角', 'tl_3:note': '三维注释', 'th_3:note': '在所选三维点处放置注释标签',
+  tierPopular: '最多人选择', tierSave: '年付方案可省', perMonth: '/月', openEmptyDirText: '此文件夹中没有可显示的文件。', openNoResultText: '没有与该名称相符的文件；请试试更短的一段名称，或清除筛选。', srvNoFiles: '在此地址未找到 DWG 或 DXF 文件。',
 };

@@ -18,6 +18,7 @@ import { store, fmt } from './state.js';
 import { t } from './i18n.js';
 import { kindOf, iconFor, isCad } from './docs.js';
 import { askConfirm } from './dialog.js';
+import { skelList, skelGrid, emptyBox } from './skel.js';
 
 const $ = (id) => document.getElementById(id);
 const tt = (k, tr) => { const v = t(k); return v === k ? tr : v; };
@@ -275,7 +276,15 @@ function renderRecent() {
   const favRows = fv.map(f => byUri.get(f.uri) || { ...f, time: 0, gone: !byUri.has(f.uri) }).filter(r => passes(r.name, false));
   const favSet = new Set(fv.map(f => f.uri));
   const rows = sortItems(all.filter(r => !favSet.has(r.uri) && passes(r.name, false)).map(r => ({ ...r, dir: false })));
-  if (!favRows.length && !rows.length) return `<div class="doc-card">${ICON('i-prev')}<strong>${esc(t('recent'))}</strong><p>${esc(all.length ? t('noResult') : tt('openNoRecent', 'Henüz dosya açılmadı.'))}</p></div>`;
+  // Boş liste, çizimiyle anlatılır: hiç dosya açılmamışsa pafta çizimi ve "Dosya aç" düğmesi,
+  // arama bir şey bulamadıysa büyüteç çizimi.
+  if (!favRows.length && !rows.length) {
+    return all.length
+      ? emptyBox('search', t('noResult'), tt('openNoResultText', 'Aradığınız ada uyan dosya yok; daha kısa bir parça yazmayı ya da süzgeci temizlemeyi deneyin.'))
+      : emptyBox('cad', t('recent'), tt('openNoRecent', 'Henüz dosya açılmadı.'),
+        `<button type="button" class="btn primary small" data-open-tab="device">${ICON('i-sdcard')} ${esc(tt('openTabDevice', 'Cihaz'))}</button>`
+        + `<button type="button" class="btn small" data-open="system">${ICON('i-open')} ${esc(tt('openSystem', 'Sistem dosya seçici'))}</button>`);
+  }
   const thumb = (r) => r.thumb && r.key ? `<img class="open-thumb" src="/file/thumb_${esc(r.key)}?${Number(r.time) || 0}" alt="">` : `<span class="open-thumb noimg">${iconFor(r.name)}</span>`;
   const row = (r, fav) => `<div class="item arc-item open-item${fav ? ' fav' : ''}${r.gone ? ' dim' : ''}" data-open-recent="1" data-uri="${esc(r.uri)}" data-name="${esc(r.name)}">${thumb(r)}<span class="nm">${esc(r.name)}${fav ? ICON('i-star') : ''}<small class="open-meta">${esc(metaOf(r))}</small></span><button type="button" class="lbtn" data-open="menu" aria-label="${esc(t('more'))}">${ICON('i-more')}</button></div>` + (ui.menu === r.uri ? actsHtml(r) : '');
   const tile = (r, fav) => `<div class="open-tile${fav ? ' fav' : ''}${r.gone ? ' dim' : ''}" data-open-recent="1" data-uri="${esc(r.uri)}" data-name="${esc(r.name)}">${thumb(r)}<span class="nm">${esc(r.name)}</span><small class="open-meta">${esc(metaOf(r))}</small>${fav ? ICON('i-star') : ''}<button type="button" class="lbtn" data-open="menu" aria-label="${esc(t('more'))}">${ICON('i-more')}</button></div>`;
@@ -302,11 +311,13 @@ function renderDevice() {
   h += `<div class="doc-crumbs open-crumbs"><button type="button" class="chip" data-open-crumb="-1">${ICON('i-open')} ${esc(dev.root.name)}</button>${dev.path.map((c, i) => `<span>›</span><button type="button" class="chip" data-open-crumb="${i}">${esc(c.name)}</button>`).join('')}<span class="sp"></span><button type="button" class="lbtn" data-open="rootmenu" aria-label="${esc(t('more'))}">${ICON('i-more')}</button></div>`;
   if (ui.menu === 'root:' + dev.root.uri) h += `<div class="open-acts"><button type="button" class="chip" data-open="refresh">${ICON('i-turn')} ${esc(t('refresh'))}</button><button type="button" class="chip" data-open="removeroot">${ICON('i-trash')} ${esc(tt('openRemoveRoot', 'Klasörü listeden çıkar'))}</button></div>`;
   if (dev.error) h += `<div class="doc-card"><strong>${esc(t('error'))}</strong><p>${esc(dev.error)}</p><div class="row"><button type="button" class="btn small" data-open="refresh">${esc(t('refresh'))}</button></div></div>`;
-  if (dev.loading) return h + `<div class="muted">${esc(dev.search ? tt('openSearching', 'Aranıyor…') : t('loading'))}</div>`;
+  if (dev.loading) return h + (dev.search ? `<div class="muted">${esc(tt('openSearching', 'Aranıyor…'))}</div>` : '') + skelList(5);
   const src = dev.search ? dev.search.items : dev.items;
   const list = sortItems(src.filter(it => passes(it.name, it.dir)).map(it => ({ ...it })));
   if (dev.search) h += `<div class="muted">${esc(t('search'))}: “${esc(dev.search.q)}” · ${list.length} ${esc(t('files'))}</div>` + (dev.search.truncated ? `<div class="open-warn">${esc(tt('openTruncated', 'Arama sonuçları kısaltıldı; daha belirgin bir ad yazın.'))}</div>` : '');
-  if (!list.length) return h + `<div class="muted">${esc(src.length ? t('noResult') : tt('openEmptyDir', 'Klasör boş'))}</div>`;
+  if (!list.length) return h + (src.length
+    ? emptyBox('search', t('noResult'), tt('openNoResultText', 'Aradığınız ada uyan dosya yok; daha kısa bir parça yazmayı ya da süzgeci temizlemeyi deneyin.'))
+    : emptyBox('folder', tt('openEmptyDir', 'Klasör boş'), tt('openEmptyDirText', 'Bu klasörde gösterilecek dosya yok.')));
   h += '<div class="list arc-list">';
   for (const it of list) {
     const meta = it.dir ? '' : metaOf(it);
@@ -318,7 +329,9 @@ function renderOffline() {
   const dl = downloads();
   if (dl === null) return `<div class="doc-card">${ICON('i-save')}<strong>${esc(t('cached'))}</strong><p>${esc(tt('openOfflineAndroid', 'Çevrimdışı kopyalar Android uygulamasında tutulur: sunucudan indirilen paftalar ve "Çevrimdışı sakla" ile alınan belgeler burada listelenir.'))}</p></div>`;
   const list = sortItems(dl.filter(d => passes(d.name, false)).map(d => ({ ...d, dir: false })));
-  if (!list.length) return `<div class="doc-card">${ICON('i-save')}<strong>${esc(t('cached'))}</strong><p>${esc(dl.length ? t('noResult') : tt('openNoOffline', 'Çevrimdışı kopya yok.'))}</p></div>`;
+  if (!list.length) return dl.length
+    ? emptyBox('search', t('noResult'), tt('openNoResultText', 'Aradığınız ada uyan dosya yok; daha kısa bir parça yazmayı ya da süzgeci temizlemeyi deneyin.'))
+    : emptyBox('cloud', t('cached'), tt('openNoOffline', 'Çevrimdışı kopya yok.'));
   return `<div class="list arc-list">${list.map(d => `<div class="item arc-item open-item" data-open-dl="${esc(d.id)}" data-name="${esc(d.name)}">${iconFor(d.name)}<span class="nm">${esc(d.name)}<small class="open-meta">${esc(metaOf(d))}</small></span><button type="button" class="lbtn" data-open="deldl" aria-label="${esc(t('delete'))}">${ICON('i-trash')}</button></div>`).join('')}</div>`;
 }
 

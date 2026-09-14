@@ -496,4 +496,5 @@ export default {
   'th_3:geo': 'Distanza e angolo punto-retta, punto-piano, retta-retta, retta-piano, piano-piano',
   'tl_3:note': 'Nota 3D',
   'th_3:note': 'Inserisce un\'etichetta sul punto 3D scelto',
+  tierPopular: 'Il più scelto', tierSave: 'risparmio sul piano annuale', perMonth: '/mese', openEmptyDirText: 'Non ci sono file da mostrare in questa cartella.', openNoResultText: 'Nessun file corrisponde a quel nome; prova una parte più breve o cancella il filtro.', srvNoFiles: 'Nessun file DWG o DXF trovato a questo indirizzo.',
 };

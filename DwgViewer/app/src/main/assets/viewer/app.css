@@ -7,12 +7,15 @@
   --panel: #1b2430; --line: #2c3a4b; --btn: #2a3646; --btn-on: #3b4d63; --danger: #ff453a; --ok: #30d158;
   --safe-top: env(safe-area-inset-top, 0px); --safe-bottom: env(safe-area-inset-bottom, 0px); --safe-left: env(safe-area-inset-left, 0px); --safe-right: env(safe-area-inset-right, 0px);
   --fs: 1; --tile: 58px; --tb-h: 56px; --radius: 10px; --shadow: 0 6px 24px rgba(0,0,0,.45);
+  /* Paket kimlik renkleri: kartın şeridi, rozeti ve onay imleri bunu alır. Vurgu renginden
+     AYRI tutulur, çünkü üç paket yan yana durduğunda birbirinden ayrılmaları gerekir. */
+  --t-adfree: #4aa3df; --t-premium: #f5b342; --t-super: #a97bf0; --t-ink: #10151c;
 }
 /* tema token'ları: tuval temasıyla uyumlu arayüz renkleri */
-body[data-theme="light"], .light { --bg: #ffffff; --bar: #f1f3f6; --fg: #1a2230; --muted: #5b6776; --panel: #ffffff; --line: #d6dbe2; --btn: #e3e7ed; --btn-on: #cfd6df; --shadow: 0 6px 24px rgba(0,0,0,.18); }
-body[data-theme="blueprint"] { --bg: #0b2a5b; --bar: #0e3268; --fg: #dfe9ff; --muted: #9db4dc; --panel: #10366f; --line: #2a5aa0; --btn: #1a4685; --btn-on: #2a5aa0; --accent: #ffd166; }
-body[data-theme="sepia"] { --bg: #f3e9d2; --bar: #eadfc4; --fg: #3a2a14; --muted: #7a6748; --panel: #f6efdd; --line: #d9c9a5; --btn: #e6d9b8; --btn-on: #d9c9a5; --accent: #b3541e; --accent-fg: #fff; --shadow: 0 6px 24px rgba(60,40,10,.2); }
-body[data-theme="hicontrast"] { --bg: #ffffff; --bar: #ffffff; --fg: #000000; --muted: #333333; --panel: #ffffff; --line: #000000; --btn: #f0f0f0; --btn-on: #d0d0d0; --accent: #0033cc; --accent-fg: #fff; --shadow: 0 0 0 2px #000; }
+body[data-theme="light"], .light { --bg: #ffffff; --bar: #f1f3f6; --fg: #1a2230; --muted: #5b6776; --panel: #ffffff; --line: #d6dbe2; --btn: #e3e7ed; --btn-on: #cfd6df; --shadow: 0 6px 24px rgba(0,0,0,.18);  --t-adfree: #1d7fc0; --t-premium: #c8810b; --t-super: #7d4fd1; --t-ink: #ffffff; }
+body[data-theme="blueprint"] { --bg: #0b2a5b; --bar: #0e3268; --fg: #dfe9ff; --muted: #9db4dc; --panel: #10366f; --line: #2a5aa0; --btn: #1a4685; --btn-on: #2a5aa0; --accent: #ffd166;  --t-adfree: #7fc4ff; --t-premium: #ffd166; --t-super: #c9a7ff; }
+body[data-theme="sepia"] { --bg: #f3e9d2; --bar: #eadfc4; --fg: #3a2a14; --muted: #7a6748; --panel: #f6efdd; --line: #d9c9a5; --btn: #e6d9b8; --btn-on: #d9c9a5; --accent: #b3541e; --accent-fg: #fff; --shadow: 0 6px 24px rgba(60,40,10,.2);  --t-adfree: #2f6f9f; --t-premium: #b3541e; --t-super: #7b4ea8; --t-ink: #ffffff; }
+body[data-theme="hicontrast"] { --bg: #ffffff; --bar: #ffffff; --fg: #000000; --muted: #333333; --panel: #ffffff; --line: #000000; --btn: #f0f0f0; --btn-on: #d0d0d0; --accent: #0033cc; --accent-fg: #fff; --shadow: 0 0 0 2px #000;  --t-adfree: #0033cc; --t-premium: #8a4b00; --t-super: #5b1a8a; --t-ink: #ffffff; }
 body.contrast { --line: #8fa3bb; --muted: #c5d0dc; }
 body.contrast.light, body.contrast[data-theme="light"], body.contrast[data-theme="sepia"] { --line: #3a4a5c; --muted: #2c3a4b; }
 
@@ -102,24 +105,78 @@ body.compact-status #stCount { display: none; }
 .home-seg button.on { color: var(--accent); border-bottom-color: var(--accent); }
 .pro-line { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin: 8px 0 10px; padding: 8px 10px; border: 1px dashed var(--line); border-radius: 10px; font-size: calc(12.5px * var(--fs)); color: var(--muted); }
 .pro-line .btn { white-space: nowrap; }
-.pro-features { margin: 4px 0 6px; padding-left: 20px; font-size: calc(13px * var(--fs)); }
-.pro-features li { break-inside: avoid; padding: 2px 0; }
-.pro-status { padding: 8px 10px; border: 1px solid var(--accent); border-radius: 10px; margin: 4px 0; }
+/* ---- Paket sayfası -------------------------------------------------------------------------
+   Üç kart yan yana durur ve birbirinden AYRILMALIDIR: her kartın kendi kimlik rengi (--t) var,
+   üstünde o renkte bir şerit, başlığında aynı renkte bir simge rozeti ve özellik satırlarında
+   yine o renkte onay imleri. Vurgu rengi (--accent) kartlara karışmaz; o, "etkin paket" ve
+   birincil düğme içindir. Renkler tema belirteçlerinden gelir, hiçbiri kartın içine yazılmaz. */
+.pro-hero { display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin: 2px 0 8px;
+  border: 1px solid var(--line); border-radius: calc(var(--radius) + 4px);
+  background: var(--panel);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 16%, var(--panel)), var(--panel) 68%); }
+.pro-hero-ic { flex: 0 0 auto; width: calc(42px * var(--fs)); height: calc(42px * var(--fs)); border-radius: 50%;
+  display: grid; place-items: center; background: var(--btn);
+  background: color-mix(in srgb, var(--accent) 24%, var(--panel)); color: var(--fg); }
+.pro-hero-ic.t-adfree { background: color-mix(in srgb, var(--t-adfree) 26%, var(--panel)); }
+.pro-hero-ic.t-premium { background: color-mix(in srgb, var(--t-premium) 26%, var(--panel)); }
+.pro-hero-ic.t-super { background: color-mix(in srgb, var(--t-super) 26%, var(--panel)); }
+.pro-hero-ic svg.ic { width: calc(24px * var(--fs)); height: calc(24px * var(--fs)); }
+.pro-hero-tx { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pro-hero-tx strong { font-size: calc(16px * var(--fs)); }
+.pro-hero-tx small { color: var(--muted); font-size: calc(12px * var(--fs)); }
+.pro-hero.owned { border-color: var(--accent); }
+
+.pro-features { margin: 6px 0 10px; padding-left: 0; list-style: none; font-size: calc(13px * var(--fs)); }
+.pro-features li { break-inside: avoid; padding: 3px 0; display: flex; align-items: flex-start; gap: 7px; }
+.pro-features .fic { width: calc(15px * var(--fs)); height: calc(15px * var(--fs)); flex: 0 0 auto;
+  margin-top: calc(2px * var(--fs)); fill: var(--t, var(--accent)); }
+.pro-status { border-radius: 10px; margin: 4px 0; }
 /* Paket kartları: üç basamak alt alta (telefonda tek sütun, genişte yan yana). Etkin paket vurgulanır,
    sahip olunandan düşük paketler soluk kalır — bilgi olarak durur ama satın alınamaz. */
-.tier-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 6px 0 2px; }
-@media (min-width: 640px) { .tier-grid { grid-template-columns: repeat(3, 1fr); align-items: start; } }
-.tier-card { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; background: var(--panel); }
+.tier-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin: 6px 0 2px; }
+@media (min-width: 640px) { .tier-grid { grid-template-columns: repeat(3, 1fr); align-items: stretch; } }
+.tier-card { position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: calc(var(--radius) + 2px);
+  padding: 14px 13px 12px; background: var(--panel); display: flex; flex-direction: column;
+  background-image: linear-gradient(180deg, color-mix(in srgb, var(--t) 10%, transparent), transparent 96px); }
+/* color-mix desteklemeyen eski WebView: kart yine de panel zemininde ve kimlik şeridiyle okunur kalır */
+.tier-card.t-adfree { --t: var(--t-adfree); }
+.tier-card.t-premium { --t: var(--t-premium); }
+.tier-card.t-super { --t: var(--t-super); }
+/* Üstteki renk şeridi kartın kimliğidir; kenarlıkla değil kendi katmanıyla çizilir ki köşelerde kırılmasın */
+.tier-strip { position: absolute; inset: 0 0 auto 0; height: 4px; background: var(--t, var(--accent)); }
 .tier-card.owned { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .tier-card.dim { opacity: .55; }
-.tier-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; }
-.tier-name { font-weight: 700; font-size: calc(15px * var(--fs)); }
-.tier-badge { background: var(--accent); color: var(--accent-fg); font-size: calc(10px * var(--fs)); font-weight: 800; padding: 2px 6px; border-radius: 8px; }
-.tier-card .pro-features { columns: 1; margin-bottom: 8px; }
-.tier-buy { display: flex; flex-direction: column; gap: 6px; }
-.tier-buy .btn { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; width: 100%; }
-.tier-buy .btn .pl { font-size: calc(12.5px * var(--fs)); opacity: .85; }
+.tier-card.pop { border-color: var(--t, var(--line)); border-color: color-mix(in srgb, var(--t) 60%, var(--line)); }
+/* "En çok seçilen" kurdelesi sağ üstte; RTL'de sola geçer */
+.tier-ribbon { position: absolute; top: calc(10px * var(--fs)); right: 0; background: var(--t, var(--accent)); color: var(--t-ink);
+  font-size: calc(10px * var(--fs)); font-weight: 800; letter-spacing: .2px; padding: 3px 9px 3px 10px;
+  border-radius: 99px 0 0 99px; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html[dir="rtl"] .tier-ribbon { right: auto; left: 0; border-radius: 0 99px 99px 0; }
+.tier-head { display: flex; align-items: center; gap: 9px; margin: 2px 0 4px; }
+/* Kurdele başlığın üstüne binmesin: kurdeleli kartta başlık satırı sağından boşluk bırakır */
+.tier-card.pop .tier-head { padding-right: calc(104px * var(--fs)); }
+html[dir="rtl"] .tier-card.pop .tier-head { padding-right: 0; padding-left: calc(104px * var(--fs)); }
+.tier-ic { flex: 0 0 auto; width: calc(30px * var(--fs)); height: calc(30px * var(--fs)); border-radius: 9px;
+  display: grid; place-items: center; background: var(--btn);
+  background: color-mix(in srgb, var(--t) 22%, var(--panel)); color: var(--fg); }
+.tier-ic svg.ic { width: calc(18px * var(--fs)); height: calc(18px * var(--fs)); }
+.tier-name { font-weight: 800; font-size: calc(16px * var(--fs)); letter-spacing: .2px; }
+.tier-badge { background: var(--accent); color: var(--accent-fg); font-size: calc(10px * var(--fs)); font-weight: 800; padding: 2px 7px; border-radius: 8px; }
+.tier-price { display: flex; align-items: baseline; gap: 3px; margin: 2px 0 2px; }
+.tier-price b { font-size: calc(24px * var(--fs)); font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.5px; }
+.tier-price span { color: var(--muted); font-size: calc(12px * var(--fs)); }
+.tier-card .pro-features { columns: 1; margin-bottom: 10px; flex: 1 1 auto; }
+.tier-buy { display: flex; flex-direction: column; gap: 7px; margin-top: auto; }
+.tier-buy .btn { display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%; min-height: calc(44px * var(--fs)); }
+.tier-buy .btn .pl { font-size: calc(12.5px * var(--fs)); opacity: .9; display: inline-flex; align-items: center; gap: 6px; }
 .tier-buy .btn .pr { font-weight: 700; font-variant-numeric: tabular-nums; }
+.tier-buy .btn.primary { background: var(--t, var(--accent)); color: var(--t-ink); }
+.tier-buy .btn.primary:disabled { background: var(--btn); color: var(--fg); }
+.tier-buy .btn:disabled { opacity: .6; }
+/* Tasarruf hapı: yalnız yıllıkta ve yalnız fiyatlar okunabildiğinde çizilir */
+.tier-buy .save { font-style: normal; font-weight: 800; font-size: calc(10.5px * var(--fs));
+  background: rgba(0,0,0,.18); border-radius: 99px; padding: 2px 6px; font-variant-numeric: tabular-nums; }
+body[data-theme="light"] .tier-buy .btn.primary .save, body[data-theme="sepia"] .tier-buy .btn.primary .save { background: rgba(0,0,0,.14); }
 .hint { font-size: calc(12px * var(--fs)); color: var(--muted); margin: 14px 0 0; }
 .row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 /* son dosyalar: küçük resimli ızgara (en çok 8) */
@@ -728,3 +785,464 @@ html[dir="rtl"] .kv-copy { text-align: right; }
 .tbl-prev { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
 .tbl-prev table { border-collapse: collapse; font-size: calc(12px * var(--fs)); }
 .tbl-prev td { border: 1px solid var(--line); padding: 3px 6px; white-space: nowrap; }
+
+
+/* ==========================================================================================
+   DWG OfficeZip — BEKLEME ANİMASYONLARI (#loading örtüsü)
+   ------------------------------------------------------------------------------------------
+   NE ZAMAN HANGİ SINIF
+     #loading.modal            → sınıf yoksa var olan .spinner görünür (geri uyumluluk).
+     #loading.modal.load-cad   → çizim çözümleniyor / DXF kuruluyor / sahne hazırlanıyor.
+     #loading.modal.load-doc   → PDF · DOCX · XLSX · TXT belgesi açılıyor, sayfa dizgisi.
+     #loading.modal.load-out   → dışa aktarma, yazdırma, PDF üretme, toplu çıktı.
+     #loading.modal.load-d3    → 3B sahne kurulumu, katı model, görünüm küpü hazırlığı.
+     #loading.modal.load-cloud → bulut indirme / yükleme, paylaşım, eşitleme.
+   app.js YALNIZ kapsayıcının sınıfını değiştirir; beş çeşidin işaretlemesi HTML'de durur ve
+   görünmeyen çeşit display:none ile kapalıdır (hiç canlandırılmaz, pil yakmaz).
+
+   NEDEN BU SÜRELER
+     Bekleme örtüsü dakikalarca açık kalabilir (büyük DWG). Göz, saniyenin altındaki ritmi
+     "acele" olarak okur ve yorar; 2,5 sn'nin altı huzursuz eder, 4 sn'nin üstü "takıldı"
+     izlenimi verir. Bu yüzden bütün döngüler 3,0-4,0 sn arasındadır:
+       cad 3,6s (çizim → kolon → ölçü: dört aşamalı, en uzun anlatı)
+       doc 3,2s (satır dizilmesi; satırlar 0,13s aralıkla basamaklanır)
+       out 3,0s (iki sayfa 1,5s faz farkıyla → kesintisiz akış, görünür ritim 1,5s)
+       d3  4,0s (tam tur; 90°/s'nin altı, baş döndürmeyen ağırlıkta bir dönüş)
+       cloud 3,2s (nokta akışı; üç nokta 1,07s aralıkla, boşluksuz kolon)
+     İlerleme çubuğu: gerçek dolumda 0,28s yumuşama (app.js sıçramalı yüzde verse de göz
+     kaymayı sürekli görür), üstünde gezen ışık şeridi 2,6s.
+
+   DURGUN KİP (body.reduce-motion · prefers-reduced-motion)
+     Her parçanın CANLANDIRILMAMIŞ (statik) CSS değeri, döngünün TAMAMLANMIŞ hâli olacak
+     şekilde seçilmiştir: plan tam çizilmiş, belge satırları dolu, sayfa yarı çıkmış, küp
+     izometrik açıda durur, noktalar kolon boyunca eşit aralıklı dizilir. Bu yüzden durgun
+     kipte tek yapılan `animation:none` demektir — donmuş bir kare değil, bitmiş bir resim
+     çıkar.
+
+   BİÇİM KURALLARI
+     Sabit renk yok: her şey :root belirteçlerinden (currentColor = var(--fg)). CSS ölçüleri
+     calc(<px> * var(--fs)); tek istisna 1 px kıl çizgilerdir (kenarlık, ızgara), onlar app.css
+     gibi ölçeklenmez. SVG içindeki px değerleri KULLANICI BİRİMİdir (viewBox 0 0 120 120),
+     --fs ile çarpılmaz — ölçeği kapsayıcının --la boyu verir. Yalnız transform / opacity /
+     stroke-dashoffset canlandırılır; width · height · top · left · filter canlandırılmaz.
+     Metin gömülmez.
+   ========================================================================================== */
+
+
+/* ---- 1. ÖRTÜNÜN ZEMİNİ: temaya uyan yer + çok soluk milimetrik kâğıt ızgarası ------------- */
+/* .modal'ın sabit koyu zemini #loading'de temaya devredilir; iki katman da negatif z-index
+   ile örtünün KENDİ yığın bağlamında kalır (z-index:40 + position:absolute), içeriğin altına
+   girer, tuvale taşmaz. Yarı saydamlık ayrı katmanın opacity'siyle verilir — böylece
+   color-mix() gerekmez (eski WebView sürümleri için). */
+#loading {
+  background: none;
+  color: var(--fg);
+  --la: min(calc(148px * var(--fs)), 48vw);   /* bekleme görselinin kenar uzunluğu */
+}
+#loading::before {                                  /* yer rengi */
+  content: ""; position: absolute; inset: 0; z-index: -2; pointer-events: none;
+  background: var(--bg); opacity: .93;
+}
+#loading::after {                                   /* milimetrik kâğıt: 8 px ince, 40 px kalın */
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  opacity: .15;
+  background:
+    repeating-linear-gradient(to right,  var(--line) 0 calc(1.4px * var(--fs)), transparent calc(1.4px * var(--fs)) calc(40px * var(--fs))),
+    repeating-linear-gradient(to bottom, var(--line) 0 calc(1.4px * var(--fs)), transparent calc(1.4px * var(--fs)) calc(40px * var(--fs))),
+    repeating-linear-gradient(to right,  var(--line) 0 1px, transparent 1px calc(8px * var(--fs))),
+    repeating-linear-gradient(to bottom, var(--line) 0 1px, transparent 1px calc(8px * var(--fs)));
+}
+/* açık temalarda aynı opaklık daha çok göze çarpar, kısılır; yüksek karşıtlıkta desen
+   okumayı zorlaştırmasın diye en aza iner */
+body[data-theme="light"] #loading::after,
+body[data-theme="sepia"] #loading::after { opacity: .11; }
+body[data-theme="hicontrast"] #loading::after { opacity: .07; }
+#loading .sub { color: var(--muted); }
+#loading > * { position: relative; }                 /* içerik iki dokunun üstünde kalır */
+
+
+/* ---- 2. GÖRSEL LEVHASI ve ÇEŞİT SEÇİMİ --------------------------------------------------- */
+.loadart {
+  display: none;                                     /* sınıf yoksa: klasik .spinner çalışır */
+  width: var(--la); height: var(--la);
+  flex: 0 0 auto; align-items: center; justify-content: center;
+  padding: calc(12px * var(--fs));
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) * 1.8);
+  box-shadow: var(--shadow);
+}
+.la { display: none; width: 100%; height: 100%; overflow: visible; }
+
+#loading.load-cad   .loadart, #loading.load-doc   .loadart, #loading.load-out .loadart,
+#loading.load-d3    .loadart, #loading.load-cloud .loadart { display: flex; }
+/* zengin görsel varken dönen daire ikinci bir bekleme işareti olur; kaldırılır */
+#loading.load-cad   .spinner, #loading.load-doc   .spinner, #loading.load-out .spinner,
+#loading.load-d3    .spinner, #loading.load-cloud .spinner { display: none; }
+
+#loading.load-cad   .la-cad   { display: block; }
+#loading.load-doc   .la-doc   { display: block; }
+#loading.load-out   .la-out   { display: block; }
+#loading.load-cloud .la-cloud { display: block; }
+#loading.load-d3    .la-d3    { display: grid; place-items: center; }
+
+/* ortak çizim kalemi: her çeşit currentColor ile çizer, vurgu yalnız anlam taşıyan parçada */
+.la-cad, .la-doc, .la-out, .la-cloud {
+  fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+/* eldiven kipinde örtü de büyür: uzaktan / kalın parmakla bakılıyor demektir */
+body.glove #loading { --la: min(calc(172px * var(--fs)), 54vw); }
+body.glove #loading .btn { min-height: calc(52px * var(--fs)); min-width: calc(120px * var(--fs)); }
+
+
+/* ---- 3. 'cad' — mimari plan kendi kendini çiziyor (3,6 s) ---------------------------------- */
+/* Bütün yollarda pathLength="100" var; uzunluk hesabı yapılmaz, dashoffset doğrudan yüzdedir.
+   Sıra: dış duvar → iç bölme (kapı boşluklu) → kapı yayı → kolon dairesi → ölçü çizgisi →
+   ok başları → bekleme → tüm mürekkebin sönmesi. Kapanış sönmeyle olduğu için sıfırlanma
+   görünmez, döngü yumuşak kapanır. */
+.la-cad .dr   { stroke-dasharray: 100; stroke-dashoffset: 0; }   /* statik = çizilmiş hâl */
+.la-cad .w1   { stroke-width: 2.6; animation: cadW1  3.6s cubic-bezier(.4,0,.2,1) infinite; }
+.la-cad .w2   { stroke-width: 1.7; animation: cadW2  3.6s cubic-bezier(.4,0,.2,1) infinite; }
+.la-cad .arc  { stroke-width: 1.2; opacity: .7; animation: cadArc 3.6s cubic-bezier(.4,0,.2,1) infinite; }
+.la-cad .ext,
+.la-cad .dim  { stroke-width: 1.2; animation: cadDim 3.6s cubic-bezier(.4,0,.2,1) infinite; }
+.la-cad .col  { stroke: var(--accent); stroke-width: 2.4;
+                transform-box: fill-box; transform-origin: 50% 50%;
+                animation: cadCol 3.6s cubic-bezier(.34,1.3,.5,1) infinite; }
+.la-cad .tip  { fill: currentColor; stroke: none;
+                transform-box: fill-box; transform-origin: 50% 50%;
+                animation: cadTip 3.6s ease-out infinite; }
+.la-cad .ink  { animation: cadInk 3.6s linear infinite; }
+
+@keyframes cadW1  { 0%, 4%  { stroke-dashoffset: 100 } 28%, 100% { stroke-dashoffset: 0 } }
+@keyframes cadW2  { 0%, 26% { stroke-dashoffset: 100 } 44%, 100% { stroke-dashoffset: 0 } }
+@keyframes cadArc { 0%, 42% { stroke-dashoffset: 100 } 52%, 100% { stroke-dashoffset: 0 } }
+@keyframes cadCol { 0%, 46% { transform: scale(.25); opacity: 0 } 58%, 100% { transform: scale(1); opacity: 1 } }
+@keyframes cadDim { 0%, 54% { stroke-dashoffset: 100 } 72%, 100% { stroke-dashoffset: 0 } }
+@keyframes cadTip { 0%, 70% { opacity: 0; transform: scale(.4) } 80%, 100% { opacity: 1; transform: scale(1) } }
+@keyframes cadInk { 0% { opacity: 0 } 5% { opacity: 1 } 90% { opacity: 1 } 100% { opacity: 0 } }
+
+
+/* ---- 4. 'doc' — çok sayfalı belge dizgisi (3,2 s) ------------------------------------------ */
+/* Sayfa KALIR, içerik yeniden dizilir: satırlar soldan açılır, arkadaki ikinci sayfa dışarı
+   kayar, ön sayfanın köşesi hafifçe kalkar. Satırlar tek bir keyframe'i 0,13 s gecikmeyle
+   paylaşır; gecikme boyunca 0% durumu görünsün diye fill-mode: backwards verilir. */
+/* sayfalar OPAK (--panel) doldurulur: levhayla aynı renk olduğu için görünmez, ama arkadaki
+   sayfanın kenarı ön sayfanın içinden geçmez — yalnız sağ üstten dışarı taşan payı görünür */
+.la-doc .page { fill: var(--panel); stroke-width: 2.2; }
+.la-doc .back { fill: var(--panel); stroke-width: 1.6; transform: translate(9px, -9px); opacity: .5;
+                animation: docBack 3.2s cubic-bezier(.4,0,.2,1) infinite; }
+.la-doc .fold { fill: currentColor; fill-opacity: .16; stroke-width: 1.6;
+                transform-box: fill-box; transform-origin: 0% 100%;
+                transform: rotate(-7deg);
+                animation: docFold 3.2s cubic-bezier(.4,0,.2,1) infinite; }
+.la-doc .ln   { fill: currentColor; stroke: none; opacity: .85;
+                transform-box: fill-box; transform-origin: 0% 50%;
+                animation: docLn 3.2s cubic-bezier(.3,0,.2,1) infinite backwards; }
+.la-doc .ln2 { animation-delay: .13s } .la-doc .ln3 { animation-delay: .26s }
+.la-doc .ln4 { animation-delay: .39s } .la-doc .ln5 { animation-delay: .52s }
+
+@keyframes docBack { 0%, 10% { opacity: 0;  transform: translate(0, 0) }
+                     26%, 84% { opacity: .5; transform: translate(9px, -9px) }
+                     100%     { opacity: 0;  transform: translate(0, 0) } }
+@keyframes docFold { 0%, 52% { transform: rotate(0deg) }
+                     68%, 86% { transform: rotate(-11deg) }
+                     100%     { transform: rotate(0deg) } }
+@keyframes docLn   { 0%, 8%  { transform: scaleX(0); opacity: 0 }
+                     22%, 86% { transform: scaleX(1); opacity: .85 }
+                     100%     { transform: scaleX(1); opacity: 0 } }
+
+
+/* ---- 5. 'out' — dışa aktarma / yazdırma (3,0 s, kesintisiz) --------------------------------- */
+/* İki özdeş sayfa aynı yolu 1,5 s faz farkıyla yürür: biri yukarıdan çıkarken öteki yarıktan
+   belirir, akış hiç kesilmez. Sayfa yarığın ALTINDA doğar; clipPath yalnız cihazın üstünü
+   açık bırakır, böylece çizim izleri sayfa çıktıkça satır satır ortaya çıkar — ayrı bir
+   "belirme" animasyonuna gerek kalmaz. Cihaz gövdesi opak (--panel), kalan payı örter. */
+.la-out .sh   { animation: outSheet 3s linear infinite; }
+.la-out .sh1  { transform: translateY(4px); }        /* statik: sayfa yarı çıkmış durur */
+.la-out .sh2  { opacity: 0; animation-delay: -1.5s; }
+.la-out .pg   { fill: var(--panel); stroke-width: 1.8; }
+.la-out .tr   { stroke-width: 1.4; opacity: .6; }
+.la-out .tr2  { stroke-width: 1.4; opacity: .45; }
+.la-out .dev  { fill: var(--panel); stroke-width: 2.4; }
+.la-out .slot { stroke-width: 2.6; opacity: .65; }
+.la-out .feet { stroke-width: 2.4; opacity: .55; }
+.la-out .led  { fill: var(--accent); stroke: none; animation: outLed 2.4s ease-in-out infinite; }
+
+@keyframes outSheet { 0%   { transform: translateY(68px); opacity: 1 }
+                      72%  { opacity: 1 }
+                      100% { transform: translateY(-78px); opacity: 0 } }
+@keyframes outLed   { 0%, 100% { opacity: 1 } 50% { opacity: .22 } }
+
+
+/* ---- 6. 'd3' — tel kafes küp (4,0 s) -------------------------------------------------------- */
+/* Saf CSS 3B: altı yüz yalnız kenarlıktan ibarettir, dolgusuz oldukları için arka kenarlar
+   görünür ve tel kafes okunur. CANLANDIRILAN TEK ÖĞE .cube3'tür — altı yüz onun 3B
+   bağlamında taşınır, tarayıcı tek katman döndürür. Öndeki yüz vurgu renginde: dönüş yönü
+   ve derinlik sırası böyle okunur. Durgun kipte izometrik açıda durur. */
+.la-d3  { --c: min(calc(64px * var(--fs)), 30vw);
+          perspective: calc(340px * var(--fs)); }
+.cube3  { position: relative; width: var(--c); height: var(--c);
+          transform-style: preserve-3d;
+          transform: rotateX(-22deg) rotateY(-32deg);   /* statik = izometrik duruş */
+          animation: d3spin 4s linear infinite; }
+.cube3 > i { position: absolute; inset: 0; display: block;
+             border: calc(1.6px * var(--fs)) solid currentColor; border-radius: calc(2px * var(--fs));
+             opacity: .85; }
+.cube3 > i:nth-child(1) { transform: translateZ(calc(var(--c) / 2)); border-color: var(--accent); opacity: 1; }
+.cube3 > i:nth-child(2) { transform: rotateY(180deg) translateZ(calc(var(--c) / 2)); }
+.cube3 > i:nth-child(3) { transform: rotateY(90deg)  translateZ(calc(var(--c) / 2)); }
+.cube3 > i:nth-child(4) { transform: rotateY(-90deg) translateZ(calc(var(--c) / 2)); }
+.cube3 > i:nth-child(5) { transform: rotateX(90deg)  translateZ(calc(var(--c) / 2)); }
+.cube3 > i:nth-child(6) { transform: rotateX(-90deg) translateZ(calc(var(--c) / 2)); }
+
+@keyframes d3spin { from { transform: rotateX(-22deg) rotateY(-32deg) }
+                    to   { transform: rotateX(-22deg) rotateY(328deg) } }
+
+
+/* ---- 7. 'cloud' — bulut aktarımı (3,2 s) ---------------------------------------------------- */
+/* İki kolon: solda yukarı (yükleme), sağda aşağı (indirme). Her kolonda üç nokta aynı
+   keyframe'i NEGATİF gecikmeyle paylaşır — negatif gecikme ilk turda da kolonu dolu gösterir,
+   boşluk oluşmaz. Noktaların statik konumları elle basamaklandırılmıştır ki durgun kipte
+   üst üste yığılmasınlar. Bulut çok hafif nefes alır (scale 1 → 1,035): sabit bir siluetten
+   canlı, ama göz almayan bir ritim. */
+.la-cloud .cloudbody { stroke-width: 2.4;
+                       transform-box: fill-box; transform-origin: 50% 50%;
+                       animation: clBreathe 3.2s ease-in-out infinite; }
+.la-cloud .arw { stroke: var(--accent); stroke-width: 2.2; opacity: .9; }
+.la-cloud .dot { fill: var(--accent); stroke: none; }
+.la-cloud .up  { animation: clUp 3.2s linear infinite; }
+.la-cloud .dn  { animation: clDn 3.2s linear infinite; }
+.la-cloud .up1 { transform: translateY(-4px)  } .la-cloud .dn1 { transform: translateY(4px)  }
+.la-cloud .up2 { transform: translateY(-13px); animation-delay: -1.07s }
+.la-cloud .dn2 { transform: translateY(13px);  animation-delay: -1.07s }
+.la-cloud .up3 { transform: translateY(-22px); animation-delay: -2.13s }
+.la-cloud .dn3 { transform: translateY(22px);  animation-delay: -2.13s }
+
+@keyframes clBreathe { 0%, 100% { transform: scale(1) } 50% { transform: scale(1.035) } }
+@keyframes clUp { 0%   { transform: translateY(2px);   opacity: 0 }
+                  22%  { opacity: 1 } 74% { opacity: 1 }
+                  100% { transform: translateY(-28px); opacity: 0 } }
+@keyframes clDn { 0%   { transform: translateY(-2px);  opacity: 0 }
+                  22%  { opacity: 1 } 74% { opacity: 1 }
+                  100% { transform: translateY(28px);  opacity: 0 } }
+
+
+/* ---- 8. İLERLEME ÇUBUĞU — yalnız gerçek dolum ----------------------------------------------- */
+/* Çubuk yalnız ölçülebilen aşamada (indirmede bayt/toplam, DXF ve sahne kurmada işçinin
+   bildirdiği oran) görünür; ölçülemeyen aşamada app.js onu gizler. Belirsiz (kayan şeritli)
+   bir çubuk EKLENMEDİ: bekleme görseli zaten "çalışıyor" bilgisini veriyor, ikinci bir
+   belirsiz gösterge aynı şeyi tekrar söylerdi. Uydurma yüzde de gösterilmez. */
+#loading .lprog { width: min(calc(280px * var(--fs)), 74vw); }
+#loading .lbar  { position: relative; height: calc(8px * var(--fs));
+                  border: 1px solid var(--line); background: var(--btn); }
+body.glove #loading .lbar { height: calc(11px * var(--fs)); }
+
+#loading .lbar > i { position: relative; overflow: hidden;
+                     transition: width .28s cubic-bezier(.22,.61,.36,1); }
+#loading .lbar > i::after {                      /* dolumun üstünde gezen ışık */
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 18%, var(--fg) 50%, transparent 82%);
+  opacity: .26; transform: translateX(-100%);
+  animation: lSheen 2.6s ease-in-out infinite;
+}
+
+@keyframes lSheen { 0% { transform: translateX(-100%) } 55%, 100% { transform: translateX(220%) } }
+
+
+/* ---- 9. RTL — Arapça arayüzde bozulmama --------------------------------------------------- */
+/* Çizimler yön taşımaz; yalnız okuma yönü taşıyan iki şey çevrilir: belge sayfasının kıvrık
+   köşesi (sağ üstten sol üste geçer) ve ilerleme hareketlerinin yönü. Dolumun sağdan
+   büyümesi blok kutunun kendi direction'ından gelir, ayrıca kural gerekmez. */
+html[dir="rtl"] #loading .la-doc .mir { transform: scaleX(-1); transform-origin: 50% 50%; }
+html[dir="rtl"] #loading .lbar > i::after { animation-direction: reverse; }
+html[dir="rtl"] #loading .lpct { text-align: left; }
+
+
+/* ---- 9b. YÜKSEK KARŞITLIK — soluk kalan sabit opaklıklar okunur seviyeye çekilir ---------- */
+/* hicontrast teması ve body.contrast ince ayarı zayıf tonu değil, KESKİN ayrımı ister; .7/.45
+   gibi opaklıklar siyah-beyazda çizgiyi kaybettirir. Yalnız opaklığı CANLANDIRILMAYAN parçalar
+   düzeltilir — .ln, .back ve ışık şeridi kendi keyframe'inde opacity taşıdığı için elleşilmez. */
+body[data-theme="hicontrast"] #loading .arc,  body.contrast #loading .arc,
+body[data-theme="hicontrast"] #loading .arw,  body.contrast #loading .arw,
+body[data-theme="hicontrast"] #loading .slot, body.contrast #loading .slot,
+body[data-theme="hicontrast"] #loading .feet, body.contrast #loading .feet,
+body[data-theme="hicontrast"] #loading .tr,   body.contrast #loading .tr,
+body[data-theme="hicontrast"] #loading .tr2,  body.contrast #loading .tr2,
+body[data-theme="hicontrast"] #loading .cube3 > i,
+body.contrast #loading .cube3 > i { opacity: 1; }
+body[data-theme="hicontrast"] #loading .la-doc .fold,
+body.contrast #loading .la-doc .fold { fill-opacity: .3; }
+
+
+/* ---- 10. DURGUN KİP — hareket yok, ama resim tamamlanmış --------------------------------- */
+/* Her parçanın statik değeri zaten döngünün bitmiş hâli olduğu için burada tek iş
+   animasyonları kapatmaktır. app.css'in `animation-duration:.001s` kuralı tek başına
+   son kareye atlatır ve sönmeyle biten döngülerde görseli YOK eder; bu blok onu önler. */
+body.reduce-motion #loading .la, body.reduce-motion #loading .la *,
+body.reduce-motion #loading .cube3, body.reduce-motion #loading .cube3 > i,
+body.reduce-motion #loading .lbar > i::after {
+  animation: none !important;
+}
+body.reduce-motion #loading .lbar > i { transition: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  #loading .la, #loading .la *, #loading .cube3, #loading .cube3 > i,
+  #loading .lbar > i::after {
+    animation: none !important;
+  }
+  #loading .lbar > i { transition: none; }
+}
+
+
+/* ------------------------------------------------------------------------------------------
+   DWG OfficeZip — iskelet (skeleton) ve boş durum biçemleri
+   Bekleme yüzeyleri: liste satırı yüklenirken 'skel-item', çizim önizlemesi hazırlanırken
+   'skel-thumb', belge gövdesi çözümlenirken 'skel-doc'; hiç içerik yokken 'empty' kartları
+   (empty-cad · empty-search · empty-cloud · empty-folder).
+
+   Renk: yalnız app.css :root belirteçleri. Gri tonlar sabit yazılmaz, color-mix ile
+   --fg'nin --panel içine karışımından türetilir; böylece altı temanın hepsinde (koyu, light,
+   blueprint, sepia, hicontrast, body.contrast) kendiliğinden doğru kontrastı verir.
+   color-mix desteklemeyen eski WebView'de bildirim düşer ve önceki satırdaki --btn / --line
+   yedeği geçerli olur — iskelet düz bir blok olarak yine görünür, yalnız parıltı kalmaz.
+
+   Ölçü: her uzunluk calc(<px> * var(--fs)); kullanıcı yazı ölçeğini büyütünce iskelet de büyür.
+   Hareket: yalnız transform ve opacity canlandırılır. Parıltı, satırın üstünde kayan TEK bir
+   ::after katmanıdır (background-position değil) — satır başına bir bileşik katman, filtre yok.
+   body.reduce-motion ve prefers-reduced-motion altında parıltı durur ama KAYBOLMAZ: kayan bant
+   yerini ince, düz bir örtüye bırakır, plan izleri de son (görünür) hâlinde donar.
+   RTL: yerleşim mantıksal özelliklerle kurulur; parıltının yönü html[dir="rtl"] altında çevrilir.
+   ------------------------------------------------------------------------------------------ */
+
+/* --- okunur ama görünmez metin --------------------------------------------------------------
+   İskeletler ve boş durum çizimleri aria-hidden'dır (süstür, bilgi taşımazlar); bekleme
+   bilgisini yanlarındaki .vh metni verir. */
+.vh { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; white-space: nowrap; border: 0; clip: rect(0 0 0 0); clip-path: inset(50%); }
+
+/* --- ortak ton belirteçleri (yedek satır önce, color-mix sonra) --- */
+.skel-item, .skel-thumb, .skel-doc, .skel-b {
+  --skel-1: var(--btn);                                              /* yedek: blok dolgusu   */
+  --skel-1: color-mix(in srgb, var(--fg) 13%, var(--panel));
+  --skel-2: var(--line);                                             /* yedek: ızgara çizgisi */
+  --skel-2: color-mix(in srgb, var(--fg) 9%, transparent);
+  --skel-shine: transparent;                                         /* yedek: parıltı yok    */
+  --skel-shine: color-mix(in srgb, var(--fg) 11%, transparent);
+  --skel-veil: transparent;                                          /* dingin (hareketsiz) örtü */
+  --skel-veil: color-mix(in srgb, var(--fg) 4%, transparent);
+}
+body.contrast .skel-item, body.contrast .skel-thumb, body.contrast .skel-doc, body.contrast .skel-b { --skel-1: color-mix(in srgb, var(--fg) 20%, var(--panel)); }
+body[data-theme="hicontrast"] .skel-b, body[data-theme="hicontrast"] .skel-thumb { --skel-1: color-mix(in srgb, var(--fg) 18%, var(--panel)); outline: 1px solid var(--line); outline-offset: -1px; }
+
+/* --- 1) skel-item: son dosyalar / dosya listesi satırı ---------------------------------------
+   .recent ızgarasının ya da .list sütununun içine doğrudan konur; .skel-grid / .skel-list
+   sarmalayıcıları bağımsız kullanım içindir. Ölçüler .recent .item ve .open-item ile birebir. */
+.skel-grid { display: grid; gap: calc(8px * var(--fs)); width: 100%;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));                      /* yedek: min() yoksa */
+  grid-template-columns: repeat(auto-fill, minmax(min(calc(150px * var(--fs)), 100%), 1fr)); }
+.skel-list { display: flex; flex-direction: column; width: 100%; }
+
+.skel-item {
+  position: relative; overflow: hidden; isolation: isolate;
+  display: flex; align-items: center; gap: calc(8px * var(--fs));
+  padding: calc(6px * var(--fs)); min-height: calc(48px * var(--fs));
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel);
+  min-width: 0; box-sizing: border-box;
+}
+/* .list içindeki çıplak satır biçimi: çerçeve yerine alt kıl çizgi */
+.skel-item.plain { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; padding: calc(10px * var(--fs)) calc(4px * var(--fs)); }
+
+.skel-b { background: var(--skel-1); border-radius: calc(4px * var(--fs)); display: block; flex: 0 0 auto; }
+.skel-ic { width: calc(56px * var(--fs)); height: calc(42px * var(--fs)); border-radius: calc(6px * var(--fs)); }
+.skel-item.plain .skel-ic { width: calc(48px * var(--fs)); height: calc(36px * var(--fs)); }
+.skel-tx { flex: 1 1 auto; min-width: 0; display: block; }
+.skel-l1 { height: calc(11px * var(--fs)); width: 64%; }
+.skel-l2 { height: calc(9px * var(--fs)); width: 42%; margin-top: calc(7px * var(--fs)); opacity: .72; }
+/* satırlar birbirinin kopyası görünmesin: genişlikler dönüşümlü */
+.skel-item:nth-child(3n+2) .skel-l1 { width: 52%; } .skel-item:nth-child(3n+2) .skel-l2 { width: 34%; }
+.skel-item:nth-child(3n)   .skel-l1 { width: 73%; } .skel-item:nth-child(3n)   .skel-l2 { width: 48%; }
+body.glove .skel-item { min-height: calc(56px * var(--fs)); }
+
+/* --- parıltı: satırın üstünden geçen tek katman (transform ile) --- */
+.skel-item::after, .skel-thumb::after, .skel-doc::after {
+  content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none; border-radius: inherit;
+  background: linear-gradient(100deg, transparent 8%, var(--skel-shine) 48%, transparent 88%);
+  transform: translateX(-100%);
+  animation: skel-sweep 1.6s linear infinite;
+}
+.skel-item:nth-child(3n+2)::after { animation-delay: .13s; }
+.skel-item:nth-child(3n)::after   { animation-delay: .26s; }
+@keyframes skel-sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+html[dir="rtl"] .skel-item::after, html[dir="rtl"] .skel-thumb::after,
+html[dir="rtl"] .skel-doc::after { animation-direction: reverse; }
+
+/* --- 2) skel-thumb: çizim önizlemesi hazırlanırken -------------------------------------------
+   İnce ızgaralı kart + üzerinde beliren soluk plan izleri (#ill-plan-trace). */
+.skel-thumb {
+  position: relative; display: block; overflow: hidden; box-sizing: border-box;
+  --g: calc(12px * var(--fs));
+  width: 100%; max-width: calc(260px * var(--fs)); aspect-ratio: 4 / 3;
+  border: 1px solid var(--line); border-radius: var(--radius); background-color: var(--panel);
+  background-image:
+    repeating-linear-gradient(to right,  var(--skel-2) 0 1px, transparent 1px var(--g)),
+    repeating-linear-gradient(to bottom, var(--skel-2) 0 1px, transparent 1px var(--g));
+}
+.skel-thumb.sm { width: calc(56px * var(--fs)); height: calc(42px * var(--fs)); aspect-ratio: auto; flex: 0 0 auto; --g: calc(7px * var(--fs)); border-radius: calc(6px * var(--fs)); }
+.skel-item.plain .skel-thumb.sm { width: calc(48px * var(--fs)); height: calc(36px * var(--fs)); }
+.skel-item .skel-thumb::after { display: none; }   /* satırın kendi parıltısı yeter: iki bant üst üste geçmesin */
+.skel-plan {
+  position: absolute; inset: 0; margin: auto; width: 76%; height: 76%; z-index: 1;
+  fill: none; color: var(--fg); opacity: 0;
+  animation: skel-in .8s ease-out .12s forwards;
+}
+/* tek seferlik açılış: bitiş karesi dinlenme hâlidir, bu yüzden süre kısaltılınca da doğru görünür */
+@keyframes skel-in { from { opacity: 0; transform: scale(.96); } to { opacity: .3; transform: none; } }
+body[data-theme="hicontrast"] .skel-plan { animation-name: skel-in-hc; }
+@keyframes skel-in-hc { from { opacity: 0; transform: scale(.96); } to { opacity: .5; transform: none; } }
+
+/* --- 2b) skel-doc: belge gövdesi (PDF · DOCX · XLSX · metin) çözümlenirken --------------------
+   Sayfa biçiminde bir kart: başlık bandı + metin satırları. Beklenen şeyin biçimini önceden
+   gösterir, böylece belge açılınca göz yeri hazır bulur. Parıltı .skel-item ile ortaktır. */
+.skel-doc {
+  position: relative; overflow: hidden; isolation: isolate; box-sizing: border-box;
+  width: 100%; max-width: calc(520px * var(--fs)); margin: calc(18px * var(--fs)) auto;
+  padding: calc(18px * var(--fs)); display: flex; flex-direction: column; gap: calc(10px * var(--fs));
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel);
+}
+.skel-doc .skel-b { height: calc(10px * var(--fs)); width: 100%; }
+.skel-doc .skel-h { height: calc(17px * var(--fs)); width: 56%; margin-bottom: calc(4px * var(--fs)); }
+.skel-doc .skel-b:nth-child(3n) { width: 84%; }
+.skel-doc .skel-b:nth-child(4n) { width: 66%; }
+.skel-doc .skel-b:last-child    { width: 38%; }
+
+/* --- durgun kip: parıltı durur, iskelet düz bir ton olarak kalır ------------------------------
+   app.css zaten animation-duration'ı .001s'ye indirir; burada adı da sıfırlanır ki kayan bant
+   ekran dışında donup kaybolmasın — yerine ince, dingin bir örtü konur. */
+body.reduce-motion .skel-item::after, body.reduce-motion .skel-thumb::after,
+body.reduce-motion .skel-doc::after {
+  animation: none; transform: none; background: var(--skel-veil);
+}
+body.reduce-motion .skel-plan { animation: none; opacity: .3; transform: none; }
+body.reduce-motion[data-theme="hicontrast"] .skel-plan { opacity: .5; }
+@media (prefers-reduced-motion: reduce) {
+  .skel-item::after, .skel-thumb::after, .skel-doc::after { animation: none; transform: none; background: var(--skel-veil); }
+  .skel-plan { animation: none; opacity: .3; transform: none; }
+  body[data-theme="hicontrast"] .skel-plan { animation: none; opacity: .5; }
+}
+
+/* --- 3-5) boş durum kartları ------------------------------------------------------------------
+   Yazı i18n'den gelir; boş bırakılan başlık/metin kutusu yer kaplamaz. */
+.empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: calc(6px * var(--fs)); text-align: center; box-sizing: border-box;
+  padding: calc(26px * var(--fs)) calc(14px * var(--fs)); width: 100%; min-width: 0;
+}
+.empty-ill { width: calc(120px * var(--fs)); max-width: 46%; height: auto; color: var(--muted); opacity: .8; flex: 0 0 auto; }
+body[data-theme="hicontrast"] .empty-ill, body.contrast .empty-ill { opacity: 1; }
+.empty-title { color: var(--fg); font-size: calc(15px * var(--fs)); font-weight: 600; margin-top: calc(4px * var(--fs)); }
+.empty-text { color: var(--muted); font-size: calc(13px * var(--fs)); line-height: 1.45; margin: 0; max-width: 34ch; }
+.empty-acts { display: flex; flex-wrap: wrap; gap: calc(8px * var(--fs)); justify-content: center; margin-top: calc(6px * var(--fs)); }
+.empty-title:empty, .empty-text:empty, .empty-acts:empty { display: none; }
+/* dar telefonda çizim küçülür, başlık yine ilk bakışta okunur */
+@media (max-height: 560px) { .empty { padding: calc(14px * var(--fs)) calc(12px * var(--fs)); } .empty-ill { max-width: 28%; } }

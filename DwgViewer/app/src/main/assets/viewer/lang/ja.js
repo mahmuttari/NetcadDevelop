@@ -496,4 +496,5 @@ export default {
   'th_3:geo': '点-直線、点-平面、直線-直線、直線-平面、平面-平面の距離と角度',
   'tl_3:note': '3D 注記',
   'th_3:note': '指定した 3D 点に注記ラベルを置きます',
+  tierPopular: 'いちばん人気', tierSave: '年額プランの割引', perMonth: '/月', openEmptyDirText: 'このフォルダーに表示できるファイルはありません。', openNoResultText: 'その名前に一致するファイルはありません。名前の一部を短くするか、絞り込みを解除してください。', srvNoFiles: 'このアドレスに DWG または DXF ファイルは見つかりませんでした。',
 };
