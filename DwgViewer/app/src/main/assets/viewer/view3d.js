@@ -141,6 +141,17 @@ class Grow {
   out() { return this.a.slice(0, this.n); }   // kopya: kapasite fazlası ölü bellek taşınmaz (setScene tek seferlik)
 }
 
+/** 32 bit indeks tamponu (Grow'un Float32 karşılığı) */
+class GrowU32 {
+  constructor(cap = 1024) { this.a = new Uint32Array(cap); this.n = 0; }
+  push1(x) { if (this.n + 1 > this.a.length) { const b = new Uint32Array(Math.max(1024, this.a.length * 2)); b.set(this.a); this.a = b; } this.a[this.n++] = x; }
+  out() { return this.a.slice(0, this.n); }
+}
+/** kırışıklık eşiği: bu açıdan keskin komşu yüzler ayrı köşe alır (düz yüzey düz kalır, kavis yumuşar) */
+const COS_CREASE = Math.cos(30 * Math.PI / 180);
+/** etkileşim sadeleştirmesi eşikleri: ağ indeksi (üçgen×3), yavaş kare süresi, ardışıklık aralığı, durulma gecikmesi */
+const FAST_MESH_IDX = 2000000, FAST_FRAME_MS = 45, FAST_GAP_MS = 350, FAST_SETTLE_MS = 220;
+
 const PRESET_ANGLES = {
   top: { yaw: -Math.PI / 2, pitch: Math.PI / 2 - 1e-3 },
   bottom: { yaw: -Math.PI / 2, pitch: -Math.PI / 2 + 1e-3 },
@@ -203,7 +214,10 @@ export class View3D {
     this._initGL();
     // tamponlar: her ad için konum (pos) + renk (col) (+ normal) ayrı
     this.bufs = {};
-    this._n = { lines: 0, edges: 0, tris: 0, pts: 0, txt: 0, grid: 0, axes: 0, sel: 0, clipBox: 0, bgq: 0 };
+    this._n = { lines: 0, edges: 0, tris: 0, pts: 0, txt: 0, mesh: 0, grid: 0, axes: 0, sel: 0, clipBox: 0, bgq: 0 };
+    this._nIdx = { mesh: 0 };
+    // 32 bit indeks: ağ ilkelleri paylaşılan köşelerle indeksli çizilsin (yoksa eski genişletilmiş yola düşülür)
+    this.u32 = !!gl.getExtension('OES_element_index_uint');
     this.counts = { lines: 0, tris: 0, pts: 0, grid: 0, axes: 0, sel: 0 };
     this.src = {};            // yeniden renklendirme / yeniden yükleme kaynakları (konum, renk, katman, normal)
     this.layerNames = []; this.layerRGB = new Float32Array(0); this.layerIdx = new Map();
@@ -254,9 +268,10 @@ export class View3D {
   }
   /** sahne tamponlarını `src`ten, yardımcı tamponları (ızgara, eksen, kesit kutusu, seçim) üreticilerinden yeniden yükler */
   _reupload() {
-    for (const n of ['lines', 'edges', 'tris', 'pts', 'txt']) {
+    for (const n of ['lines', 'edges', 'tris', 'pts', 'txt', 'mesh']) {
       const s = this.src[n]; if (!s || !s.pos) continue;
       this.uploadPos(n, s.pos); if (s.nrm) this.uploadNrm(n, s.nrm);
+      if (s.idx) this.uploadIdx(n, s.idx);
     }
     this._applyOverhang();
     this.recolor();
@@ -358,6 +373,63 @@ export class View3D {
     const est = Math.min(1 << 18, Math.max(4096, prims.length * 8));
     const B = {};
     for (const n of ['lines', 'edges', 'tris', 'pts', 'txt']) B[n] = { pos: new Grow(n === 'lines' ? est * 3 : 4096), rgb: new Grow(n === 'lines' ? est * 3 : 4096), lay: new Grow(n === 'lines' ? est : 1024), nrm: n === 'tris' ? new Grow(4096) : null };
+    // ağ ilkelleri (k=5) indeksli çizilir: köşeler paylaşılır, üçgen başına köşe kopyalanmaz
+    let mv = 0, mi = 0;
+    for (const p of prims) if (p.k === 5 && p.vtx) { mv += p.vtx.length; mi += p.idx.length; }
+    const useIdx = this.u32 && mi > 0;
+    const capV = Math.max(4096, Math.ceil(mv * 1.4));
+    B.mesh = { pos: new Grow(capV), rgb: new Grow(capV), lay: new Grow(Math.max(1024, Math.ceil(capV / 3))), nrm: new Grow(capV) };
+    const MIDX = new GrowU32(Math.max(1024, mi));
+    let gAssign = new Uint16Array(64), cornerOut = new Uint32Array(1024);
+    /*
+     * Bir ağ ilkelini indeksli tampona ekler. Köşeler paylaşılır; komşu yüzler arasındaki açı kırışıklık
+     * eşiğini aşarsa o köşe gruplara ayrılıp her grup için ayrı çıkış köşesi üretilir. Böylece düz yüzeyler
+     * düz gölgelenmeye devam eder, kavisli yüzeyler yumuşar ve köşe sayısı üçgen sayısının üçte birine iner.
+     */
+    const addMesh = (p) => {
+      const V = p.vtx, I = p.idx, nt = I.length / 3, nv = V.length / 3;
+      if (!nt || !nv) return;
+      const fnx = new Float32Array(nt), fny = new Float32Array(nt), fnz = new Float32Array(nt);
+      for (let t = 0; t < nt; t++) {
+        const a = I[t * 3] * 3, b2 = I[t * 3 + 1] * 3, d = I[t * 3 + 2] * 3;
+        const ux = V[b2] - V[a], uy = V[b2 + 1] - V[a + 1], uz = V[b2 + 2] - V[a + 2];
+        const vx = V[d] - V[a], vy = V[d + 1] - V[a + 1], vz = V[d + 2] - V[a + 2];
+        fnx[t] = uy * vz - uz * vy; fny[t] = uz * vx - ux * vz; fnz[t] = ux * vy - uy * vx;   // boyu = 2 × alan
+      }
+      const cnt = new Uint32Array(nv + 1);
+      for (let i = 0; i < I.length; i++) { const v = I[i]; if (v < nv) cnt[v + 1]++; }
+      for (let i = 0; i < nv; i++) cnt[i + 1] += cnt[i];
+      const adj = new Uint32Array(I.length), fill = cnt.slice(0, nv);
+      for (let t = 0; t < nt; t++) for (let k = 0; k < 3; k++) { const v = I[t * 3 + k]; if (v < nv) adj[fill[v]++] = t * 3 + k; }
+      if (cornerOut.length < I.length) cornerOut = new Uint32Array(I.length);
+      const gr = [];
+      for (let v = 0; v < nv; v++) {
+        const s0 = cnt[v], e0 = cnt[v + 1]; if (s0 === e0) continue;
+        if (gAssign.length < e0 - s0) gAssign = new Uint16Array(e0 - s0);
+        gr.length = 0;
+        for (let a = s0; a < e0; a++) {
+          const t = (adj[a] / 3) | 0;
+          const nx = fnx[t], ny = fny[t], nz = fnz[t];
+          const L = Math.hypot(nx, ny, nz) || 1e-20, ux = nx / L, uy = ny / L, uz = nz / L;
+          let gi = -1;
+          for (let g = 0; g < gr.length; g++) {
+            const G = gr[g], dd = ux * G.rx + uy * G.ry + uz * G.rz;
+            if (Math.abs(dd) >= COS_CREASE) { const sg = dd < 0 ? -1 : 1; G.ax += sg * nx; G.ay += sg * ny; G.az += sg * nz; gi = g; break; }
+          }
+          if (gi < 0) { gr.push({ rx: ux, ry: uy, rz: uz, ax: nx, ay: ny, az: nz, out: 0 }); gi = gr.length - 1; }
+          gAssign[a - s0] = gi;
+        }
+        const x = V[v * 3], y = V[v * 3 + 1], z = V[v * 3 + 2];
+        for (const G of gr) {
+          const L = Math.hypot(G.ax, G.ay, G.az) || 1;
+          G.out = B.mesh.pos.n / 3;
+          B.mesh.pos.push3(x, y, z); B.mesh.rgb.push3(c[0], c[1], c[2]); B.mesh.lay.push1(li); B.mesh.nrm.push3(G.ax / L, G.ay / L, G.az / L);
+          bbx(x, y, z);
+        }
+        for (let a = s0; a < e0; a++) cornerOut[adj[a]] = gr[gAssign[a - s0]].out;
+      }
+      for (let i = 0; i < I.length; i++) MIDX.push1(cornerOut[i]);
+    };
     // yakalama köşeleri: xyz düz Float64 + ilkel dizisi (JS dizisi başına ~70 bayt yerine 32)
     let vxyz = new Float64Array(Math.max(3 * 1024, prims.length * 6)), vn = 0; const vprim = [];
     const vert = (x, y, z, p) => { if (vn + 3 > vxyz.length) { const b = new Float64Array(vxyz.length * 2); b.set(vxyz); vxyz = b; } vxyz[vn] = x; vxyz[vn + 1] = y; vxyz[vn + 2] = z; vn += 3; vprim.push(p); };
@@ -382,15 +454,16 @@ export class View3D {
       c = col(p.col);
       if (p.k === 2) { push(B.pts, p.x, p.y, p.z || 0); vert(p.x, p.y, p.z || 0, p); continue; }
       if (p.k === 1) { push(B.txt, p.x, p.y, p.z || 0); continue; }
-      if (p.k === 5) {                                        // ağ ilkeli: yazılı diziler doğrudan tampona akar
+      if (p.k === 5) {                                        // ağ ilkeli
         const V = p.vtx, I = p.idx, S2 = p.seg;
-        for (let i = 0; i + 2 < I.length; i += 3) {
+        if (useIdx) addMesh(p);                               // paylaşılan köşe + indeks tamponu
+        else for (let i = 0; i + 2 < I.length; i += 3) {       // 32 bit indeks yoksa: eski genişletilmiş yol
           const a = I[i] * 3, b2 = I[i + 1] * 3, c2 = I[i + 2] * 3;
           if (a + 2 >= V.length || b2 + 2 >= V.length || c2 + 2 >= V.length) continue;
           tri([V[a], V[a + 1], V[a + 2]], [V[b2], V[b2 + 1], V[b2 + 2]], [V[c2], V[c2 + 1], V[c2 + 2]]);
         }
         for (let i = 0; i + 5 < S2.length; i += 6) { push(B.edges, S2[i], S2[i + 1], S2[i + 2]); push(B.edges, S2[i + 3], S2[i + 4], S2[i + 5]); }
-        if (!S2.length) for (let i = 0; i + 2 < V.length; i += 3) bbx(V[i], V[i + 1], V[i + 2]);   // yalnız üçgen varsa sınır kutusu köşelerden
+        if (!S2.length && !useIdx) for (let i = 0; i + 2 < V.length; i += 3) bbx(V[i], V[i + 1], V[i + 2]);
         continue;                                             // yakalama köşesi eklenmez: milyonlarca köşe listeye sığmaz
       }
       const isFace = !!(p.face || (p.closed && FACE_ETS.has(p.et)) || p.fill);
@@ -431,17 +504,21 @@ export class View3D {
     this.zrange = [bb[2], bb[5]];
     this.vertXYZ = vxyz.length === vn ? vxyz : vxyz.slice(0, vn); this.vertPrim = vprim; this._vertsView = null;
     // tamponlar: konumlar merkeze göre
-    for (const n of ['lines', 'edges', 'tris', 'pts', 'txt']) {
+    for (const n of ['lines', 'edges', 'tris', 'pts', 'txt', 'mesh']) {
       const b = B[n], pos = b.pos.out(), o = this.origin;
       for (let i = 0; i < pos.length; i += 3) { pos[i] -= o[0]; pos[i + 1] -= o[1]; pos[i + 2] -= o[2]; }
       this.src[n] = { rgb: b.rgb.out(), lay: b.lay.out(), alpha: n === 'txt' ? 0.6 : 1, pos, nrm: b.nrm ? b.nrm.out() : null, smooth: null };   // pos: bağlam kaybında yeniden yükleme
       this.uploadPos(n, pos); if (b.nrm) this.uploadNrm(n, this.src[n].nrm);
       this._n[n] = pos.length / 3;
     }
+    const midx = MIDX.out();
+    this.src.mesh.idx = midx;
+    this.uploadIdx('mesh', midx);
+    this._nIdx.mesh = midx.length;
     this._smoothReady = false;
     this._applyOverhang();
     this.recolor();
-    this.counts.lines = this._n.lines + this._n.edges; this.counts.tris = this._n.tris; this.counts.pts = this._n.pts + this._n.txt;
+    this.counts.lines = this._n.lines + this._n.edges; this.counts.tris = this._n.tris + this._nIdx.mesh; this.counts.pts = this._n.pts + this._n.txt;
     this.buildGrid(); this.buildAxes(); this.buildClipBox();
     if (bbChanged || !this._sceneOnce) { this._sceneOnce = true; this.fit({ animate: false }); }
     this.setSelection(this._lastSel || []);
@@ -454,7 +531,7 @@ export class View3D {
   /** renk tamponlarını geçerli renk moduna (nesne/katman) ve solgunluğa göre yeniden kurar */
   recolor() {
     const byLayer = this.opts.colorMode === 'layer', fade = this.fadeSet, fa = 1 - this.fadePct / 100, lr = this.layerRGB, names = this.layerNames;
-    for (const n of ['lines', 'edges', 'tris', 'pts', 'txt']) {
+    for (const n of ['lines', 'edges', 'tris', 'pts', 'txt', 'mesh']) {
       const s = this.src[n]; if (!s) continue;
       const cnt = s.lay.length, out = new Float32Array(cnt * 4);
       for (let i = 0; i < cnt; i++) {
@@ -530,6 +607,7 @@ export class View3D {
   _buf(name, kind) { const k = name + ':' + kind; if (!this.bufs[k]) this.bufs[k] = this.gl.createBuffer(); return this.bufs[k]; }
   uploadPos(name, arr) { const gl = this.gl; gl.bindBuffer(gl.ARRAY_BUFFER, this._buf(name, 'pos')); gl.bufferData(gl.ARRAY_BUFFER, arr, gl.STATIC_DRAW); }
   uploadCol(name, arr) { const gl = this.gl; gl.bindBuffer(gl.ARRAY_BUFFER, this._buf(name, 'col')); gl.bufferData(gl.ARRAY_BUFFER, arr, gl.STATIC_DRAW); }
+  uploadIdx(name, arr) { const gl = this.gl; gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this._buf(name, 'idx')); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, arr, gl.STATIC_DRAW); }
   uploadNrm(name, arr) { const gl = this.gl; gl.bindBuffer(gl.ARRAY_BUFFER, this._buf(name, 'nrm')); gl.bufferData(gl.ARRAY_BUFFER, arr, gl.STATIC_DRAW); }
   /** düz [x,y,z,r,g,b,a,…] dizisini (merkeze göre) yükler — ızgara, eksen, seçim, kesit kutusu */
   upload(name, arr, relative = false) {
@@ -760,6 +838,19 @@ export class View3D {
   render() {
     const gl = this.gl, cv = this.cv, o = this.opts;
     if (this._lost || gl.isContextLost()) return;   // bağlam kayıp: geri gelince webglcontextrestored yeniden kurar
+    /*
+     * Etkileşim sadeleştirmesi. Milyonlarca üçgenli bir modelde her kare bütün yüzeyleri çizmek döndürmeyi
+     * takar; CAD programlarının çözümü hareket sırasında geçici olarak sadeleşmektir. Ölçüt kendi kendine
+     * kurulur: sahne AĞIRSA (indeksli ağ tamponu eşiği aşıyorsa), ÖNCEKİ kare yavaş sürdüyse ve yeni istek
+     * hemen ardından geldiyse (yani kullanıcı sürüklüyorsa) o kare yalnız kenarlarla çizilir. Hareket
+     * durunca kısa bir gecikmeyle tam kalitede yeniden çizilir.
+     */
+    {
+      const nowMs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+      const heavy = (this._nIdx.mesh || 0) > FAST_MESH_IDX;
+      this._fastFrame = heavy && (this._lastFrameMs || 0) > FAST_FRAME_MS && (nowMs - (this._lastRenderAt || 0)) < FAST_GAP_MS;
+      this._frameT0 = nowMs;
+    }
     // tuval boyutu CSS boyutuyla uyuşmuyorsa (döndürme, panel, klavye) düzelt — en-boy oranı bozulmasın
     { const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1)); const w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr); if (w > 0 && h > 0 && (cv.width !== w || cv.height !== h)) { const k0 = this._fitK(); cv.width = w; cv.height = h; const k1 = this._fitK(); if (k0 > 0 && isFinite(k1 / k0)) this.cam.dist *= k1 / k0; } }   // sığdırma çarpanı yeni en-boy oranına taşınır
     if (!cv.width || !cv.height) return;
@@ -827,7 +918,7 @@ export class View3D {
       const gz = (o.gridZ === 'zero' ? 0 : o.gridZ === 'custom' ? (+o.gridZValue || 0) : this.bb[2]) - this.origin[2];
       gl.uniform1i(u.uFlat, 1); gl.uniform1f(u.uFlatZ, gz * this.zScale - this.radius * 1e-4);
       gl.uniform4f(u.uOverride, lum(bg) > 0.5 ? 0.35 : 0.02, lum(bg) > 0.5 ? 0.35 : 0.02, lum(bg) > 0.5 ? 0.38 : 0.04, 1);
-      gl.depthMask(false); this._draw('tris', gl.TRIANGLES, 0.45, true); gl.depthMask(true);
+      gl.depthMask(false); this._drawFaces(gl.TRIANGLES, 0.45, true); gl.depthMask(true);
       gl.uniform1i(u.uFlat, 0); gl.uniform4f(u.uOverride, 0, 0, 0, 0);
     }
     // siluet: kameradan uzağa şişirilmiş koyu kabuk (yüzeyler üstüne çizilince yalnız çevre kalır)
@@ -838,14 +929,14 @@ export class View3D {
       gl.uniform4f(u.uOverride, darkEdge[0], darkEdge[1], darkEdge[2], 1);
       // kabuk derinlikte yüzlerin ARKASINA itilir: yüzler (1,1) ofsetiyle çizildiğinden dik yüzlerde kabuk öne geçip yüzü karartmasın
       gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(4, 8);
-      this._draw('tris', gl.TRIANGLES, 1, true, true);
+      this._drawFaces(gl.TRIANGLES, 1, true, true);
       gl.disable(gl.POLYGON_OFFSET_FILL);
       gl.uniform1f(u.uHull, 0); gl.uniform1f(u.uHullBack, 0); gl.uniform4f(u.uOverride, 0, 0, 0, 0);
     }
     if (fx.faces === 'bg') {
       gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(1, 1);
       gl.uniform4f(u.uOverride, bg[0], bg[1], bg[2], 1);
-      this._draw('tris', gl.TRIANGLES, 1, true);
+      this._drawFaces(gl.TRIANGLES, 1, true);
       gl.uniform4f(u.uOverride, 0, 0, 0, 0);
       gl.disable(gl.POLYGON_OFFSET_FILL);
     } else if (fx.faces === 'lit') {
@@ -853,13 +944,13 @@ export class View3D {
       gl.uniform1i(u.uLit, lit ? 1 : 0); gl.uniform1i(u.uShade, lit ? (fx.shade === 1 ? 1 : (fx.specular ? 2 : 0)) : 0); gl.uniform1f(u.uGray, fx.gray);
       if (fx.quality === 'smooth') this._ensureSmooth();
       if (o.faceOpacity < 1) gl.depthMask(false);
-      this._draw('tris', gl.TRIANGLES, dim * o.faceOpacity, true, fx.quality === 'smooth');
+      this._drawFaces(gl.TRIANGLES, dim * o.faceOpacity, true, fx.quality === 'smooth');
       gl.depthMask(true);
       gl.uniform1i(u.uLit, 0); gl.uniform1i(u.uShade, 0); gl.uniform1f(u.uGray, 0);
       gl.disable(gl.POLYGON_OFFSET_FILL);
     } else if (fx.faces === 'xray') {
       gl.depthMask(false);
-      this._draw('tris', gl.TRIANGLES, 0.25 * dim, true);
+      this._drawFaces(gl.TRIANGLES, 0.25 * dim, true);
       gl.depthMask(true);
       gl.disable(gl.DEPTH_TEST);
     }
@@ -896,6 +987,36 @@ export class View3D {
     if (o.clipBox && cl) this._draw('clipBox', gl.LINES, 0.9);
     gl.enable(gl.DEPTH_TEST);
     this.lastMvp = m;
+    {
+      const nowMs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+      this._lastFrameMs = nowMs - this._frameT0;
+      this._lastRenderAt = nowMs;
+      clearTimeout(this._hiTimer);
+      if (this._fastFrame) this._hiTimer = setTimeout(() => { this._lastFrameMs = 0; this._lastRenderAt = 0; this.render(); }, FAST_SETTLE_MS);
+    }
+  }
+  /** yüzeyler: genişletilmiş `tris` tamponu + indeksli `mesh` tamponu birlikte çizilir */
+  _drawFaces(mode, alpha, withNrm = true, smooth = false) {
+    this._draw('tris', mode, alpha, withNrm, smooth);
+    if (this._fastFrame) return;                       // hareket sırasında ağ yüzeyleri atlanır, kenarlar kalır
+    this._drawIdx('mesh', mode, alpha, withNrm);
+  }
+  /** indeksli çizim: köşeler paylaşıldığı için köşe gölgelendirici üçgen sayısının üçte biri kadar çalışır */
+  _drawIdx(name, mode, alpha, withNrm) {
+    const n = this._nIdx[name]; if (!n) return;
+    const gl = this.gl;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.bufs[name + ':pos']);
+    gl.enableVertexAttribArray(this.aPos); gl.vertexAttribPointer(this.aPos, 3, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.bufs[name + ':col']);
+    gl.enableVertexAttribArray(this.aCol); gl.vertexAttribPointer(this.aCol, 4, gl.FLOAT, false, 0, 0);
+    if (this.aNrm >= 0) {
+      const nb = this.bufs[name + ':nrm'];
+      if (withNrm && nb) { gl.bindBuffer(gl.ARRAY_BUFFER, nb); gl.enableVertexAttribArray(this.aNrm); gl.vertexAttribPointer(this.aNrm, 3, gl.FLOAT, false, 0, 0); }
+      else { gl.disableVertexAttribArray(this.aNrm); gl.vertexAttrib3f(this.aNrm, 0, 0, 1); }
+    }
+    gl.uniform1f(this.u.uAlpha, alpha);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.bufs[name + ':idx']);
+    gl.drawElements(mode, n, gl.UNSIGNED_INT, 0);
   }
   _draw(name, mode, alpha, withNrm = false, smooth = false) {
     const n = this._n[name]; if (!n) return;
