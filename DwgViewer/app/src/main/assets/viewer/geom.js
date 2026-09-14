@@ -232,6 +232,10 @@ export function primDist(p, w) {
   if (p.k === 2) return Math.hypot(p.x - w[0], p.y - w[1]);
   if (p.k === 1) return (w[0] >= p.bb[0] && w[0] <= p.bb[2] && w[1] >= p.bb[1] && w[1] <= p.bb[3]) ? Math.hypot(p.x - w[0], p.y - w[1]) * 0.25 : Infinity;
   if (p.k === 3) return pointInPoly(p.quad, w[0], w[1]) ? 0 : Infinity;
+  if (p.k === 5) {                                   // ağ ilkeli: sınır kutusuna uzaklık (milyonlarca üçgen taranmaz)
+    const b = p.bb;
+    return Math.hypot(Math.max(b[0] - w[0], 0, w[0] - b[2]), Math.max(b[1] - w[1], 0, w[1] - b[3]));
+  }
   let best = Infinity, lx = 0, ly = 0, sx = 0, sy = 0;
   for (const o of p.ops) {
     if (o[0] === 0) { lx = sx = o[1]; ly = sy = o[2]; continue; }
@@ -301,6 +305,11 @@ export class RTree {
 /** Yol ilkelinden doğru parçaları [x1,y1,x2,y2,z1,z2] ve yayları toplar */
 function segmentsOf(p) {
   const segs = [], arcs = [];
+  if (p.k === 5) {                                   // ağ ilkeli: kenarları yakalamaya açılır, çok büyükse atlanır
+    const g = p.seg;
+    if (g && g.length && g.length <= 120000) for (let i = 0; i + 5 < g.length; i += 6) segs.push([g[i], g[i + 1], g[i + 3], g[i + 4], g[i + 2], g[i + 5]]);
+    return { segs, arcs };
+  }
   let lx = 0, ly = 0, lz, sx = 0, sy = 0, sz;
   for (const o of p.ops) {
     if (o[0] === 0) { lx = sx = o[1]; ly = sy = o[2]; lz = sz = o[3]; continue; }

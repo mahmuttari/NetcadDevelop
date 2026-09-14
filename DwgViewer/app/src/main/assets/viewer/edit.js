@@ -61,6 +61,16 @@ export function entToPrim(ent, layers) {
 // ---------------------------------------------------------------------------------------
 /** ilkeli 2B afin m ile dönüştürür, z'ye dz ekler; yerinde değiştirir */
 export function transformPrim(p, m, dz = 0) {
+  if (p.k === 5) {                                    // ağ ilkeli: köşe ve kenar dizileri yerinde dönüştürülür
+    const V = p.vtx, G = p.seg;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    const put = (a, i, q, z) => { a[i] = q[0]; a[i + 1] = q[1]; a[i + 2] = z; if (q[0] < x0) x0 = q[0]; if (q[0] > x1) x1 = q[0]; if (q[1] < y0) y0 = q[1]; if (q[1] > y1) y1 = q[1]; };
+    for (let i = 0; i + 2 < V.length; i += 3) put(V, i, apply(m, V[i], V[i + 1]), V[i + 2] + dz);
+    for (let i = 0; i + 2 < G.length; i += 3) put(G, i, apply(m, G[i], G[i + 1]), G[i + 2] + dz);
+    if (isFinite(x0)) p.bb = [x0, y0, x1, y1];
+    if (p.zmin != null) { p.zmin += dz; p.zmax += dz; }
+    return;
+  }
   if (p.k === 0) {
     let out;
     if (isSim(m)) {

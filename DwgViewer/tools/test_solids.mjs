@@ -78,13 +78,13 @@ for (const f of ['example_2013.dwg', 'example_2018.dwg']) {
   if (!fs.existsSync(fp)) { C.skip(f, 'yok'); continue; }
   await open(fp);
   i = await info3d();
-  const solids = await page.evaluate(() => { const by = {}; for (const p of window.dwgApp.state.scene.layouts[0].prims) if (p.tri && p.info) { const h = p.info.h; by[h] = by[h] || { t: p.info.t, tri: 0 }; by[h].tri++; } return by; });
+  const solids = await page.evaluate(() => { const by = {}; for (const p of window.dwgApp.state.scene.layouts[0].prims) { if (!p.info) continue; const n = p.k === 5 ? p.idx.length / 3 : (p.tri ? 1 : 0); if (!n) continue; const h = p.info.h; by[h] = by[h] || { t: p.info.t, tri: 0 }; by[h].tri += n; } return by; });
   ok(`2 ${f}: üç katı (REGION 176, 3DSOLID 2E1, REGION 37D) üçgenlendi`, solids['176'] && solids['176'].tri === 2 && solids['2E1'] && solids['2E1'].tri === 24 && solids['37D'] && solids['37D'].tri === 2, JSON.stringify(solids));
   ok(`2 ${f}: katı yüzeyleri üçgenlendi (tris ≥ 165)`, i && i.tris >= 165, i && `tris=${i.tris} lines=${i.lines}`);
   ok(`2 ${f}: HUD "Yüzey yok" demiyor`, i && !/Yüzey yok/.test(i.hud), i && i.hud);
   const stylesDiffer = await page.evaluate(() => {
     const v = window.dwgApp.editor.view3d(); v.set('grid', false); v.set('axes', false); v.set('persp', false);
-    const tris = window.dwgApp.state.scene.layouts[0].prims.filter(p => p.tri);
+    const tris = window.dwgApp.state.scene.layouts[0].prims.filter(p => p.k === 5 || p.tri);
     v.fitSelection(tris, { animate: false }); v.preset('iso', { animate: false }); v.zoom(1.6);         // katılara yaklaş: stil farkı ölçülebilsin (dikey tuvalde sığdırma geniş kalır)
     const snap = (st) => { v.set('style', st); v.render(); const c = document.createElement('canvas'); c.width = v.cv.width; c.height = v.cv.height; const g = c.getContext('2d'); g.drawImage(v.cv, 0, 0); return g.getImageData(0, 0, c.width, c.height).data; };
     const a = snap('wireframe'), b2 = snap('shaded'), c2 = snap('realistic'), d2 = snap('conceptual');
@@ -117,12 +117,16 @@ for (const f of ['pface.dxf', 'pface_2000.dwg', 'pface_2018.dwg']) {
   if (!fs.existsSync(fp)) { C.skip(f, 'yok'); continue; }
   await open(fp);
   i = await info3d();
-  const by = await page.evaluate(() => { const by = {}; for (const p of window.dwgApp.state.scene.layouts[0].prims) { const k = p.et + (p.tri ? ':tri' : ':path'); by[k] = (by[k] || 0) + 1; } return by; });
-  const faceCount = (by['POLYFACE:path'] || 0) + (by['POLYLINE_PFACE:tri'] || 0) + (by['POLYLINE_MESH:path'] || 0) + (by['POLYLINE_MESH:tri'] || 0);
+  const by = await page.evaluate(() => { const by = {}; const add = (k, n) => { if (n) by[k] = (by[k] || 0) + n; };
+    for (const p of window.dwgApp.state.scene.layouts[0].prims) {
+      if (p.k === 5) { add(p.et + ':tri', p.idx.length / 3); add(p.et + ':seg', p.seg.length / 6); }
+      else add(p.et + (p.tri ? ':tri' : ':path'), 1);
+    } return by; });
+  const faceCount = (by['POLYFACE:tri'] || 0) + (by['POLYLINE_PFACE:tri'] || 0) + (by['POLYLINE_MESH:tri'] || 0);
   ok(`4 ${f}: küp yüzleri ve ağ dörtgenleri sahnede`, faceCount >= 8, JSON.stringify(by));
   ok(`4 ${f}: 3B yüzeyler var, HUD "Yüzey yok" demiyor`, i && i.tris >= 12 && !/Yüzey yok/.test(i.hud), i && `tris=${i.tris} ${i.hud}`);
   if (f.endsWith('.dxf')) ok(`4 ${f}: sınır kutusu küp + ağ (0..30, 0..10, 0..10)`, i && Math.abs(i.bb[0]) < 1e-6 && Math.abs(i.bb[3] - 30) < 1e-6 && Math.abs(i.bb[5] - 10) < 1e-6, i && i.bb.join(','));
-  else ok(`4 ${f}: DWG çok yüzlü ağ üçgenleri (küp 12 + örnek 2), kenarlar kırışıklık süzgeciyle (küp 12, ağ sınırı 6)`, by['POLYLINE_PFACE:tri'] === 14 && by['POLYLINE_PFACE:path'] === 15 && by['POLYLINE_MESH:tri'] === 4 && by['POLYLINE_MESH:path'] === 6, JSON.stringify(by));
+  else ok(`4 ${f}: DWG çok yüzlü ağ üçgenleri (küp 12 + örnek 2), kenarlar kırışıklık süzgeciyle (küp 12, ağ sınırı 6)`, by['POLYLINE_PFACE:tri'] === 14 && by['POLYLINE_PFACE:seg'] >= 15 && by['POLYLINE_MESH:tri'] === 4 && by['POLYLINE_MESH:seg'] >= 6, JSON.stringify(by));
 }
 
 // ---- 5. yumuşak aydınlatma kırışıklık açısı: küpün düz yüzü gerçekçi stilde düz gölgelenmeli (köşe normalleri karışmaz) ----

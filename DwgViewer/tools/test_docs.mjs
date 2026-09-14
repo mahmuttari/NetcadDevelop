@@ -277,7 +277,7 @@ await page.click('#toolbar [data-tab="3d"]'); await page.click('#toolbar [data-a
 {
   await page.setInputFiles('#fileInput', path.join(SM, 'example_2000.dwg'));
   await page.waitForFunction(() => window.dwgApp.state.hasDoc && window.dwgApp.state.fileName === 'example_2000.dwg' && document.getElementById('loading').hidden, null, { timeout: 120000 }); await page.waitForTimeout(400);
-  const r = await ev(() => { const ps = window.dwgApp.state.scene.layouts[0].prims; return { solids: window.dwgApp.state.counts['3DSOLID'], tri: ps.filter(p => p.tri).length, edges: ps.filter(p => !p.tri && p.et === '3DSOLID').length, drawn2d: ps.filter(p => p.tri && window.dwgApp.display.primVisible(p)).length }; });
+  const r = await ev(() => { const ps = window.dwgApp.state.scene.layouts[0].prims; return { solids: window.dwgApp.state.counts['3DSOLID'], tri: ps.reduce((n, p) => n + (p.k === 5 ? p.idx.length / 3 : (p.tri ? 1 : 0)), 0), edges: ps.reduce((n, p) => n + (p.et === '3DSOLID' ? (p.k === 5 ? p.seg.length / 6 : (p.tri ? 0 : 1)) : 0), 0), drawn2d: ps.filter(p => p.tri && window.dwgApp.display.primVisible(p)).length }; });
   ok('3DSOLID + 2 REGION + çok yüzlü ağ üçgenlendi (SAT)', r.solids === 1 && r.tri === 30 && r.edges >= 12 && r.drawn2d === 0, JSON.stringify(r));
   await ev(() => window.dwgApp.editor.openTab('3d')); await page.click('#toolbar .tb-row[data-for="3d"] [data-act="3d"]'); await page.waitForTimeout(600);
   const c = await ev(() => { const v = window.dwgApp.editor.view3d(); return { tris: v.counts.tris, hud: v.hudText() }; });
@@ -288,7 +288,7 @@ await page.click('#toolbar [data-tab="3d"]'); await page.click('#toolbar [data-a
   await shot('vstyle_pop');
   await page.click('#tbPop [data-vs="conceptual"]'); await page.waitForTimeout(200);
   ok('kavramsal stil seçildi', await ev(() => window.dwgApp.editor.view3d().opts.style === 'conceptual' && document.querySelector('#toolbar .tb-row[data-for="3d"] [data-act="vstyle"] use').getAttribute('href') === '#i-vs-conceptual'));
-  await ev(() => { const ps = window.dwgApp.state.scene.layouts[0].prims.filter(p => p.tri); const v = window.dwgApp.editor.view3d(); v.fitSelection(new Set(ps), { animate: false }); v.preset('isoNE', { animate: false }); window.dwgApp.editor.render3D(); });
+  await ev(() => { const ps = window.dwgApp.state.scene.layouts[0].prims.filter(p => p.k === 5 || p.tri); const v = window.dwgApp.editor.view3d(); v.fitSelection(new Set(ps), { animate: false }); v.preset('isoNE', { animate: false }); window.dwgApp.editor.render3D(); });
   await ev(() => window.dwgApp.onBack()); await page.waitForTimeout(100);
   await shot('solid_conceptual');
   await ev(() => window.dwgApp.onBack());

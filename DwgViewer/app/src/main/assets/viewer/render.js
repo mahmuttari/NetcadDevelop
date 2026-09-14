@@ -238,6 +238,21 @@ export function drawPrims(c, prims, scale, rect, opt) {
       } else if (!open) { c.beginPath(); open = true; }
       tracePath(c, p.ops);
       if (p.closed) c.closePath();
+    } else if (p.k === 5) {
+      // ağ ilkeli: 2B görünümde yalnız kenarları çizilir (yüzeyler 3B görünümün işi)
+      if ((bb[2] - bb[0]) < minPx && (bb[3] - bb[1]) < minPx) continue;
+      const seg = p.seg;
+      if (!seg || !seg.length) continue;
+      let w = p.w > thin ? p.w : thin;
+      if (lwOn && !(p.w > thin)) { const lw = (p.lw != null && p.lw >= 0 ? p.lw : 25) * lwK; if (lw > w) w = lw; }
+      const key = col + '|' + w + '||' + alpha;
+      if (key !== curKey) {
+        flush();
+        c.strokeStyle = col; c.lineWidth = w; c.setLineDash([]);
+        if (alpha !== curAlpha) { c.globalAlpha = alpha; curAlpha = alpha; }
+        c.beginPath(); open = true; curKey = key;
+      } else if (!open) { c.beginPath(); open = true; }
+      for (let i = 0; i + 5 < seg.length; i += 6) { c.moveTo(seg[i] - OX, seg[i + 1] - OY); c.lineTo(seg[i + 3] - OX, seg[i + 4] - OY); }
     } else if (p.k === 1) {
       if (fast) continue;
       if (p.h * scale < S.minTextPx) continue;

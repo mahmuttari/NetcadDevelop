@@ -154,12 +154,12 @@ let healthyPrims = 0;
   await openFile(page, path.join(SM, 'example_2000.dwg'), { settle: 300 });
   const s2 = await S(), ts2 = await toasts();
   healthyPrims = s2.prims;
-  ok('4d sağlam DWG sonrasında açılır (bozuktan fazla ilkel), uyarı yok', s2.prims > s.prims && s2.prims >= 330 && !ts2.some(x => /eksik\/bozuk/.test(x)), JSON.stringify({ prims: s2.prims, corrupt: s.prims, ts: ts2 }));
+  ok('4d sağlam DWG sonrasında açılır (bozuktan fazla ilkel), uyarı yok', s2.prims > s.prims && s2.prims >= 275 && !ts2.some(x => /eksik\/bozuk/.test(x)), JSON.stringify({ prims: s2.prims, corrupt: s.prims, ts: ts2 }));
 }
 // (5) sentetik DXF: kalınlık, 420, MESH, HATCH deseni, ACAD_TABLE, MULTILEADER, TOLERANCE
 await openFile(page, path.join(out, 'syn.dxf'), { settle: 300 });
 {
-  const r = await ev(() => { const S = window.dwgApp.state; const ps = S.prims; const by = (et) => ps.filter(p => p.et === et); const lw = (p) => p.lw; return { layers: [...S.layers.values()].map(l => [l.name, l.lw, l.color]), e1: ps.find(p => p.info && p.info.h === 'E1'), e2lw: ps.filter(p => p.info && p.info.h === 'E2').map(lw), tri: ps.filter(p => p.tri).length, types: S.counts, hatch: by('HATCH').length, hp: by('HATCH').filter(p => p.hp != null).length, hpFill: by('HATCH').filter(p => p.hpFill != null && p.fill).length, hatchOps: by('HATCH').reduce((n, p) => n + (p.ops ? p.ops.length : 0), 0), ins: ps.filter(p => p.et === 'LINE' && p.info && p.info.h === 'T1').length, insBb: ps.filter(p => p.et === 'LINE' && p.info && p.info.h === 'T1').map(p => p.bb), ml: by('MULTILEADER').length, mlText: by('MULTILEADER').filter(p => p.k === 1).map(p => p.lines.join(' ')), tol: by('TOLERANCE').map(p => p.lines && p.lines.join(' ')) }; });
+  const r = await ev(() => { const S = window.dwgApp.state; const ps = S.prims; const by = (et) => ps.filter(p => p.et === et); const lw = (p) => p.lw; return { layers: [...S.layers.values()].map(l => [l.name, l.lw, l.color]), e1: ps.find(p => p.info && p.info.h === 'E1'), e2lw: ps.filter(p => p.info && p.info.h === 'E2').map(lw), tri: ps.reduce((n, p) => n + (p.k === 5 ? p.idx.length / 3 : (p.tri ? 1 : 0)), 0), types: S.counts, hatch: by('HATCH').length, hp: by('HATCH').filter(p => p.hp != null).length, hpFill: by('HATCH').filter(p => p.hpFill != null && p.fill).length, hatchOps: by('HATCH').reduce((n, p) => n + (p.ops ? p.ops.length : 0), 0), ins: ps.filter(p => p.et === 'LINE' && p.info && p.info.h === 'T1').length, insBb: ps.filter(p => p.et === 'LINE' && p.info && p.info.h === 'T1').map(p => p.bb), ml: by('MULTILEADER').length, mlText: by('MULTILEADER').filter(p => p.k === 1).map(p => p.lines.join(' ')), tol: by('TOLERANCE').map(p => p.lines && p.lines.join(' ')) }; });
   const inc = r.layers.find(l => l[0] === 'INCE');
   ok('5a katman INCE: 370=13 → 13 (0,13 mm), 420 gerçek renk 0x1234AB', inc && inc[1] === 13 && inc[2] === 0x1234AB, JSON.stringify(inc));
   ok('5b LINE 370=50 → lw 50 (kod 11); 370=13 → 13', r.e2lw[0] === 50 && r.e1 && r.e1.lw === 13, JSON.stringify({ e2: r.e2lw, e1: r.e1 && r.e1.lw }));
@@ -173,7 +173,7 @@ await openFile(page, path.join(out, 'syn.dxf'), { settle: 300 });
 // (6) ACDSDATA: 2018 DWG'nin SAB verisi DXF ACDSDATA bölümüne konur, üçgen sayısı DWG ile aynı olmalı
 {
   await openFile(page, path.join(SM, 'example_2018.dwg'), { settle: 300 });
-  const d = await ev(() => { const S = window.dwgApp.state; const d = S.scene.solidDiag; const smp = (d && d.samples || []).find(s => s.b64 && s.acisType === 'SAB' && s.acisBytes <= 49152); return smp ? { b64: smp.b64, handle: smp.handle, tri: S.prims.filter(p => p.tri && p.info && p.info.h === smp.handle).length } : null; });
+  const d = await ev(() => { const S = window.dwgApp.state; const d = S.scene.solidDiag; const smp = (d && d.samples || []).find(s => s.b64 && s.acisType === 'SAB' && s.acisBytes <= 49152); return smp ? { b64: smp.b64, handle: smp.handle, tri: S.prims.reduce((n, p) => n + (p.info && p.info.h === smp.handle ? (p.k === 5 ? p.idx.length / 3 : (p.tri ? 1 : 0)) : 0), 0) } : null; });
   if (!d) C.skip('6 ACDSDATA', 'örnek SAB verisi alınamadı');
   else {
     const hex = Buffer.from(d.b64, 'base64').toString('hex').toUpperCase();
@@ -184,7 +184,7 @@ await openFile(page, path.join(out, 'syn.dxf'), { settle: 300 });
     const dxf = synDxf(body).replace(L(0, 'EOF'), acds + L(0, 'EOF'));
     fs.writeFileSync(path.join(out, 'acds.dxf'), dxf);
     await openFile(page, path.join(out, 'acds.dxf'), { settle: 300 });
-    const r = await ev(() => { const S = window.dwgApp.state; return { tri: S.prims.filter(p => p.tri && p.info && p.info.h === 'S1').length, diag: S.scene.solidDiag && S.scene.solidDiag.errors.slice(0, 2) }; });
+    const r = await ev(() => { const S = window.dwgApp.state; return { tri: S.prims.reduce((n, p) => n + (p.info && p.info.h === 'S1' ? (p.k === 5 ? p.idx.length / 3 : (p.tri ? 1 : 0)) : 0), 0), diag: S.scene.solidDiag && S.scene.solidDiag.errors.slice(0, 2) }; });
     ok(`6 AC1027 DXF 3DSOLID + ACDSDATA: üçgen sayısı DWG ile aynı (${d.tri})`, r.tri > 0 && r.tri === d.tri, JSON.stringify(r));
   }
 }
@@ -264,7 +264,7 @@ if (fs.existsSync(path.join(SM, 'Leader_2004.dwg'))) {
 {
   await openFile(page, path.join(SM, 'example_2000.dwg'), { settle: 200 });
   const r = await ev(() => { const ps = window.dwgApp.state.prims.filter(p => p.info && p.info.xd); const apps = new Set(); for (const p of ps) for (const x of p.info.xd) apps.add(x[0]); return { n: ps.length, apps: [...apps].sort(), bad: [...apps].filter(a => !/^[\x20-\x7e]+$/.test(a)).length, mtext: ps.some(p => p.info.xd.some(x => x[0] === 'ACAD' && /MTEXTBEGIN/.test(x[1]))) }; });
-  ok('13a DWG XDATA okunuyor (EED): uygulama adları ASCII', r.n > 10 && r.bad === 0 && r.apps.includes('ACAD'), JSON.stringify(r).slice(0, 200));
+  ok('13a DWG XDATA okunuyor (EED): uygulama adları ASCII', r.n > 5 && r.bad === 0 && r.apps.includes('ACAD'), JSON.stringify(r).slice(0, 200));
   ok('13b ACAD MTEXTBEGIN/MTEXTEND geçersiz kılma dizisi çözüldü', r.mtext, String(r.mtext));
 }
 ok('14 sayfa hatası yok', errors.length === 0, errors.join(' | ').slice(0, 300));

@@ -1160,14 +1160,17 @@ export class SceneBuilder {
     const raw = rawOverride || (this.db.raw3d && this.db.raw3d[e.handle]) || (e.acisText ? { acis: e.acisText } : null);
     const st = this.style(e, ctx), info = ctx.info || this.info(e, st);
     const edges = [], tris = [];
+    let vtxSrc = null, idxSrc = null;                          // ağ köşe listesi ve üçgen indeksleri (varsa)
     if (raw && raw.mesh) {
       const V = raw.mesh.verts, F = raw.mesh.faces, H = raw.mesh.hidden;
       const fl = [], hl = [];
+      vtxSrc = V; idxSrc = [];                                 // köşeler paylaşılır: üçgenler köşe İNDEKSİYLE tutulur
       for (let i = 0; i < F.length;) {
         const n = F[i++]; if (n < 2 || i + n > F.length) break; const base = i; const idx = F.slice(i, i + n); i += n;
         const pts = idx.map(j => V[j]).filter(Boolean); if (pts.length < 2) continue;
         fl.push(pts); hl.push(H ? idx.map((_, k) => !!H[base + k]) : null);
-        for (let k = 1; k < pts.length - 1; k++) tris.push(pts[0], pts[k], pts[k + 1]);
+        if (pts.length === idx.length) for (let k = 1; k < idx.length - 1; k++) idxSrc.push(idx[0], idx[k], idx[k + 1]);
+        else for (let k = 1; k < pts.length - 1; k++) tris.push(pts[0], pts[k], pts[k + 1]);   // eksik köşe: indeks eşleşmez, noktayla yazılır
       }
       for (const e2 of meshEdges(fl, hl)) edges.push(e2);   // eş düzlemli komşu yüzler arasındaki üçgenleme kenarları çizilmez
     } else if (raw && raw.acis) {
@@ -1181,20 +1184,42 @@ export class SceneBuilder {
       } catch (err) { this.solidDiag(e, null, err); if (raw.wires) for (const w of raw.wires) edges.push(w); }
     } else if (raw && raw.wires) { this.solidDiag(e, null, new Error('ACIS verisi yok (yalnız tel kafes önbelleği)')); for (const w of raw.wires) edges.push(w); }
     else this.solidDiag(e, null, new Error('ACIS verisi yok'));
-    if (!edges.length && !tris.length) return;
+    if (!edges.length && !tris.length && !(idxSrc && idxSrc.length)) return;
     const m = ctx.m, id = isIdent(m);
     const P = (q) => { const z = zW(q[2] || 0, ctx); if (id) return [q[0], q[1], z]; const w = apply(m, q[0], q[1]); return [w[0], w[1], z]; };
+    /*
+     * Ağ ilkeli (k=5). Eskiden her üçgen ayrı bir JS nesnesiydi (~450 bayt); 9,1 milyon üçgenli bir
+     * modelde sahne 4 GB'ı buluyordu. Artık ağ başına TEK ilkel üretilir ve geometri yazılı dizilerde
+     * (typed array) durur: köşeler `vtx` (Float32Array, x,y,z), üçgenler `idx` (Uint32Array, köşe
+     * indeksi), çizilecek kenarlar `seg` (Float32Array, uç uca x,y,z çiftleri). Aynı model ~175 MB'a
+     * iner ve WebGL tamponları doğrudan bu dizilerden dolar.
+     */
+    const vtx = [], idx = [];
+    if (vtxSrc && idxSrc && idxSrc.length) {
+      for (const q of vtxSrc) { const w = q ? P(q) : [0, 0, 0]; vtx.push(w[0], w[1], w[2]); }
+      for (const j of idxSrc) idx.push(j);
+    }
+    for (let i = 0; i + 2 < tris.length; i += 3) {             // paylaşılan köşe listesi olmayan üçgenler (ACIS)
+      const base = vtx.length / 3;
+      for (let k = 0; k < 3; k++) { const w = P(tris[i + k]); vtx.push(w[0], w[1], w[2]); }
+      idx.push(base, base + 1, base + 2);
+    }
+    const seg = [];
     for (const pl of edges) {
       if (pl.length < 2) continue;
-      const ops = pl.map((q, i) => { const w = P(q); return [i ? 1 : 0, w[0], w[1], w[2]]; });
-      this.prims.push({ k: 0, ops, closed: false, fill: false, alpha: 1, w: 0, col: st.col, lay: st.lay, lt: st.lt, lts: st.lts, lw: st.lw, bb: opsBBox(ops), info, et: e.type });
-      this.layerOf(st.lay).count++;
+      let prev = P(pl[0]);
+      for (let i = 1; i < pl.length; i++) { const w = P(pl[i]); seg.push(prev[0], prev[1], prev[2], w[0], w[1], w[2]); prev = w; }
     }
-    for (let i = 0; i + 2 < tris.length; i += 3) {
-      const a = P(tris[i]), b = P(tris[i + 1]), c = P(tris[i + 2]);
-      const ops = [[0, a[0], a[1], a[2]], [1, b[0], b[1], b[2]], [1, c[0], c[1], c[2]]];
-      this.prims.push({ k: 0, ops, closed: true, face: true, tri: true, fill: false, alpha: 1, w: 0, col: st.col, lay: st.lay, lt: null, lts: 1, lw: 0, bb: opsBBox(ops), info, et: e.type });
-    }
+    if (!idx.length && !seg.length) return;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    const grow = (a, i) => { for (let k = 0; k < a.length; k += 3) { const x = a[k], y = a[k + 1], z = a[k + 2];
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; if (z < z0) z0 = z; if (z > z1) z1 = z; } };
+    grow(vtx); grow(seg);
+    if (!isFinite(x0)) return;
+    this.prims.push({ k: 5, vtx: new Float32Array(vtx), idx: new Uint32Array(idx), seg: new Float32Array(seg),
+      bb: [x0, y0, x1, y1], zmin: z0, zmax: z1, face: true, alpha: 1, w: 0,
+      col: st.col, lay: st.lay, lt: null, lts: 1, lw: st.lw, info, et: e.type });
+    this.layerOf(st.lay).count++;
   }
 
   insert(e, ctx) {
@@ -1381,5 +1406,11 @@ export function primSignature(p, q = 1e-3) {
   if (p.k === 1) return 'T' + r(p.x) + ',' + r(p.y) + ',' + r(p.h) + ':' + p.lines.join('\n');
   if (p.k === 2) return 'N' + r(p.x) + ',' + r(p.y);
   if (p.k === 3) return 'I' + p.quad.map(c => r(c[0]) + ',' + r(c[1])).join(';');
+  // ağ ilkeli: köşe ve üçgen sayısı, sınır kutusu ve köşelerin toplamı (bütün köşeleri dizmek yerine)
+  if (p.k === 5) {
+    let sx = 0, sy = 0, sz = 0;
+    for (let i = 0; i + 2 < p.vtx.length; i += 3) { sx += p.vtx[i]; sy += p.vtx[i + 1]; sz += p.vtx[i + 2]; }
+    return 'M' + p.vtx.length + ',' + p.idx.length + ',' + p.seg.length + ':' + p.bb.map(r).join(',') + ':' + r(sx) + ',' + r(sy) + ',' + r(sz);
+  }
   return null;
 }

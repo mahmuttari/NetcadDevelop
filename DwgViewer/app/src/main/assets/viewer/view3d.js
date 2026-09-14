@@ -382,6 +382,17 @@ export class View3D {
       c = col(p.col);
       if (p.k === 2) { push(B.pts, p.x, p.y, p.z || 0); vert(p.x, p.y, p.z || 0, p); continue; }
       if (p.k === 1) { push(B.txt, p.x, p.y, p.z || 0); continue; }
+      if (p.k === 5) {                                        // ağ ilkeli: yazılı diziler doğrudan tampona akar
+        const V = p.vtx, I = p.idx, S2 = p.seg;
+        for (let i = 0; i + 2 < I.length; i += 3) {
+          const a = I[i] * 3, b2 = I[i + 1] * 3, c2 = I[i + 2] * 3;
+          if (a + 2 >= V.length || b2 + 2 >= V.length || c2 + 2 >= V.length) continue;
+          tri([V[a], V[a + 1], V[a + 2]], [V[b2], V[b2 + 1], V[b2 + 2]], [V[c2], V[c2 + 1], V[c2 + 2]]);
+        }
+        for (let i = 0; i + 5 < S2.length; i += 6) { push(B.edges, S2[i], S2[i + 1], S2[i + 2]); push(B.edges, S2[i + 3], S2[i + 4], S2[i + 5]); }
+        if (!S2.length) for (let i = 0; i + 2 < V.length; i += 3) bbx(V[i], V[i + 1], V[i + 2]);   // yalnız üçgen varsa sınır kutusu köşelerden
+        continue;                                             // yakalama köşesi eklenmez: milyonlarca köşe listeye sığmaz
+      }
       const isFace = !!(p.face || (p.closed && FACE_ETS.has(p.et)) || p.fill);
       const LB = isFace ? B.edges : B.lines;
       let cur = null;
@@ -580,6 +591,11 @@ export class View3D {
     const segp = (a, b) => { S.push(a[0], a[1], a[2], s[0], s[1], s[2], 1, b[0], b[1], b[2], s[0], s[1], s[2], 1); };
     for (const p of prims) {
       n++;
+      if (p.k === 5) {                                    // ağ ilkeli: kenar dizisi doğrudan vurgulanır
+        const S2 = p.seg;
+        for (let i = 0; i + 5 < S2.length; i += 6) segp([S2[i], S2[i + 1], S2[i + 2]], [S2[i + 3], S2[i + 4], S2[i + 5]]);
+        continue;
+      }
       if (p.k !== 0) { if (p.x != null) segp([p.x, p.y, p.z || 0], [p.x, p.y, (p.z || 0) + this.radius * 0.02]); continue; }
       let cur = null;
       for (const o of p.ops) {
@@ -611,6 +627,7 @@ export class View3D {
     for (const p of prims || []) {
       if (!p) continue;
       if (p.k === 1 || p.k === 2) { if (p.x != null) add(p.x, p.y, p.z || 0); continue; }
+      if (p.k === 5) { if (p.bb) { add(p.bb[0], p.bb[1], p.zmin != null ? p.zmin : 0); add(p.bb[2], p.bb[3], p.zmax != null ? p.zmax : 0); } continue; }
       if (p.k !== 0 || !p.ops) continue;
       let z = 0;
       for (const o of p.ops) {

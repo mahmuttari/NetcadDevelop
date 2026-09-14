@@ -597,6 +597,22 @@ async function parseWindowed(u8, id, head, perWindow) {
   return scene;
 }
 
+/**
+ * Sahnedeki ağ ilkellerinin yazılı dizilerini aktarım listesine toplar.
+ * Yapısal klon bu tamponları kopyalar; aktarılırsa (transferable) kopya çıkmaz ve tepe bellek yarıya
+ * iner — 9,1 milyon üçgenli bir modelde bu birkaç yüz megabayt demektir.
+ */
+function meshBuffers(scene) {
+  const out = [];
+  for (const L of (scene && scene.layouts) || []) for (const p of L.prims) {
+    if (p.k !== 5) continue;
+    if (p.vtx && p.vtx.buffer) out.push(p.vtx.buffer);
+    if (p.idx && p.idx.buffer) out.push(p.idx.buffer);
+    if (p.seg && p.seg.buffer) out.push(p.seg.buffer);
+  }
+  return out;
+}
+
 self.onmessage = async (ev) => {
   const { id, cmd } = ev.data;
   try {
@@ -605,7 +621,7 @@ self.onmessage = async (ev) => {
       const u8w = new Uint8Array(ev.data.bytes);
       if (u8w.length >= WIN_MIN_BYTES || ev.data.winObj) {
         const ws = await parseWindowed(u8w, id, String.fromCharCode(...u8w.slice(0, 6)), ev.data.winObj | 0);
-        if (ws) { postMessage({ id, ok: true, scene: ws }); return; }
+        if (ws) { postMessage({ id, ok: true, scene: ws }, meshBuffers(ws)); return; }
       }
       const db = await readDb(ev.data.bytes, id);
       postMessage({ id, stage: 'scene' });
@@ -615,7 +631,7 @@ self.onmessage = async (ev) => {
       if (scene.solidDiag) { scene.solidDiag.acds = db.acdsInfo || null; scene.solidDiag.samples = rawSamples(db.raw3d); }
       scene.census = db.census || null;
       scene.drawOrder = db.sortents ? Object.values(db.sortents).reduce((n, m) => n + m.size, 0) : 0;   // çizim sırası tablosundaki varlık sayısı
-      postMessage({ id, ok: true, scene });
+      postMessage({ id, ok: true, scene }, meshBuffers(scene));
     } else if (cmd === 'xref') {
       const db = await readDb(ev.data.bytes, id);
       postMessage({ id, stage: 'scene' });
