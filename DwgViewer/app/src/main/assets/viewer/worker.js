@@ -20,9 +20,24 @@ const msgOf = (e) => String((e && e.message) || e);
 /** Emscripten abort / bellek hatası: modül bir daha kullanılamaz, lib sıfırlanıp yeniden kurulur */
 const isAbort = (e) => (typeof WebAssembly !== 'undefined' && e instanceof WebAssembly.RuntimeError) || /abort|unreachable|memory access|out of memory|RangeError|WebAssembly\.Memory/i.test(msgOf(e));
 const isMem = (e) => /memory|bellek|OUTOFMEM|RangeError/i.test(msgOf(e));
-/** wasm yığınının o anki boyutu (MB); modül kurulmamışsa 0 */
-function heapMB() {
-  try { const h = lib && lib.wasmInstance && lib.wasmInstance.HEAPU8; return h ? Math.round(h.length / 1048576) : 0; } catch (_) { return 0; }
+/*
+ * Bu ortamda ayrılabilen en büyük wasm belleği (MB). Çözümleyicinin kendi yığınını okumak mümkün değil:
+ * libredwg-web glue'sunda HEAPU8 ve wasmMemory yerel değişkendir, Module üzerinde dışa aktarılmaz.
+ * Onun yerine BAĞIMSIZ bir WebAssembly.Memory ile tavan aranır — asıl merak edilen sayı da budur:
+ * WebView'ın bu cihazda wasm'a izin verdiği üst sınır. Ölçüm yalnız bellek hatasından SONRA yapılır,
+ * çünkü sondanın kendisi geçici olarak bellek ayırır; sağlıklı bir açılışta bunu yapmak riski artırır.
+ * Ayrılan bellek ölçüm biter bitmez bırakılır.
+ */
+let ceilCache = 0;
+function wasmCeilingMB() {
+  if (ceilCache) return ceilCache;
+  const PAGES = 16;   // 1 MB = 16 sayfa (64 KiB)
+  const can = (mb) => { let m = null; try { m = new WebAssembly.Memory({ initial: mb * PAGES }); return !!m; } catch (_) { return false; } finally { m = null; } };
+  if (!can(16)) return (ceilCache = -1);          // 16 MB bile olmuyorsa ölçüm anlamsız
+  if (can(4032)) return (ceilCache = 4032);       // wasm32 tavanına dayanmış
+  let lo = 16, hi = 4032;
+  for (let i = 0; i < 8 && hi - lo > 48; i++) { const mid = (lo + hi) >> 1; if (can(mid)) lo = mid; else hi = mid; }
+  return (ceilCache = lo);
 }
 /**
  * Bellek hatası iletisi. CİHAZIN toplam belleğiyle ilgili DEĞİLDİR: Android WebView her işleyici sürecine
@@ -30,9 +45,22 @@ function heapMB() {
  * ihtiyaç son boyutun yaklaşık iki katıdır. Bu yüzden telefonda boş bellek olsa da hata alınabilir.
  * İletide dosya boyutu ve o anki yığın yazılır — destek için gereken iki sayı bunlar.
  */
-const memMsg = (n, stage) => `Çizim tarayıcı motorunun bellek tavanına takıldı`
-  + ` (dosya ${(n / 1048576).toFixed(1)} MB, ayrılan yığın ${heapMB()} MB${stage ? ', aşama: ' + stage : ''}).`
-  + ` Cihazın boş belleğiyle ilgisi yoktur. Çizimi AutoCAD'de PURGE/AUDIT ile küçültmek ya da paftaya bölmek çözer.`;
+let objCount = 0;   // ana iş parçacığının ön yoklamada saydığı DWG nesne sayısı (0 = bilinmiyor)
+const memMsg = (n, stage, err) => {
+  const mb = n / 1048576;
+  const ceil = wasmCeilingMB();
+  const raw = String(msgOf(err) || '').slice(0, 90);
+  // nesne başına ölçülen maliyet ~600 bayt (7.088.013 nesneli bir R2000 dosyası 4096 MB'lık wasm tavanını doldurup taştı)
+  const need = objCount ? Math.round(objCount * 600 / 1048576) : 0;
+  return `Çizim tarayıcı motorunun bellek tavanına takıldı (dosya ${mb.toFixed(1)} MB`
+    + `${objCount ? ', ' + objCount + ' nesne' : ''}`
+    + `${stage ? ', aşama: ' + stage : ''}${ceil > 0 ? `, bu cihazda wasm tavanı ~${ceil} MB` : ''}).`
+    + (need ? ` Bu çizim için gereken bellek yaklaşık ${need} MB'dır.` : '')
+    + ` Cihazın boş belleğiyle ilgisi yoktur: WebAssembly 32 bittir, yığını hiçbir cihazda 4096 MB'ı geçemez`
+    + ` ve WebView her sekmeye bundan da düşük bir tavan koyar.`
+    + ` Çizimi AutoCAD'de PURGE/AUDIT ile küçültmek ya da paftaya bölmek çözer.`
+    + (raw ? ` [${raw}]` : '');
+};
 const countEntities = (db) => { let n = (db.entities || []).length; for (const r of ((db.tables && db.tables.BLOCK_RECORD && db.tables.BLOCK_RECORD.entries) || [])) n += (r.entities || []).length; return n; };
 
 async function readDb(bytes, id) {
@@ -47,7 +75,7 @@ async function readDb(bytes, id) {
   postMessage({ id, stage: 'lib' });
   if (!lib) {
     try { lib = await LibreDwg.create(); }
-    catch (e) { lib = null; throw new Error(isMem(e) ? memMsg(u8.length, 'çözümleyici kurulumu') : 'Çözümleyici başlatılamadı: ' + msgOf(e)); }
+    catch (e) { const m = isMem(e) ? memMsg(u8.length, 'çözümleyici kurulumu', e) : 'Çözümleyici başlatılamadı: ' + msgOf(e); lib = null; throw new Error(m); }
   }
   postMessage({ id, stage: 'parse' });
   // sarmalayıcının dwg_read_data'sı hata kodunu yutar (yalnız OUTOFMEM fırlatır); dosya doğrudan okunur, kod değerlendirilir
@@ -58,13 +86,14 @@ async function readDb(bytes, id) {
     W.FS.createDataFile('/', 'tmp.dwg', u8, true, false, true);   // canOwn: MEMFS baytları kopyalamaz
     res = W.dwg_read_file('tmp.dwg');
   } catch (e) {
+    const m = isMem(e) ? memMsg(u8.length, 'DWG okuma', e) : 'LibreDWG dosyayı çözemedi: ' + msgOf(e);
     if (isAbort(e)) lib = null;
-    throw new Error(isMem(e) ? memMsg(u8.length, 'DWG okuma') : 'LibreDWG dosyayı çözemedi: ' + msgOf(e));
+    throw new Error(m);
   } finally { try { W.FS.unlink('/tmp.dwg'); } catch (_) { /* yok */ } }
   const code = res ? (res.error | 0) : ERR.INVALIDDWG;
   if (!res || !res.data || (code & ERR.OUTOFMEM)) {
     try { if (res && res.data) W.dwg_abandon(res.data); } catch (_) { /* yoksay */ }
-    throw new Error((code & ERR.OUTOFMEM) ? memMsg(u8.length, 'DWG okuma') : `LibreDWG dosyayı çözemedi (bozuk ya da şifreli olabilir; hata kodu ${code}).`);
+    throw new Error((code & ERR.OUTOFMEM) ? memMsg(u8.length, 'DWG okuma', null) : `LibreDWG dosyayı çözemedi (bozuk ya da şifreli olabilir; hata kodu ${code}).`);
   }
   const dwg = res.data;
   const critical = code >= ERR.CLASSESNOTFOUND ? code : 0;   // DWG_ERR_CRITICAL: CLASSESNOTFOUND (128) ve üstü; sağlam dosyalarda 64/68 kalır
@@ -72,8 +101,9 @@ async function readDb(bytes, id) {
   let db, cp = 0;
   try { try { cp = lib.dwg_get_codepage(dwg) | 0; } catch (_) { cp = 0; } db = lib.convert(dwg); db.raw3d = collectRaw3D(lib, dwg, db); db.sortents = collectSortents(lib, dwg, db); attachEed(lib, dwg, db, head, cp); }
   catch (e) {
+    const m = isMem(e) ? memMsg(u8.length, 'nesne dönüşümü', e) : (critical ? `DWG bozuk ya da kesik (LibreDWG hata kodu ${code}): ` : 'LibreDWG dosyayı çözemedi: ') + msgOf(e);
     if (isAbort(e)) lib = null;
-    throw new Error(isMem(e) ? memMsg(u8.length, 'nesne dönüşümü') : (critical ? `DWG bozuk ya da kesik (LibreDWG hata kodu ${code}): ` : 'LibreDWG dosyayı çözemedi: ') + msgOf(e));
+    throw new Error(m);
   } finally { try { if (lib) lib.dwg_free(dwg); } catch (_) { /* yoksay */ } }
   if (critical && !countEntities(db)) throw new Error(`DWG bozuk ya da kesik (LibreDWG hata kodu ${code}); dosyayı yeniden kopyalayın ya da AutoCAD RECOVER ile onarın.`);
   db.readWarn = suspect;                                        // kritik kod ya da CRC hatası + varlık var: çizim eksik olabilir, ana iş parçacığı uyarır
@@ -425,6 +455,7 @@ self.onmessage = async (ev) => {
   const { id, cmd } = ev.data;
   try {
     if (cmd === 'parse') {
+      objCount = ev.data.objects | 0;
       const db = await readDb(ev.data.bytes, id);
       postMessage({ id, stage: 'scene' });
       const scene = new SceneBuilder(db, { onProgress: (i, n) => postMessage({ id, stage: 'scene', pct: n ? Math.round(100 * i / n) : 0 }) }).build();

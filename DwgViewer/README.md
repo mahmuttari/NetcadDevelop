@@ -1,4 +1,4 @@
-# DWG OfficeZip (Android) — v7.19
+# DWG OfficeZip (Android) — v7.20
 
 AutoCAD **DWG** ve **DXF** çizimlerini telefonda açan, çevrimdışı çalışan
 Android uygulaması. Dosya cihazdan dışarı çıkmaz; çözümleme telefonun
@@ -137,13 +137,13 @@ Türkçe'ye düşer. Yeni bir dil eklemek için dört yer güncellenir:
 **İngilizce** varsayılandır, çünkü listede olmayan bir yerelde Android
 oraya düşer — Türkçe `res/values-tr/`'dedir) ve `res/xml/locales_config.xml`
 + `build.gradle` içindeki `resourceConfigurations`. `node tools/lang_check.mjs` her dilin
-1.225 anahtarının tam olduğunu, fazlalık bulunmadığını ve `%1$s` gibi
+1.259 anahtarının tam olduğunu, fazlalık bulunmadığını ve `%1$s` gibi
 yer tutucuların çeviride de durduğunu sınar.
 
 ## Nasıl çalışır
 
 ```
-DWG/DXF baytları ─► worker.js ─► LibreDWG (WASM) / dxf.js ─► scene.js (SceneBuilder)
+DWG/DXF baytları ─► dwgstat.js (ön yoklama: nesne sayısı) ─► worker.js ─► LibreDWG (WASM) / dxf.js ─► scene.js (SceneBuilder)
                                                                  │  bloklar açılır, ilkeller üretilir
                                                                  ▼
                                    app.js  ◄─ render.js (tuval) ◄─ ilkel listesi + R-ağacı (geom.js)
@@ -315,6 +315,7 @@ RAR (junrar), gerçek Google Drive ve Android PdfRenderer yalnız cihazda
 | 7.7 | 30 | 2026-09-13 | Word 97-2003 (.doc) belgeleri doğrudan açılır: bağımsız MS-DOC çözümleyicisi (`doc.js`: CFB, FIB, parça tablosu, FKP, stiller, listeler, tablolar, alanlar, resimler, dipnotlar, bölümler), DOCX ile ortak sayfa / akış görünümü; Word 6 / 95 yalnız metin; `samples/doc/` derlemi ve `test_doc.mjs` |
 | 7.8 | 31 | 2026-09-13 | ".doc" uzantılı RTF, Word HTML, MHTML, DOCX ve düz metin içerik baytlardan tanınıp açılır (`docalt.js`: RTF çözümleyicisi, HTML temizleyici, MHTML ayrıştırıcı); tanınmayan içerikte ilk baytlar iletide gösterilir |
 | 7.9 | 32 | 2026-09-13 | Uygulama adı **DWG OfficeZip** oldu (paket adı ve APK dosya adı değişmedi: kurulu sürümler güncellenmeye devam eder). PDF ve Word düzenleme Pro özelliği olarak eklendi (`pdfedit.js` açıklama katmanı ve pdf-lib çıktısı, `docedit.js` yerinde düzenleme ve OOXML / DOCX yazıcı); yayın hazırlığı: Google belirteçleri Keystore ile şifreleniyor, Google alan adlarında şifresiz trafik yasak, gizlilik politikası ve doğrulama evrakı |
+| 7.20 | 43 | 2026-09-14 | **Dev çizimlerde bellek sınırı ölçüldü ve önceden söyleniyor.** 283,8 MB'lık bir R2000 dosyası (`AC1015`, **7.088.013 nesne**) çözümlenemiyordu; ölçüm yapıldı: wasm yığını **4096 MB**'a kadar büyüdü (21 `grow` çağrısı, hiçbiri başarısız değil) ve LibreDWG yine `OUTOFMEM` (hata 8256) döndü — yani nesne başına ~600 bayt gerekiyor ve **WebAssembly'nin 32 bitlik 4 GB adres alanı** yetmiyor. Bu, cihazın belleğiyle ilgili değildir; hiçbir tarayıcı tabanlı görüntüleyicide açılamaz. Yeni `dwgstat.js` ön yoklaması dosyanın **nesne haritasını** (R13 – R2000, bölüm 2) çözümlemeden **önce** okuyup nesne sayısını çıkarır (LibreDWG'nin `dwg_get_num_objects` değeriyle birebir doğrulandı); 2 milyonun üstünde kullanıcıya sayıyla birlikte sorulur, yükleme örtüsünde nesne sayısı görünür, bellek hatasında iletide dosya boyutu, nesne sayısı, gereken bellek ve ölçülmüş cihaz tavanı yazar. Ön yoklama R2004+ dosyalarında (harita sıkıştırılmış) ve bozuk/kesik dosyalarda sessizce devre dışı kalır |
 | 7.19 | 42 | 2026-09-14 | **Yükleme yüzdesi** (örtüde ilerleme çubuğu + %): indirmede bayt/uzunluk oranı, DXF çözümleme ve sahne kurmada işçinin bildirdiği oran; ölçülemeyen DWG çözümlemesinde çubuk gizlenir, uydurma yüzde gösterilmez. **Bellek hatasının kökü giderildi**: `libredwg-web.wasm` başlangıçta **1 GB** rezerve ediyordu (statik verisi yalnız 1,95 MB), ikili bellek bölümü yamalanıp **64 MB**'a indirildi, 4 GB tavan korundu — WebView'ın işleyici tavanı cihazın boş belleğinden bağımsız olduğu için büyük dosyalar bu yüzden düşüyordu. Hata iletisi de düzeltildi: artık tarayıcı motorunun tavanını söylüyor ve dosya boyutu, o anki yığın, patlayan aşama yazıyor |
 | 7.18 | 41 | 2026-09-14 | **Tek Pro yerine dört basamaklı abonelik**: `free < adfree < premium < super`. Ad-Free reklamı kaldırır, Premium 2B çizim/düzenleme ile belge düzenlemeyi açar, Super 3B, kot profili, karşılaştırma, delta kaydı ve Drive'a yüklemeyi ekler. Özellik → basamak eşlemesi tek kaynakta (`edition.js FEATURE_TIER`); şerit, araç karoları, menü ve belge düğmeleri hep oradan beslenir. Google Play tarafı tek seferlik üründen **aboneliğe** geçti: üç ürün × iki temel plan (aylık, yıllık), sahip olunanların en yükseği geçerli, basamak değiştirmede `SubscriptionUpdateParams` ile oransal ücret. Lisans kodu artık basamak taşıyor (`--tier`). Paket paneli üç kartlı, her kartta aylık ve yıllık fiyat. Ayrıca: bir alt sayfa açılırken paket paneli kapanıyor (üç kartla uzayan panel Ayarlar'ın Kaydet düğmesini örtüyordu) |
 | 7.17 | 40 | 2026-09-14 | **Gerçek AdMob kimlikleri işlendi** (yayıncı `2417242373034448`): uygulama kimliği manifest'e `com.google.android.gms.ads.APPLICATION_ID` olarak, geçiş reklamı birimi `BuildConfig.ADMOB_INTERSTITIAL_ID` olarak gömüldü; Google'ın test kimlikleri bırakıldı. Reklam yalnız Pro yetkisi olmayan kullanıcıya gösterilir, Pro'da SDK başlatılmaz; AEA ve Birleşik Krallık'ta onay ekranı UMP ile çıkar |

@@ -22,6 +22,7 @@ import * as Open from './open.js';
 import * as Ed from './edition.js';
 import * as Home from './home.js';
 import * as Cloud from './cloud.js';
+import { dwgObjectCount } from './dwgstat.js';
 
 const $ = (id) => document.getElementById(id);
 const A = () => window.Android || null;
@@ -1675,16 +1676,29 @@ window.addEventListener('unhandledrejection', (ev) => logError('promise: ' + ((e
 const STAGES = { lib: 'stageLib', parse: 'stageParse', scene: 'stageScene' };   // i18n anahtarları
 const stageText = (st) => STAGES[st] ? t(STAGES[st]) : st;
 const BIG_FILE_MB = 80;   // bu boyutun üstünde açmadan önce onay istenir (bellek / süre)
+/*
+ * Nesne sayısı eşiği. LibreDWG nesne başına ölçülen ~600 bayt yer tutar; WebAssembly 32 bit olduğu için
+ * yığın hiçbir cihazda 4096 MB'ı geçemez. 2 milyon nesne bu bütçenin yaklaşık üçte birini yer ve Android
+ * WebView'ın işleyici başına koyduğu tavan çoğu telefonda bundan da düşüktür — bu sayının üstünde açma
+ * denemesi dakikalar sürüp bellek hatasıyla bitebilir, o yüzden başlamadan önce sorulur.
+ */
+const HUGE_OBJ = 2000000;
 let loadSeq = 0;
 async function loadBytes(buf, name, size) {
   const t0 = performance.now();
   const bytes = size || buf.byteLength;
   const mb = fmt(bytes / 1024 / 1024, 2) + ' MB';
   if (bytes > BIG_FILE_MB * 1048576 && !(await askConfirm(`${name} · ${mb}. ${t('bigFileAsk')}`))) { setLoading(null); return; }
+  // ön yoklama: nesne sayısı çözümlemeden önce okunur (R13 – R2000); bilinmiyorsa null döner
+  let stat = null;
+  try { stat = dwgObjectCount(new Uint8Array(buf, 0, bytes)); } catch (_) { stat = null; }
+  const objN = stat ? stat.objects : 0;
+  const sub = name + ' · ' + mb + (objN ? ' · ' + fmt(objN, 0) + ' ' + t('entity') : '');
+  if (objN > HUGE_OBJ && !(await askConfirm(`${name} · ${fmt(objN, 0)} ${t('entity')}. ${t('hugeObjAsk')}`))) { setLoading(null); return; }
   const my = ++loadSeq;
-  setLoading(t('loading'), name + ' · ' + mb, 0);
+  setLoading(t('loading'), sub, 0);
   try {
-    let res = await runWorker({ cmd: 'parse', bytes: buf, name }, (st, pct) => setLoading(stageText(st), name + ' · ' + mb, pct));
+    let res = await runWorker({ cmd: 'parse', bytes: buf, name, objects: objN }, (st, pct) => setLoading(stageText(st), sub, pct));
     const scene = res.scene; res = null;   // yapısal klon: büyük dosyada referansı erken düşür
     await setScene(scene, name, bytes);
     // özet toast'ından sonra (toast tek satırdır, hemen üstüne yazılırsa görünmez)
