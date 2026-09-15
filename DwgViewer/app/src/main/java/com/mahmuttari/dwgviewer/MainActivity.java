@@ -242,6 +242,10 @@ public class MainActivity extends androidx.activity.ComponentActivity {
                 Toast.makeText(MainActivity.this, d.didCrash() ? R.string.webview_crashed : R.string.webview_restarted, Toast.LENGTH_LONG).show();
                 WebView old = webView;
                 webView = null;
+                // setContentView içerik görünümünün bütün çocuklarını düşürür; açılış örtüsünün
+                // ComposeView'i de düşer. Alan bırakılmazsa isShowing() sonsuza dek true kalır
+                // ve geri tuşu ölü bir örtüye iptal göndermeye devam eder.
+                if (loadOverlay != null) { loadOverlay.unut(); }
                 createWebView();           // setContentView eskisini ağaçtan düşürür
                 old.destroy();
                 webView.loadUrl(START_URL); // sayfa açılınca geçerli dosyayı getPendingFile ile yeniden çeker
@@ -847,7 +851,16 @@ public class MainActivity extends androidx.activity.ComponentActivity {
         // Gönderilen açılış ekranında Vazgeç düğmesi yoktur; ekran açıkken geri tuşu yüklemeyi
         // iptal eder. Böylece ekrana dokunmadan çıkış yolu korunur.
         if (loadOverlay != null && loadOverlay.isShowing() && webView != null) {
+            /*
+             * İptal JavaScript'e gider, çünkü çözümleyici işini durduracak olan odur. Ama JS ya
+             * da işleyici süreci tıkanmışsa geri tuşu hiçbir şey yapmaz ve kullanıcının çıkış
+             * yolu kalmaz. Bu yüzden bir emniyet süresi konur: iptal bir saniye içinde örtüyü
+             * kapatmadıysa örtü buradan kaldırılır. Çözümleme arka planda sürse bile kullanıcı
+             * ekranda kilitli kalmaz.
+             */
             webView.evaluateJavascript("window.dwgApp && window.dwgApp.cancelLoading && window.dwgApp.cancelLoading()", null);
+            final DwgLoadingOverlay ov = loadOverlay;
+            webView.postDelayed(() -> { if (ov.isShowing()) ov.hideNow(); }, 1000);
             return;
         }
         if (webView == null) { super.onBackPressed(); return; }
@@ -934,9 +947,9 @@ public class MainActivity extends androidx.activity.ComponentActivity {
 
         /**
          * Çizim açılış ekranı: show = true gösterir (açıksa yalnız dosya adını tazeler),
-         * show = false kapatır. Yüzde GEÇİLMEZ — ekran, gönderilen paketin kendi sürücüsüyle
-         * akar (bkz. DwgLoadingOverlay). Ekranın kendisi com.example.dwgloader paketindedir ve
-         * gönderildiği gibidir; burada yalnız çağrılır.
+         * show = false kapatır (yüzde önce 100'e süpürülür, sonra örtü solar). Gerçek ilerleme
+         * ayrı yoldan gelir: loadingProgress. Ekranın kendisi com.example.dwgloader
+         * paketindedir ve gönderildiği gibidir; burada yalnız çağrılır.
          */
         @JavascriptInterface public void loadingScreen(boolean show, String file) {
             runOnUiThread(() -> {
@@ -949,6 +962,14 @@ public class MainActivity extends androidx.activity.ComponentActivity {
          * (loadingScreen(false, ...)) yüzde önce 100'e varır; burada varmaz, çünkü dosya
          * açılmamıştır.
          */
+        /**
+         * Gerçek açılış ilerlemesi. Yüzdeler yüzde birlik çözünürlük için 100 ile çarpılmış
+         * tam sayılardır. Ekran bu üçünden (gerçek yüzde · bandın sınırları · bandın beklenen
+         * süresi) donmayan, sıçramayan bir sayı üretir; bkz. DwgLoadingOverlay.
+         */
+        @JavascriptInterface public void loadingProgress(int yuzde100, int alt100, int ust100, int beklenenMs) {
+            runOnUiThread(() -> { if (loadOverlay != null) loadOverlay.ilerleme(yuzde100, alt100, ust100, beklenenMs); });
+        }
         @JavascriptInterface public void loadingScreenAbort() {
             runOnUiThread(() -> { if (loadOverlay != null) loadOverlay.hideNow(); });
         }

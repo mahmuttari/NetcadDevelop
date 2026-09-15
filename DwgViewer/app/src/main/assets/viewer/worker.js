@@ -79,8 +79,9 @@ async function readDb(bytes, id) {
   if (head < 'AC1012') throw new Error('Çok eski DWG sürümü (' + head + '). R13 ve sonrası açılabilir.');
   postMessage({ id, stage: 'lib' });
   await ensureLib(u8);
+  postMessage({ id, stage: 'lib', pct: 100 });   // 9,96 MB'lık wasm derlendi: bant tamamlandı
   postMessage({ id, stage: 'parse' });
-  return decodeDwg(u8, head);
+  return decodeDwg(u8, head, null, (p) => postMessage({ id, stage: 'parse', pct: Math.round(p) }));
 }
 
 async function ensureLib(u8) {
@@ -89,8 +90,22 @@ async function ensureLib(u8) {
   catch (e) { const m = isMem(e) ? memMsg(u8.length, 'çözümleyici kurulumu', e) : 'Çözümleyici başlatılamadı: ' + msgOf(e); lib = null; throw new Error(m); }
 }
 
-/** tek bir DWG tamponunu veritabanına çevirir; pencereli yolda her pencere için yeniden çağrılır */
-function decodeDwg(u8, head, ends) {
+/*
+ * Tek bir DWG tamponunu veritabanına çevirir; pencereli yolda her pencere için yeniden çağrılır.
+ *
+ * `bildir(pct)` verilirse bu adımın içindeki ilerleme 0-100 arası bildirilir. Bu, hattın EN UZUN
+ * SESSİZLİĞİNİ kısaltmak içindir: eskiden `stage:'parse'` iletisinden sonra sahne kurulumuna
+ * kadar ana iş parçacığına hiçbir şey gitmiyor, yüzde bandın tabanında donuyordu. Aradaki işin
+ * bir kısmı gerçekten bildirilemez — `dwg_read_file` tek bir eşzamanlı wasm çağrısıdır ve
+ * LibreDWG geri çağrı sunmaz, `lib.convert` de satıcı sarmalayıcısının içindedir. Ama ondan
+ * sonraki üç geçiş (collectRaw3D · collectSortents · attachEed) saf JavaScript'tir ve nesne
+ * sayısı üzerinde döner; bunlar bildirilir.
+ *
+ * Kilometre taşlarının oranları ÖLÇÜM DEĞİL, sıralamadır: hangi işin hangisinden önce bittiğini
+ * söyler. Aradaki yumuşak akışı ekranın kestirimcisi sağlar (bkz. DwgLoadingOverlay.kt).
+ */
+function decodeDwg(u8, head, ends, bildir) {
+  const bas = (p) => { if (bildir) { try { bildir(p); } catch (_) { /* geç */ } } };
   // sarmalayıcının dwg_read_data'sı hata kodunu yutar (yalnız OUTOFMEM fırlatır); dosya doğrudan okunur, kod değerlendirilir
   const W = lib.wasmInstance, ERR = LW.Dwg_Error;
   let res = null;
@@ -112,7 +127,19 @@ function decodeDwg(u8, head, ends) {
   const critical = code >= ERR.CLASSESNOTFOUND ? code : 0;   // DWG_ERR_CRITICAL: CLASSESNOTFOUND (128) ve üstü; sağlam dosyalarda 64/68 kalır
   const suspect = critical || ((code & ERR.WRONGCRC) ? code : 0);   // CRC hatası: dosya açılır ama nesneler eksik olabilir (bozuk kopya) → uyarı
   let db, cp = 0;
-  try { if (ends && ends.length) patchChains(dwg, ends); try { cp = lib.dwg_get_codepage(dwg) | 0; } catch (_) { cp = 0; } db = lib.convert(dwg); db.raw3d = collectRaw3D(lib, dwg, db); db.sortents = collectSortents(lib, dwg, db); attachEed(lib, dwg, db, head, cp); }
+  bas(55);                                                      // dosya okundu: adımın en ağır parçası bitti
+  try {
+    if (ends && ends.length) patchChains(dwg, ends);
+    try { cp = lib.dwg_get_codepage(dwg) | 0; } catch (_) { cp = 0; }
+    db = lib.convert(dwg);
+    bas(68);
+    db.raw3d = collectRaw3D(lib, dwg, db, (k) => bas(68 + 12 * k));
+    bas(80);
+    db.sortents = collectSortents(lib, dwg, db, (k) => bas(80 + 10 * k));
+    bas(90);
+    attachEed(lib, dwg, db, head, cp, (k) => bas(90 + 6 * k));
+    bas(96);
+  }
   catch (e) {
     const m = isMem(e) ? memMsg(u8.length, 'nesne dönüşümü', e) : (critical ? `DWG bozuk ya da kesik (LibreDWG hata kodu ${code}): ` : 'LibreDWG dosyayı çözemedi: ') + msgOf(e);
     if (isAbort(e)) lib = null;
@@ -124,6 +151,7 @@ function decodeDwg(u8, head, ends) {
   db.header = db.header || {};
   db.header.ACADVER = head;
   if (head < 'AC1021') fixMleaderText(db, cp);
+  bas(100);
   return db;
 }
 
@@ -251,7 +279,7 @@ function rawSamples(raw) {
  * (sarmalayıcı MTEXT stilini okuyordu) dimstyle tanıtıcısından çözülür.
  * Dwg_Eed (wasm32): size u16 @0, handle.value u64 @16, data* @32 — data (paketli): code u8, sonra değer.
  */
-function attachEed(lib, dwg, db, head, cp) {
+function attachEed(lib, dwg, db, head, cp, bildir) {
   const W = lib.wasmInstance; if (!W || !W.dwg_ptr_to_unsigned_char_array) return;
   const r2007 = head >= 'AC1021';
   let dec = null; try { dec = new TextDecoder(LW.dwgCodePageToEncoding(cp) || 'windows-1254'); } catch (_) { try { dec = new TextDecoder('windows-1254'); } catch (__) { dec = null; } }
@@ -287,6 +315,7 @@ function attachEed(lib, dwg, db, head, cp) {
   let N = 0; try { N = lib.dwg_get_num_objects(dwg); } catch (_) { return; }
   let attached = 0;
   for (let i = 0; i < N && i < 4000000; i++) {
+    if (bildir && (i % 20000) === 0) bildir(N ? i / N : 0);
     let o = null, tio = null;
     try { o = lib.dwg_get_object(dwg, i); if (!o || lib.dwg_object_get_supertype(o) !== 0) continue; tio = lib.dwg_object_to_entity_tio(o); if (!tio) continue; } catch (_) { continue; }
     let e = null; try { e = byH.get(hexOf(lib.dwg_obj_get_handle_value(o))); } catch (_) { e = null; }
@@ -313,7 +342,7 @@ function attachEed(lib, dwg, db, head, cp) {
   db.eedCount = attached;
 }
 
-function collectSortents(lib, dwg, db) {
+function collectSortents(lib, dwg, db, bildir) {
   const W = lib.wasmInstance, out = {};
   const hexOf = (v) => (v == null ? null : Number(v).toString(16).toUpperCase());
   const absOf = (r) => { if (r == null) return null; if (typeof r === 'number') { try { return lib.dwg_ref_get_absref(r); } catch (_) { return null; } } if (typeof r === 'object') { if (r.absolute_ref != null) return r.absolute_ref; if (r.handleref && r.handleref.value != null) return r.handleref.value; } return null; };
@@ -323,6 +352,7 @@ function collectSortents(lib, dwg, db) {
   let N = 0; try { N = lib.dwg_get_num_objects(dwg); } catch (_) { return null; }
   let found = 0;
   for (let i = 0; i < N && i < 4000000; i++) {
+    if (bildir && (i % 20000) === 0) bildir(N ? i / N : 0);
     let o = null; try { o = lib.dwg_get_object(dwg, i); if (!o || lib.dwg_object_get_fixedtype(o) !== 714) continue; } catch (_) { continue; }
     try {
       const tio = lib.dwg_object_to_object_tio(o); if (!tio) continue;
@@ -340,9 +370,16 @@ function collectSortents(lib, dwg, db) {
   return found ? out : null;
 }
 
-function collectRaw3D(lib, dwg, db) {
+function collectRaw3D(lib, dwg, db, bildir) {
   const out = {};
   const W = lib.wasmInstance;
+  /*
+   * İlerleme paydası kitaplığın kendi nesne sayısından alınır. Ana iş parçacığının ön
+   * yoklaması (dwgObjectCount) yalnız R13-R2000 okur, R2004 ve sonrasında sıfır döner;
+   * payda ondan alınsaydı modern dosyaların tamamında bildirim sabit sıfır olurdu.
+   */
+  let payda = 0; try { payda = lib.dwg_get_num_objects(dwg) | 0; } catch (_) { payda = 0; }
+  if (!payda) payda = objCount | 0;
   const hex = (o) => { try { const v = lib.dwg_obj_get_handle_value(o); return Number(v).toString(16).toUpperCase(); } catch (_) { return null; } };
   const val = (tio, f) => { try { const r = lib.dwg_dynapi_entity_value(tio, f); return r && r.data !== undefined ? r.data : null; } catch (_) { return null; } };
   // model uzayı, kâğıt uzayı ve bütün blok tanımlarındaki varlıklar dolaşılır (tür: REGION 37, 3DSOLID 38, BODY 39, MESH 663)
@@ -357,6 +394,7 @@ function collectRaw3D(lib, dwg, db) {
     let next = null, guard = 0;
     try { next = lib.get_first_owned_entity(root); } catch (_) { continue; }
     while (next && guard++ < 2000000) {
+      if (bildir && (guard % 20000) === 0) bildir(payda ? Math.min(1, guard / payda) : 0);
       try { const ft = lib.dwg_object_get_fixedtype(next); const nm = typeName(ft); census[nm] = (census[nm] || 0) + 1; if (byType[ft]) { byType[ft].push(next); ownerOf.set(next, root); } } catch (_) { /* atla */ }
       try { next = lib.get_next_owned_entity(root, next); } catch (_) { break; }
     }
@@ -557,26 +595,41 @@ function patchChains(dwg, ends) {
 }
 
 async function parseWindowed(u8, id, head, perWindow) {
+  // Aşama iletisi plandan ÖNCE atılır: Win.plan nesne haritasının tamamını çözer ve büyük
+  // dosyada saniyeler sürer; eskiden bu süre boyunca ana iş parçacığına hiçbir şey gitmiyordu.
+  postMessage({ id, stage: 'lib' });
   let pl = null;
   try { pl = Win.plan(u8, perWindow || WIN_OBJ); } catch (_) { pl = null; }
   if (!pl) return null;
-  postMessage({ id, stage: 'lib' });
+  postMessage({ id, stage: 'lib', pct: 40 });    // nesne haritası çözüldü
   await ensureLib(u8);
   let scene = null, warn = 0, order = 0, ents = 0;
   try {
     const keep = Win.applyStructure(u8, pl);
-    const blocks = blockRanges(u8, keep, pl.H);
+    postMessage({ id, stage: 'lib', pct: 70 });
+    const blocks = blockRanges(u8, keep, pl.H);   // dosyayı bir kez daha okur: sessiz kalmasın
+    postMessage({ id, stage: 'lib', pct: 100 });
     if (!blocks.length) { Win.restore(u8, pl); return null; }      // zincir uçları okunamadı: tek parça okumaya düş
     const owner = Win.assignBlocks(pl, blocks);
-    for (let k = 0; k < pl.windows.length; k++) {
-      postMessage({ id, stage: 'parse', pct: Math.round((100 * k) / pl.windows.length) });
+    const nW = pl.windows.length;
+    for (let k = 0; k < nW; k++) {
+      postMessage({ id, stage: 'parse', pct: Math.round((100 * k) / nW) });
       const idxArr = Win.applyWindow(u8, pl, k);
-      const db = decodeDwg(u8, head, Win.chainEnds(pl, blocks, owner, idxArr));
+      const db = decodeDwg(u8, head, Win.chainEnds(pl, blocks, owner, idxArr), (p) => postMessage({ id, stage: 'parse', pct: Math.round((100 * (k + p / 100)) / nW) }));
       warn = warn || db.readWarn || 0;
       ents += (db.entities || []).length;
       order += db.sortents ? Object.values(db.sortents).reduce((n, m) => n + m.size, 0) : 0;
-      const s = new SceneBuilder(db, {}).build();
+      /*
+       * Sahne kurulumu pencerede de bildirilir. Eskiden burada seçenek nesnesi boştu
+       * (new SceneBuilder(db, {})), dolayısıyla 32 MB üstündeki dosyalarda — yani en uzun
+       * beklemelerde — sahne bandı hiç bildirilmiyor, yüzde pencere başına tek tik alıyordu.
+       * Pencere içindeki sahne ilerlemesi, o pencerenin parse payına ölçeklenerek geçilir.
+       */
+      const s = new SceneBuilder(db, {
+        onProgress: (i, n) => postMessage({ id, stage: 'parse', pct: Math.round((100 * (k + (n ? i / n : 0))) / nW) }),
+      }).build();
       scene = scene ? mergeScene(scene, s) : s;
+      postMessage({ id, stage: 'parse', pct: Math.round((100 * (k + 1)) / nW) });
     }
   } finally { try { Win.restore(u8, pl); } catch (_) { /* geç */ } }
   /*
@@ -631,6 +684,7 @@ self.onmessage = async (ev) => {
       if (scene.solidDiag) { scene.solidDiag.acds = db.acdsInfo || null; scene.solidDiag.samples = rawSamples(db.raw3d); }
       scene.census = db.census || null;
       scene.drawOrder = db.sortents ? Object.values(db.sortents).reduce((n, m) => n + m.size, 0) : 0;   // çizim sırası tablosundaki varlık sayısı
+      postMessage({ id, stage: 'scene', pct: 100 });   // sahne bitti; sırada aktarım var (bölünemez)
       postMessage({ id, ok: true, scene }, meshBuffers(scene));
     } else if (cmd === 'xref') {
       const db = await readDb(ev.data.bytes, id);

@@ -2392,15 +2392,29 @@ let yerliAcilis = false;
 // İptal ya da hata ile kapanıyoruz: yerli açılış ekranı geçişini TAMAMLAMADAN kalkar.
 let yerliKes = false;
 const yerliVar = () => { const a = A(); return !!(a && typeof a.loadingScreen === 'function'); };
+const yerliIlerlemeVar = () => { const a = A(); return !!(a && typeof a.loadingProgress === 'function'); };
+let yerliSonGonderim = 0, yerliSonBant = -1;
 /** Çizim açılışının tek giriş noktası: yüzdeyi verir, başlığı da görseli de o belirler */
 function setLoadingCad(pct, file) {
   const v = Math.max(0, Math.min(100, pct));
   if (yerliVar()) {
     try {
-      // Yüzde GÖNDERİLMEZ: yerli ekran kendi sürücüsüyle akar. Açılış aşamalarına bağlanınca
-      // hızlı dosyada resimler sıçrıyor, yavaş aşamada tek kare donuyordu; istenen bu değil.
       A().loadingScreen(true, file || '');
       yerliAcilis = true;
+      // Yerli ekrana GERÇEK yüzde, bulunulan bandın sınırları ve o bant için beklenen süre
+      // gönderilir; ekran bu üçünden donmayan, sıçramayan bir sayı üretir (bkz. aşağıdaki
+      // "Açılış kestirimcisi" açıklaması ve DwgLoadingOverlay.kt).
+      if (yerliIlerlemeVar()) {
+        const b = bandOf(v);
+        const simdi = performance.now();
+        acilisBantGec(b.ad, simdi);
+        // Köprü çağrısını boğmamak için saniyede ~25 gönderim yeter; bant değişimi ve
+        // bandın son değeri her hâlde gönderilir, yoksa ekran bir bandı eksik görür.
+        if (b.i !== yerliSonBant || simdi - yerliSonGonderim > 40 || v >= 99) {
+          yerliSonGonderim = simdi; yerliSonBant = b.i;
+          A().loadingProgress(Math.round(v * 100), Math.round(b.alt * 100), Math.round(b.ust * 100), Math.round(bantBeklenenMs(b)));
+        }
+      }
       hide('loading');                     // iki örtü üst üste gelmesin
       return;
     } catch (e) { yerliAcilis = false; }   // köprü hata verirse WebView örtüsüne düş
@@ -2502,6 +2516,7 @@ async function fetchBuf(url, onPct) {
 function cancelLoading() {
   cancelJobs(tt('cancelled', 'İptal edildi'));
   yerliKes = true;                       // vazgeçildi: açılış ekranı 100'e koşmasın
+  acilisBasladi = 0;                     // yarıda kesilen süre kestirimi kirletmesin
   setLoading(null);
   toast(tt('cancelled', 'İptal edildi'));
 }
@@ -2510,6 +2525,7 @@ function fail(err) {
   if (err && err.cancelled) { console.warn(err.message); return; }   // iptal: yeni yükleme sürüyor, modal ona ait
   console.error(err);
   yerliKes = true;                       // dosya açılamadı: açılış ekranı 100'e koşmasın
+  acilisBasladi = 0;                     // yarıda kesilen süre kestirimi kirletmesin
   setLoading(null);
   const msg = (err && err.message) || String(err);
   toast(t('error') + ': ' + msg, 6000);
@@ -2536,6 +2552,121 @@ const openPct = (st, pct) => {
   const k = typeof pct === 'number' && isFinite(pct) ? Math.max(0, Math.min(100, pct)) / 100 : 0;
   return b[0] + (b[1] - b[0]) * k;
 };
+/*
+ * ------------------------------------------------------------------------------------------
+ * AÇILIŞ KESTİRİMCİSİ
+ * ------------------------------------------------------------------------------------------
+ * Sorun şuydu: açılış yüzdesi ya gerçek ilerlemeye bağlanıyor (o zaman sessiz aşamalarda
+ * dakikalarca kıpırdamıyor), ya da gerçekten koparılıyor (o zaman dosyayla ilgisi kalmıyor).
+ * İkisi de yanlış. Doğrusu, iki kaynağı BİRLEŞTİRMEKTİR:
+ *
+ *   1) GERÇEK yüzde. Açılış hattı beş banda ayrılmıştır (OPEN_BAND) ve bunların üçünde
+ *      bildirim ayrıntılıdır: pencereli çözümleme her pencerede (worker.js), sahne kurulumu
+ *      her 5.000 varlıkta (scene.js), uzamsal indeks her ~10 ms'de (geom.js). İkisinde ise
+ *      seyrektir: 32 MB altındaki dosyalarda LibreDWG tek blok hâlinde çalışır ve HİÇ
+ *      bildirmez; görünüm hazırlığı yalnız üç noktada bildirir. Kullanıcının gördüğü donma
+ *      tam olarak bu sessiz aralıklardır.
+ *
+ *   2) SÜRE kestirimi. Dosyanın boyutu ve nesne sayısı çözümlemeden ÖNCE bilinir
+ *      (dwgObjectCount). Beklenen süre bunlardan çıkarılır ve sessiz aralıkta yüzdeyi
+ *      ilerleten bu olur. Kestirim cihazdan cihaza değişir, bu yüzden SABİT DEĞİLDİR:
+ *      her başarılı açılıştan sonra ölçülen gerçek süre ile karşılaştırılıp ölçek düzeltilir
+ *      (üstel ortalama). Birkaç açılıştan sonra kestirim o cihaza ve o kullanıcının
+ *      dosyalarına oturur.
+ *
+ * Yerli ekran bu ikisinin büyüğünü alır, bandın tavanını aşmaz ve hızını sınırlar; böylece
+ * sayı ne geri gider, ne sıçrar, ne de durur. Ayrıntı: DwgLoadingOverlay.kt.
+ */
+const BANT_SIRA = ['lib', 'parse', 'scene', 'index', 'view'];
+/** Yüzdenin hangi banda düştüğü: alt ve üst sınırıyla birlikte */
+function bandOf(v) {
+  for (let i = 0; i < BANT_SIRA.length; i++) {
+    const b = OPEN_BAND[BANT_SIRA[i]];
+    if (v < b[1] || i === BANT_SIRA.length - 1) return { i, ad: BANT_SIRA[i], alt: b[0], ust: b[1] };
+  }
+  return { i: 0, ad: 'lib', alt: 1, ust: 14 };
+}
+/*
+ * Beklenen toplam süre. Katsayılar bu depodaki örneklerle ölçüldü (0,5-0,9 MB'lık DWG'ler
+ * masaüstünde 100-500 ms); telefon bundan kat kat yavaştır, farkı ÖLÇEK kapatır. Taban
+ * 600 ms'dir: çok küçük dosyada bile yüzde bir anda uçmasın, geçiş görülsün.
+ */
+const TAHMIN_MS_NESNE = 0.05;      // nesne başına ms
+const TAHMIN_MS_MB = 120;          // megabayt başına ms
+const TAHMIN_TABAN_MS = 600;
+const tahminTaban = (nesne, mb) => Math.max(TAHMIN_TABAN_MS, (nesne || 0) * TAHMIN_MS_NESNE + (mb || 0) * TAHMIN_MS_MB);
+/*
+ * BANT PAYLARI. Bir bandın beklenen süresi, bandın GENİŞLİĞİNDEN çıkarılamaz — ölçüldüğünde
+ * ikisi birbirini tutmuyor: bu depodaki üç örnekte çözümleme (parse) sürenin %85-89'unu
+ * tutarken çubuğun yalnız %31,6'sını, uzamsal indeks ise sürenin ~%1'ini tutarken çubuğun
+ * %22,4'ünü alıyor. Bütçe genişliğe göre dağıtılırsa çözümleme bandının bütçesi 2,7 kat
+ * küçük kalır, zaman ekseni hemen kuyruğa girer ve sayı bandın tavanına yapışır — yani
+ * kullanıcının bildirdiği donma, bu kez %96 yerine %44'te tekrarlar.
+ *
+ * Bu yüzden paylar AYRI tutulur ve her açılışta ölçülüp düzeltilir: hangi bandın ne kadar
+ * sürdüğü cihaza, dosyaya ve yola (tek parça / pencereli) göre değişir; birkaç açılıştan
+ * sonra paylar kullanıcının kendi dosyalarına oturur.
+ */
+const PAY_VARSAYILAN = { lib: 0.06, parse: 0.62, scene: 0.18, index: 0.10, view: 0.04 };
+function acilisPaylar() {
+  const p = store.json('acilisPay', null);
+  if (!p) return { ...PAY_VARSAYILAN };
+  let t = 0; for (const k of BANT_SIRA) t += (isFinite(p[k]) && p[k] > 0) ? p[k] : 0;
+  if (!(t > 0)) return { ...PAY_VARSAYILAN };
+  const out = {};
+  // Hiçbir pay %2'nin altına inmesin: bir açılışta hiç sürmemiş bir bant, sonraki açılışta
+  // uzun sürerse bütçesiz kalmamalı.
+  for (const k of BANT_SIRA) out[k] = Math.max(0.02, ((isFinite(p[k]) && p[k] > 0) ? p[k] : 0) / t);
+  let t2 = 0; for (const k of BANT_SIRA) t2 += out[k];
+  for (const k of BANT_SIRA) out[k] /= t2;
+  return out;
+}
+/** Cihazın öğrenilmiş ölçeği: gerçek süre / taban kestirim. 1 = taban doğru. */
+const acilisOlcek = () => { const o = Number(store.get('acilisOlcek')); return isFinite(o) && o > 0 ? Math.max(0.2, Math.min(12, o)) : 1; };
+let acilisTahminMs = TAHMIN_TABAN_MS;   // bu açılış için beklenen toplam süre
+let acilisTabanMs = TAHMIN_TABAN_MS;    // ölçeksiz taban (öğrenme bunun üzerinden yapılır)
+let acilisBasladi = 0;
+let acilisPay = { ...PAY_VARSAYILAN };
+let acilisSure = {};                    // bu açılışta bantların ölçülen süreleri
+let acilisBantAd = '', acilisBantBasi = 0;
+/** Açılış başlarken kestirimi kurar */
+function acilisKestirimBasla(nesne, mb) {
+  acilisTabanMs = tahminTaban(nesne, mb);
+  acilisTahminMs = acilisTabanMs * acilisOlcek();
+  acilisPay = acilisPaylar();
+  acilisBasladi = performance.now();
+  acilisSure = {}; acilisBantAd = ''; acilisBantBasi = acilisBasladi;
+  yerliSonGonderim = 0; yerliSonBant = -1;
+}
+/** Bant değişimini ve süresini kaydeder (öğrenme bununla besleniyor) */
+function acilisBantGec(ad, simdi) {
+  if (!acilisBasladi) return;
+  if (acilisBantAd && acilisBantAd !== ad) acilisSure[acilisBantAd] = (acilisSure[acilisBantAd] || 0) + (simdi - acilisBantBasi);
+  if (acilisBantAd !== ad) { acilisBantAd = ad; acilisBantBasi = simdi; }
+}
+/**
+ * Açılış bittiğinde hem toplam ölçeği hem bant paylarını düzeltir. Üstel ortalama: tek bir
+ * aykırı dosya kestirimi savurmaz, ama cihaz gerçekten yavaşsa birkaç açılışta oraya oturur.
+ */
+function acilisKestirimOgren() {
+  if (!acilisBasladi || acilisTabanMs <= 0) return;
+  const simdi = performance.now();
+  const gercek = simdi - acilisBasladi;
+  if (acilisBantAd) acilisSure[acilisBantAd] = (acilisSure[acilisBantAd] || 0) + (simdi - acilisBantBasi);
+  acilisBasladi = 0;
+  if (gercek < 150) return;                       // ölçülemeyecek kadar kısa: öğrenme kirlenmesin
+  const yeni = Math.max(0.2, Math.min(12, 0.65 * acilisOlcek() + 0.35 * (gercek / acilisTabanMs)));
+  store.set('acilisOlcek', String(Math.round(yeni * 1000) / 1000));
+  let t = 0; for (const k of BANT_SIRA) t += acilisSure[k] || 0;
+  if (t < 150) return;
+  const eski = acilisPaylar(), pay = {};
+  for (const k of BANT_SIRA) pay[k] = Math.round((0.65 * eski[k] + 0.35 * ((acilisSure[k] || 0) / t)) * 10000) / 10000;
+  store.set('acilisPay', JSON.stringify(pay));
+}
+/** Bir bandın beklenen süresi: payı ölçümden gelir, genişliğinden değil */
+function bantBeklenenMs(b) {
+  return Math.max(120, acilisTahminMs * (acilisPay[b.ad] || 0.05));
+}
 /** Ana iş parçacığını nefes aldırır: bekleme görseli aksın, Vazgeç düğmesi basılabilsin */
 const nefes = () => new Promise(r => setTimeout(r));
 const BIG_FILE_MB = 80;   // bu boyutun üstünde açmadan önce onay istenir (bellek / süre)
@@ -2560,6 +2691,7 @@ async function loadBytes(buf, name, size) {
   const sub = name + ' · ' + mb + (objN ? ' · ' + fmt(objN, 0) + ' ' + t('objectsN') : '');
   if (objN > HUGE_OBJ && !(await askConfirm(`${name} · ${fmt(objN, 0)} ${t('objectsN')}. ${t('hugeObjAsk')}`))) { setLoading(null); return; }
   const my = ++loadSeq;
+  acilisKestirimBasla(objN, bytes / 1048576);
   setLoadingCad(1, sub);
   try {
     let res = await runWorker({ cmd: 'parse', bytes: buf, name, objects: objN },
@@ -2573,6 +2705,7 @@ async function loadBytes(buf, name, size) {
     toast(`${name} · ${S.entityCount} ${t('entity')} · ${ms} ms` + (hidden ? ` · ${hidden} ${t('layersHiddenN')}` : ''));
     if (!S.prims.length) toast(t('noModelPrims'), 5000);
     if (S.scene.xrefs.length || S.scene.images.length) setTimeout(() => toast(t('xrefMissing') + ': ' + [...S.scene.xrefs.map(x => x.name), ...S.scene.images.map(i => (i.fileName || '').split(/[\\/]/).pop())].filter(Boolean).join(', ') + ' — ' + t('seeXrefs'), 6000), 3000);
+    acilisKestirimOgren();               // ölçülen süre kestirimi bir sonraki açılış için düzeltir
   } catch (e) { fail(e); }
   if (my === loadSeq) setLoading(null);   // iptal edilen eski yükleme yenisinin modalını kapatmasın
 }
@@ -2765,6 +2898,10 @@ window.dwgApp = { loadCurrent, onFilePicked, onLocation, onBack, loadBytes, zoom
     toast('GPS: ' + m, perm && openSet ? { ms: 8000, action: { label: tt('settings', 'Ayarlar'), fn: openSet } } : undefined); },
   // sınama tutamağı: aşamalı açılış görselini gerçek dosya açmadan yüzde yüzde sürer
   __cadLoad: (pct, file) => setLoadingCad(pct, file), setLoading, cancelLoading,
+  // Açılış kestirimcisinin sınanabilir parçaları (bkz. tools/test_ilerleme.mjs)
+  __band: (v) => bandOf(v), __tahminTaban: (n, mb) => tahminTaban(n, mb),
+  __bantBeklenen: (b) => bantBeklenenMs(b), __olcek: () => acilisOlcek(),
+  __kestirimBasla: (nesne, mb) => acilisKestirimBasla(nesne, mb),
   display: D, toast, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, savePng, getSettings: () => settings, requestRender, openDisplayOptions, showSettings, showNewDoc,
   docs: Docs, drive: Drive, onGoogle: (ok, json) => Drive.onGoogle(ok, json), onDrive: (id, ok, json) => Drive.onDrive(id, ok, json), onDriveProgress: (id, d, tot) => Drive.onProgress(id, d, tot), openDrive: () => Drive.open(),
   open: Open, openCenter: (tab) => Open.open(tab), onFsRoot: (obj) => Open.onFsRoot(obj), onFs: (id, ok, json) => Open.onFs(id, ok, json),

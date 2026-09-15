@@ -9,132 +9,184 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.platform.ComposeView
 import com.example.dwgloader.DwgLoadingScreen
 import kotlinx.coroutines.delay
+import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 /**
- * Başvuru sahibinin gönderdiği Jetpack Compose açılış ekranını uygulamanın üstünde gösterir.
+ * Başvuru sahibinin gönderdiği Jetpack Compose açılış ekranını uygulamanın üstünde gösterir ve
+ * yüzdesini sürer.
  *
  * EKRANIN KENDİSİNE DOKUNULMAZ. `com.example.dwgloader.MainActivity.kt` gönderildiği dosyadır
  * (iki istisna, ikisi de belgeli: derlenmeyen iki satırlık drawArc çağrısı ve ayrıntı yazılarını
- * kapatan `ayrinti` anahtarı — bkz. tools/test_acilis.mjs). Bu dosya yalnız o ekranı yerleştirir
- * ve sürer; canlandırmanın kendisine hiçbir yerden dokunulmaz.
+ * kapatan `ayrinti` anahtarı — bkz. tools/test_acilis.mjs). Canlandırmanın çizimine hiçbir
+ * yerden dokunulmaz.
  *
- * YÜZDE GERÇEK İLERLEMEDEN GELMEZ. Başvuru sahibinin isteği budur: canlandırma açılış
- * aşamalarına bağlanmasın. Bağlandığında hızlı açılan dosyada resimler sıçrıyor, yavaş aşamada
- * tek kare donuyordu. Bunun yerine gönderilen paketin KENDİ sürücüsü kullanılır — aşağıdaki
- * döngü, paketteki DwgDemoApp'in LaunchedEffect bloğunun aynısıdır: aynı eşikler, aynı
- * gecikmeler, aynı 1..3 artışı.
+ * ------------------------------------------------------------------------------------------
+ * YÜZDE NASIL ÜRETİLİR
+ * ------------------------------------------------------------------------------------------
+ * Üç deneme yapıldı, üçü de tek başına yanlıştı ve neden yanlış olduğu buraya yazılmıştır:
  *
- * TEK PARÇA: SIFIRDAN YÜZE, BİR KEZ. Yüzde bir kez 0'dan 100'e çıkar; başa dönmez, tekrarlamaz.
+ *  1) Yüzde doğrudan gerçek ilerlemeye bağlandı (7.36). Hızlı dosyada sayı sıçrıyor, sessiz
+ *     aşamada tek kare donuyordu. Açılış hattının beş bandından üçü ayrıntılı bildirir
+ *     (pencereli çözümleme, sahne kurulumu, uzamsal indeks), ikisi seyrek: 32 MB altındaki
+ *     dosyada LibreDWG tek blok hâlinde çalışır ve HİÇ bildirmez.
+ *  2) Yüzde gerçekten koparıldı, ekran kendi sürücüsüyle aktı (7.39-7.41). Bu kez dosyayla
+ *     ilgisi kalmadı; yüze çıkıyor ama dosya açılmıyordu.
+ *  3) Tavan konuldu, %96'da beklendi (7.42). Uzun açılışta ekran dakikalarca kıpırdamadı.
  *
- * YÜZDE 100 "DOSYA AÇILDI" DEMEKTİR. Kural budur ve sürücünün kuruluşu buna göredir: dosya
- * açılmadan yüzde 100 YAZILMAZ. Serbest akış TAVAN'da (%96) durur; oradan 100'e ancak çizim
- * açıldığında çıkılır. Tavanın 96 olması keyfî değildir — gönderilen ekran %97'den itibaren
- * onay imini (drawSuccess) çizer; 96'da beklemek, planın çizildiği son kareyi gösterir, yani
- * "bitti" demeden bekler.
+ * Doğrusu ikisini BİRLEŞTİRMEKTİR. Her karede üç sayı hesaplanır:
  *
- * İki uç da kapalıdır:
- *  · Çizim, yüzde tavana varmadan açılırsa ekran ORTADA KESİLMEZ: kalan yol BITIRME_MS içinde
- *    düzgün bir süpürmeyle 100'e taşınır (nerede olursa olsun aynı süre), onay imi görünür,
- *    BITIS_BEKLEME_MS kadar durur ve örtü solar. Kullanıcı her açılışta sıfırdan yüze TAM bir
- *    geçiş görür.
- *  · Çizim tavana varıldıktan sonra da yükleniyorsa ekran %96'da BEKLER — 100 yazmaz, başa
- *    da dönmez. Bekleme ölü değildir: gönderilen ekranın nabzı (pulse) ve tarama çizgisi
- *    (scan) sonsuz geçişlerdir, akmaya devam eder.
+ *   gercek : JS'in bildirdiği gerçek yüzde (asla geri gitmez)
+ *   zaman  : bulunulan bandın içinde, o bant için beklenen süreye göre DOĞRUSAL ilerleyen
+ *            yüzde — açılışı "eşit dolduran" kısım budur. Beklenen süre aşılırsa doğrusallık
+ *            biter ve bandın tavanına yavaşlayarak yaklaşılır: asla tavana değmez, asla
+ *            durmaz. Beklenen süre JS'ten gelir; dosyanın boyutundan ve nesne sayısından
+ *            çıkarılır ve her açılıştan sonra ölçülen gerçek süreyle düzeltilir.
+ *   g      : ekrandaki sayı. hedef = max(gercek, zaman)'a doğru, saniyede en çok ENCOK_HIZ
+ *            ile gider — böylece gerçek yüzde birden sıçrasa bile ekranda süpürülerek geçilir.
  *
- * TEMPO — gönderilen videoya uyum. Paketin gecikmeleri (45/65/50/85 ms) kâğıt üzerinde 0'dan
- * 100'e yaklaşık 3,0 saniyede gider. Gönderilen tanıtım videosu ise kare kare ölçüldüğünde
- * 7,1 saniye sürüyor ve hız neredeyse düzgün (~14 %/s):
- *     0,2 sn → %3   1,0 → %16   2,0 → %30   3,0 → %44   4,0 → %58
- *     5,0 → %72     6,0 → %85   6,8 → %96   7,2 → %100
- * Bu profil, her adıma sabit bir maliyet eklenmiş gibi durur (yavaş bir cihazda kaydedilmiş
- * olmalı). Referans olarak VİDEO alındı: TEMPO ile gecikmeler ölçeklenir ve ekran her cihazda
- * videodaki hızda akar. Paketin kâğıt üstündeki hızı istenirse TEMPO = 1.0 yapılır; başka
- * hiçbir şey değişmez.
+ * Değer tek yönlüdür (monoton): hedef monotondur, g de hedefi geçmez ve azalmaz.
+ *
+ * YÜZDE 100 "DOSYA AÇILDI" DEMEKTİR. Serbest akış TAVAN'ı (%96) geçemez; 100'e yalnız
+ * kapanma dalından çıkılır: çizim açıldığında kalan yol BITIRME_MS içinde süpürülür, onay imi
+ * görünür, örtü solar. Tavanın 96 olması keyfî değildir — gönderilen ekran %97'den itibaren
+ * onay imini çizer, dolayısıyla 96'nın üstü "bitti" demektir.
  */
 class DwgLoadingOverlay(private val activity: Activity) {
 
     private companion object {
-        /** 1.0 = paketin kendi gecikmeleri (~3,0 sn) · 2.4 = gönderilen videonun hızı (~7,1 sn) */
-        const val TEMPO = 2.4
-        /**
-         * Serbest akışın tavanı. Dosya açılmadan bu sayının üstü yazılmaz; 100 yalnız
-         * "açıldı" demektir. 96, gönderilen ekranın onay imine geçtiği eşiğin (97) bir
-         * altıdır — bekleme, planın çizildiği son karede olur.
-         */
-        const val TAVAN = 96
-        /** Çizim açıldığında kalan yolun süpürülme süresi — %20'den de %90'dan da aynı. */
-        const val BITIRME_MS = 600L
+        /** Ekrandaki sayının en yüksek tırmanma hızı (yüzde/saniye). Sıçrama bununla süpürmeye döner. */
+        const val ENCOK_HIZ = 26f
+        /** Kapanışta kalan yolun süpürülme süresi — %20'den de %90'dan da aynı. */
+        const val BITIRME_MS = 600f
         /** 100'e varıldıktan sonra onay iminin görülmesi için beklenen süre */
         const val BITIS_BEKLEME_MS = 380L
         /** Örtünün solma süresi */
         const val SOLMA_MS = 350L
+        /**
+         * Bandın doğrusal ilerlediği kısım. Beklenen sürenin %85'ine kadar sayı eşit akar;
+         * sonrası yavaşlayarak tavana yaklaşır. Doğrusal kısım "eşit dolma" hissini, yavaşlayan
+         * kısım "tavanı aşmama" kuralını sağlar.
+         */
+        const val DOGRUSAL_PAY = 0.85f
+        /** Yavaşlayan kuyruğun sıkılığı: büyük değer, aşımdan sonra tavana daha hızlı yaklaşır. */
+        const val KUYRUK = 2.0f
+        /**
+         * SERBEST AKIŞIN TAVANI. Dosya açılmadan bu sayının üstü YAZILMAZ ve sayı olduğu için
+         * de değil, GÖRSEL olduğu için: gönderilen ekran %97'den itibaren onay imini çizer
+         * (MainActivity.kt, `progress < 97 -> drawPlan` / `else -> drawSuccess`). Tavan 97 ya
+         * da üstü olsaydı, son bandın zaman ekseni beklenen sürenin %71'inde 97'yi geçer ve
+         * dosya HENÜZ AÇILMAMIŞKEN ekranda "bitti" imi belirirdi. Ekranın çizimine
+         * dokunulmadığına göre doğru yer budur: 96'da durulur, 100'e kapanma dalından çıkılır.
+         */
+        const val TAVAN = 96f
     }
 
     private var view: ComposeView? = null
     private var dosya by mutableStateOf("")
-    /** Çizim açıldı; yüzde 100'e varır varmaz örtü kalkacak. */
+    /** Çizim açıldı; kalan yol süpürülüp örtü kalkacak. */
     private var kapanmaIstendi by mutableStateOf(false)
+
+    // --- JS'ten gelen gerçek durum ---------------------------------------------------------
+    // Bunlar bileşimde (composition) okunmaz, kare döngüsünde okunur; ikisi de arayüz iş
+    // parçacığındadır, bu yüzden düz alan yeterlidir — durum nesnesi olsalardı her güncelleme
+    // gereksiz yere yeniden birleştirme tetiklerdi.
+    @Volatile private var gercek = 0f                     // gerçek yüzde, monoton
+    @Volatile private var bantAlt = 1f
+    @Volatile private var bantUst = 14f
+    @Volatile private var bantBeklenenMs = 600
+    private var bantBasladiNs = 0L                        // bulunulan banda girildiği an
 
     /** Örtü ekranda mı */
     fun isShowing(): Boolean = view != null
+
+    /**
+     * JS'ten gelen gerçek ilerleme. Yüzdeler yüzde birlik çözünürlük için 100 ile çarpılmış
+     * tam sayılardır (ör. %43,25 → 4325).
+     */
+    fun ilerleme(yuzde100: Int, alt100: Int, ust100: Int, beklenenMs: Int) {
+        val y = (yuzde100 / 100f).coerceIn(0f, 100f)
+        val a = (alt100 / 100f).coerceIn(0f, 100f)
+        val u = (ust100 / 100f).coerceIn(0f, 100f)
+        /*
+         * Bant GERİ GİTMEZ. Hattın iki yerinde gerçek yüzde geriye düşebiliyor: çok paftalı
+         * çizimde sahne sayacı (düzeltildi ama eski işçi sürümüyle karşılaşılabilir) ve bir
+         * dosyanın ardından ikincisinin açılması. Bandın geri alınması, zaman ekseninin de
+         * geri sarılması demek olurdu; sayı o an durur, hatta gerilerdi.
+         */
+        if (u > bantUst) { bantAlt = a; bantUst = u; bantBasladiNs = 0L }
+        bantBeklenenMs = max(120, beklenenMs)
+        if (y > gercek) gercek = y                        // gerçek yüzde geri gitmez
+    }
 
     /** Gösterir. Açıksa yalnız dosya adını tazeler. */
     fun show(file: String) {
         dosya = file
         if (view != null) {
             // Zaten açık: kapanmakta değilse dokunma. Kapanmaktaysa (kullanıcı hemen ikinci bir
-            // dosya açtı) eskisini bırak, yenisi kendi sıfırdan yüze geçişini yapsın.
+            // dosya açtı) eskisini bırak, yenisi kendi geçişini baştan yapsın.
             if (!kapanmaIstendi) return
             kaldir()
         }
         kapanmaIstendi = false
+        gercek = 0f; bantAlt = 1f; bantUst = 14f; bantBeklenenMs = 600; bantBasladiNs = 0L
         val v = ComposeView(activity)
         v.setContent {
             MaterialTheme {
-                var ilerleme by remember { mutableIntStateOf(0) }
+                // Ekrana giden değer TAM SAYIDIR ve yalnız değiştiğinde yazılır: kare başına
+                // durum yazmak, ekranı 60 Hz'de yeniden birleştirmek demekti. Sayı ile çubuk
+                // arasındaki yumuşaklığı gönderilen ekranın kendi animateFloatAsState'i (220 ms)
+                // zaten sağlıyor.
+                var yuzde by remember { mutableIntStateOf(0) }
+                var bitti by remember { mutableStateOf(false) }
                 LaunchedEffect(Unit) {
-                    // TEK GEÇİŞ: while (ilerleme < 100). Başa dönen bir döngü YOKTUR.
-                    while (ilerleme < 100) {
+                    var g = 0f
+                    var oncekiNs = 0L
+                    var kapanisBasi = -1f
+                    var kapanisGecenMs = 0f
+                    while (true) {
+                        val simdi = withFrameNanos { it }
+                        val dt = if (oncekiNs == 0L) 0f else (simdi - oncekiNs) / 1_000_000_000f
+                        oncekiNs = simdi
+                        if (bantBasladiNs == 0L) bantBasladiNs = simdi
+
                         if (kapanmaIstendi) {
                             // Çizim açıldı: kalan yol, nerede kalındıysa oradan, sabit sürede
-                            // süpürülür. Artışın ortalaması 2 olduğu için adım sayısı kalan/2.
-                            val adim = ((100 - ilerleme) / 2).coerceAtLeast(1)
-                            delay((BITIRME_MS / adim).coerceAtLeast(3L))
-                            ilerleme = min(100, ilerleme + (1..3).random())
+                            // 100'e süpürülür. Nereden başlandığından bağımsız olarak aynı süre.
+                            if (kapanisBasi < 0f) { kapanisBasi = g; kapanisGecenMs = 0f }
+                            kapanisGecenMs += dt * 1000f
+                            val k = (kapanisGecenMs / BITIRME_MS).coerceIn(0f, 1f)
+                            g = max(g, kapanisBasi + (100f - kapanisBasi) * k)
+                            if (g >= 99.995f) { g = 100f; bitti = true; break }
                         } else {
-                            // Serbest akış: gönderilen paketteki sürücünün aynısı — aynı
-                            // eşikler, aynı gecikmeler, aynı 1..3 artışı; yalnız TEMPO ile
-                            // ölçeklenir. TAVAN'ı geçmez: dosya açılmadan 100 yazılmaz.
-                            val temel = when {
-                                ilerleme < 20 -> 45L
-                                ilerleme < 55 -> 65L
-                                ilerleme < 85 -> 50L
-                                else -> 85L
-                            }
-                            delay((TEMPO * temel).toLong())
-                            ilerleme = min(TAVAN, ilerleme + (1..3).random())
+                            // Zaman ekseni: bandın içinde doğrusal, beklenen süre aşılırsa
+                            // yavaşlayarak tavana yaklaşan (ama asla değmeyen) eğri.
+                            val u = ((simdi - bantBasladiNs) / 1_000_000f) / bantBeklenenMs.toFloat()
+                            val f = if (u <= DOGRUSAL_PAY) u
+                            else DOGRUSAL_PAY + (1f - DOGRUSAL_PAY) * (1f - 1f / (1f + (u - DOGRUSAL_PAY) * KUYRUK))
+                            val zaman = bantAlt + (bantUst - bantAlt) * f.coerceIn(0f, 0.9999f)
+                            // Gerçek yüzde de tavana tabidir: hattın son bandı 92-99'dur ve
+                            // kendi bildirimi 97,25'e kadar çıkar — o da "açıldı" demek değildir.
+                            val hedef = min(TAVAN, max(gercek, zaman))
+                            // Hız sınırı: gerçek yüzde sıçrasa bile ekranda süpürülerek geçilir.
+                            g = max(g, min(hedef, g + ENCOK_HIZ * dt))
                         }
+                        val yeni = g.roundToInt()
+                        if (yeni != yuzde) yuzde = yeni
                     }
                 }
-                // Yüzde 100'e yalnız çizim açıldığında varılır (TAVAN kuralı), yani buraya
-                // düşmek "dosya açıldı ve geçiş tamamlandı" demektir: onay imi görülsün diye
-                // kısa bir bekleyişten sonra örtü kalkar.
-                LaunchedEffect(ilerleme, kapanmaIstendi) {
-                    if (ilerleme >= 100 && kapanmaIstendi) {
-                        delay(BITIS_BEKLEME_MS)
-                        kaldir()
-                    }
+                LaunchedEffect(bitti) {
+                    if (bitti) { delay(BITIS_BEKLEME_MS); kaldir() }
                 }
                 // Gönderilen ekran. ayrinti = false: aşama başlığı, alt yazısı, aşama noktaları
-                // ve alttaki durum satırı gizlenir — başvuru sahibinin isteği, dosya tek bir
-                // açılış yüzdesiyle açılsın, ayrıntı bildirmesin. Canlandırma, ilerleme çubuğu
-                // ve yüzde olduğu gibi kalır; anahtar gönderilen dosyanın içindedir, varsayılanı
-                // true'dur, yani paketin kendi demo ekranı hiç değişmemiştir.
-                DwgLoadingScreen(fileName = dosya, progress = ilerleme, ayrinti = false)
+                // ve alttaki durum satırı gizlenir — dosya tek bir açılış yüzdesiyle açılsın,
+                // ayrıntı bildirmesin. Canlandırma, çubuk ve yüzde olduğu gibi kalır.
+                DwgLoadingScreen(fileName = dosya, progress = yuzde, ayrinti = false)
             }
         }
         // Dokunuşlar WebView'a geçmesin: örtü açıkken altı tıklanamaz olmalı.
@@ -163,6 +215,17 @@ class DwgLoadingOverlay(private val activity: Activity) {
     fun hideNow() {
         kapanmaIstendi = false
         kaldir()
+    }
+
+    /**
+     * Örtünün görünümü dışarıdan düşürüldü (işleyici süreci çöktü ve setContentView içerik
+     * ağacını değiştirdi). Alan bırakılır; yoksa isShowing() sonsuza dek doğru kalır.
+     */
+    fun unut() {
+        val v = view
+        view = null
+        kapanmaIstendi = false
+        try { v?.disposeComposition() } catch (_: Throwable) { /* zaten atılmış olabilir */ }
     }
 
     /** Örtüyü yumuşakça kaldırır. */

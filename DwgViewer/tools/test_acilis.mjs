@@ -48,34 +48,60 @@ const disiMetin = i1 >= 0 && i2 > i1 ? kt.slice(0, i1) + kt.slice(i2) : '';
 {
   const ov = oku('app/src/main/java/com/mahmuttari/dwgviewer/DwgLoadingOverlay.kt');
   ok('B1 köprü ekranı gönderildiği imzayla, ayrıntı kapalı çağırıyor',
-    /DwgLoadingScreen\(fileName = dosya, progress = ilerleme, ayrinti = false\)/.test(ov));
+    /DwgLoadingScreen\(fileName = dosya, progress = yuzde, ayrinti = false\)/.test(ov));
   // Sürücü paketin kendisinden: aynı eşikler, aynı gecikmeler, aynı 1..3 artışı. Paketin
   // sondaki 550 ms bekleyişinin yerini BITIS_BEKLEME_MS aldı; paketinki demo ekranını
   // değiştirmek içindi, bizde örtünün kalkma anını belirler.
-  ok('B1b yüzdeyi paketin KENDİ sürücüsü sürüyor (gerçek ilerleme beslenmiyor)',
-    /ilerleme < 20 -> 45L/.test(ov) && /ilerleme < 55 -> 65L/.test(ov) && /ilerleme < 85 -> 50L/.test(ov)
-    && /else -> 85L/.test(ov) && /ilerleme \+ \(1\.\.3\)\.random\(\)/.test(ov));
+  ok('B1b sürücü artık uydurma değil: paketin sabit gecikmeleri kaldırıldı',
+    !/ilerleme < 20 -> 45L/.test(ov) && !/\(1\.\.3\)\.random\(\)/.test(ov));
   // TEK PARÇA: sıfırdan yüze bir kez. Başa dönen bir döngü olmamalı.
-  ok('B1c geçiş TEK parça: 0\'dan 100\'e bir kez, tekrar yok',
-    /while \(ilerleme < 100\)/.test(ov) && !/while \(true\)/.test(ov));
+  ok('B1c geçiş TEK parça: sayı monoton, başa dönen bir döngü yok',
+    !/ilerleme = 0/.test(ov) && /g = max\(g,/.test(ov));
+  /*
+   * KESTİRİMCİ. Ekrandaki sayı üç kaynaktan doğar: JS'in bildirdiği gerçek yüzde, bandın içinde
+   * beklenen süreye göre DOĞRUSAL ilerleyen zaman ekseni ve ikisini süpürerek izleyen hız
+   * sınırı. Üç değişmez tools/test_ilerleme.mjs'te formülün bir örneği üzerinde ÖLÇÜLÜR
+   * (asla durmaz · asla sıçramaz · asla geri gitmez); buradaki denetimler Kotlin kaynağının
+   * o formülün aynısı olduğunu korur. İkisi ayrışırsa ölçülen şey uygulanan şey olmaz.
+   */
+  ok('B1k gerçek yüzde besleniyor ve geri gitmiyor',
+    /fun ilerleme\(yuzde100: Int, alt100: Int, ust100: Int, beklenenMs: Int\)/.test(ov)
+    && /if \(y > gercek\) gercek = y/.test(ov));
+  ok('B1l bant geri alınmıyor (zaman ekseni geri sarılmaz)', /if \(u > bantUst\) \{ bantAlt = a; bantUst = u; bantBasladiNs = 0L \}/.test(ov));
+  ok('B1m zaman ekseni: beklenen sürenin %85\'ine kadar DOĞRUSAL',
+    /const val DOGRUSAL_PAY = 0\.85f/.test(ov) && /if \(u <= DOGRUSAL_PAY\) u/.test(ov));
+  ok('B1n aşımda yavaşlayarak tavana yaklaşıyor, tavana DEĞMİYOR',
+    /DOGRUSAL_PAY \+ \(1f - DOGRUSAL_PAY\) \* \(1f - 1f \/ \(1f \+ \(u - DOGRUSAL_PAY\) \* KUYRUK\)\)/.test(ov)
+    && /f\.coerceIn\(0f, 0\.9999f\)/.test(ov));
+  ok('B1o hedef, gerçek ile zamanın büyüğü; TAVAN ile sınırlı, hız sınırlı ve monoton',
+    /val hedef = min\(TAVAN, max\(gercek, zaman\)\)/.test(ov)
+    && /g = max\(g, min\(hedef, g \+ ENCOK_HIZ \* dt\)\)/.test(ov));
+  // Onay imi dosya açılmadan görünmemeli: gönderilen ekran %97'den itibaren drawSuccess çizer.
+  ok('B1s serbest akışın tavanı onay imi eşiğinin altında (96 < 97)',
+    /const val TAVAN = 96f/.test(ov) && oku(KT).includes('progress < 97 -> drawPlan'));
+  ok('B1p kare döngüsü withFrameNanos ile (ekranın kendi saatine bağlı)', /withFrameNanos/.test(ov));
+  ok('B1r ekrana yalnız tam sayı değişince yazılıyor (60 Hz yeniden birleştirme yok)',
+    /val yeni = g\.roundToInt\(\)/.test(ov) && /if \(yeni != yuzde\) yuzde = yeni/.test(ov));
   ok('B1e çizim erken açılırsa geçiş kesilmez, kalan yol sabit sürede süpürülür',
-    /const val BITIRME_MS/.test(ov) && /BITIRME_MS \/ adim/.test(ov)
-    && /fun hide\(\)[\s\S]{0,200}kapanmaIstendi = true/.test(ov));
+    /const val BITIRME_MS = 600f/.test(ov)
+    && /kapanisGecenMs \/ BITIRME_MS/.test(ov)
+    && /kapanisBasi \+ \(100f - kapanisBasi\) \* k/.test(ov)
+    && /fun hide\(\)[\s\S]{0,120}kapanmaIstendi = true/.test(ov));
   // ASIL KURAL: yüzde 100 "dosya açıldı" demektir. Serbest akış TAVAN'ı geçemez; 100'e
   // yalnız kapanmaIstendi doğruyken, yani çizim açıldığında çıkılır.
-  ok('B1f serbest akış TAVAN\'da durur: dosya açılmadan 100 YAZILMAZ',
-    /const val TAVAN = 96/.test(ov) && /ilerleme = min\(TAVAN, ilerleme \+ \(1\.\.3\)\.random\(\)\)/.test(ov));
-  ok('B1h 100\'e yalnız kapanma yolundan çıkılıyor (tek min(100, ...) ve o da kapanma dalında)',
-    (ov.match(/min\(100, ilerleme/g) || []).length === 1
-    && /if \(kapanmaIstendi\) \{[\s\S]{0,420}min\(100, ilerleme/.test(ov));
-  ok('B1i TAVAN, onay iminin eşiğinin (97) altında — beklerken \'bitti\' görünmez',
-    /const val TAVAN = 96/.test(ov) && oku(KT).includes('progress < 97 -> drawPlan'));
+  // 100 "dosya açıldı" demektir: serbest akışın tavanı bantların en üstü olan 99'dur ve
+  // eğri tavana değmediği için ona bile varılmaz; 100'e yalnız kapanma dalından çıkılır.
+  ok('B1f serbest akış 100 YAZAMAZ: hem TAVAN hem de bandın tavanına değmeyen eğri',
+    /f\.coerceIn\(0f, 0\.9999f\)/.test(ov) && /min\(TAVAN, max\(gercek, zaman\)\)/.test(ov));
+  ok('B1h 100\'e yalnız kapanma dalından çıkılıyor',
+    /if \(kapanmaIstendi\) \{[\s\S]{0,700}100f - kapanisBasi/.test(ov)
+    && (ov.match(/g = 100f/g) || []).length === 1);
   ok('B1j 100\'e varınca örtü kalkıyor (onay imi için kısa bekleyişle)',
-    /if \(ilerleme >= 100 && kapanmaIstendi\)/.test(ov) && /BITIS_BEKLEME_MS/.test(ov));
+    /bitti = true/.test(ov) && /BITIS_BEKLEME_MS/.test(ov));
   ok('B1g iptal ve hata ayrı yol: geçiş tamamlanmadan kalkar',
     /fun hideNow\(\)/.test(ov) && /kapanmaIstendi = false[\s\S]{0,40}kaldir\(\)/.test(ov));
-  ok('B1d tempo tek sabitle ayarlanabiliyor (video hızı 2.4, paketin kendi hızı 1.0)',
-    /const val TEMPO = 2\.4/.test(ov));
+  ok('B1d hız sınırı ve bitirme süresi tek sabitte',
+    /const val ENCOK_HIZ = 26f/.test(ov) && /const val BITIRME_MS = 600f/.test(ov));
   ok('B2 köprü ekranın kendi paketinden alıyor', ov.includes('import com.example.dwgloader.DwgLoadingScreen'));
   ok('B3 örtü kapatılabiliyor ve bileşim serbest bırakılıyor',
     ov.includes('fun hide()') && ov.includes('disposeComposition()'));
@@ -89,10 +115,13 @@ const disiMetin = i1 >= 0 && i2 > i1 ? kt.slice(0, i1) + kt.slice(i2) : '';
   const ma = oku('app/src/main/java/com/mahmuttari/dwgviewer/MainActivity.java');
   ok('C1 etkinlik ComponentActivity (ComposeView yaşam döngüsü sahibi ister)',
     /class MainActivity extends androidx\.activity\.ComponentActivity/.test(ma));
-  ok('C2 JS köprüsü aç/kapa: yüzde geçilmiyor',
+  ok('C2b köprüde gerçek ilerleme yolu var',
+    /@JavascriptInterface public void loadingProgress\(int yuzde100, int alt100, int ust100, int beklenenMs\)/.test(ma)
+    && /loadOverlay\.ilerleme\(yuzde100, alt100, ust100, beklenenMs\)/.test(ma));
+  ok('C2 JS köprüsü aç/kapa',
     /@JavascriptInterface public void loadingScreen\(boolean show, String file\)/.test(ma)
     && /if \(show\) loadOverlay\.show\(/.test(ma) && /else loadOverlay\.hide\(\)/.test(ma));
-  ok('C2b köprüde iptal/hata yolu ayrı',
+  ok('C2c köprüde iptal/hata yolu ayrı',
     /@JavascriptInterface public void loadingScreenAbort\(\)/.test(ma) && /loadOverlay\.hideNow\(\)/.test(ma));
   ok('C3 geri tuşu, gönderilen ekranda olmayan Vazgeç\'in yerini tutuyor',
     /loadOverlay\.isShowing\(\)/.test(ma) && ma.includes('cancelLoading'));
@@ -101,10 +130,17 @@ const disiMetin = i1 >= 0 && i2 > i1 ? kt.slice(0, i1) + kt.slice(i2) : '';
 // --- D) JS tarafı: çizim açılışı yerli ekrana gidiyor, tarayıcıda yedek çalışıyor -----------
 {
   const js = oku('app/src/main/assets/viewer/app.js');
-  ok('D1 çizim açılışı köprü varsa yerli ekrana gidiyor, YÜZDE GÖNDERMEDEN',
-    /A\(\)\.loadingScreen\(true, file \|\| ''\)/.test(js) && !/loadingScreen\(Math\.round/.test(js));
+  ok('D1 çizim açılışı köprü varsa yerli ekrana gidiyor, GERÇEK YÜZDEYLE',
+    /A\(\)\.loadingScreen\(true, file \|\| ''\)/.test(js)
+    && /A\(\)\.loadingProgress\(Math\.round\(v \* 100\), Math\.round\(b\.alt \* 100\), Math\.round\(b\.ust \* 100\), Math\.round\(bantBeklenenMs\(b\)\)\)/.test(js));
+  ok('D1b köprü çağrısı boğulmuyor (bant değişimi ve son değer hariç ~25 Hz)',
+    /simdi - yerliSonGonderim > 40 \|\| v >= 99/.test(js));
+  ok('D1c kestirim açılış başında kuruluyor, sonunda öğreniliyor',
+    /acilisKestirimBasla\(objN, bytes \/ 1048576\)/.test(js) && /acilisKestirimOgren\(\)/.test(js));
+  ok('D1d iptal ve hata öğrenmeyi kirletmiyor',
+    (js.match(/acilisBasladi = 0;\s+\/\/ yarıda kesilen/g) || []).length === 2);
   ok('D2 iki örtü üst üste gelmiyor (yerli açıkken WebView örtüsü gizleniyor)',
-    /yerliAcilis = true;[\s\S]{0,120}hide\('loading'\)/.test(js));
+    /yerliAcilis = true;[\s\S]{0,1200}hide\('loading'\);\s+\/\/ iki örtü/.test(js));
   ok('D3 köprü hata verirse WebView örtüsüne düşülüyor', /catch \(e\) \{ yerliAcilis = false; \}/.test(js));
   ok('D4 kapanışta yerli ekran da kapatılıyor', /loadingScreen\(false, ''\)/.test(js));
   ok('D4b iptal ve hata, geçişi tamamlamayan yolu kullanıyor',

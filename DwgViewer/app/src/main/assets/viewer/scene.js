@@ -197,6 +197,7 @@ export class SceneBuilder {
   constructor(db, opts = {}) {
     this.db = db;
     this.opts = opts;
+    this.progI = 0; this.progN = 0;      // küresel ilerleme sayacı (bkz. layout)
     this.prefix = opts.layerPrefix ? opts.layerPrefix + '|' : '';
     this.blocksByName = new Map();
     this.blocksByHandle = new Map();
@@ -303,9 +304,13 @@ export class SceneBuilder {
       const paper = new Set(records.filter(b => /^\*PAPER_SPACE/i.test(b.name || '')).map(b => b.handle));
       modelEnts = db.entities.filter(e => !paper.has(e.ownerBlockRecordSoftId) && !e.isInPaperSpace && e.type !== 'ATTRIB' && e.type !== 'VIEWPORT');
     }
+    // Payda: bütün düzenlerin varlıkları. Böylece yüzde baştan sona tek ölçekte akar.
+    const paperAll = this.opts.xref ? [] : records.filter(b => /^\*PAPER_SPACE/i.test(b.name || '') && b.entities && b.entities.length);
+    this.progI = 0;
+    this.progN = (modelEnts ? modelEnts.length : 0) + paperAll.reduce((n, b) => n + b.entities.length, 0);
     layouts.push(this.layout('Model', true, modelEnts, model || null));
     if (!this.opts.xref) {
-      const papers = records.filter(b => /^\*PAPER_SPACE/i.test(b.name || '') && b.entities && b.entities.length);
+      const papers = paperAll;
       const named = papers.map(b => {
         const lo = layoutObjs.find(l => l.paperSpaceTableId === b.handle) || layoutObjs.find(l => l.layoutName && b.layout === l.handle);
         return { b, name: lo ? lo.layoutName : b.name.replace(/^\*/, ''), order: lo ? lo.tabOrder : 99 };
@@ -340,12 +345,19 @@ export class SceneBuilder {
     this.deferred = [];
     this.viewports = [];
     const root = { m: IDENT, zs: 1, zo: 0, layer: null, color: null, lt: null, lts: 1, lw: null, depth: 0, top: null, info: null };
-    const prog = typeof this.opts.onProgress === 'function' ? this.opts.onProgress : null, nEnt = (ents || []).length;   // işçi ilerleme yüzdesi
-    let iEnt = 0;
+    /*
+     * İlerleme sayacı KÜRESELDİR (this.progI / this.progN), düzen başına sıfırlanmaz. Eskiden
+     * yerel sayaçtı: build() önce Model'i, sonra her kâğıt düzenini kurduğu için çok paftalı
+     * çizimde yüzde her yeni paftada başa dönüyor, kullanıcı çubuğun GERİ GİTTİĞİNİ görüyordu.
+     * Payda build() içinde bütün düzenlerin varlıkları toplanarak önden hesaplanır.
+     */
+    const prog = typeof this.opts.onProgress === 'function' ? this.opts.onProgress : null;
     ents = this.sortedEnts(ents || [], block && block.handle);
+    if (this.progN <= 0) this.progN = (ents || []).length;   // payda verilmediyse hiç olmazsa bu düzen
     for (const e of ents) {
       this.entityCount++;
-      if (prog && (++iEnt % 5000) === 0) prog(iEnt, nEnt);
+      this.progI++;
+      if (prog && (this.progI % 5000) === 0) prog(Math.min(this.progI, this.progN), this.progN);
       try { this.entity(e, root); } catch (err) { console.warn('varlık atlandı', e && e.type, err); }
     }
     let ext = this.extents(this.prims);
