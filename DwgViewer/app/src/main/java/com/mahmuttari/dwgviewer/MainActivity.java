@@ -66,7 +66,7 @@ import java.util.Map;
  *     paylaşma, indirme deposu, küçük resimler, ayar/not deposu ve hata kaydı için köprü sağlar,
  *  4. SAF ağaç izniyle klasör gezgini (kökler, listeleme, arama, açma) köprüsü sunar.
  */
-public class MainActivity extends Activity {
+public class MainActivity extends androidx.activity.ComponentActivity {
 
     private static final String TAG = "DwgViewer";
     private static final String ORIGIN = "https://appassets.androidplatform.net";
@@ -833,9 +833,23 @@ public class MainActivity extends Activity {
         }
     }
 
+    /*
+     * Çizim açılış ekranı YERLİ (native) katmandadır: başvuru sahibinin gönderdiği Jetpack
+     * Compose ekranı WebView'ın üstünde gösterilir (DwgLoadingOverlay). JavaScript yalnız
+     * gerçek yüzdeyi bildirir; çizimin kendisi Android'in arayüz iş parçacığında koşar, yani
+     * WebView'daki çözümleme ağırlaşsa bile donmaz.
+     */
+    private DwgLoadingOverlay loadOverlay;
+
     // ---- geri tuşu ---------------------------------------------------------------------------
     @Override
     public void onBackPressed() {
+        // Gönderilen açılış ekranında Vazgeç düğmesi yoktur; ekran açıkken geri tuşu yüklemeyi
+        // iptal eder. Böylece ekrana dokunmadan çıkış yolu korunur.
+        if (loadOverlay != null && loadOverlay.isShowing() && webView != null) {
+            webView.evaluateJavascript("window.dwgApp && window.dwgApp.cancelLoading && window.dwgApp.cancelLoading()", null);
+            return;
+        }
         if (webView == null) { super.onBackPressed(); return; }
         webView.evaluateJavascript("window.dwgApp ? String(window.dwgApp.onBack()) : 'false'", value -> {
             if (!"\"true\"".equals(value) && !"true".equals(value)) finish();
@@ -918,6 +932,16 @@ public class MainActivity extends Activity {
             } catch (Exception e) { return ""; }
         }
 
+        /**
+         * Çizim açılış ekranı. pct 0..100 gösterir/günceller, pct &lt; 0 kapatır. Ekranın kendisi
+         * com.example.dwgloader paketindedir ve gönderildiği gibidir; burada yalnız çağrılır.
+         */
+        @JavascriptInterface public void loadingScreen(int pct, String file) {
+            runOnUiThread(() -> {
+                if (loadOverlay == null) loadOverlay = new DwgLoadingOverlay(MainActivity.this);
+                if (pct < 0) loadOverlay.hide(); else loadOverlay.show(file == null ? "" : file, pct);
+            });
+        }
         @JavascriptInterface public void toast(String msg) { runOnUiThread(() -> Toast.makeText(MainActivity.this, msg, Toast.LENGTH_SHORT).show()); }
         @JavascriptInterface public void finish() { runOnUiThread(MainActivity.this::finish); }
         /**

@@ -1,5 +1,7 @@
 plugins {
     id "com.android.application"
+    id "org.jetbrains.kotlin.android"
+    id "org.jetbrains.kotlin.plugin.compose"
 }
 
 // Derleme kimliği: git dalı ve kısa commit numarası. Git kökü DwgViewer'ın üstündedir; git
@@ -49,8 +51,8 @@ android {
         applicationId "com.mahmuttari.dwgviewer"
         minSdk 26
         targetSdk 34
-        versionCode 60
-        versionName "7.37"
+        versionCode 61
+        versionName "7.38"
 
         // Uygulamanın taşıdığı diller. Listede olmayan bir dilde kurulan cihaz İngilizce'ye düşer;
         // bağımlılıkların (AndroidX, Play) 85 dilde etiketi APK'ye girmez. Yeni dil eklerken bu liste,
@@ -118,9 +120,11 @@ android {
     }
 
     buildFeatures {
+        compose true
         buildConfig true
     }
 
+    kotlinOptions { jvmTarget = "17" }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
@@ -147,4 +151,15 @@ dependencies {
     implementation "com.google.android.gms:play-services-ads:23.6.0"
     // Google Play Faturalandırma: Pro uygulama içi satın alma (tek seferlik, tüketilmeyen ürün)
     implementation "com.android.billingclient:billing:7.1.1"
+    // Jetpack Compose — YALNIZ çizim açılış ekranı için. Başvuru sahibinin gönderdiği ekran
+    // (app/src/main/java/com/example/dwgloader/MainActivity.kt) tek satırı değiştirilmeden
+    // derlenir; uygulamanın geri kalanı WebView'dır. ComposeView bir ComponentActivity ister,
+    // bu yüzden MainActivity android.app.Activity yerine androidx.activity.ComponentActivity'yi
+    // genişletir.
+    implementation platform("androidx.compose:compose-bom:2024.10.01")
+    implementation "androidx.compose.ui:ui"
+    implementation "androidx.compose.foundation:foundation"
+    implementation "androidx.compose.animation:animation"
+    implementation "androidx.compose.material3:material3"
+    implementation "androidx.activity:activity-compose:1.9.3"
 }

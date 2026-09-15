@@ -2382,15 +2382,32 @@ const CAD_STG = [
   { b: 72, t: 'stgGeom', s: 'stgGeomSub' }, { b: 97, t: 'stgOpt', s: 'stgOptSub' },
   { b: 100, t: 'stgView', s: 'stgViewSub' },
 ];
+/*
+ * Çizim açılış ekranı Android'de YERLİ (native) katmandadır: başvuru sahibinin gönderdiği
+ * Jetpack Compose ekranı (com.example.dwgloader) WebView'ın üstünde gösterilir ve buradan
+ * yalnız gerçek yüzde beslenir. Ekranın kendisi gönderildiği gibidir, tek satırı değişmemiştir.
+ * Köprü yoksa (tarayıcı, sınama) aşağıdaki WebView örtüsü yedek olarak kullanılır.
+ */
+let yerliAcilis = false;
+const yerliVar = () => { const a = A(); return !!(a && typeof a.loadingScreen === 'function'); };
 /** Çizim açılışının tek giriş noktası: yüzdeyi verir, başlığı da görseli de o belirler */
 function setLoadingCad(pct, file) {
   const v = Math.max(0, Math.min(100, pct));
+  if (yerliVar()) {
+    try {
+      A().loadingScreen(Math.round(v), file || '');
+      yerliAcilis = true;
+      hide('loading');                     // iki örtü üst üste gelmesin
+      return;
+    } catch (e) { yerliAcilis = false; }   // köprü hata verirse WebView örtüsüne düş
+  }
   let k = 0; while (k < CAD_STG.length - 1 && v >= CAD_STG[k].b) k++;
   const bitti = v >= 99.95;
   setLoading(t(bitti ? 'stgDone' : CAD_STG[k].t), t(bitti ? 'stgDoneSub' : CAD_STG[k].s), v, 'cad', file);
 }
 function setLoading(text, sub, pct, kind, file) {
   if (text == null) {
+    if (yerliAcilis || yerliVar()) { try { A().loadingScreen(-1, ''); } catch (e) { /* köprü yok */ } yerliAcilis = false; }
     // Örtü kapanırken çeşit sınıfı da silinir: bir sonraki bekleme kendi görselini seçmezse
     // öncekinin çizimi kalmasın.
     const el = $('loading');
@@ -2466,7 +2483,14 @@ async function fetchBuf(url, onPct) {
   for (const c of chunks) { out.set(c, off); off += c.length; }
   return out.buffer;
 }
-{ const b = $('loadingCancel'); if (b) b.addEventListener('click', () => { cancelJobs(tt('cancelled', 'İptal edildi')); setLoading(null); toast(tt('cancelled', 'İptal edildi')); }); }
+/** Yüklemeyi iptal eder. Örtüdeki Vazgeç düğmesi de, yerli açılış ekranındayken geri tuşu da
+ *  buraya gelir — gönderilen ekranda Vazgeç düğmesi yoktur, çıkış yolu geri tuşudur. */
+function cancelLoading() {
+  cancelJobs(tt('cancelled', 'İptal edildi'));
+  setLoading(null);
+  toast(tt('cancelled', 'İptal edildi'));
+}
+{ const b = $('loadingCancel'); if (b) b.addEventListener('click', cancelLoading); }
 function fail(err) {
   if (err && err.cancelled) { console.warn(err.message); return; }   // iptal: yeni yükleme sürüyor, modal ona ait
   console.error(err);
@@ -2724,7 +2748,7 @@ window.dwgApp = { loadCurrent, onFilePicked, onLocation, onBack, loadBytes, zoom
   onLocationError: (m) => { const perm = /kalıcı olarak reddedildi|permanently denied/i.test(String(m)); const openSet = A() && A().openAppSettings ? () => A().openAppSettings() : null;
     toast('GPS: ' + m, perm && openSet ? { ms: 8000, action: { label: tt('settings', 'Ayarlar'), fn: openSet } } : undefined); },
   // sınama tutamağı: aşamalı açılış görselini gerçek dosya açmadan yüzde yüzde sürer
-  __cadLoad: (pct, file) => setLoadingCad(pct, file), setLoading,
+  __cadLoad: (pct, file) => setLoadingCad(pct, file), setLoading, cancelLoading,
   display: D, toast, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, savePng, getSettings: () => settings, requestRender, openDisplayOptions, showSettings, showNewDoc,
   docs: Docs, drive: Drive, onGoogle: (ok, json) => Drive.onGoogle(ok, json), onDrive: (id, ok, json) => Drive.onDrive(id, ok, json), onDriveProgress: (id, d, tot) => Drive.onProgress(id, d, tot), openDrive: () => Drive.open(),
   open: Open, openCenter: (tab) => Open.open(tab), onFsRoot: (obj) => Open.onFsRoot(obj), onFs: (id, ok, json) => Open.onFs(id, ok, json),
