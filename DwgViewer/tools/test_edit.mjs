@@ -256,8 +256,10 @@ await ev(() => window.dwgApp.docs.close());
   await p2.setInputFiles('#fileInput', PDF_PATH);
   await p2.waitForFunction(() => !document.getElementById('docView').hidden, null, { timeout: 20000 });
   await p2.waitForTimeout(300);
-  ok('f1 Ücretsiz sürümde Düzenle düğmesi hiç görünmez', await ev2(() => window.dwgApp.edition() === 'free' && !document.querySelector('[data-doc="edit"]')));
-  ok('f2 docEdit Pro kapısında', await ev2(() => { const g = window.dwgApp.editionApi && window.dwgApp.editionApi.PRO_ONLY; return g ? g.has('docEdit') : true; }));
+  // v7.31: düğme GİZLENMEZ; çizilir, premium rozeti taşır ve tıklanınca düzenleyici yerine kapı açılır.
+  const eb = await ev2(() => { const b = document.querySelector('[data-doc="edit"]'); return b ? { need: b.dataset.need || '', pill: !!b.querySelector('.lk-pill'), vh: (b.querySelector('.lk-vh') || {}).textContent || '' } : null; });
+  ok('f1 Ücretsiz sürümde Düzenle düğmesi GÖRÜNÜR ve Premium rozeti taşır', await ev2(() => window.dwgApp.edition() === 'free') && eb && eb.need === 'premium' && eb.pill && /Premium/.test(eb.vh), JSON.stringify(eb));
+  ok('f2 docEdit Premium kapısında (eski denetim ölüydü: dwgApp.editionApi hiç var olmadı)', await ev2(async () => { const Ed = await import('./edition.js'); return Ed.need('docEdit') === 'premium' && Ed.has('docEdit') === false; }));
   await c2.close();
 }
 

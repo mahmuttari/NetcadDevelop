@@ -74,32 +74,48 @@ const fakeBridge = ({ price, prices }) => {
   }
   // sekmeler ve karolar
   {
+    // v7.31 sözleşmesi: kilitli karo/sekme GİZLENMEZ; çizilir ve data-need + .lk rozeti taşır.
     const tb = await tabs();
-    ok('1d sekme listesinde draw / edit yok', !tb.includes('draw') && !tb.includes('edit') && ['view', 'display', 'measure', '3d'].every(t => tb.includes(t)), tb.join(','));
+    ok('1d yedi sekmenin hepsi çizilir; draw / edit / annot rozetlidir', tb.length === 7 && ['view', 'display', 'measure', 'draw', 'annot', 'edit', '3d'].every(t => tb.includes(t)), tb.join(','));
+    const lockedTabs = await ev(() => [...document.querySelectorAll('#toolbar [data-tab][data-need]')].map(b => b.dataset.tab + ':' + b.dataset.need).sort());
+    ok('1d2 rozetli sekmeler yalnız draw(premium) / annot(premium) / edit(premium)', lockedTabs.join(',') === 'annot:premium,draw:premium,edit:premium', lockedTabs.join(','));
     const row = (id) => ev((id) => [...document.querySelectorAll(`#toolbar .tb-row[data-for="${id}"] [data-act]`)].map(b => b.dataset.act), id);
+    // Beklenen rozet kümesi ELLE YAZILMAZ: her satırda "kilitli ⇔ data-need ⇔ .lk" Ed.need() ile sınanır.
+    const rowLock = (id) => ev(async (id) => {
+      const Ed = await import('./edition.js');
+      return [...document.querySelectorAll(`#toolbar .tb-row[data-for="${id}"] [data-act]`)].map(b => {
+        const k = b.dataset.act, lock = !Ed.has(k);
+        return { k, ok: lock === b.hasAttribute('data-need') && lock === !!b.querySelector('.lk') && (!lock || b.dataset.need === Ed.need(k)) };
+      }).filter(x => !x.ok).map(x => x.k);
+    }, id);
     const m = await row('measure');
-    ok('1e ölçü sekmesi: profile yok; dist/area/angle/radius/coord var', !m.includes('profile') && ['t:dist', 't:area', 't:angle', 't:radius', 't:coord', 'osnap', 'grid', 'crosshair'].every(a => m.includes(a)), m.join(','));
+    ok('1e ölçü sekmesi: profile ARTIK ÇİZİLİR ve super rozetlidir', m.includes('profile') && ['t:dist', 't:area', 't:angle', 't:radius', 't:coord', 'osnap', 'grid', 'crosshair'].every(a => m.includes(a)), m.join(','));
+    ok('1e2 ölçü satırında rozet sözleşmesi', (await rowLock('measure')).length === 0, (await rowLock('measure')).join(','));
     const v = await row('view');
-    ok('1f görünüm sekmesi: pdf/savedxf/savedelta/notes/compare/undo/redo yok; png/layers/drive/more var', !['pdf', 'savedxf', 'savedelta', 'notes', 'compare', 'undo', 'redo'].some(a => v.includes(a)) && ['extents', 'layers', 'search', 'png', 'drive', 'display', 'more', 'gps', 'basemap', 'views', 'layouts'].every(a => v.includes(a)), v.join(','));
+    ok('1f görünüm sekmesi: pdf/savedxf/savedelta/notes/compare/undo/redo ARTIK ÇİZİLİR', ['pdf', 'savedxf', 'savedelta', 'notes', 'compare', 'undo', 'redo'].every(a => v.includes(a)) && ['extents', 'layers', 'search', 'png', 'drive', 'display', 'more', 'gps', 'basemap', 'views', 'layouts'].every(a => v.includes(a)), v.join(','));
+    ok('1f2 görünüm satırında rozet sözleşmesi', (await rowLock('view')).length === 0, (await rowLock('view')).join(','));
     const d3 = await row('3d');
-    ok('1g 3B sekmesi: 3:move/3:setz/3:del/3:pline/undo yok; 3:dist/3:select/vstyle/clip3 var', !['3:move', '3:setz', '3:del', '3:pline', 'undo'].some(a => d3.includes(a)) && ['3d', 'fit3', 'v:iso', '3:dist', '3:select', 'vstyle', 'clip3', 'persp'].every(a => d3.includes(a)), d3.join(','));
-    const groups = await ev(() => [...document.querySelectorAll('#toolbar .tb-row .tb-group')].every(g => g.querySelectorAll('[data-act]').length > 0));
+    ok('1g 3B sekmesi: 3:move/3:setz/3:del/3:pline/undo ARTIK ÇİZİLİR; 3:dist/3:select rozetsiz', ['3:move', '3:setz', '3:del', '3:pline', 'undo'].every(a => d3.includes(a)) && ['3d', 'fit3', 'v:iso', '3:dist', '3:select', 'vstyle', 'clip3', 'persp'].every(a => d3.includes(a)), d3.join(','));
+    ok('1g2 3B satırında rozet sözleşmesi', (await rowLock('3d')).length === 0, (await rowLock('3d')).join(','));
+    // Çağrı karosu (.lk-cta) data-act taşımaz, data-lk taşır: grup denetimi ikisini de sayar
+    const groups = await ev(() => [...document.querySelectorAll('#toolbar .tb-row .tb-group')].every(g => g.querySelectorAll('[data-act], [data-lk]').length > 0));
     ok('1h boş grup çizilmedi', groups);
-    const ids = await ev(() => ({ undo: !!document.getElementById('tbUndo'), save: !!document.getElementById('tbSave'), layer: !!document.getElementById('tbLayer') }));
-    ok('1i tbUndo / tbSave / tbLayer kimlikleri yok', !ids.undo && !ids.save && !ids.layer, JSON.stringify(ids));
+    const ids = await ev(() => { const q = (x) => document.getElementById(x); return { undo: !!q('tbUndo'), save: !!q('tbSave'), layer: !!q('tbLayer'), undoNeed: q('tbUndo') && q('tbUndo').dataset.need, undoDis: q('tbUndo') && q('tbUndo').disabled }; });
+    ok('1i tbUndo / tbSave / tbLayer kimlikleri VAR, rozetli ve ÖLÜ DEĞİL', ids.undo && ids.save && ids.layer && ids.undoNeed === 'premium' && ids.undoDis === false, JSON.stringify(ids));
   }
   // Diğer menüsü (belge yokken ana ekran açıktır ve üst çubuk gizlidir: düğme programla tıklanır, menü ana ekranın üstünde açılır)
   {
     await ev(() => document.getElementById('btnMore').click()); await page.waitForTimeout(100);
-    const r = await ev(() => { const q = (a) => document.querySelector(`#moreMenu [data-act="${a}"]`); return { notes: q('notes').hidden, profile: q('profile').hidden, compare: q('compare').hidden, pdf: q('pdf').hidden, pro: q('pro').hidden, proVis: q('pro').offsetParent !== null, proText: q('pro').textContent.trim(), png: q('png').hidden, info: q('info').hidden, about: q('about').hidden }; });
-    ok('1j Diğer menüsü: notes/profile/compare/pdf gizli, pro görünür', r.notes && r.profile && r.compare && r.pdf && !r.pro && r.proVis && r.proText === 'Paketlere bak' && !r.png && !r.info && !r.about, JSON.stringify(r));
+    const r = await ev(() => { const q = (a) => document.querySelector(`#moreMenu [data-act="${a}"]`); const n = (a) => q(a).dataset.need || ''; return { notes: q('notes').hidden, profile: q('profile').hidden, compare: q('compare').hidden, pdf: q('pdf').hidden, pro: q('pro').hidden, proVis: q('pro').offsetParent !== null, proText: q('pro').textContent.trim(), png: q('png').hidden, info: q('info').hidden, about: q('about').hidden, need: [n('notes'), n('profile'), n('compare'), n('pdf'), n('png'), n('info'), n('pro')].join('|'), pills: document.querySelectorAll('#moreMenu .lk-pill').length }; });
+    ok('1j Diğer menüsü: notes/profile/compare/pdf ARTIK GÖRÜNÜR ve rozetli, pro görünür', !r.notes && !r.profile && !r.compare && !r.pdf && !r.pro && r.proVis && r.proText.startsWith('Paketlere bak') && !r.png && !r.info && !r.about && r.need === 'premium|super|super|premium|||' && r.pills >= 4, JSON.stringify(r));
     await shot('free_more_menu');
     await page.click('#moreMenu [data-act="pro"]'); await page.waitForTimeout(80);
     const p = await panel();
     ok('1k menü › Paketlere bak → menü kapanır, #proPanel açılır', await ev(() => document.getElementById('moreMenu').hidden) && p.open && p.prices.includes(PRICE), JSON.stringify(p).slice(0, 120));
     await page.click('#proPanel [data-close="proPanel"]'); await page.waitForTimeout(50);
     ok('1k2 kapat düğmesi paneli kapatır', (await panel()).open === false);
-    ok('1l Drive paneli yükleme düğmesi gizli', await ev(() => document.querySelector('#drivePanel [data-drive="upload"]').hidden === true && !document.querySelector('#drivePanel [data-drive="refresh"]').hidden));
+    const up = await ev(() => { const b = document.querySelector('#drivePanel [data-drive="upload"]'); return { hidden: b.hidden, need: b.dataset.need || '', bar: !!b.querySelector('.lk-bar'), aria: b.getAttribute('aria-label') || '' }; });
+    ok('1l Drive yükleme düğmesi GÖRÜNÜR, super rozetli, adına kilit cümlesi eklenmiş', up.hidden === false && up.need === 'super' && up.bar && up.aria.includes('Super paketinde bulunur.') && await ev(() => !document.querySelector('#drivePanel [data-drive="refresh"]').hidden), JSON.stringify(up));
   }
   // belge açılışı → reklam
   ok('1m belge açılmadan reklam isteği yok', (await calls()).length === 0);
@@ -226,7 +242,8 @@ const fakeBridge = ({ price, prices }) => {
     // iptal: onEdition('free','revoked') → sekmeler kalkar, reklam zamanlayıcısı başlar
     await ev(() => { document.getElementById('toast').hidden = true; window.__setEd('free'); window.dwgApp.onEdition('free', 'revoked'); }); await page.waitForTimeout(80);
     const tb2 = await tabs(); const st2 = await ev(() => window.dwgApp.__ads.state());
-    ok('5k onEdition(free, revoked) → draw/edit kalkar, #proLine görünür, adsOn ve zamanlayıcı açık, uyarı', !tb2.includes('draw') && !tb2.includes('edit') && await ev(() => !document.getElementById('proLine').hidden && document.body.classList.contains('edition-free')) && st2.adsOn && st2.timer && (await toastText()) === 'Pro yetkisi kaldırıldı', tb2.join(',') + ' ' + JSON.stringify(st2));
+    const lk2 = await ev(() => [...document.querySelectorAll('#toolbar [data-tab][data-need]')].map(b => b.dataset.tab).sort().join(','));
+    ok('5k onEdition(free, revoked) → sekmeler KALIR ve yeniden rozetlenir, #proLine görünür, adsOn ve zamanlayıcı açık, uyarı', tb2.includes('draw') && tb2.includes('edit') && lk2 === 'annot,draw,edit' && await ev(() => !document.getElementById('proLine').hidden && document.body.classList.contains('edition-free')) && st2.adsOn && st2.timer && (await toastText()) === 'Pro yetkisi kaldırıldı', tb2.join(',') + ' ' + JSON.stringify(st2));
     // öteki nedenler: cancelled sessiz, pending ve error uyarı; yetki değişmez
     await ev(() => { document.getElementById('toast').hidden = true; window.dwgApp.onEdition('free', 'cancelled'); }); await page.waitForTimeout(30);
     ok('5l cancelled → sessiz, free kalır', (await toastText()) === '' && await ev(() => window.dwgApp.edition() === 'free'));
@@ -277,13 +294,13 @@ const fakeBridge = ({ price, prices }) => {
   // ---- yeniden yükleme (köprü yine free): lisans kodu akışı
   {
     await page.reload(); await page.waitForSelector('#btnOpen2'); await page.waitForTimeout(200);
-    ok('6a yeniden yükleme sonrası free (sekmeler gizli)', await ev(() => window.dwgApp.edition() === 'free') && !(await tabs()).includes('draw'));
+    ok('6a yeniden yükleme sonrası free (sekmeler çizilir, draw rozetli)', await ev(() => window.dwgApp.edition() === 'free') && (await tabs()).includes('draw') && await ev(() => document.querySelector('#toolbar [data-tab="draw"]').dataset.need === 'premium'));
     await page.click('#btnGoPro'); await page.waitForTimeout(80);
     await ev(() => { document.getElementById('toast').hidden = true; });
     const a0 = (await askLog(page)).length;
     await queueAnswers(page, 'DWGPRO-bad'); await page.click('#proPanel [data-pro="license"]'); await page.waitForTimeout(100);
     const asked = (await askLog(page)).slice(a0);
-    ok('6b Lisans kodu gir → askText(lisans kodu); yanlış kod → activateLicense false, uyarı, free kalır', asked.length === 1 && asked[0].type === 'text' && /Lisans kodu/.test(asked[0].label) && await ev(() => window.__proCalls.includes('license:DWGPRO-bad') && window.dwgApp.edition() === 'free') && /geçersiz/.test(await toastText()) && !(await tabs()).includes('draw'), JSON.stringify(asked) + ' ' + await toastText());
+    ok('6b Lisans kodu gir → askText(lisans kodu); yanlış kod → activateLicense false, uyarı, free kalır', asked.length === 1 && asked[0].type === 'text' && /Lisans kodu/.test(asked[0].label) && await ev(() => window.__proCalls.includes('license:DWGPRO-bad') && window.dwgApp.edition() === 'free') && /geçersiz/.test(await toastText()) && await ev(() => document.querySelector('#toolbar [data-tab="draw"]').dataset.need === 'premium'), JSON.stringify(asked) + ' ' + await toastText());
     await queueAnswers(page, null); await page.click('#proPanel [data-pro="license"]'); await page.waitForTimeout(60);
     ok('6c kutuda vazgeç → köprüye kod gitmez', await ev(() => window.__proCalls.filter(c => c.startsWith('license:')).length === 1));
     await ev(() => { document.getElementById('toast').hidden = true; });
@@ -342,7 +359,8 @@ const fakeBridge = ({ price, prices }) => {
     await ev(() => { window.__edition = 'free'; window.dwgApp.onEdition('free', ''); }); await page.waitForTimeout(60);
     await ev(() => window.dwgApp.openProPanel()); await page.waitForTimeout(60);
     const r2 = await ev(() => { const p = document.getElementById('proPanel'); const q = (s) => p.querySelector(s); return { open: !p.hidden, note: q('[data-pro-note]') ? q('[data-pro-note]').dataset.proNote : null, text: q('[data-pro-note]') ? q('[data-pro-note]').textContent : '', btns: p.querySelectorAll('[data-pro]').length, tabs: [...document.querySelectorAll('#toolbar [data-tab]')].map(b => b.dataset.tab) }; });
-    ok('3e3 tarayıcıda Ücretsiz: panel yalnız açıklama ("Android uygulamasında satın alınır"), düğme yok; onEdition(free) sekmeleri gizledi', r2.open && r2.note === 'browser' && /Android uygulamasında/.test(r2.text) && r2.btns === 0 && !r2.tabs.includes('draw'), JSON.stringify(r2).slice(0, 200));
+    const lk3 = await page.evaluate(() => [...document.querySelectorAll('#toolbar [data-tab][data-need]')].map(b => b.dataset.tab).sort().join(','));
+    ok('3e3 tarayıcıda Ücretsiz: panel yalnız açıklama ("Android uygulamasında satın alınır"), düğme yok; onEdition(free) sekmeleri ROZETLEDİ', r2.open && r2.note === 'browser' && /Android uygulamasında/.test(r2.text) && r2.btns === 0 && r2.tabs.includes('draw') && lk3 === 'annot,draw,edit', JSON.stringify(r2).slice(0, 200) + ' ' + lk3);
     await page.screenshot({ path: `${out}/pro_panel_browser.png` });
     await ev(() => { window.dwgApp.onBack(); window.__edition = 'super'; window.dwgApp.onEdition('super', ''); }); await page.waitForTimeout(60);
     ok('3e4 onEdition(pro) → sekmeler geri', await ev(() => [...document.querySelectorAll('#toolbar [data-tab]')].map(b => b.dataset.tab).includes('draw') && document.getElementById('proPanel').hidden));
@@ -382,9 +400,10 @@ for (const c of [
   }, c);
   const page = await ctx.newPage(); hook(page);
   await page.goto(srv.url + 'index.html'); await page.waitForSelector('#btnOpen2'); await page.waitForTimeout(150);
-  const r = await page.evaluate(() => ({ e: window.dwgApp.edition(), pro: window.dwgApp.isPro(), cls: document.body.classList.contains('edition-super') ? 'super' : document.body.classList.contains('edition-free') ? 'free' : '-', tabs: [...document.querySelectorAll('#toolbar [data-tab]')].map(b => b.dataset.tab), proLine: document.getElementById('proLine').hidden }));
-  const hasDraw = r.tabs.includes('draw') && r.tabs.includes('edit');
-  ok(c.name, r.e === c.want && r.pro === (c.want === 'super') && r.cls === c.want && hasDraw === (c.want === 'super') && r.proLine === (c.want === 'super'), JSON.stringify(r).slice(0, 200));
+  const r = await page.evaluate(() => ({ e: window.dwgApp.edition(), pro: window.dwgApp.isPro(), cls: document.body.classList.contains('edition-super') ? 'super' : document.body.classList.contains('edition-free') ? 'free' : '-', tabs: [...document.querySelectorAll('#toolbar [data-tab]')].map(b => b.dataset.tab), locked: [...document.querySelectorAll('#toolbar [data-tab][data-need]')].map(b => b.dataset.tab).sort(), proLine: document.getElementById('proLine').hidden }));
+  // v7.31: sekme HER basamakta çizilir; ölçüt sekmenin varlığı değil ROZETİN varlığıdır.
+  const allTabs = ['view', 'display', 'measure', 'draw', 'annot', 'edit', '3d'].every(x => r.tabs.includes(x));
+  ok(c.name, r.e === c.want && r.pro === (c.want === 'super') && r.cls === c.want && allTabs && r.locked.length === (c.want === 'super' ? 0 : 3) && r.proLine === (c.want === 'super'), JSON.stringify(r).slice(0, 220));
   if (c.bridge === 'super' || c.bridge === 'free') {   // köprü geçerliyken onEdition ters değer verse de bir sonraki okuma köprüyü esas alır
     const r2 = await page.evaluate((b) => { window.dwgApp.onEdition(b === 'super' ? 'free' : 'super', ''); return window.dwgApp.edition(); }, c.bridge);
     ok(c.name.slice(0, 2) + '2 köprü geçerliyken edition() köprüyü okur', r2 === c.bridge, r2);

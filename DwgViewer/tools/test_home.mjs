@@ -22,7 +22,7 @@ const hook = (page) => {
 const sampleFiles = fs.readdirSync(SM).filter(f => !f.startsWith('.'));
 const pdf = `%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 100]>>endobj\ntrailer<</Root 1 0 R>>`;
 fs.writeFileSync(path.join(out, 'test.pdf'), pdf);
-const GENERAL = ['drive', 'server', 'qr', 'settings', 'about', 'pro', 'home'];
+const GENERAL = ['drive', 'server', 'qr', 'settings', 'about', 'pro', 'home', 'pdfcad', 'batch'];
 /** görünür ölçüler: display none ise 0 */
 const shellState = () => ({
   home: !document.getElementById('home').hidden, homemode: document.body.classList.contains('homemode'), docmode: document.body.classList.contains('docmode'),
@@ -100,8 +100,8 @@ const menuVisible = () => [...document.querySelectorAll('#moreMenu [data-act]')]
   // Araçlar
   await page.click('#homeNav [data-home-tab="tools"]'); await page.waitForTimeout(80);
   {
-    const r = await ev(() => { const g = document.getElementById('toolsGrid'); const cols = getComputedStyle(g).gridTemplateColumns.split(' ').length; const tools = [...g.querySelectorAll('[data-tool]')]; return { cols, n: tools.length, badges: tools.filter(b => b.querySelector('.pro-badge')).map(b => b.dataset.tool).sort(), colored: tools.every(b => /tool-c[1-8]/.test(b.querySelector('.tool-ic').className)), ic: tools.every(b => b.querySelector('.tool-ic svg.ic use')), lb: tools.every(b => b.querySelector('.lb').textContent.trim().length > 0) }; });
-    ok('1l Araçlar: 4 sütun, 20 araç, renkli simgeler, ad; ücretsizde 7 PRO rozeti', r.cols === 4 && r.n === 20 && r.colored && r.ic && r.lb && JSON.stringify(r.badges) === JSON.stringify(['compare', 'new', 'notes', 'pdf', 'profile', 'savedelta', 'savedxf']), JSON.stringify(r));
+    const r = await ev(async () => { const Ed = await import('./edition.js'); const g = document.getElementById('toolsGrid'); const cols = getComputedStyle(g).gridTemplateColumns.split(' ').length; const tools = [...g.querySelectorAll('[data-tool]')]; return { cols, n: tools.length, badges: tools.filter(b => b.querySelector('.lk-pill')).map(b => b.dataset.tool).sort(), needs: tools.filter(b => b.dataset.need).map(b => b.dataset.tool + ':' + b.dataset.need).sort().join(','), bad: tools.filter(b => (!Ed.has(b.dataset.tool)) !== b.hasAttribute('data-need')).map(b => b.dataset.tool), colored: tools.every(b => /tool-c[1-8]/.test(b.querySelector('.tool-ic').className)), ic: tools.every(b => b.querySelector('.tool-ic svg.ic use')), lb: tools.every(b => b.querySelector('.lb').textContent.trim().length > 0) }; });
+    ok('1l Araçlar: 4 sütun, 20 araç, renkli simgeler, ad; ücretsizde 7 paket hapı ve sözleşme tutuyor', r.cols === 4 && r.n === 20 && r.colored && r.ic && r.lb && r.bad.length === 0 && JSON.stringify(r.badges) === JSON.stringify(['compare', 'new', 'notes', 'pdf', 'profile', 'savedelta', 'savedxf']) && r.needs === 'compare:super,new:premium,notes:premium,pdf:premium,profile:super,savedelta:super,savedxf:premium', JSON.stringify(r));
     await shot('home_araclar');
     await page.click('#toolsGrid [data-tool="measure"]'); await page.waitForTimeout(80);
     ok('1m çizim gerektiren araç, belge yokken → "Önce bir … açın"', /Önce bir/.test(await toastText()) && await ev(() => !document.getElementById('home').hidden));
@@ -168,7 +168,8 @@ const menuVisible = () => [...document.querySelectorAll('#moreMenu [data-act]')]
     ok('1ac belge kapanınca (çizim varken) şerit, durum çubuğu ve düğmeler geri gelir; ana ekran açılmaz', !r2.docView && !r2.docmode && !r2.home && r2.tb > 50 && r2.st > 30 && r2.btns.every(d => d !== 'none') && r2.hasDoc, JSON.stringify(r2));
     await page.click('#btnMore'); await page.waitForTimeout(80);
     const vis2 = await ev(menuVisible);
-    ok('1ad çizimde menü çizim eylemlerini yeniden gösterir (info, layouts, png…), Pro eylemleri ücretsizde gizli', ['info', 'layouts', 'png', 'gps', 'basemap', 'views', 'display', 'home'].every(a => vis2.includes(a)) && !['notes', 'profile', 'compare', 'pdf'].some(a => vis2.includes(a)), vis2.join(','));
+    const need2 = await ev(() => [...document.querySelectorAll('#moreMenu [data-act]')].filter(b => !b.hidden && b.dataset.need).map(b => b.dataset.act).sort());
+    ok('1ad çizimde menü çizim eylemlerini yeniden gösterir; Pro eylemleri ARTIK GÖRÜNÜR ve rozetli', ['info', 'layouts', 'png', 'gps', 'basemap', 'views', 'display', 'home'].every(a => vis2.includes(a)) && ['notes', 'profile', 'compare', 'pdf'].every(a => vis2.includes(a)) && ['notes', 'profile', 'compare', 'pdf'].every(a => need2.includes(a)), vis2.join(',') + ' | rozetli: ' + need2.join(','));
     await ev(() => window.dwgApp.onBack());
   }
   // yatay düzen: alt gezinme altta, gövde kaydırılabilir
@@ -244,7 +245,7 @@ const menuVisible = () => [...document.querySelectorAll('#moreMenu [data-act]')]
   }
   // Araçlar: Pro'da rozet yok, "Pro" aracı yok
   await page.click('#homeNav [data-home-tab="tools"]'); await page.waitForTimeout(60);
-  ok('2d Pro: PRO rozeti yok, Pro aracı listelenmez (19 araç)', await ev(() => document.querySelectorAll('#toolsGrid .pro-badge').length === 0 && document.querySelectorAll('#toolsGrid [data-tool]').length === 19 && !document.querySelector('#toolsGrid [data-tool="pro"]')));
+  ok('2d Super: hiç rozet yok (.lk ve data-need sıfır), Pro aracı listelenmez (19 araç)', await ev(() => document.querySelectorAll('#toolsGrid .lk').length === 0 && document.querySelectorAll('#toolsGrid [data-need]').length === 0 && document.querySelectorAll('#toolsGrid [data-tool]').length === 19 && !document.querySelector('#toolsGrid [data-tool="pro"]')));
   // WebDAV hesabı
   await page.click('#homeNav [data-home-tab="files"]'); await page.click('#filesSeg [data-fseg="cloud"]'); await page.waitForTimeout(60);
   await page.click('#filesCloud [data-cloud="wd-add"]'); await page.waitForTimeout(80);

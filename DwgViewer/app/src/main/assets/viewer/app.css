@@ -12,7 +12,7 @@
   --t-adfree: #4aa3df; --t-premium: #f5b342; --t-super: #a97bf0; --t-ink: #10151c;
 }
 /* tema token'ları: tuval temasıyla uyumlu arayüz renkleri */
-body[data-theme="light"], .light { --bg: #ffffff; --bar: #f1f3f6; --fg: #1a2230; --muted: #5b6776; --panel: #ffffff; --line: #d6dbe2; --btn: #e3e7ed; --btn-on: #cfd6df; --shadow: 0 6px 24px rgba(0,0,0,.18);  --t-adfree: #1d7fc0; --t-premium: #c8810b; --t-super: #7d4fd1; --t-ink: #ffffff; }
+body[data-theme="light"], .light { --bg: #ffffff; --bar: #f1f3f6; --fg: #1a2230; --muted: #5b6776; --panel: #ffffff; --line: #d6dbe2; --btn: #e3e7ed; --btn-on: #cfd6df; --shadow: 0 6px 24px rgba(0,0,0,.18);  --t-adfree: #1d7fc0; --t-premium: #9a6208; --t-super: #7d4fd1; --t-ink: #ffffff; }
 body[data-theme="blueprint"] { --bg: #0b2a5b; --bar: #0e3268; --fg: #dfe9ff; --muted: #9db4dc; --panel: #10366f; --line: #2a5aa0; --btn: #1a4685; --btn-on: #2a5aa0; --accent: #ffd166;  --t-adfree: #7fc4ff; --t-premium: #ffd166; --t-super: #c9a7ff; }
 body[data-theme="sepia"] { --bg: #f3e9d2; --bar: #eadfc4; --fg: #3a2a14; --muted: #7a6748; --panel: #f6efdd; --line: #d9c9a5; --btn: #e6d9b8; --btn-on: #d9c9a5; --accent: #b3541e; --accent-fg: #fff; --shadow: 0 6px 24px rgba(60,40,10,.2);  --t-adfree: #2f6f9f; --t-premium: #b3541e; --t-super: #7b4ea8; --t-ink: #ffffff; }
 body[data-theme="hicontrast"] { --bg: #ffffff; --bar: #ffffff; --fg: #000000; --muted: #333333; --panel: #ffffff; --line: #000000; --btn: #f0f0f0; --btn-on: #d0d0d0; --accent: #0033cc; --accent-fg: #fff; --shadow: 0 0 0 2px #000;  --t-adfree: #0033cc; --t-premium: #8a4b00; --t-super: #5b1a8a; --t-ink: #ffffff; }
@@ -214,7 +214,6 @@ body.glove .home-nav button { min-height: 64px; }
 .tool .tool-ic { width: 56px; height: 56px; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; color: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.18); }
 .tool .tool-ic svg.ic { width: 30px; height: 30px; }
 .tool .lb { font-size: calc(11.5px * var(--fs)); line-height: 1.15; text-align: center; max-width: 100%; }
-.tool .pro-badge { position: absolute; top: -4px; right: calc(50% - 38px); background: #f59e0b; color: #fff; font-size: 9px; font-weight: 800; padding: 2px 5px; border-radius: 8px; letter-spacing: .3px; }
 .tool.dim .tool-ic { opacity: .55; }
 .tool-c1 { background: linear-gradient(135deg, #3b82f6, #1d4ed8); } .tool-c2 { background: linear-gradient(135deg, #14b8a6, #0f766e); } .tool-c3 { background: linear-gradient(135deg, #f59e0b, #d97706); } .tool-c4 { background: linear-gradient(135deg, #ef4444, #b91c1c); }
 .tool-c5 { background: linear-gradient(135deg, #8b5cf6, #6d28d9); } .tool-c6 { background: linear-gradient(135deg, #22c55e, #15803d); } .tool-c7 { background: linear-gradient(135deg, #06b6d4, #0e7490); } .tool-c8 { background: linear-gradient(135deg, #64748b, #334155); }
@@ -716,7 +715,6 @@ html[dir="rtl"] .doc-card.pick { text-align: right; }
 html[dir="rtl"] .slider output,
 html[dir="rtl"] .range2 .hi-v { text-align: left; }
 html[dir="rtl"] .fab { right: auto; left: 12px; }
-html[dir="rtl"] .tool .pro-badge { right: auto; left: calc(50% - 38px); }
 html[dir="rtl"] .panel.right { right: auto; left: 0; border-radius: 0 12px 12px 0; }
 html[dir="rtl"] .menu { right: auto; left: 6px; }
 html[dir="rtl"] .toast .act { margin-left: 0; margin-right: 4px; }
@@ -1115,6 +1113,86 @@ body.reduce-motion #loading .lbar > i { transition: none; }
    yerini ince, düz bir örtüye bırakır, plan izleri de son (görünür) hâlinde donar.
    RTL: yerleşim mantıksal özelliklerle kurulur; parıltının yönü html[dir="rtl"] altında çevrilir.
    ------------------------------------------------------------------------------------------ */
+
+/* ==============================================================================================
+   KİLİT ROZETİ (.lk) — kilitli özellik gizlenmez, işaretlenir.
+   SÖZLEŞME: data-need YALNIZ kilitli DENETİMDE bulunur; rozetin kendisi, şeritteki çağrı karosu
+   ve paket panelindeki döküm rengini data-tier ile alır. Super pakette ikisinden de tek bir tane
+   kalmaz — "kilitli ⇔ rozetli" tek satırla sınanır.
+   BİÇİM KURALI: kilit işareti ASLA yuvarlak değildir ve ASLA köşeye konmaz. Şeritte yuvarlak +
+   köşe zaten iki OLUMLU anlam taşıyor: .tb-row button.on::after (sağ üst, "etkin") ve
+   .tb-row button.fav-mark::before (sol üst, "sık kullanılan"); ikisi de var(--accent) ile
+   çizilir ve --accent, dark/blueprint/sepia temalarında --t-premium ile AYNI hex'tir. Ayrımı
+   renk değil BİÇİM ve KONUM verir.
+   Kilitli denetim SOLDURULMAZ: opacity zaten iki anlam taşıyor (.4 = :disabled, .55 = .tool.dim).
+   ============================================================================================== */
+/* kimlik rengi — .tier-card.t-* kalıbının öznitelikli eşi */
+[data-need="adfree"],  [data-tier="adfree"]  { --t: var(--t-adfree); }
+[data-need="premium"], [data-tier="premium"] { --t: var(--t-premium); }
+[data-need="super"],   [data-tier="super"]   { --t: var(--t-super); }
+
+.lk { pointer-events: none; flex: 0 0 auto; }   /* dokunuş her zaman ana düğmeye gider: 44 px hedef bozulmaz */
+
+/* --- 1) KİLİT ŞERİDİ: kelime sığmayan yüzeyler ------------------------------------------- */
+.lk-bar { position: absolute; border-radius: 99px; background: var(--t, var(--t-premium)); }
+/* şerit karosu: inline-end kenarı, dikeyde ortada. .tb-row overflow-x:auto taşıdığı için iki
+   eksende birden kırpar; rozet karonun İÇİNDE kalır. Üst iki köşe .on ve .fav-mark'ındır. */
+.tb-row button > .lk-bar { inset-inline-end: calc(3px * var(--fs)); inset-block-start: 30%; inset-block-end: 30%; width: calc(3px * var(--fs)); }
+body.glove .tb-row button > .lk-bar { width: calc(4px * var(--fs)); }
+/* şerit sekmesi: konumlandırma kabı yoktu — açılmazsa rozet #app'e (position:fixed) kaçar.
+   Etkin göstergesi dikey şeritte block-end, yatay rayda inline-end kenarındadır; üst kenar boştur. */
+.tb-tabs button { position: relative; }
+.tb-tabs button > .lk-bar { inset-block-start: calc(3px * var(--fs)); inset-inline-start: 34%; inset-inline-end: 34%; height: calc(3px * var(--fs)); }
+/* simge-yalnız düğmeler (Drive'a yükle): .btn'de konumlandırma yok, hedefli açılır */
+[data-drive="upload"], [data-doc="drive"] { position: relative; }
+[data-drive="upload"] > .lk-bar, [data-doc="drive"] > .lk-bar { inset-inline-end: calc(4px * var(--fs)); inset-block-start: 26%; inset-block-end: 26%; width: calc(3px * var(--fs)); }
+
+/* --- 2) HAP: yer olan yüzeyler, paket ADI yazılır ------------------------------------------
+   Zemin paket rengi DEĞİLDİR: açık temada renk üstüne beyaz yazı AA'yı düşürür. Yazı tema
+   zemininde kalınca kontrast altı temanın kendi güvencesine devredilir. */
+.lk-pill { display: inline-flex; align-items: center; min-width: 0; max-width: 100%;
+  height: calc(16px * var(--fs)); padding: 0 calc(7px * var(--fs));
+  border: 1px solid var(--t, var(--t-premium)); border-radius: 99px; background: transparent; color: var(--fg);
+  font-size: calc(10.5px * var(--fs)); font-weight: 700; line-height: 1; letter-spacing: .2px;
+  white-space: nowrap; overflow: hidden; }
+.lk-pill > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* ana ekran araç karosu: hap AKIŞTA, etiketin altında (sihirli 38 px ve RTL kopyası kalktı) */
+.tool > .lk-pill { margin-top: calc(-1px * var(--fs)); }
+/* "Diğer" menüsü: .menu button konumlandırılmamıştır, rozet akışta sona itilir */
+.menu button > .lk-pill { margin-inline-start: auto; }
+.menu button > span[data-i18n] { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* belge "Düzenle", "Yeni dosya", bilgi paneli çipi: akışta, metinden sonra */
+.doc-tools [data-doc="edit"] > .lk-pill, .btn.big > .lk-pill, #iaArea > .lk-pill { margin-inline-start: calc(6px * var(--fs)); }
+/* uzun basış kutusu: hap + tam cümle */
+.tb-pop .pop-lock { display: flex; align-items: center; gap: calc(6px * var(--fs)); margin-bottom: calc(8px * var(--fs)); font-size: calc(12px * var(--fs)); color: var(--muted); }
+
+/* --- 3) satır başındaki / sonundaki tek konuşan karo --------------------------------------- */
+.tb-row button.lk-cta { background: transparent; box-shadow: inset 0 0 0 1px var(--t, var(--line)); color: var(--t, var(--accent)); }
+.tb-row button.lk-cta .lb { color: inherit; }
+@media (min-width: 900px) { .tb-lockg .tb-caption { color: var(--t, var(--muted)); } }
+
+/* --- 4) paket paneli: kart sayacı, odak, tam yetenek dökümü --------------------------------- */
+.tier-count { display: block; margin: calc(-2px * var(--fs)) 0 calc(6px * var(--fs)); font-size: calc(11.5px * var(--fs)); color: var(--muted); font-variant-numeric: tabular-nums; }
+.tier-card.focus { border-color: var(--t, var(--accent)); box-shadow: 0 0 0 2px var(--t, var(--accent)); }
+.lk-all { margin-top: calc(10px * var(--fs)); }
+.lk-all-g { margin-top: calc(8px * var(--fs)); }
+.lk-all-h { display: flex; align-items: center; gap: calc(7px * var(--fs)); font-size: calc(13px * var(--fs)); }
+.lk-all-h small { color: var(--muted); font-variant-numeric: tabular-nums; }
+.lk-all-d { width: calc(9px * var(--fs)); height: calc(9px * var(--fs)); border-radius: 3px; background: var(--t, var(--accent)); flex: 0 0 auto; }
+.lk-all ul { list-style: none; margin: calc(4px * var(--fs)) 0 0; padding: 0; padding-inline-start: calc(14px * var(--fs));
+  columns: 2; column-gap: calc(12px * var(--fs)); font-size: calc(12px * var(--fs)); color: var(--muted); }
+.lk-all li { break-inside: avoid; }
+.lk-all li.owned { color: var(--fg); }
+@media (max-width: 380px) { .lk-all ul { columns: 1; } }
+
+/* --- 5) tema ve kip ince ayarları ------------------------------------------------------------
+   hicontrast: kenar keskinleşir (1 px kıl çizgi). body.sun karoya 2 px kenarlık ekler; mutlak
+   konum dolgu kutusuna göre olduğu için şerit kenarlığın içinde kalır, ek kural gerekmez.
+   Rozetin hiçbir animasyonu ve geçişi yoktur: reduce-motion için ek kural gerekmez. */
+body[data-theme="hicontrast"] .lk-bar, body[data-theme="hicontrast"] .lk-pill { outline: 1px solid var(--line); }
+
+/* --- 6) RTL: yalnız mantıksal özellikler kullanıldı, YENİ KURAL GEREKMEZ.
+   Silinen kural: html[dir="rtl"] .tool .pro-badge. ------------------------------------------- */
 
 /* --- okunur ama görünmez metin --------------------------------------------------------------
    İskeletler ve boş durum çizimleri aria-hidden'dır (süstür, bilgi taşımazlar); bekleme

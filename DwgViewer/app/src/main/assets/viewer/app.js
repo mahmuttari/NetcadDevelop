@@ -783,7 +783,7 @@ function showInfo(p) {
   rows.push([t('handle'), inf.h]);
   $('infoBody').innerHTML = kv(rows);
   ensureInfoActions();
-  { const ab = $('iaArea'); if (ab) ab.hidden = !(p.k === 5 && p.idx && p.idx.length >= 3); }   // yüzey ölçüsü yalnız üçgen ağı olan gövdede
+  { const ab = $('iaArea'); if (ab) { ab.hidden = !(p.k === 5 && p.idx && p.idx.length >= 3); Ed.lockMark(ab, 'area3d', 'pill'); } }   // yüzey ölçüsü yalnız üçgen ağı olan gövdede; kilitliyse rozetli
   show('infoPanel');
 }
 /** Bilgi paneli eylem çipleri (başlık altı): Buradan ölç · Katmanı izole et · Aynı katmandakileri seç */
@@ -1627,10 +1627,13 @@ function refreshMenu() {
   const doc = document.body.classList.contains('docmode');
   document.querySelectorAll('#moreMenu [data-act]').forEach(b => {
     const k = b.dataset.act;
+    // İKİ GİZLEME AYRI TUTULUR: yetki artık gizlemez (rozetler), belge kipi gizlemesi AYNEN KALIR —
+    // yoksa belge kipinde rozetli ama dokunulduğunda hiçbir şey yapmayan çizim satırları çıkar.
     let hidden = Ed.menuHiddenByEdition(k);
     if (doc && !MENU_GENERAL.has(k)) hidden = true;
     if (k === 'home' && !S.hasDoc && !doc) hidden = true;   // zaten ana ekrandayken anlamsız
     b.hidden = hidden;
+    Ed.lockMark(b, k, 'pill');
   });
 }
 $('btnExtents').addEventListener('click', () => zoomExtents());
@@ -1874,7 +1877,7 @@ function showGps() {
  * Düzenleme Pro özelliği olduğundan oluşturma da Pro'ya bağlıdır; ücretsizde Pro paneli açılır.
  */
 function showNewDoc() {
-  if (!Ed.gate('docEdit')) return;
+  if (!Ed.gate('new')) return;   // rozet de bu kimliği okur (home TOOLS 'new'); ikisi ayrışmasın
   const html = `<div class="new-grid">${New.NEW_KINDS.map(k => `<button type="button" class="new-item" data-new="${k.id}"><svg class="ic" aria-hidden="true"><use href="#${k.icon}"/></svg><span>${esc(t(k.i18n))}</span><small>.${k.ext}</small></button>`).join('')}</div>`;
   openDoc(tt('newFile', 'Yeni dosya'), html);
   let busy = false;
@@ -2631,7 +2634,7 @@ window.dwgApp = { loadCurrent, onFilePicked, onLocation, onBack, loadBytes, zoom
   docs: Docs, drive: Drive, onGoogle: (ok, json) => Drive.onGoogle(ok, json), onDrive: (id, ok, json) => Drive.onDrive(id, ok, json), onDriveProgress: (id, d, tot) => Drive.onProgress(id, d, tot), openDrive: () => Drive.open(),
   open: Open, openCenter: (tab) => Open.open(tab), onFsRoot: (obj) => Open.onFsRoot(obj), onFs: (id, ok, json) => Open.onFs(id, ok, json),
   home: Home, cloud: Cloud, onWebDav: (id, ok, json) => Cloud.onWebDav(id, ok, json), goHome, refreshMenu,
-  edition: () => Ed.tier(), tier: () => Ed.tier(), has: (id) => Ed.has(id), isPro: () => Ed.isPro(), openProPanel: () => Ed.openProPanel(), proInfo: () => Ed.proInfo(), onEdition: (ed, reason) => Ed.onEdition(String(ed || ''), String(reason || '')), onAd: (reason, shown) => Ed.onAd(String(reason || ''), !!shown), __ads: Ed.__ads,
+  edition: () => Ed.tier(), tier: () => Ed.tier(), has: (id) => Ed.has(id), isPro: () => Ed.isPro(), openProPanel: (x) => Ed.openProPanel(x), proInfo: () => Ed.proInfo(), onEdition: (ed, reason) => Ed.onEdition(String(ed || ''), String(reason || '')), onAd: (reason, shown) => Ed.onAd(String(reason || ''), !!shown), __ads: Ed.__ads,
   // sınama kancaları: çok sayfalı PDF kurucusu, metin toplayıcı ve ölçüm dökümü
   __pdf: { build: (pages, wmm, hmm, title) => buildPdf(pages, wmm, hmm, title) },
   __text: { collect: (prims) => collectTexts(prims || S.prims), csvCell },
@@ -2657,7 +2660,7 @@ Drive.initDrive({ toast, openDoc, hide, show, esc, kv, hideToast: () => { $('toa
 $('btnDrive').addEventListener('click', () => Drive.open());
 Open.initOpen({ toast, loadBytes, openBlob: (f) => Docs.openBlob(f), fileForPurpose, onFilePicked, showServer, startQr, openDrive: () => Drive.open(), systemPick, refreshRecent: buildRecent,
   onOpen: () => { closeMenu(); Drive.close(); hide('docPanel'); } });
-Home.initHome({ toast, openDoc, hide, kv, newDoc: showNewDoc, hideToast: () => { $('toast').hidden = true; }, menuAction, editorAct: (a) => edCall('act', a), click: (id) => { const b = $(id); if (b) b.click(); }, openProPanel: () => Ed.openProPanel(),
+Home.initHome({ toast, openDoc, hide, kv, newDoc: showNewDoc, hideToast: () => { $('toast').hidden = true; }, menuAction, editorAct: (a) => edCall('act', a), click: (id) => { const b = $(id); if (b) b.click(); }, openProPanel: (x) => Ed.openProPanel(x),
   openCenter: (tab) => Open.open(tab), systemPick, openDrive: () => Drive.open(), showServer, openRegistered: (info) => Docs.openRegistered(info), refreshRecent: buildRecent,
   onShow: () => { closeMenu(); Drive.close(); Open.close(); for (const id of openPanels()) hide(id); if (S.notesOn) toggleNotes(false); if (S.mode !== 'view') setMode('view'); cancelZoomWindow(); refreshMenu(); buildRecent(); },   // Son dosyalar ızgarası her gösterimde tazelenir (tarayıcıda oturum listesi)
   onHide: () => { refreshMenu(); requestRender(); } });

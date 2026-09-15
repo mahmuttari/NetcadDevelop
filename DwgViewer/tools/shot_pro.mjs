@@ -33,4 +33,4 @@ await page.evaluate(() => { document.body.dataset.theme = 'dark'; document.getEl
 await page.waitForTimeout(250);
 await page.locator('#proPanel').screenshot({ path: `${out}/pro_buyuk_yazi.png` });
 console.log('yazıldı', `${out}/pro_buyuk_yazi.png`);
-await browser.close(); try { srv.close && srv.close(); } catch (_) { /* geç */ }
+await browser.close(); srv.kill();

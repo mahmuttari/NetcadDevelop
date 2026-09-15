@@ -497,4 +497,5 @@ export default {
   'tl_3:note': '3D 주석',
   'th_3:note': '지정한 3D 점에 주석을 붙입니다',
   tierPopular: '가장 많이 선택', tierSave: '연간 요금제 할인', perMonth: '/월', openEmptyDirText: '이 폴더에 표시할 파일이 없습니다.', openNoResultText: '해당 이름과 일치하는 파일이 없습니다. 이름의 일부만 입력하거나 필터를 지워 보세요.', srvNoFiles: '이 주소에서 DWG 또는 DXF 파일을 찾지 못했습니다.',
+  showLocked: '잠긴 도구를 리본에 표시', allFeatures: '전체 기능', tierUnlocks: '%s개 기능 해제',
 };

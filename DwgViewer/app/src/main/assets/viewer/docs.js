@@ -14,7 +14,7 @@
 import { fmt, store } from './state.js';
 import { t } from './i18n.js';
 import { CP857, decodeCp } from './codepage.js';
-import { has } from './edition.js';
+import { lockAttr, lockBadge, lockText } from './edition.js';
 import { docToHtml } from './doc.js';
 import { sniffDoc, sniffHint, rtfToHtml, htmlToParts, mhtmlParts, decodeHtmlBytes } from './docalt.js';
 import * as PdfEdit from './pdfedit.js';
@@ -387,7 +387,9 @@ function renderActs(d) {
   if (android && d.id) h += `<button type="button" class="btn icon" data-doc="open" title="${esc(tt('docOpenWith', 'Başka uygulamayla aç'))}" aria-label="${esc(tt('docOpenWith', 'Başka uygulamayla aç'))}">${ICON('i-export')}</button>`;
   if (android && d.id) h += `<button type="button" class="btn icon" data-doc="share" title="${esc(tt('share', 'Paylaş'))}" aria-label="${esc(tt('share', 'Paylaş'))}">${ICON('i-more')}</button>`;
   if (android && d.id) h += `<button type="button" class="btn icon" data-doc="keep" title="${esc(tt('docKeep', 'Çevrimdışı sakla'))}" aria-label="${esc(tt('docKeep', 'Çevrimdışı sakla'))}">${ICON('i-save')}</button>`;
-  if (has('driveUpload') && api && api.driveAvailable && api.driveAvailable()) h += `<button type="button" class="btn icon" data-doc="drive" title="${esc(tt('driveUpload', "Drive'a yükle"))}" aria-label="${esc(tt('driveUpload', "Drive'a yükle"))}">${ICON('i-drive')}</button>`;
+  // Köprü / oturum koşulu KALIR (tanıtılacak bir şey yoksa düğme de yok); yalnız yetki koşulu kalkar.
+  // Simge-yalnız düğmede aria-label iç metni ezer: kilit cümlesi ada eklenir (syncLockText tazeler).
+  if (api && api.driveAvailable && api.driveAvailable()) { const x = lockText('driveUpload'); const lab = tt('driveUpload', "Drive'a yükle") + (x ? ' — ' + x : ''); h += `<button type="button" class="btn icon" data-doc="drive"${lockAttr('driveUpload')} title="${esc(tt('driveUpload', "Drive'a yükle"))}" aria-label="${esc(lab)}">${ICON('i-drive')}${lockBadge('driveUpload', 'bar')}</button>`; }
   els.acts.innerHTML = h;
 }
 export function close() {
@@ -731,8 +733,11 @@ const GRID_MAX = 1000;
 let editing = null;
 const editable = (k) => k === 'pdf' || isWord(k) || k === 'xlsx' || k === 'text';
 function editBtn() {
-  if (!cur || !editable(cur.kind) || !has('docEdit')) return '';
-  return `<span class="sp"></span><button type="button" class="btn small" data-doc="edit">${ICON('i-pen')} ${esc(tt('docEdit', 'Düzenle'))}</button>`;
+  // editable() koşulu KALIR: zip / resim gibi düzenlenemeyen türde rozetli düğme yanıltır.
+  // has('docEdit') koşulu KALKAR: ücretsiz kullanıcı bugün bu yeteneğin VARLIĞINI hiç öğrenemiyordu.
+  // Tıklama yolu zaten emniyetli: startEdit → PdfEdit.canEdit() → gate('docEdit').
+  if (!cur || !editable(cur.kind)) return '';
+  return `<span class="sp"></span><button type="button" class="btn small" data-doc="edit"${lockAttr('docEdit')}>${ICON('i-pen')} ${esc(tt('docEdit', 'Düzenle'))}${lockBadge('docEdit', 'pill')}</button>`;
 }
 const b64of = (u8) => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, Math.min(u8.length, i + 0x8000))); return btoa(s); };
 /** Üretilen dosyayı paylaşır ya da indirir */

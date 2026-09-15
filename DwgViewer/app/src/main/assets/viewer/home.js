@@ -15,7 +15,7 @@ import { S, store } from './state.js';
 import { t } from './i18n.js';
 import * as Open from './open.js';
 import * as Cloud from './cloud.js';
-import { has, need, tier, rank, tierName } from './edition.js';
+import { has, need, tier, rank, lockAttr, lockBadge } from './edition.js';
 
 const $ = (id) => document.getElementById(id);
 const tt = (k, tr) => { const v = t(k); return v === k ? tr : v; };
@@ -123,13 +123,15 @@ export function renderTools() {
   const top = rank(tier()) >= rank('super');
   grid.innerHTML = TOOLS.filter(x => !(x.id === 'pro' && top)).map((x, i) => {
     const locked = !has(x.id), dim = !!x.needsDoc && !(S && S.hasDoc);
-    const badge = locked ? tierName(need(x.id)) : '';
-    return `<button type="button" class="tool${dim ? ' dim' : ''}" data-tool="${x.id}" data-pro="${locked ? 1 : 0}" data-need="${locked ? esc(need(x.id)) : ''}" aria-label="${esc(t(x.i18n))}"><span class="tool-ic tool-c${(i % 8) + 1}">${ICON(x.icon)}</span><span class="lb">${esc(t(x.i18n))}</span>${locked ? `<span class="pro-badge">${esc(badge)}</span>` : ''}</button>`;
+    // Hap AKIŞTA, etiketin altındadır: eski sihirli right:calc(50% - 38px) ve RTL kopyası kalktı,
+    // çevrilmiş uzun paket adı hücreden taşmaz (max-width + ellipsis), renkli gradyanın üstüne binmez.
+    // Kilitli karoda aria-label YAZILMAZ: ad .lb + .lk-vh içeriğinden kurulur.
+    return `<button type="button" class="tool${dim ? ' dim' : ''}" data-tool="${x.id}" data-pro="${locked ? 1 : 0}"${lockAttr(x.id)}${locked ? '' : ` aria-label="${esc(t(x.i18n))}"`}><span class="tool-ic tool-c${(i % 8) + 1}">${ICON(x.icon)}</span><span class="lb">${esc(t(x.i18n))}</span>${lockBadge(x.id, 'pill')}</button>`;
   }).join('');
 }
 function runTool(id) {
   const x = TOOLS.find(y => y.id === id); if (!x) return;
-  if (!has(x.id)) { call(api.openProPanel); return; }   // ana ekran tanıtım yüzeyidir: kilitli araç paket panelini açar
+  if (!has(x.id)) { call(api.openProPanel, need(x.id)); return; }   // ana ekran tanıtım yüzeyidir: kilitli araç paket panelini o kartta açar
   if (x.needsDoc && !(S && S.hasDoc)) { call(api.toast, t('openFirst')); return; }
   if (x.needsDoc) hide();   // çizim bellekte: araç çizim üzerinde çalışır
   call(x.run, api);

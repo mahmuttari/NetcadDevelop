@@ -230,6 +230,71 @@ Panel `edition.js renderProPanel` / `tierCard` tarafından üretilir, biçemi
 Görüntüler `tools/shot_pro.mjs` ile altı düzende (beş tema + büyük yazı)
 alınır: `tools/out/pro/`.
 
+## Kilitli özellik nasıl gösterilir (v7.31)
+
+v7.30'a kadar yetki yetmeyen şerit karosu, sekme ve menü satırı **eleniyordu**. Bu,
+paket farkını gizliyordu: 67 kapılı kimliğin 63'ünün şeritte / menüde bir girişi var,
+yani ücretsiz kullanıcı uygulamanın yeteneklerinin neredeyse tamamını hiç göremiyordu.
+Artık eleme yok.
+
+**Sözleşme (tek satır, sınanabilir):**
+
+```
+kilitli(kimlik) ⇔ el.hasAttribute('data-need') ⇔ el.querySelector('.lk')
+Super pakette: document.querySelectorAll('[data-need], .lk').length === 0
+```
+
+`tools/test_lock.mjs` bunu dört basamakta bütün yüzeylerde sınar ve beklenen kümeyi
+**elle yazmaz**: her denetim `Ed.has()` / `Ed.need()` ile karşılaştırılır. FEATURE_TIER
+değiştiğinde sınama kendiliğinden doğru kalır.
+
+**Tek kaynak `edition.js`:** `lockAttr(id)` · `lockBadge(id, kind)` · `lockBadgeFor(n, kind)`
+· `lockText(id)` · `lockMark(el, id, kind)` · `syncLockText(root)` · `capabilityList()` ·
+`unlockCount(x, from)`. Hiçbir üretici kendi rozetini kurmaz.
+
+**İki biçim:**
+
+| biçim | nerede | ne gösterir |
+|---|---|---|
+| `.lk-bar` kilit şeridi | şerit karosu, şerit sekmesi, simge-yalnız düğme | paket renginde 3 px çubuk |
+| `.lk-pill` hap | ana ekran Araçlar, "Diğer" menüsü, belge Düzenle, Yeni dosya, bilgi çipi, uzun basış kutusu | paket ADI (`data-i18n="tier_*"`) |
+
+**Neden yuvarlak değil, neden köşede değil.** Şeritte sağ üstteki 6 px yuvarlak zaten
+"etkin" (`.tb-row button.on::after`), sol üstteki "sık kullanılan" (`.fav-mark::before`)
+demektir ve ikisi de `var(--accent)` ile çizilir. `--accent`, dark / blueprint / sepia
+temalarında `--t-premium` ile **aynı hex**tir. Kilit işareti yuvarlak ya da köşeye konsaydı
+"turuncu yuvarlak = etkin" ile "kilitli" birbirine girerdi. Ayrımı renk değil **biçim ve
+konum** verir. Kilitli denetim **soldurulmaz** da: `opacity` zaten iki anlam taşıyor
+(`.4` = `disabled`, `.55` = "önce bir çizim aç").
+
+**Renk hangi paket olduğunu söyler ama tek taşıyıcı değildir.** Dar yüzeyde paket kimliği
+yalnız renktir (`--t-adfree` mavi, `--t-premium` turuncu, `--t-super` mor); bu bilinçli bir
+sınırdır ve paket adı **dört yerde metinle** tekrarlanır: hap, uzun basış kutusu, ekran
+okuyucuya okunan `.lk-vh` cümlesi ve panel dökümü. Bu tekrarlardan biri kaldırılırsa renk
+körü kullanıcı için iddia çöker.
+
+**Dokunuş akışı değişmedi:** kilitli denetim `disabled` EDİLMEZ (disabled düğme ne `click`
+ne `pointerdown` üretir; rozet ölü süse döner ve uzun basış da çalışmaz), dokunuşta bugünkü
+`gate()` kutusu açılır. Tek iyileştirme: panel artık `openProPanel(need)` ile **gereken
+paketin kartında odaklı** açılır.
+
+**Kilitli sekme vitrindir:** paket paneli açmaz, satırı açar. Böylece ücretsiz kullanıcı
+Çizim'de 13, Düzenleme'de 22, Açıklama'da 15 aracı adıyla ve simgesiyle görür. Aynı hamlede
+bir kusur kapandı: Açıklama sekmesinin kendisi ücretsizdi ama 15 karosunun tamamı elendiği
+için satır boşalıyor ve favorilerin "Bir karoya uzun basarak buraya ekleyin" metni
+basılıyordu.
+
+**Ayar:** Ayarlar › Erişilebilirlik ve kullanım › "Kilitli araçları şeritte göster"
+(`ui.showLocked`, öntanımlı **açık**). Yalnız şeridi etkiler; ana ekran Araçlar ızgarası,
+menü, belge düğmeleri ve paket paneli rozetli kalır. Super pakette satır hiç çizilmez.
+"Rozetleri kapat, karolar kalsın" seçeneği yoktur: o birleşim, dokunulduğunda gerekçesiz
+kutu açan ölü karolar üretir.
+
+**Kontrast düzeltmesi.** Açık temada `--t-premium` `#c8810b` idi: karo zemini (`--btn`)
+üzerinde 2,56:1, grafik nesne eşiği olan 3:1'in altında. `#9a6208` yapıldı → 4,10:1; aynı
+değişiklik paket kartındaki satın alma düğmesinde beyaz yazının 3,18:1'lik AA düşüşünü de
+5,09:1'e çıkarır. Öteki beş temada hiçbir paket rengi eşiğin altında değildir.
+
 ## Fiyatlar
 
 Fiyatlar **kodda değil Play Console'da** tanımlıdır; uygulama onları

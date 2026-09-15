@@ -316,4 +316,5 @@ export default {
   th_pasteclip: 'Fügt Objekte aus der Zwischenablage in diese Zeichnung ein', 'tl_3:geo': '3D-Geometrie',
   'th_3:geo': 'Abstand und Winkel: Punkt-Gerade, Punkt-Ebene, Gerade-Gerade, Gerade-Ebene, Ebene-Ebene', 'tl_3:note': '3D-Notiz', 'th_3:note': 'Setzt eine Beschriftung an einen gewählten 3D-Punkt',
   tierPopular: 'Am beliebtesten', tierSave: 'Ersparnis im Jahresabo', perMonth: '/Mon.', openEmptyDirText: 'In diesem Ordner gibt es keine Dateien zum Anzeigen.', openNoResultText: 'Keine Datei passt zu diesem Namen; probieren Sie einen kürzeren Teil oder löschen Sie den Filter.', srvNoFiles: 'Unter dieser Adresse wurde keine DWG- oder DXF-Datei gefunden.',
+  showLocked: 'Gesperrte Werkzeuge im Menüband zeigen', allFeatures: 'Alle Funktionen', tierUnlocks: 'Schaltet %s Funktionen frei',
 };

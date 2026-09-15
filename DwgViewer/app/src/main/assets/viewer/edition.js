@@ -138,7 +138,7 @@ async function upgradeDialog(needed) {
   asking = true;
   try {
     const msg = tt('tierOnly', '%s paketinde bulunur.').replace('%s', tierName(needed)) + ' ' + t('proAsk');
-    if (await askConfirm(msg, { ok: t('goPro') })) openProPanel();
+    if (await askConfirm(msg, { ok: t('goPro') })) openProPanel(needed);
   } finally { asking = false; }
 }
 /** Basamağın görünen adı ("Ad-Free" / "Premium" / "Super") */
@@ -149,6 +149,84 @@ export function gate(id) {
   void upgradeDialog(need(id));
   return false;
 }
+
+// ---------------------------------------------------------------------------------
+// Kilit rozeti — kilitli özellik GİZLENMEZ, işaretlenir. Tek kaynak burasıdır.
+//   lockAttr(id)          → ' data-need="premium"' ya da ''        (denetimin kendisine)
+//   lockBadge(id, kind)   → rozet + okunur metin, kilitli değilse ''  (kind: 'bar' | 'pill')
+//   lockBadgeFor(n, kind) → basamağı doğrudan verilen rozet          (türetilmiş sekme rozeti)
+//   lockText(id)          → "Premium paketinde bulunur." ya da ''    (aria-label ekleri)
+//   lockMark(el, id, k)   → yeniden çizilmeyen bir DOM öğesini damgalar / temizler
+//   syncLockText(root)    → dil değişiminde okunur metinleri ve aria-label'ları tazeler
+// Rozet SÜSTÜR (aria-hidden); bilgiyi kardeş .lk-vh metni taşır. Rozet <span>'dir, <button>
+// değildir: "görünür her düğme >= 40x40 px" kuralı bozulmasın diye.
+// ---------------------------------------------------------------------------------
+const lockSentence = (n) => tt('tierOnly', '%s paketinde bulunur.').replace('%s', tierName(n));
+
+/** Kilitli denetime yazılacak öznitelik; kilitli değilse boş dize (öznitelik hiç basılmaz) */
+export const lockAttr = (id) => has(id) ? '' : ` data-need="${need(id)}"`;
+
+/** Basamağı doğrudan verilen rozet gövdesi. kind: 'bar' (dar yüzey) | 'pill' (yer olan yüzey) */
+export function lockBadgeFor(n, kind = 'bar') {
+  if (!n || n === 'free') return '';
+  const mark = kind === 'pill'
+    ? `<span class="lk lk-pill" data-tier="${n}" aria-hidden="true"><span data-i18n="tier_${n}">${esc(tierName(n))}</span></span>`
+    : `<span class="lk lk-bar" data-tier="${n}" aria-hidden="true"></span>`;
+  return mark + `<span class="vh lk-vh" data-tier="${n}">${esc(lockSentence(n))}</span>`;
+}
+/** Kilitliyse rozet, değilse boş dize */
+export const lockBadge = (id, kind = 'bar') => has(id) ? '' : lockBadgeFor(need(id), kind);
+/** Simge-yalnız düğmelerin aria-label ekleri için tam cümle; kilitli değilse '' */
+export const lockText = (id) => has(id) ? '' : lockSentence(need(id));
+
+/**
+ * Yeniden çizilmeyen bir öğeyi (Drive düğmesi, belge Düzenle, bilgi çipi, #btnNew2, menü satırı)
+ * yetki durumuna göre damgalar. Değişiklik yoksa hiçbir şey yapmaz (refreshMenu sık çağrılır).
+ */
+export function lockMark(el, id, kind = 'bar') {
+  if (!el) return;
+  const want = has(id) ? '' : need(id);
+  if ((el.dataset.need || '') === want) return;
+  el.querySelectorAll(':scope > .lk, :scope > .lk-vh').forEach(n => n.remove());
+  if (want) { el.dataset.need = want; el.insertAdjacentHTML('beforeend', lockBadgeFor(want, kind)); }
+  else delete el.dataset.need;
+}
+
+/**
+ * Dil değişiminde (dwg:lang) ve yetki değişiminde çağrılır.
+ * Görünen hap data-i18n taşıdığı için applyI18n onu zaten tazeler; burada
+ *  (a) %s taşıdığı için data-i18n ile taşınamayan .lk-vh cümlesi,
+ *  (b) içeriği aria-label ile EZİLEN simge-yalnız düğmelerin erişilebilir adı tazelenir.
+ */
+export function syncLockText(root = document) {
+  root.querySelectorAll('.lk-vh[data-tier]').forEach(el => { el.textContent = lockSentence(el.dataset.tier); });
+  const aria = (sel, key, id) => root.querySelectorAll(sel).forEach(b => {
+    const base = t(key), x = lockText(id);
+    b.setAttribute('aria-label', x ? base + ' — ' + x : base);
+  });
+  aria('[data-drive="upload"]', 'driveUpload', 'driveUpload');
+  aria('[data-doc="drive"]', 'driveUpload', 'driveUpload');
+}
+
+/** Sekme kimlikleri özellik değildir: yetenek dökümü ve sayaçlar bunları saymaz */
+const TAB_FEATURES = new Set(['draw', 'edit']);
+/** tl_* karşılığı olmayan dört kimliğin var olan anahtarları */
+const FEAT_KEY = { docEdit: 'docEdit', new: 'newFile', driveUpload: 'driveUpload', area3d: 'surfArea' };
+/** FEATURE_TIER'dan TÜRETİLEN tam yetenek dökümü: [{ id, tier, label }] — elle liste yazılmaz.
+ *  (Kart içindeki tanıtım maddelerini üreten featureList(x) ile karıştırılmamalı: o tierFeat_* okur.) */
+export function capabilityList() {
+  const out = [];
+  for (const [id, x] of FEATURE_TIER) {
+    if (TAB_FEATURES.has(id)) continue;
+    const k = FEAT_KEY[id] || ('tl_' + id);
+    const lb = t(k);
+    out.push({ id, tier: x, label: lb === k ? id : lb });
+  }
+  return out;
+}
+/** from basamağından x basamağına geçilince açılan özellik sayısı (0 ise sayaç çizilmez) */
+export const unlockCount = (x, from = tier()) =>
+  capabilityList().filter(f => rank(f.tier) > rank(from) && rank(f.tier) <= rank(x)).length;
 
 // ---------------------------------------------------------------------------------
 // Pro paneli (#proPanel)
@@ -200,6 +278,9 @@ function tierCard(x, info, curTier) {
     + `<span class="tier-ic" aria-hidden="true"><svg class="ic"><use href="#${TIER_ICON[x] || 'i-star'}"/></svg></span>`
     + `<span class="tier-name">${esc(tierName(x))}</span>`
     + (owned ? `<span class="tier-badge">${esc(tt('tierActive', 'Etkin'))}</span>` : '') + `</div>`;
+  // Kaç özellik açıyor: aşağıdaki "Tüm yetenekler" dökümündeki satır sayısıyla BİREBİR aynıdır
+  // (pazarlama sayısı değil, okuyucunun sayabileceği sayı).
+  { const n = unlockCount(x, curTier); if (n) h += `<span class="tier-count">${esc(tt('tierUnlocks', '%s özellik açar').replace('%s', String(n)))}</span>`; }
   // Büyük okuma: aylık fiyat. Yoksa (Play hazır değil / tarayıcı) satır hiç çizilmez —
   // boş bir fiyat kutusu, fiyatı gizlenmiş gibi durur.
   const mo = priceOf(info, x, 'monthly');
@@ -216,6 +297,21 @@ function tierCard(x, info, curTier) {
         + `<span class="pl">${esc(label)}${pill}</span><span class="pr">${price ? esc(price) : esc(tt('proPriceNA', '—'))}</span></button>`;
     }
     h += `</div>`;
+  }
+  return h + `</div>`;
+}
+/** Paket panelinin altındaki tam yetenek dökümü. Liste ELLE YAZILMAZ: FEATURE_TIER'dan türetilir,
+ *  böylece yeni bir özellik eklendiğinde kendiliğinden kapsanır. Adlar var olan tl_* anahtarlarından gelir. */
+function allFeaturesHtml(curTier) {
+  const rows = capabilityList();
+  let h = `<div class="full lk-all"><div class="opt-title" data-i18n="allFeatures">${esc(tt('allFeatures', 'Tüm yetenekler'))}</div>`;
+  for (const x of PAID_TIERS) {
+    const li = rows.filter(f => f.tier === x);
+    if (!li.length) continue;
+    h += `<div class="lk-all-g" data-tier="${x}"><div class="lk-all-h"><i class="lk-all-d" aria-hidden="true"></i>`
+      + `<b>${esc(tierName(x))}</b><small>${li.length}</small></div><ul>`
+      + li.map(f => `<li${rank(curTier) >= rank(x) ? ' class="owned"' : ''}>${esc(f.label)}</li>`).join('')
+      + `</ul></div>`;
   }
   return h + `</div>`;
 }
@@ -240,6 +336,7 @@ function renderProPanel() {
       + `<span class="pro-hero-tx"><strong>${esc(t('goPro'))}</strong><small>${esc(t('proFeaturesIntro'))}</small></span></div>`;
   }
   html += `<div class="full tier-grid">${PAID_TIERS.map(x => tierCard(x, info, curTier)).join('')}</div>`;
+  html += allFeaturesHtml(curTier);
   if (!info.android) {
     html += `<div class="full muted" data-pro-note="browser">${esc(t('proBrowserOnly'))}</div>`;
   } else {
@@ -273,10 +370,18 @@ async function proAction(kind, btn) {
   }
 }
 /** Pro alt sayfasını açar (içerik her açılışta yeniden kurulur) */
-export function openProPanel() {
+/** Pro alt sayfasını açar. focus verilirse o paketin kartı çerçevelenir ve ortalanır. */
+export function openProPanel(focus) {
   const p = $('proPanel'); if (!p) return false;
   renderProPanel();
-  p.hidden = false;
+  p.hidden = false;   // scrollIntoView gizli ağaçta iş görmez: önce görünür yapılır
+  const card = focus ? p.querySelector(`.tier-card[data-tier="${focus}"]`) : null;
+  if (card) {
+    p.querySelectorAll('.tier-card.focus').forEach(c => c.classList.remove('focus'));
+    card.classList.add('focus');
+    const soft = !document.body.classList.contains('reduce-motion');
+    requestAnimationFrame(() => { try { card.scrollIntoView({ block: 'center', behavior: soft ? 'smooth' : 'auto' }); } catch (_) { card.scrollIntoView(); } });
+  }
   return true;
 }
 export function closeProPanel() { const p = $('proPanel'); if (!p || p.hidden) return false; p.hidden = true; return true; }
@@ -329,14 +434,22 @@ export function applyEdition() {
   // karşılama metni sürüme göre (applyI18n dil değişiminde data-i18n anahtarını yeniden okur)
   const w = document.querySelector('#home [data-i18n="welcomeText"], #home [data-i18n="welcomeTextFree"]');
   if (w) { w.dataset.i18n = paid ? 'welcomeText' : 'welcomeTextFree'; w.textContent = t(w.dataset.i18n); }
-  document.querySelectorAll('[data-drive="upload"]').forEach(b => { b.hidden = !has('driveUpload'); });
+  // Yetkiden gizleme yok; yeniden çizilmeyen yüzeyler damgalanır. Bu blok olmadan satın alma
+  // sonrası Düzenle / Drive / alan çipi rozetli kalır ve rozet YALAN söyler (docs.js ve app.js
+  // 'dwg:edition' dinlemez; kod tabanındaki tek dinleyici home.js'tir).
+  document.querySelectorAll('[data-drive="upload"]').forEach(b => lockMark(b, 'driveUpload', 'bar'));
+  document.querySelectorAll('[data-doc="drive"]').forEach(b => lockMark(b, 'driveUpload', 'bar'));
+  document.querySelectorAll('[data-doc="edit"]').forEach(b => lockMark(b, 'docEdit', 'pill'));
+  { const ab = $('iaArea'); if (ab) lockMark(ab, 'area3d', 'pill'); }
+  { const nb = $('btnNew2'); if (nb) lockMark(nb, 'new', 'pill'); }
+  syncLockText();
   try { window.dispatchEvent(new CustomEvent('dwg:edition', { detail: { edition: applied } })); } catch (_) { /* yok */ }
 }
 /** Diğer menüsü eylemi yetki gereği gizli mi? ('pro' en üst pakette, kilitli eylemler yetmeyen basamakta) */
+/** Diğer menüsü eylemi yetki gereği gizli mi? Kilitli eylem ARTIK GİZLENMEZ, rozetlenir;
+ *  tek istisna 'pro' satırıdır: sahip olunan en üst pakette satın alma satırı gösterilmez. */
 export function menuHiddenByEdition(act) {
-  const a = String(act);
-  if (a === 'pro') return rank(tier()) >= rank('super');
-  return !has(a);
+  return String(act) === 'pro' && rank(tier()) >= rank('super');
 }
 /** Java → yetki değişti (ya da satın alma / geri yükleme sonucu). tier: basamak; reason: bkz. dosya başı */
 export function onEdition(ed, reason) {
@@ -358,8 +471,12 @@ export function onEdition(ed, reason) {
   return e;
 }
 /** app.js bağlar: api { toast, rebuildToolbar, refreshMenu } */
+let langBound = false;
 export function initEdition(a) {
   api = a || null;
+  // Dil değişimi: applyI18n data-i18n taşıyan hapı tazeler; %s'li kilit cümlesi ile
+  // simge-yalnız düğmelerin aria-label'ı buradan tazelenir (olay applyI18n'den SONRA gelir).
+  if (!langBound) { langBound = true; window.addEventListener('dwg:lang', () => syncLockText()); }
   applyEdition();
   const b = $('btnGoPro'); if (b && !b.dataset.bound) { b.dataset.bound = '1'; b.addEventListener('click', () => openProPanel()); }
   const body = $('proBody'); if (body && !body.dataset.bound) { body.dataset.bound = '1'; body.addEventListener('click', (ev) => { const btn = ev.target.closest('[data-pro]'); if (btn && !btn.disabled) void proAction(btn.dataset.pro, btn); }); }

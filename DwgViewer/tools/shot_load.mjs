@@ -94,4 +94,4 @@ for (const th of ['dark', 'light']) {
   await page.locator('#shotBox').screenshot({ path: `${out}/empty_${th}.png` });
   console.log('yazıldı', `empty_${th}.png`);
 }
-await browser.close(); try { srv.close && srv.close(); } catch (_) { /* geç */ }
+await browser.close(); srv.kill();

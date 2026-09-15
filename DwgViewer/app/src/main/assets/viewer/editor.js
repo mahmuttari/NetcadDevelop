@@ -23,7 +23,7 @@ import { TAU } from './geom.js';
 import * as D from './display.js';
 import { askText, askForm } from './dialog.js';
 import { leaderEnts } from './annot.js';
-import { has, gate } from './edition.js';
+import { has, gate, need, rank, tier, tierName, lockAttr, lockBadge, lockBadgeFor, openProPanel } from './edition.js';
 
 const $ = (id) => document.getElementById(id);
 const tt = (k, tr) => { const v = t(k); return v === k ? tr : v; };
@@ -35,7 +35,7 @@ const ed = { is3D: () => !!(v3 && !$('cv3d').hidden), tools: null, doc: null, cu
 // ---------------------------------------------------------------------------------
 // Kullanım tercihleri (ui) — kalıcı anahtar 'ui'
 // ---------------------------------------------------------------------------------
-const UI_DEFAULTS = { favs: [], tbCollapsed: { portrait: false, landscape: false }, hints: {}, fontScale: 1, glove: false, leftHand: false, contrast: false, reduceMotion: false, haptics: true, dpad: false, compactStatus: false };
+const UI_DEFAULTS = { favs: [], tbCollapsed: { portrait: false, landscape: false }, hints: {}, fontScale: 1, glove: false, leftHand: false, contrast: false, reduceMotion: false, haptics: true, dpad: false, compactStatus: false, showLocked: true };
 export const ui = (() => {
   const o = JSON.parse(JSON.stringify(UI_DEFAULTS));
   const st = store.json('ui', null);
@@ -218,8 +218,10 @@ function rebuild() {
 }
 function refreshUndo() {
   const cu = !(doc && doc.undoStack.length), cr = !(doc && doc.redoStack.length);
-  document.querySelectorAll('#toolbar [data-act="undo"]').forEach(b => { b.disabled = cu; });
-  document.querySelectorAll('#toolbar [data-act="redo"]').forEach(b => { b.disabled = cr; });
+  // Kilitli karo ASLA disabled edilmez: disabled düğme ne click ne pointerdown üretir; rozet ölü
+  // süse döner ve uzun basış kutusu da açılmaz. (Ücretsizde yığın hep boştur → undo/redo hep ölürdü.)
+  document.querySelectorAll('#toolbar [data-act="undo"]').forEach(b => { b.disabled = has('undo') && cu; });
+  document.querySelectorAll('#toolbar [data-act="redo"]').forEach(b => { b.disabled = has('redo') && cr; });
   document.querySelectorAll('#toolbar [data-act="savedxf"], #toolbar [data-act="savedelta"]').forEach(b => b.classList.toggle('dirty', !!(doc && doc.dirty)));
 }
 
@@ -229,37 +231,79 @@ function refreshUndo() {
 const tileId = (act, tabId) => act === 'undo' && tabId === 'view' ? 'tbUndo' : act === 'redo' && tabId === 'view' ? 'tbRedo' : act === 'savedxf' ? 'tbSave' : act === 'layer' ? 'tbLayer' : '';
 function tileHtml(it, tabId) {
   const id = tileId(it.act, tabId);
-  return `<button type="button" data-act="${esc(it.act)}"${id ? ` id="${id}"` : ''} class="${ui.favs.includes(it.act) ? 'fav-mark' : ''}" data-i18n-title="tl_${esc(it.act)}" title="${esc(tileLabel(it.act))}" aria-label="${esc(tileLabel(it.act))}">${ICON(it.icon)}<span class="lb" data-i18n="tl_${esc(it.act)}">${esc(tileLabel(it.act))}</span></button>`;
+  const lock = !has(it.act);
+  // Kilitli karoda aria-label YAZILMAZ: aria-label iç metni ezer ve rozetin okunur karşılığı
+  // ekran okuyucuya hiç ulaşmaz. Ad içerikten kurulur: ".lb + .lk-vh" → "Çizgi Premium paketinde bulunur."
+  // Serbest karoda statik aria-label'a data-i18n-aria eşlik eder: dil değişiminde bayatlamaz.
+  return `<button type="button" data-act="${esc(it.act)}"${id ? ` id="${id}"` : ''}${lockAttr(it.act)} class="${ui.favs.includes(it.act) ? 'fav-mark' : ''}" data-i18n-title="tl_${esc(it.act)}" title="${esc(tileLabel(it.act))}"${lock ? '' : ` data-i18n-aria="tl_${esc(it.act)}" aria-label="${esc(tileLabel(it.act))}"`}>${ICON(it.icon)}<span class="lb" data-i18n="tl_${esc(it.act)}">${esc(tileLabel(it.act))}</span>${lockBadge(it.act, 'bar')}</button>`;
 }
 function groupHtml(g, tabId) {
   return `<div class="tb-group"><div class="tb-tiles">${g.items.map(it => tileHtml(it, tabId)).join('')}</div><div class="tb-caption" data-i18n="${esc(g.cap)}">${esc(t(g.cap))}</div></div>`;
 }
-/** Basamağın yetmediği karolar çizilmez; boş kalan grup da çizilmez */
+/** Kilitli karolar şeritte GÖSTERİLİYOR mu? (Ayarlar › Erişilebilirlik; öntanımlı açık) */
+const lockedOn = () => ui.showLocked !== false;
+/** Kilitli karo artık elenmez, damgalanır. Ayar kapalıysa bugünkü süzgeç geri gelir. */
 function editionGroups(groups) {
+  if (lockedOn()) return groups;
   return groups.map(g => ({ ...g, items: g.items.filter(it => has(it.act)) })).filter(g => g.items.length);
 }
 function rowGroups(tab) {
   if (tab.id === 'display') return editionGroups(ed.is3D() ? DISPLAY_3D : DISPLAY_2D);
-  if (tab.id === 'fav') { const items = ui.favs.filter(a => TILE[a] && has(a)).map(a => TILE[a]); return items.length ? [{ cap: 'grpFav', items }] : []; }
+  if (tab.id === 'fav') { const items = ui.favs.filter(a => TILE[a] && (lockedOn() || has(a))).map(a => TILE[a]); return items.length ? [{ cap: 'grpFav', items }] : []; }
   return editionGroups(tab.groups);
+}
+/**
+ * Satırı kullanılır kılan EN DÜŞÜK basamak ('free' → kilitli karo yok).
+ * En yüksek DEĞİL en düşük alınır: Çiz satırında 11 karo premium, 2 karo super'dir; en yüksek
+ * alınsaydı çağrı karosu mor (Super) çıkar, yanındaki 11 turuncu şeritle ve zaten turuncu olan
+ * sekme rozetiyle çelişirdi. En düşük hem rengi tutturur hem de en ucuz adımı gösterir.
+ */
+const minNeed = (items) => items.reduce((a, it) => {
+  if (has(it.act)) return a;
+  const n = need(it.act);
+  return a === 'free' || rank(n) < rank(a) ? n : a;
+}, 'free');
+/** Satır başına TEK konuşan karo: şerit metinsizdir, rengin ne demek olduğu burada yazar */
+function lockCta(n) {
+  return `<div class="tb-group tb-lockg" data-tier="${n}"><div class="tb-tiles">`
+    + `<button type="button" class="lk-cta" data-lk="pro" data-tier="${n}" data-i18n-title="goPro" title="${esc(t('goPro'))}">`
+    + `${ICON('i-lock')}<span class="lb" data-i18n="proBadge">${esc(t('proBadge'))}</span>`
+    + `<span class="vh" data-i18n="goPro">${esc(t('goPro'))}</span></button>`
+    + `</div><div class="tb-caption" data-i18n="goPro">${esc(t('goPro'))}</div></div>`;
 }
 function rowHtml(tab) {
   const gs = rowGroups(tab);
-  const inner = gs.length ? gs.map(g => groupHtml(g, tab.id)).join('') : `<div class="tb-empty" data-i18n="favEmpty">${esc(t('favEmpty'))}</div>`;
+  let inner = gs.length ? gs.map(g => groupHtml(g, tab.id)).join('') : `<div class="tb-empty" data-i18n="favEmpty">${esc(t('favEmpty'))}</div>`;
+  const items = gs.flatMap(g => g.items);
+  const n = minNeed(items);
+  if (n !== 'free') {
+    const all = items.every(it => !has(it.act));   // satırın tamamı kilitliyse açıklama BAŞA gelir
+    inner = all ? lockCta(n) + inner : inner + lockCta(n);
+  }
   return `<div class="tb-row" data-for="${tab.id}" ${tab.id === ed.tab ? '' : 'hidden'}>${inner}</div>`;
 }
-function tabList() { const tabs = TABS.filter(x => has(x.id)); return ui.favs.length ? [{ id: 'fav', i18n: 'tabFav', icon: 'i-star', groups: [] }, ...tabs] : tabs; }
+/** Sekme rozeti: sekmenin kendisi kilitliyse ya da ÇİZİLEN BÜTÜN karoları kilitliyse gereken
+ *  basamak, yoksa ''. Bugünkü veriyle draw, annot ve edit rozet alır; view, measure ve 3d almaz. */
+function tabNeed(tab) {
+  if (!has(tab.id)) return need(tab.id);
+  const items = rowGroups(tab).flatMap(g => g.items);
+  if (!items.length || items.some(it => has(it.act))) return '';
+  return minNeed(items);
+}
+function tabList() { const tabs = lockedOn() ? TABS.slice() : TABS.filter(x => has(x.id)); return ui.favs.length ? [{ id: 'fav', i18n: 'tabFav', icon: 'i-star', groups: [] }, ...tabs] : tabs; }
 function buildToolbar() {
   const tb = $('toolbar');
   const tabs = tabList();
   if (!tabs.some(x => x.id === ed.tab)) ed.tab = 'view';
-  tb.innerHTML = `<div class="tb-tabs" role="tablist">${tabs.map(x => `<button type="button" role="tab" data-tab="${x.id}" class="${x.id === ed.tab ? 'active' : ''}${x.id === 'fav' ? ' tab-fav' : ''}" aria-selected="${x.id === ed.tab}">${ICON(x.icon)}<span data-i18n="${x.i18n}">${esc(t(x.i18n))}</span></button>`).join('')}<button type="button" class="tb-collapse" aria-label="${esc(tt('collapsed', 'Katla'))}">${ICON('i-chevron')}</button></div>` + tabs.map(rowHtml).join('');
+  tb.innerHTML = `<div class="tb-tabs" role="tablist">${tabs.map(x => { const n = tabNeed(x); return `<button type="button" role="tab" data-tab="${x.id}"${n ? ` data-need="${n}"` : ''} class="${x.id === ed.tab ? 'active' : ''}${x.id === 'fav' ? ' tab-fav' : ''}" aria-selected="${x.id === ed.tab}">${ICON(x.icon)}<span data-i18n="${x.i18n}">${esc(t(x.i18n))}</span>${lockBadgeFor(n, 'bar')}</button>`; }).join('')}<button type="button" class="tb-collapse" aria-label="${esc(tt('collapsed', 'Katla'))}">${ICON('i-chevron')}</button></div>` + tabs.map(rowHtml).join('');
   if (!tb.dataset.bound) {
     tb.dataset.bound = '1';
     tb.addEventListener('click', (ev) => {
       const tabBtn = ev.target.closest('[data-tab]');
       if (tabBtn) { if (tabBtn.dataset.tab === ed.tab && !$('toolbar').classList.contains('collapsed')) collapse(true); else { if ($('toolbar').classList.contains('collapsed')) collapse(false); setTab(tabBtn.dataset.tab); } haptic('step'); return; }
       if (ev.target.closest('.tb-collapse')) { collapse(!$('toolbar').classList.contains('collapsed')); return; }
+      const lk = ev.target.closest('[data-lk="pro"]');   // satır çağrı karosu: kutu yok, doğrudan panel
+      if (lk) { closePop(); openProPanel(lk.dataset.tier || ''); haptic('step'); return; }
       const b = ev.target.closest('[data-act]'); if (!b) return;
       if (b.dataset.longFired) { delete b.dataset.longFired; return; }
       closePop();
@@ -301,7 +345,7 @@ function refreshTiles() {
     on.osnap = S.snapModes && S.snapModes.size > 0; on['3d'] = ed.is3D();
   }
   if (v3) { const o = v3.opts; on.grid3 = o.grid; on.axes3 = o.axes; on.cube3 = o.cube; on.hud3 = o.hud; on.light3 = o.light; on.turn3 = o.turntable; on.persp = v3.cam.persp; on.clip3 = !!o.clip; on.shadow3 = o.shadow; on.sil3 = !!v3._styleFx().silhouette; on.edges3 = !!v3._styleFx().edges; }
-  document.querySelectorAll('#toolbar [data-act]').forEach(b => { const k = b.dataset.act; if (k in on) { b.classList.toggle('on', !!on[k]); b.setAttribute('aria-pressed', String(!!on[k])); } if (!FREE.has(k) && !HIST.has(k)) b.disabled = !(S && S.hasDoc); });
+  document.querySelectorAll('#toolbar [data-act]').forEach(b => { const k = b.dataset.act; if (k in on) { b.classList.toggle('on', !!on[k]); b.setAttribute('aria-pressed', String(!!on[k])); } if (!FREE.has(k) && !HIST.has(k)) b.disabled = has(k) ? !(S && S.hasDoc) : false; });
   const vh = api && api.viewHistory;
   document.querySelectorAll('#toolbar [data-act="prevview"]').forEach(b => { b.disabled = !(vh && vh.canBack && vh.canBack()); });
   document.querySelectorAll('#toolbar [data-act="nextview"]').forEach(b => { b.disabled = !(vh && vh.canForward && vh.canForward()); });
@@ -340,10 +384,19 @@ let popState = null;
 function showTilePop(btn) {
   const actName = btn.dataset.act;
   const fav = ui.favs.includes(actName);
-  const html = `<div class="pop-title">${esc(tileLabel(actName))}</div>${tileHint(actName) ? `<div class="pop-hint">${esc(tileHint(actName))}</div>` : ''}<div class="pop-row"><button type="button" class="btn small ${fav ? '' : 'primary'}" data-fav="${esc(actName)}">${ICON('i-star')}${esc(fav ? t('favRemove') : t('favAdd'))}</button></div>`;
+  const lock = !has(actName), n = lock ? need(actName) : '';
+  const html = `<div class="pop-title">${esc(tileLabel(actName))}</div>`
+    + (tileHint(actName) ? `<div class="pop-hint">${esc(tileHint(actName))}</div>` : '')
+    + (lock ? `<div class="pop-lock"><span class="lk lk-pill" data-tier="${n}" aria-hidden="true"><span data-i18n="tier_${n}">${esc(tierName(n))}</span></span><span>${esc(tt('tierOnly', '%s paketinde bulunur.').replace('%s', tierName(n)))}</span></div>` : '')
+    + `<div class="pop-row">`
+    + (lock ? `<button type="button" class="btn small primary" data-pop="pro"><span data-i18n="goPro">${esc(t('goPro'))}</span></button>` : '')
+    + `<button type="button" class="btn small ${fav || lock ? '' : 'primary'}" data-fav="${esc(actName)}">${ICON('i-star')}${esc(fav ? t('favRemove') : t('favAdd'))}</button></div>`;
   openPop(btn, html, { kind: 'tip' });
-  const fb = $('tbPop').querySelector('[data-fav]');
+  const pop = $('tbPop');
+  const fb = pop.querySelector('[data-fav]');
   if (fb) fb.addEventListener('click', () => { toggleFav(actName); closePop(); });
+  const pb = pop.querySelector('[data-pop="pro"]');
+  if (pb) pb.addEventListener('click', () => { closePop(); openProPanel(n); });
 }
 function toggleFav(actName) {
   const i = ui.favs.indexOf(actName);
@@ -990,6 +1043,7 @@ export function accessibilitySection() {
   const html = `<div class="opt-sec a11y-sec full"><div class="opt-title">${esc(t('a11yTitle'))}</div>` +
     `<div class="opt-row"><span class="opt-lb">${esc(t('fontScale'))}</span><div class="seg" data-key="fontScale">${[[0.9, 'A−'], [1, 'A'], [1.15, 'A+'], [1.3, 'A++']].map(([v, l]) => `<button type="button" data-val="${v}" class="${Math.abs(ui.fontScale - v) < 0.01 ? 'on' : ''}">${l}</button>`).join('')}</div></div>` +
     sw('glove', t('glove')) + sw('leftHand', t('leftHand')) + sw('contrast', t('contrast')) + sw('reduceMotion', t('reduceMotion')) + sw('haptics', t('haptics')) + sw('dpad', t('dpad')) + sw('compactStatus', t('compactStatus')) +
+    (rank(tier()) < rank('super') ? sw('showLocked', t('showLocked')) : '') +
     `<div class="opt-row"><button type="button" class="btn small" data-do="hints">${esc(t('hintsReset'))}</button></div></div>`;
   return { html, bind(root) {
     const sec = (root || document).querySelector('.a11y-sec'); if (!sec) return;
@@ -1003,6 +1057,7 @@ export function accessibilitySection() {
       const inp = ev.target; if (!(inp instanceof HTMLInputElement) || inp.type !== 'checkbox' || !inp.dataset.key) return;
       ui[inp.dataset.key] = inp.checked; applyUi();
       if (inp.dataset.key === 'dpad') D.refreshNav();
+      if (inp.dataset.key === 'showLocked') ed.rebuild();   // şerit yeniden kurulur (sekme + karo + çağrı karosu)
     });
   } };
 }

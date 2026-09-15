@@ -497,4 +497,5 @@ export default {
   'tl_3:note': 'Nota 3D',
   'th_3:note': 'Coloca una etiqueta de anotación en el punto 3D elegido',
   tierPopular: 'El más elegido', tierSave: 'ahorro en el plan anual', perMonth: '/mes', openEmptyDirText: 'No hay archivos que mostrar en esta carpeta.', openNoResultText: 'Ningún archivo coincide con ese nombre; pruebe con una parte más corta o borre el filtro.', srvNoFiles: 'No se encontró ningún archivo DWG o DXF en esta dirección.',
+  showLocked: 'Mostrar las herramientas bloqueadas en la cinta', allFeatures: 'Todas las funciones', tierUnlocks: 'Desbloquea %s funciones',
 };
