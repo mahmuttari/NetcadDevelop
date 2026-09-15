@@ -303,6 +303,104 @@ export class RTree {
     for (const c of level) { if (c.bb[0] < bb[0]) bb[0] = c.bb[0]; if (c.bb[1] < bb[1]) bb[1] = c.bb[1]; if (c.bb[2] > bb[2]) bb[2] = c.bb[2]; if (c.bb[3] > bb[3]) bb[3] = c.bb[3]; }
     this.root = { bb, ch: level };
   }
+  /**
+   * AYNI ağacı kurar ama ARADAN ÇIKABİLİR: ana iş parçacığını saniyelerce kilitlemek yerine
+   * her ~10 ms'de bir denetimi tarayıcıya bırakır.
+   *
+   * NEDEN GEREKLİ: yapıcı (constructor) tek bloktur. 500 bin ilkelde yarım saniyeyi aşan bir
+   * kilit demektir ve o süre boyunca EKRANDA HİÇBİR ŞEY KIPIRDAMAZ — bekleme görseli donar
+   * (stroke-dashoffset bileşik katmanda çalışamaz, ana iş parçacığına bağlıdır), Vazgeç
+   * düğmesi basılmaz, geri tuşu işlenmez. Kullanıcı uygulamanın çöktüğünü sanır.
+   *
+   * NEDEN ELLE YAZILMIŞ SIRALAMA: Array.prototype.sort tek bloktur, yarısında durdurulamaz;
+   * 500 bin öğede tek başına saniyeye yakın kilittir. Aşağıdaki aşağı-yukarı birleştirme
+   * sıralaması her geçişi eşit parçalara böler, aradan çıkıp kaldığı yerden devam eder.
+   * Üstelik karşılaştırma bir kapanış (closure) çağrısı değil, Float64Array üzerinde düz sayı
+   * karşılaştırmasıdır. Sıralama KARARLIdır ve eşitlikte sol öğeyi önde tutar — yani
+   * Array.prototype.sort (TimSort) ile birebir aynı sırayı verir. Bu tesadüf değil, koşuldur:
+   * kurulan ağaç eşzamanlı kurulanla düğüm düğüm aynı olsun diye böyle yazıldı ve sınama
+   * (tools/test_index.mjs) bunu her koşuda doğruluyor.
+   *
+   * @param {object} [o] onPct: yüzde bildirimi · budget: kesintisiz çalışma bütçesi (ms) ·
+   *                     sleep: aradan çıkma yordamı (sınamada değiştirilebilir)
+   */
+  static async build(items, bboxOf, node = 16, o = {}) {
+    const t = Object.create(RTree.prototype);
+    t.bboxOf = bboxOf; t.items = items;
+    const n = items.length;
+    if (!n) { t.root = null; return t; }
+    const butce = o.budget || 10;
+    const uyu = o.sleep || (() => new Promise(r => setTimeout(r)));
+    const simdi = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+
+    // İş tahmini: ilerleme çubuğu uydurma değil, gerçekten dokunulacak öğe sayısına dayanır.
+    let toplam = n;
+    for (let L = n; L > node;) {
+      const S = Math.ceil(Math.sqrt(Math.ceil(L / node)));
+      const dilim = Math.ceil(L / S);
+      toplam += L * (Math.ceil(Math.log2(Math.max(2, L))) + Math.ceil(Math.log2(Math.max(2, dilim))) + 1);
+      L = Math.ceil(L / node);
+    }
+    let yapilan = 0, t0 = simdi();
+    const nefes = async () => {
+      if (simdi() - t0 < butce) return;
+      if (o.onPct) o.onPct(Math.min(99, 100 * yapilan / toplam));
+      await uyu(); t0 = simdi();
+    };
+
+    // 1) yapraklar — parça parça, çünkü 500 bin küçük nesne ayırmak da bloktur
+    const leaves = new Array(n);
+    for (let i = 0; i < n; i++) {
+      leaves[i] = { bb: bboxOf(items[i]), i };
+      if ((i & 8191) === 8191) { yapilan = i; await nefes(); }
+    }
+    yapilan = n;
+
+    let level = leaves;
+    while (level.length > node) {
+      const L = level.length;
+      const S = Math.ceil(Math.sqrt(Math.ceil(L / node)));
+      const dilimBoy = Math.ceil(L / S);
+
+      // x'e göre sırala (dilimlemek için)
+      const kx = new Float64Array(L);
+      for (let i = 0; i < L; i++) kx[i] = level[i].bb[0] + level[i].bb[2];
+      const sira = new Uint32Array(L);
+      for (let i = 0; i < L; i++) sira[i] = i;
+      for (const adim of siralaGen(sira, kx)) { yapilan += adim; await nefes(); }
+      const xs = new Array(L);
+      for (let i = 0; i < L; i++) xs[i] = level[sira[i]];
+
+      const next = [];
+      for (let s = 0; s < L; s += dilimBoy) {
+        const son = Math.min(s + dilimBoy, L), boy = son - s;
+        const ky = new Float64Array(boy);
+        for (let i = 0; i < boy; i++) ky[i] = xs[s + i].bb[1] + xs[s + i].bb[3];
+        const sy = new Uint32Array(boy);
+        for (let i = 0; i < boy; i++) sy[i] = i;
+        for (const adim of siralaGen(sy, ky)) { yapilan += adim; await nefes(); }
+        for (let j = 0; j < boy; j += node) {
+          const ch = [];
+          const bb = [Infinity, Infinity, -Infinity, -Infinity];
+          for (let k = j; k < Math.min(j + node, boy); k++) {
+            const c = xs[s + sy[k]];
+            ch.push(c);
+            if (c.bb[0] < bb[0]) bb[0] = c.bb[0]; if (c.bb[1] < bb[1]) bb[1] = c.bb[1];
+            if (c.bb[2] > bb[2]) bb[2] = c.bb[2]; if (c.bb[3] > bb[3]) bb[3] = c.bb[3];
+          }
+          next.push({ bb, ch });
+        }
+        yapilan += boy;
+        await nefes();
+      }
+      level = next;
+    }
+    const bb = [Infinity, Infinity, -Infinity, -Infinity];
+    for (const c of level) { if (c.bb[0] < bb[0]) bb[0] = c.bb[0]; if (c.bb[1] < bb[1]) bb[1] = c.bb[1]; if (c.bb[2] > bb[2]) bb[2] = c.bb[2]; if (c.bb[3] > bb[3]) bb[3] = c.bb[3]; }
+    t.root = { bb, ch: level };
+    if (o.onPct) o.onPct(100);
+    return t;
+  }
   /** bbox ile kesişen öğe indekslerini fn'e verir (ekleme sırasına yakın) */
   search(x0, y0, x1, y1, fn) {
     if (!this.root) return;
@@ -316,6 +414,33 @@ export class RTree {
     }
   }
   collect(x0, y0, x1, y1) { const out = []; this.search(x0, y0, x1, y1, i => out.push(i)); out.sort((a, b) => a - b); return out; }
+}
+
+/**
+ * Sayısal anahtara göre KARARLI, parça parça çalışan aşağı-yukarı birleştirme sıralaması.
+ * `sira` yerinde sıralanır; `key[sira[i]]` artan olur. Her ~8 bin birleştirme adımında
+ * yield eder ve o ana dek dokunulan öğe sayısını verir, çağıran da denetimi tarayıcıya
+ * bırakır. Eşitlikte SOL öğe önde kalır (kararlılık) — bu yüzden sonuç Array.prototype.sort
+ * ile aynıdır ve eşzamanlı kurulan ağaçla birebir eşleşir.
+ */
+function* siralaGen(sira, key) {
+  const n = sira.length;
+  if (n < 2) return;
+  let a = sira, b = new Uint32Array(n), sayac = 0;
+  for (let w = 1; w < n; w *= 2) {
+    for (let lo = 0; lo < n; lo += 2 * w) {
+      const orta = Math.min(lo + w, n), hi = Math.min(lo + 2 * w, n);
+      let i = lo, j = orta, k = lo;
+      while (i < orta && j < hi) b[k++] = key[a[j]] < key[a[i]] ? a[j++] : a[i++];
+      while (i < orta) b[k++] = a[i++];
+      while (j < hi) b[k++] = a[j++];
+      sayac += hi - lo;
+      if (sayac >= 8192) { const v = sayac; sayac = 0; yield v; }
+    }
+    const t = a; a = b; b = t;
+  }
+  if (a !== sira) sira.set(a);
+  if (sayac) yield sayac;
 }
 
 // ---- yakalama (osnap) ---------------------------------------------------------------

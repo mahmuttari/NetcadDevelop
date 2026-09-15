@@ -2370,20 +2370,46 @@ function buildPdf(pages, wmm, hmm, title) {
  * yanlış bilgi vermek, hiç bilgi vermemekten kötüdür.
  */
 const LOAD_KINDS = ['cad', 'doc', 'out', 'd3', 'cloud'];
-function setLoading(text, sub, pct, kind) {
+let loadKind = '';
+/*
+ * 'cad' görseli bir DÖNGÜ DEĞİL, gerçek ilerlemenin resmidir. Yüzde şu beş aşamaya bölünür ve
+ * hem ÇİZİM hem BAŞLIK aynı sayıdan türer — böylece ikisi asla birbiriyle çelişemez:
+ *   < 30  dosya okunuyor · < 50 katmanlar · < 72 geometri · < 97 optimize · ≥ 97 görünüm
+ * Aşamanın kendi içindeki oran --t (0..1) olarak yazılır; çizim onunla açılır.
+ */
+const CAD_STG = [
+  { b: 30, t: 'stgRead', s: 'stgReadSub' }, { b: 50, t: 'stgLayer', s: 'stgLayerSub' },
+  { b: 72, t: 'stgGeom', s: 'stgGeomSub' }, { b: 97, t: 'stgOpt', s: 'stgOptSub' },
+  { b: 100, t: 'stgView', s: 'stgViewSub' },
+];
+/** Çizim açılışının tek giriş noktası: yüzdeyi verir, başlığı da görseli de o belirler */
+function setLoadingCad(pct, file) {
+  const v = Math.max(0, Math.min(100, pct));
+  let k = 0; while (k < CAD_STG.length - 1 && v >= CAD_STG[k].b) k++;
+  const bitti = v >= 99.95;
+  setLoading(t(bitti ? 'stgDone' : CAD_STG[k].t), t(bitti ? 'stgDoneSub' : CAD_STG[k].s), v, 'cad', file);
+}
+function setLoading(text, sub, pct, kind, file) {
   if (text == null) {
     // Örtü kapanırken çeşit sınıfı da silinir: bir sonraki bekleme kendi görselini seçmezse
     // öncekinin çizimi kalmasın.
-    const el = $('loading'); if (el) el.classList.remove(...LOAD_KINDS.map(k => 'load-' + k));
+    const el = $('loading');
+    if (el) {
+      el.classList.remove(...LOAD_KINDS.map(k => 'load-' + k)); delete el.dataset.cad;
+      for (const k of ['--t', '--w1', '--w2', '--cw', '--ok']) el.style.removeProperty(k);
+    }
+    loadKind = '';
     hide('loading'); return;
   }
   // Bekleme görseli yapılan işe göre değişir: çizim okunurken kalem planı çizer, belgede sayfa
   // dizilir, dışa aktarmada sayfa cihazdan çıkar. Çeşit verilmezse önceki korunur — aynı işin
   // ortasında görselin değişmesi, ilerleme sıfırlanmış gibi durur.
   if (kind && LOAD_KINDS.includes(kind)) {
+    loadKind = kind;
     const el = $('loading');
     if (el) for (const k of LOAD_KINDS) el.classList.toggle('load-' + k, k === kind);
   }
+  { const fl = $('loadingFile'); if (fl) { fl.textContent = file || ''; fl.hidden = !file; } }
   $('loadingText').textContent = text;
   $('loadingSub').textContent = sub || '';
   const prog = $('loadingProg');
@@ -2396,6 +2422,35 @@ function setLoading(text, sub, pct, kind) {
       $('loadingPct').textContent = '%' + v;
       prog.querySelector('.lbar').setAttribute('aria-valuenow', String(v));
     }
+  }
+  // Aşamalı görsel ve aşama noktaları yalnız ölçülebilir bir 'cad' yüklemesinde çalışır;
+  // yüzde yoksa görsel 0. aşamada durur ve uydurma bir ilerleme gösterilmez.
+  {
+    const el = $('loading');
+    const on = loadKind === 'cad' && typeof pct === 'number' && isFinite(pct);
+    if (el) {
+      if (on) {
+        const v = Math.max(0, Math.min(100, pct));
+        let k = 0; while (k < CAD_STG.length - 1 && v >= CAD_STG[k].b) k++;
+        const a = k ? CAD_STG[k - 1].b : 0, b = CAD_STG[k].b;
+        el.dataset.cad = String(v >= 99.95 ? 4 : k);
+        const tt = b > a ? Math.max(0, Math.min(1, (v - a) / (b - a))) : 1;
+        // Aşama içi oranın türevleri CSS'te değil BURADA hesaplanır: clamp()/calc() ile
+        // yazıldığında tarayıcı stroke-dashoffset'i yüzde türünde çözüyor ve ölçü yol
+        // uzunluğuna değil görüntü köşegenine bağlanıyordu (ölçüldü). Düz sayı hem doğru,
+        // hem eski WebView'larda güvenli, hem de sınamada okunabilir.
+        const kes = (x) => Math.max(0, Math.min(1, x));
+        el.style.setProperty('--t', tt.toFixed(3));
+        el.style.setProperty('--w1', (100 * (1 - kes(tt / .62))).toFixed(1));        // dış duvar
+        el.style.setProperty('--w2', (100 * (1 - kes((tt - .55) / .45))).toFixed(1));  // iç bölmeler
+        el.style.setProperty('--cw', kes((tt - .6) / .4).toFixed(3));                  // kırpma imleri
+        el.style.setProperty('--ok', (100 * (1 - kes(tt))).toFixed(1));                // onay imi
+      } else {
+        delete el.dataset.cad;
+        for (const k of ['--t', '--w1', '--w2', '--cw', '--ok']) el.style.removeProperty(k);
+      }
+    }
+    const dots = $('loadingDots'); if (dots) dots.hidden = !on;
   }
   show('loading');
 }
@@ -2441,6 +2496,20 @@ window.addEventListener('unhandledrejection', (ev) => logError('promise: ' + ((e
 
 const STAGES = { lib: 'stageLib', parse: 'stageParse', scene: 'stageScene' };   // i18n anahtarları
 const stageText = (st) => STAGES[st] ? t(STAGES[st]) : st;
+/*
+ * Açılışın gerçek aşamaları TEK bir 0-100 ölçeğine oturur, böylece çubuk hiç geri gitmez ve
+ * kullanıcı "nerede kaldı" sorusunun cevabını görür. Bantlar işin gerçek ağırlığına göredir:
+ * çözümleyici yüklenmesi kısa, dosya çözümlemesi ve sahne kurulumu uzun, indeks ile görünüm
+ * hazırlığı sonda. İşçi kendi aşamasının yüzdesini verir, o da bandın içine ölçeklenir.
+ */
+const OPEN_BAND = { lib: [1, 14], parse: [14, 45], scene: [45, 70], index: [70, 92], view: [92, 99] };
+const openPct = (st, pct) => {
+  const b = OPEN_BAND[st] || [0, 0];
+  const k = typeof pct === 'number' && isFinite(pct) ? Math.max(0, Math.min(100, pct)) / 100 : 0;
+  return b[0] + (b[1] - b[0]) * k;
+};
+/** Ana iş parçacığını nefes aldırır: bekleme görseli aksın, Vazgeç düğmesi basılabilsin */
+const nefes = () => new Promise(r => setTimeout(r));
 const BIG_FILE_MB = 80;   // bu boyutun üstünde açmadan önce onay istenir (bellek / süre)
 /*
  * Nesne sayısı eşiği. LibreDWG nesne başına ölçülen ~800 bayt yer tutar (7.088.013 nesneli bir dosya 64 bit
@@ -2463,11 +2532,12 @@ async function loadBytes(buf, name, size) {
   const sub = name + ' · ' + mb + (objN ? ' · ' + fmt(objN, 0) + ' ' + t('objectsN') : '');
   if (objN > HUGE_OBJ && !(await askConfirm(`${name} · ${fmt(objN, 0)} ${t('objectsN')}. ${t('hugeObjAsk')}`))) { setLoading(null); return; }
   const my = ++loadSeq;
-  setLoading(t('loading'), sub, 0, 'cad');
+  setLoadingCad(1, sub);
   try {
-    let res = await runWorker({ cmd: 'parse', bytes: buf, name, objects: objN }, (st, pct) => setLoading(stageText(st), sub, pct));
+    let res = await runWorker({ cmd: 'parse', bytes: buf, name, objects: objN },
+      (st, pct) => { if (my === loadSeq) setLoadingCad(openPct(st, pct), sub); });
     const scene = res.scene; res = null;   // yapısal klon: büyük dosyada referansı erken düşür
-    await setScene(scene, name, bytes);
+    await setScene(scene, name, bytes, (p) => { if (my === loadSeq) setLoadingCad(p, sub); });
     // özet toast'ından sonra (toast tek satırdır, hemen üstüne yazılırsa görünmez)
     if (scene.readWarn) setTimeout(() => toast(`${tt('readWarn', 'Dosya eksik/bozuk okunmuş olabilir')} (LibreDWG ${scene.readWarn}); ${tt('readWarnSub', 'çizim eksik olabilir.')}`, { type: 'warn', ms: 8000 }), 1200);
     const ms = Math.round(performance.now() - t0);
@@ -2478,15 +2548,20 @@ async function loadBytes(buf, name, size) {
   } catch (e) { fail(e); }
   if (my === loadSeq) setLoading(null);   // iptal edilen eski yükleme yenisinin modalını kapatmasın
 }
-/** R-ağacı: büyük sahnede önce bir kare bırakılır ki 'İndeks kuruluyor' yazısı çizilsin ve dokunma/geri tuşu işlensin */
-async function buildTree(prims) {
-  if (prims.length < 100000) return new RTree(prims, p => p.bb);
-  setLoading(tt('indexing', 'İndeks kuruluyor…'), prims.length + ' ' + tt('prims', 'ilkel'), undefined, 'cad');
-  await new Promise(r => setTimeout(r));
-  return new RTree(prims, p => p.bb);
+/*
+ * Uzamsal indeks. Eskiden tek blok hâlinde kurulurdu ve büyük çizimde ana iş parçacığını
+ * saniyelerce kilitlerdi: bekleme görseli donar (stroke-* özellikleri bileşik katmanda
+ * çalışamaz), Vazgeç düğmesi basılmaz, kullanıcı uygulamanın çöktüğünü sanırdı. Artık
+ * RTree.build aradan çıkabilen bir kurucudur — her ~10 ms'de denetimi tarayıcıya bırakır ve
+ * gerçek yüzdeyi bildirir. Küçük çizimde tek blok zaten göze görünmez, eski yol korunur.
+ */
+async function buildTree(prims, onPct) {
+  if (prims.length < 20000) return new RTree(prims, p => p.bb);
+  return RTree.build(prims, p => p.bb, 16, { onPct });
 }
-async function setScene(scene, name, size) {
-  S.modelTree = await buildTree(scene.layouts[0].prims);
+async function setScene(scene, name, size, rep) {
+  const bildir = typeof rep === 'function' ? rep : () => { };
+  S.modelTree = await buildTree(scene.layouts[0].prims, (p) => bildir(openPct('index', p)));
   S.scene = scene; S.fileName = name; S.fileKey = (name + '_' + size).replace(/[^\w.-]+/g, '_');
   S.layers = new Map(scene.layers.map(l => [l.name, l]));
   S.ltypes = scene.ltypes; S.styles = scene.styles; S.counts = scene.counts; S.entityCount = scene.entityCount; S.blockCount = scene.blockCount;
@@ -2511,10 +2586,16 @@ async function setScene(scene, name, size) {
   applyGeo();
   loadNotes(S.fileKey);
   for (const n of notes.items) if (n.type === 'photo' && n.photo) loadPhoto(n.photo);
+  // Görünüm hazırlığının üç ağır adımı arasında nefes verilir: büyük çizimde bunlar da
+  // yüzlerce milisaniye sürer ve arka arkaya koşarsa bekleme görseli yine donardı.
+  bildir(openPct('view', 0)); await nefes();
   setLayout(0);
+  bildir(openPct('view', 40)); await nefes();
   editorScene();
+  bildir(openPct('view', 75)); await nefes();
   if (!$('layerPanel').hidden) buildLayerList();
   refreshNav();
+  bildir(100);
   setTimeout(saveThumb, 400);
   Ed.onDocOpen();   // ücretsiz sürüm: açılış reklamı
 }
@@ -2654,6 +2735,8 @@ window.dwgApp = { loadCurrent, onFilePicked, onLocation, onBack, loadBytes, zoom
   onFilesPicked, onQr: (text) => { try { const s = String(text || '').trim(); if (s) onQr(s); } catch (e) { console.warn(e); } },   // Android ACTION_SEND / EXTRA_TEXT
   onLocationError: (m) => { const perm = /kalıcı olarak reddedildi|permanently denied/i.test(String(m)); const openSet = A() && A().openAppSettings ? () => A().openAppSettings() : null;
     toast('GPS: ' + m, perm && openSet ? { ms: 8000, action: { label: tt('settings', 'Ayarlar'), fn: openSet } } : undefined); },
+  // sınama tutamağı: aşamalı açılış görselini gerçek dosya açmadan yüzde yüzde sürer
+  __cadLoad: (pct, file) => setLoadingCad(pct, file), setLoading,
   display: D, toast, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, savePng, getSettings: () => settings, requestRender, openDisplayOptions, showSettings, showNewDoc,
   docs: Docs, drive: Drive, onGoogle: (ok, json) => Drive.onGoogle(ok, json), onDrive: (id, ok, json) => Drive.onDrive(id, ok, json), onDriveProgress: (id, d, tot) => Drive.onProgress(id, d, tot), openDrive: () => Drive.open(),
   open: Open, openCenter: (tab) => Open.open(tab), onFsRoot: (obj) => Open.onFsRoot(obj), onFs: (id, ok, json) => Open.onFs(id, ok, json),

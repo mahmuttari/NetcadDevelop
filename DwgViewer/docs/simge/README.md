@@ -15,18 +15,18 @@ olmasını ister; fotoğrafik ve çok öğeli simgeler bu eşiği geçemez.
 
 ## Fikir
 
-Simge, bekleme canlandırmasının **birinci perdesidir**: iki odalı planın tek
-çizgide çizilmiş hâli ve çizginin bittiği yerde bekleyen kalem başı. Yol,
-canlandırmadaki Euler yolunun aynısıdır —
+Simge, açılış ekranının **plan aşamasıdır** (%72-97): planın tek çizgide
+çizilmiş hâli ve çizginin bittiği yerde bekleyen kalem başı. Yol, açılış
+ekranında kullanılan Euler yolunun aynısıdır —
 
 ```
 M-23 0  V21  H23  V-21  H-23  V0  H23
 ```
 
 — yani hiçbir duvar iki kez geçilmez, çizgi kesintisizdir. Kullanıcı simgeye
-dokunduğunda, simgedeki çizginin kendini çizdiğini görür: **simge ile açılış
-aynı şeyin iki hâlidir.** Marka böylece bir resimden değil, bir davranıştan
-doğar.
+dokunduğunda, açılış ekranında aynı çizginin kendini çizdiğini görür: **simge
+ile açılış aynı şeyin iki hâlidir.** Marka böylece bir resimden değil, bir
+davranıştan doğar.
 
 Kalem başı vurgu renginde (`#F5B342`) tek noktadır ve içinde küçük bir göz
 taşır: büyük boyutta bir canlı, küçük boyutta yalnız bir uç olarak okunur.

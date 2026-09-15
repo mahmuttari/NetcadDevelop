@@ -4,7 +4,7 @@
    ------------------------------------------------------------------------------------------ */
 :root {
   --bg: #161c25; --bar: #1f2a37; --fg: #e6eaf0; --muted: #94a3b8; --accent: #f5b342; --accent-fg: #1a1a1a;
-  --panel: #1b2430; --line: #2c3a4b; --btn: #2a3646; --btn-on: #3b4d63; --danger: #ff453a; --ok: #30d158;
+  --panel: #1b2430; --cad-hi: #46cdf2; --cad-dim: #9bb8d2; --line: #2c3a4b; --btn: #2a3646; --btn-on: #3b4d63; --danger: #ff453a; --ok: #30d158;
   --safe-top: env(safe-area-inset-top, 0px); --safe-bottom: env(safe-area-inset-bottom, 0px); --safe-left: env(safe-area-inset-left, 0px); --safe-right: env(safe-area-inset-right, 0px);
   --fs: 1; --tile: 58px; --tb-h: 56px; --radius: 10px; --shadow: 0 6px 24px rgba(0,0,0,.45);
   /* Paket kimlik renkleri: kartın şeridi, rozeti ve onay imleri bunu alır. Vurgu renginden
@@ -12,10 +12,10 @@
   --t-adfree: #4aa3df; --t-premium: #f5b342; --t-super: #a97bf0; --t-ink: #10151c;
 }
 /* tema token'ları: tuval temasıyla uyumlu arayüz renkleri */
-body[data-theme="light"], .light { --bg: #ffffff; --bar: #f1f3f6; --fg: #1a2230; --muted: #5b6776; --panel: #ffffff; --line: #d6dbe2; --btn: #e3e7ed; --btn-on: #cfd6df; --shadow: 0 6px 24px rgba(0,0,0,.18);  --t-adfree: #1d7fc0; --t-premium: #9a6208; --t-super: #7d4fd1; --t-ink: #ffffff; }
-body[data-theme="blueprint"] { --bg: #0b2a5b; --bar: #0e3268; --fg: #dfe9ff; --muted: #9db4dc; --panel: #10366f; --line: #2a5aa0; --btn: #1a4685; --btn-on: #2a5aa0; --accent: #ffd166;  --t-adfree: #7fc4ff; --t-premium: #ffd166; --t-super: #c9a7ff; }
-body[data-theme="sepia"] { --bg: #f3e9d2; --bar: #eadfc4; --fg: #3a2a14; --muted: #7a6748; --panel: #f6efdd; --line: #d9c9a5; --btn: #e6d9b8; --btn-on: #d9c9a5; --accent: #b3541e; --accent-fg: #fff; --shadow: 0 6px 24px rgba(60,40,10,.2);  --t-adfree: #2f6f9f; --t-premium: #b3541e; --t-super: #7b4ea8; --t-ink: #ffffff; }
-body[data-theme="hicontrast"] { --bg: #ffffff; --bar: #ffffff; --fg: #000000; --muted: #333333; --panel: #ffffff; --line: #000000; --btn: #f0f0f0; --btn-on: #d0d0d0; --accent: #0033cc; --accent-fg: #fff; --shadow: 0 0 0 2px #000;  --t-adfree: #0033cc; --t-premium: #8a4b00; --t-super: #5b1a8a; --t-ink: #ffffff; }
+body[data-theme="light"], .light { --cad-hi: #0a7ea4; --cad-dim: #5b7a93; --bg: #ffffff; --bar: #f1f3f6; --fg: #1a2230; --muted: #5b6776; --panel: #ffffff; --line: #d6dbe2; --btn: #e3e7ed; --btn-on: #cfd6df; --shadow: 0 6px 24px rgba(0,0,0,.18);  --t-adfree: #1d7fc0; --t-premium: #9a6208; --t-super: #7d4fd1; --t-ink: #ffffff; }
+body[data-theme="blueprint"] { --cad-hi: #7fe3ff; --cad-dim: #a9c6ee; --bg: #0b2a5b; --bar: #0e3268; --fg: #dfe9ff; --muted: #9db4dc; --panel: #10366f; --line: #2a5aa0; --btn: #1a4685; --btn-on: #2a5aa0; --accent: #ffd166;  --t-adfree: #7fc4ff; --t-premium: #ffd166; --t-super: #c9a7ff; }
+body[data-theme="sepia"] { --cad-hi: #b3541e; --cad-dim: #7a6748; --bg: #f3e9d2; --bar: #eadfc4; --fg: #3a2a14; --muted: #7a6748; --panel: #f6efdd; --line: #d9c9a5; --btn: #e6d9b8; --btn-on: #d9c9a5; --accent: #b3541e; --accent-fg: #fff; --shadow: 0 6px 24px rgba(60,40,10,.2);  --t-adfree: #2f6f9f; --t-premium: #b3541e; --t-super: #7b4ea8; --t-ink: #ffffff; }
+body[data-theme="hicontrast"] { --cad-hi: #0033cc; --cad-dim: #000000; --bg: #ffffff; --bar: #ffffff; --fg: #000000; --muted: #333333; --panel: #ffffff; --line: #000000; --btn: #f0f0f0; --btn-on: #d0d0d0; --accent: #0033cc; --accent-fg: #fff; --shadow: 0 0 0 2px #000;  --t-adfree: #0033cc; --t-premium: #8a4b00; --t-super: #5b1a8a; --t-ink: #ffffff; }
 body.contrast { --line: #8fa3bb; --muted: #c5d0dc; }
 body.contrast.light, body.contrast[data-theme="light"], body.contrast[data-theme="sepia"] { --line: #3a4a5c; --muted: #2c3a4b; }
 
@@ -839,6 +839,7 @@ html[dir="rtl"] .kv-copy { text-align: right; }
 #loading {
   background: none;
   color: var(--fg);
+  --t: 1;                                     /* aşama içi oran; app.js satır içi yazar */
   --la: min(calc(148px * var(--fs)), 48vw);   /* bekleme görselinin kenar uzunluğu */
 }
 #loading::before {                                  /* yer rengi */
@@ -898,369 +899,99 @@ body.glove #loading { --la: min(calc(172px * var(--fs)), 54vw); }
 body.glove #loading .btn { min-height: calc(52px * var(--fs)); min-width: calc(120px * var(--fs)); }
 
 
-/* ---- 3. 'cad' — kalem planı çizer, sonra kıvrılıp surata döner (6,0 s) ----------------------
-   FİKİR
-     Bekleme görseli süs değil, yapılan işin anlatımıdır: DWG okunurken ekranda bir plan
-     ÇİZİLİR. Çizen şey bir CAD imlecidir — küçük bir kalem ucu ve etrafındaki yakalama
-     halkası. Köşelere geldiğinde "snap" eder, orada bir an durur, uç nokta imi açılıp söner
-     ve yılan gövdesi bir boy uzar. Yani yılan oyununun kuralı ile CAD'in kendi davranışı
-     aynı harekette birleşir.
+/* ---- 3. 'cad' — AŞAMALI açılış görseli (döngü değil, gerçek ilerlemenin resmi) -------------
+   NEDEN AŞAMALI
+     Bir bekleme döngüsü yalnız "çalışıyorum" der. Büyük bir DWG dakikalarca açılabilir ve o
+     süre boyunca kullanıcının sorusu "çalışıyor mu" değil, "nerede kaldı"dır. Bu görsel buna
+     cevap verir: app.js gerçek yüzdeyi #loading üzerine data-cad="0..4" ve --t olarak yazar,
+     çizim de o yüzdenin resmi olur.
+       0  dosya açılıyor / okunuyor   → kıvrık köşeli pafta, üstünde tarayan ışık
+       1  katmanlar işleniyor         → dört levha, --t ile açılır
+       2  geometri oluşturuluyor      → dikmeler ve çatı, --t ile yükselir
+       3  çizim optimize / görünüm    → plan, --t ile çizilir
+       4  hazır                       → onay imi
+     Aşama içindeki oran --t (0..1) ile verilir; JS her karede değil, yüzde DEĞİŞTİKÇE yazar.
+     Aşamalar arası geçiş 220 ms opaklık geçişidir, yani sıçrama olmaz.
 
-   İKİ PERDE, TEK SOLUKTA
-     0 → 52,5 %  kalem planın hattını dolaşır; geçtiği yer arkasında kalıcı olarak çizilir.
-     52,5 → 79,5 % kalem DURMADAN çemberin içine kıvrılır; plan söner, gövde çembere akar,
-                 çember kapanınca gövde suratın içine çekilir.
-     79,5 → 96,5 % gözler ve ağız gelir, surat bir kez "merhaba" der.
-     96,5 → 100 % surat söner, kalem başlangıç noktasında yeniden belirir (dikişsiz döngü).
+   NE ZAMAN DÖNER, NE ZAMAN DÖNMEZ
+     Sürekli dönen tek iki şey nabız (halka) ile tarama çizgisidir; ikisi de yalnız transform
+     ve opacity kullanır. Geri kalan her şey ilerlemeye bağlıdır. Yüzde bilinmiyorsa (ölçüsüz
+     aşama) görsel 0. aşamada --t: 1 ile durur ve yalnız tarama çizgisi akar — uydurma yüzde
+     gösterilmez.
 
-   NEDEN BÖYLE OTURUYOR — üç karar
-     1. Plan yolu bir EULER YOLUDUR. Dış duvar + y=56'daki iç bölme çizgesinde yalnız iç
-        bölmenin iki ucu tek derecelidir; yol soldaki uçtan başlayıp sağdakine varır ve
-        HİÇBİR duvarı iki kez geçmez. Kalem kendi izine basmaz, plan da eksiksiz çıkar.
-     2. Yüz çemberinin yarıçapı 42, yani genişliği tam planın genişliği (18..102) ve
-        başlangıç noktası (102,56) planın BİTTİĞİ noktanın kendisidir. Devir teslim
-        yaklaşık değil, birebirdir: kalem bir noktada durup başka yerde belirmez.
-     3. Kıvrılmada hız v0/(1+A·sin(πσ)) ile yumuşakça artıp yine iner. σ=0 ve σ=1'de çarpan
-        1'dir; plandan çembere geçişte ve çember kapanırken hız SIÇRAMAZ, aradaki hızlanma
-        "kıvrım" hissini verir. A, kıvrılmanın bütçelenen süreyi tam tutması için çözülür.
-
-   GÖVDE: YILAN OYUNUNUN KENDİ KURALI
-     Yem yenince kuyruk DURUR, baş gitmeye devam eder, gövde o farktan uzar. Kuyruğu geri
-     çekmek daha kolay olurdu ama yanlış olurdu: gerçek yılanda da uzama arkadan eklenir,
-     baş yerinden oynamaz. Gövde yol üzerinde tek kesik parçadır — stroke-dasharray'in
-     boşluğu (200) yoldan uzun tutulur; 100 verilseydi parça yolun sonundan çıkarken baştan
-     geri girer, yılan kendi kuyruğundan doğuyormuş gibi görünürdü.
-
-   NEDEN 6,0 s
-     Bu görsel iki perdeli tek bir anlatıdır; süre bir olayın değil ikisinin toplamıdır.
-     Uzun döngü tekrar yorgunluğunu da azaltır: beklemenin çoğu 3 sn'nin altında bittiği
-     için kullanıcı genellikle yalnız BİRİNCİ perdeyi, yani bilgi veren kısmı görür.
-
-   YUVARLAK UÇ BAŞLIĞI TUZAĞI
-     stroke-linecap: round ile tamamen ötelenmiş bir kesik yol bile ucunda nokta bırakır.
-     Bu yüzden gizli olması gereken her yol (çember, ağız, gövde) ayrıca opacity: 0 taşır;
-     dashoffset tek başına yetmez.
+   RENKLER
+     İki belirteç: --cad-hi (vurgu çizgisi, tarama, onay) ve --cad-dim (yapı çizgisi). Tema
+     başına tanımlıdır; bölüm içinde tek bir sabit renk yoktur.
 
    DURGUN KİP
-     Statik değerler döngünün BİLGİ VEREN son hâlidir: plan tam çizili, kalem/im/gövde/surat
-     gizli. Surat süstür; hareketin kapalı olduğu yerde ekranda kalması gereken şey plandır.
+     Görsel zaten ilerlemeye bağlı olduğu için durgun kipte kaybolan bir bilgi yoktur: yalnız
+     nabız ile tarama durur, aşama resmi olduğu gibi kalır. --t'nin varsayılanı 1'dir, yani
+     JS hiç yazmasa bile her aşama tamamlanmış görünür. */
 
-   Bütün keyframe'ler tools/gen_loadart.mjs tarafından üretilir (aşağıdaki işaretli blok).
-   Zamanlama elle düzenlenmez: baş konumu, izin ucu ve gövde boyu tek bir "zaman → yol"
-   eşlemesinden türer, böylece ayrışmaları matematiksel olarak imkânsızdır. Sınama
-   (tools/test_loadart.mjs) bunu tarayıcıda getPointAtLength ile bağımsız olarak doğrular. */
+#loading.load-cad { --la: min(calc(196px * var(--fs)), 62vw); }   /* aşamalı görsel daha büyük okunur */
+body.glove #loading.load-cad { --la: min(calc(216px * var(--fs)), 68vw); }
 
-.la-cad .trail { stroke-width: 2.8; stroke-dasharray: 100; stroke-dashoffset: 0;  /* statik: plan çizilmiş */
-                 animation: snTrail 6s linear infinite; }
-.la-cad .plan  { opacity: 1; animation: snPlan 6s linear infinite; }
+.la-cad .halo { fill: var(--cad-hi); stroke: none; opacity: .07;
+                transform-box: view-box; transform-origin: 60px 60px;
+                animation: cadPulse 1.8s ease-in-out infinite alternate; }
+.la-cad .rim  { fill: none; stroke: var(--cad-dim); stroke-width: 1.2; opacity: .5; }
 
-/* yakalama imi (uç nokta karesi) ve yakalandığında açılan halka */
-.la-cad .sq, .la-cad .pg { stroke: var(--accent); fill: none; opacity: 0;
-                 transform-box: fill-box; transform-origin: 50% 50%; }
-.la-cad .sq { stroke-width: 1.5; transform: scale(.6); }
-.la-cad .pg { stroke-width: 1.2; transform: scale(.5); }
-.la-cad .q1 { animation: snSnap1 6s cubic-bezier(.2,.7,.3,1) infinite; }
-.la-cad .q2 { animation: snSnap2 6s cubic-bezier(.2,.7,.3,1) infinite; }
-.la-cad .q3 { animation: snSnap3 6s cubic-bezier(.2,.7,.3,1) infinite; }
-.la-cad .q4 { animation: snSnap4 6s cubic-bezier(.2,.7,.3,1) infinite; }
-.la-cad .q5 { animation: snSnap5 6s cubic-bezier(.2,.7,.3,1) infinite; }
-.la-cad .g1 { animation: snPing1 6s cubic-bezier(.1,.6,.3,1) infinite; }
-.la-cad .g2 { animation: snPing2 6s cubic-bezier(.1,.6,.3,1) infinite; }
-.la-cad .g3 { animation: snPing3 6s cubic-bezier(.1,.6,.3,1) infinite; }
-.la-cad .g4 { animation: snPing4 6s cubic-bezier(.1,.6,.3,1) infinite; }
-.la-cad .g5 { animation: snPing5 6s cubic-bezier(.1,.6,.3,1) infinite; }
+/* aşama geçişi: yalnız opaklık, 220 ms */
+.la-cad .st { opacity: 0; transition: opacity .22s linear; }
+#loading[data-cad="0"] .la-cad .s0, #loading[data-cad="1"] .la-cad .s1,
+#loading[data-cad="2"] .la-cad .s2, #loading[data-cad="3"] .la-cad .s3,
+#loading[data-cad="4"] .la-cad .s4 { opacity: 1; }
+#loading.load-cad:not([data-cad]) .la-cad .s0 { opacity: 1; }   /* yüzde yoksa 0. aşama */
 
-/* gövde: ana kalem + altında çok soluk geniş bir iz (derinlik). İkisi AYNI keyframe'i
-   kullanır — dasharray pathLength biriminde olduğu için kalınlıktan bağımsızdır. */
-.la-cad .snake, .la-cad .glow { stroke: var(--accent); stroke-linecap: round; stroke-linejoin: round;
-                 opacity: 0; stroke-dasharray: 0 200; stroke-dashoffset: 0;      /* statik: gövde yok */
-                 animation: snBody 6s linear infinite; }
-.la-cad .snake { stroke-width: 5; }
-.la-cad .glow  { stroke-width: 11; stroke-opacity: .12; }
+/* 0) dosya */
+.la-cad .sheet { fill: var(--bg); stroke: var(--cad-dim); stroke-width: 2.2; }
+.la-cad .fold  { fill: none; stroke: var(--cad-dim); stroke-width: 2.2; }
+.la-cad .ln    { fill: none; stroke: var(--cad-dim); stroke-width: 1.6; opacity: .55; }
+.la-cad .badge { fill: var(--cad-hi); stroke: none; opacity: .9; }
+.la-cad .tick  { fill: none; stroke: var(--panel); stroke-width: 2.2; }
+.la-cad .scan  { fill: none; stroke: var(--cad-hi); stroke-width: 2.6; stroke-linecap: round;
+                 transform-box: view-box; transform-origin: 60px 32px;
+                 animation: cadScan 1.35s linear infinite; }
 
-/* kalem ucu (imleç): dolu uç + yakalama halkası; konum yol geometrisinden gelir */
-.la-cad .pen { opacity: 0; transform-box: view-box; transform-origin: 0 0;        /* statik: kalem yok */
-               transform: translate(18px, 56px) scale(0); animation: snHead 6s linear infinite; }
-.la-cad .nib { fill: var(--accent); stroke: none; }
-.la-cad .aperture { stroke: var(--accent); stroke-width: 1.3; fill: none; stroke-opacity: .5; }
+/* 1) katmanlar — her levha kendi merkezinden --t kadar açılır */
+.la-cad .ply { fill: none; stroke: var(--cad-dim); stroke-width: 2; opacity: .55;
+               transform-box: fill-box; transform-origin: 50% 50%; transform: scaleY(var(--t)); }
+.la-cad .ply.on { stroke: var(--cad-hi); opacity: 1; }
 
-/* surat: çember planla aynı kalemle çizilir (duvar rengi), gözler ile ağız vurgu rengindedir */
-.la-cad .smile { opacity: 0; transform-box: view-box; transform-origin: 60px 56px;
-                 animation: snFace 6s linear infinite, snGreet 6s ease-in-out infinite; }
-.la-cad .ring  { stroke-width: 3.6; stroke-linecap: round;
-                 stroke-dasharray: 100; stroke-dashoffset: 100; opacity: 0;       /* statik: surat gizli */
-                 animation: snRing 6s linear infinite; }
-.la-cad .eye   { fill: var(--accent); stroke: none; opacity: 0;
-                 transform-box: fill-box; transform-origin: 50% 50%; transform: scale(0); }
-.la-cad .e1 { animation: snEye1 6s cubic-bezier(.34,1.45,.5,1) infinite; }
-.la-cad .e2 { animation: snEye2 6s cubic-bezier(.34,1.45,.5,1) infinite; }
-.la-cad .mouth { stroke: var(--accent); stroke-width: 4.2; stroke-linecap: round;
-                 stroke-dasharray: 100; stroke-dashoffset: 100; opacity: 0;
-                 animation: snMouth 6s cubic-bezier(.33,0,.15,1) infinite; }
-.la-cad .coil, .la-cad .coilGlow { stroke: var(--accent); stroke-linecap: round;
-                 opacity: 0; stroke-dasharray: 0 200; stroke-dashoffset: 0;
-                 animation: snCoil 6s linear infinite; }
-.la-cad .coil     { stroke-width: 5; }
-.la-cad .coilGlow { stroke-width: 11; stroke-opacity: .12; }
+/* 2) geometri — taban ile eksen sabit, dikmeler taban çizgisinden yükselir */
+.la-cad .base { fill: none; stroke: var(--cad-dim); stroke-width: 2; }
+.la-cad .axis { fill: none; stroke: var(--cad-dim); stroke-width: 1.4; opacity: .5; }
+.la-cad .rise { transform-box: view-box; transform-origin: 60px 82px; transform: scaleY(var(--t)); }
+.la-cad .col  { fill: none; stroke: var(--cad-hi); stroke-width: 2.4; stroke-linecap: round; opacity: .85; }
+.la-cad .roof { fill: none; stroke: var(--cad-hi); stroke-width: 2.2; stroke-linejoin: round; }
 
-/* >>> gen_loadart başlangıç */
-/* ÜRETİLMİŞ — tools/gen_loadart.mjs. Elle düzenlenmez; sayılar tek bir
-   "zaman → yol" eşlemesinden türer, bkz. betiğin başındaki açıklama. */
-@keyframes snTrail {
-  0%, 2.5% { stroke-dashoffset: 100 }
-  6.048%, 7.248% { stroke-dashoffset: 91.935 }
-  17.184%, 18.384% { stroke-dashoffset: 69.355 }
-  25.481%, 26.681% { stroke-dashoffset: 53.226 }
-  36.616%, 37.816% { stroke-dashoffset: 30.645 }
-  41.365%, 42.565% { stroke-dashoffset: 22.581 }
-  52.5%, 100% { stroke-dashoffset: 0 }
-}
-@keyframes snBody {
-  0% { opacity: 0; stroke-dasharray: 0 200; stroke-dashoffset: 0 }
-  2.5% { opacity: 1; stroke-dasharray: 0 200; stroke-dashoffset: 0 }
-  5.14% { opacity: 1; stroke-dasharray: 6 200; stroke-dashoffset: 0 }
-  6.048%, 7.248% { opacity: 1; stroke-dasharray: 6 200; stroke-dashoffset: -2.065 }
-  9.008% { opacity: 1; stroke-dasharray: 10 200; stroke-dashoffset: -2.065 }
-  17.184%, 18.384% { opacity: 1; stroke-dasharray: 10 200; stroke-dashoffset: -20.645 }
-  20.144% { opacity: 1; stroke-dasharray: 14 200; stroke-dashoffset: -20.645 }
-  25.481%, 26.681% { opacity: 1; stroke-dasharray: 14 200; stroke-dashoffset: -32.774 }
-  28.441% { opacity: 1; stroke-dasharray: 18 200; stroke-dashoffset: -32.774 }
-  36.616%, 37.816% { opacity: 1; stroke-dasharray: 18 200; stroke-dashoffset: -51.355 }
-  39.576% { opacity: 1; stroke-dasharray: 22 200; stroke-dashoffset: -51.355 }
-  41.365%, 42.565% { opacity: 1; stroke-dasharray: 22 200; stroke-dashoffset: -55.419 }
-  44.325% { opacity: 1; stroke-dasharray: 26 200; stroke-dashoffset: -55.419 }
-  52.5%, 52.5% { opacity: 1; stroke-dasharray: 26 200; stroke-dashoffset: -74 }
-  55.5% { opacity: 1; stroke-dasharray: 16.591 200; stroke-dashoffset: -83.409 }
-  56.082% { opacity: 1; stroke-dasharray: 15.209 200; stroke-dashoffset: -84.791 }
-  56.616% { opacity: 1; stroke-dasharray: 13.826 200; stroke-dashoffset: -86.174 }
-  57.11% { opacity: 1; stroke-dasharray: 12.444 200; stroke-dashoffset: -87.556 }
-  57.57% { opacity: 1; stroke-dasharray: 11.061 200; stroke-dashoffset: -88.939 }
-  58.001% { opacity: 1; stroke-dasharray: 9.678 200; stroke-dashoffset: -90.322 }
-  58.406% { opacity: 1; stroke-dasharray: 8.296 200; stroke-dashoffset: -91.704 }
-  58.789% { opacity: 1; stroke-dasharray: 6.913 200; stroke-dashoffset: -93.087 }
-  59.152% { opacity: 1; stroke-dasharray: 5.53 200; stroke-dashoffset: -94.47 }
-  59.498% { opacity: 1; stroke-dasharray: 4.148 200; stroke-dashoffset: -95.852 }
-  59.83% { opacity: 1; stroke-dasharray: 2.765 200; stroke-dashoffset: -97.235 }
-  60.148% { opacity: 1; stroke-dasharray: 1.383 200; stroke-dashoffset: -98.617 }
-  60.454% { opacity: 1; stroke-dasharray: 0 200; stroke-dashoffset: -100 }
-  60.455% { opacity: 0; stroke-dasharray: 0 200; stroke-dashoffset: -100 }
-  100% { opacity: 0; stroke-dasharray: 0 200; stroke-dashoffset: 0 }
-}
-@keyframes snHead {
-  0% { opacity: 0; transform: translate(18px, 56px) scale(0) }
-  2.5%, 2.5% { opacity: 1; transform: translate(18px, 56px) scale(1) }
-  6.048%, 7.248% { opacity: 1; transform: translate(18px, 86px) scale(1) }
-  17.184%, 18.384% { opacity: 1; transform: translate(102px, 86px) scale(1) }
-  25.481%, 26.681% { opacity: 1; transform: translate(102px, 26px) scale(1) }
-  36.616%, 37.816% { opacity: 1; transform: translate(18px, 26px) scale(1) }
-  41.365%, 42.565% { opacity: 1; transform: translate(18px, 56px) scale(1) }
-  52.5% { opacity: 1; transform: translate(102px, 56px) scale(1) }
-  53.85% { opacity: 1; transform: translate(102px, 56px) scale(1.28) }
-  55.5% { opacity: 1; transform: translate(102px, 56px) scale(1) }
-  56.463% { opacity: 1; transform: translate(101.082px, 47.268px) scale(1) }
-  57.309% { opacity: 1; transform: translate(98.369px, 38.917px) scale(1) }
-  58.054% { opacity: 1; transform: translate(93.979px, 31.313px) scale(1) }
-  58.726% { opacity: 1; transform: translate(88.103px, 24.788px) scale(1) }
-  59.345% { opacity: 1; transform: translate(81px, 19.627px) scale(1) }
-  59.912% { opacity: 1; transform: translate(72.979px, 16.056px) scale(1) }
-  60.443% { opacity: 1; transform: translate(64.39px, 14.23px) scale(1) }
-  60.946% { opacity: 1; transform: translate(55.61px, 14.23px) scale(1) }
-  61.422% { opacity: 1; transform: translate(47.021px, 16.056px) scale(1) }
-  61.878% { opacity: 1; transform: translate(39px, 19.627px) scale(1) }
-  62.322% { opacity: 1; transform: translate(31.897px, 24.788px) scale(1) }
-  62.75% { opacity: 1; transform: translate(26.021px, 31.313px) scale(1) }
-  63.171% { opacity: 1; transform: translate(21.631px, 38.917px) scale(1) }
-  63.588% { opacity: 1; transform: translate(18.918px, 47.268px) scale(1) }
-  64% { opacity: 1; transform: translate(18px, 56px) scale(1) }
-  64.412% { opacity: 1; transform: translate(18.918px, 64.732px) scale(1) }
-  64.83% { opacity: 1; transform: translate(21.631px, 73.083px) scale(1) }
-  65.25% { opacity: 1; transform: translate(26.021px, 80.687px) scale(1) }
-  65.678% { opacity: 1; transform: translate(31.897px, 87.212px) scale(1) }
-  66.122% { opacity: 1; transform: translate(39px, 92.373px) scale(1) }
-  66.578% { opacity: 1; transform: translate(47.021px, 95.944px) scale(1) }
-  67.054% { opacity: 1; transform: translate(55.61px, 97.77px) scale(1) }
-  67.557% { opacity: 1; transform: translate(64.39px, 97.77px) scale(1) }
-  68.088% { opacity: 1; transform: translate(72.979px, 95.944px) scale(1) }
-  68.655% { opacity: 1; transform: translate(81px, 92.373px) scale(1) }
-  69.274% { opacity: 1; transform: translate(88.103px, 87.212px) scale(1) }
-  69.946% { opacity: 1; transform: translate(93.979px, 80.687px) scale(1) }
-  70.691% { opacity: 0.96; transform: translate(98.369px, 73.083px) scale(1) }
-  71.537% { opacity: 0.79; transform: translate(101.082px, 64.732px) scale(1) }
-  72.5% { opacity: 0.6; transform: translate(102px, 56px) scale(1) }
-  75.5% { opacity: 0; transform: translate(102px, 56px) scale(1) }
-  76%, 100% { opacity: 0; transform: translate(18px, 56px) scale(0) }
-}
-@keyframes snRing {
-  0%, 55.5% { opacity: 0; stroke-dashoffset: 100 }
-  55.501% { opacity: 1; stroke-dashoffset: 100 }
-  56.463% { opacity: 1; stroke-dashoffset: 96.667 }
-  57.309% { opacity: 1; stroke-dashoffset: 93.333 }
-  58.054% { opacity: 1; stroke-dashoffset: 90 }
-  58.726% { opacity: 1; stroke-dashoffset: 86.667 }
-  59.345% { opacity: 1; stroke-dashoffset: 83.333 }
-  59.912% { opacity: 1; stroke-dashoffset: 80 }
-  60.443% { opacity: 1; stroke-dashoffset: 76.667 }
-  60.946% { opacity: 1; stroke-dashoffset: 73.333 }
-  61.422% { opacity: 1; stroke-dashoffset: 70 }
-  61.878% { opacity: 1; stroke-dashoffset: 66.667 }
-  62.322% { opacity: 1; stroke-dashoffset: 63.333 }
-  62.75% { opacity: 1; stroke-dashoffset: 60 }
-  63.171% { opacity: 1; stroke-dashoffset: 56.667 }
-  63.588% { opacity: 1; stroke-dashoffset: 53.333 }
-  64% { opacity: 1; stroke-dashoffset: 50 }
-  64.412% { opacity: 1; stroke-dashoffset: 46.667 }
-  64.83% { opacity: 1; stroke-dashoffset: 43.333 }
-  65.25% { opacity: 1; stroke-dashoffset: 40 }
-  65.678% { opacity: 1; stroke-dashoffset: 36.667 }
-  66.122% { opacity: 1; stroke-dashoffset: 33.333 }
-  66.578% { opacity: 1; stroke-dashoffset: 30 }
-  67.054% { opacity: 1; stroke-dashoffset: 26.667 }
-  67.557% { opacity: 1; stroke-dashoffset: 23.333 }
-  68.088% { opacity: 1; stroke-dashoffset: 20 }
-  68.655% { opacity: 1; stroke-dashoffset: 16.667 }
-  69.274% { opacity: 1; stroke-dashoffset: 13.333 }
-  69.946% { opacity: 1; stroke-dashoffset: 10 }
-  70.691% { opacity: 1; stroke-dashoffset: 6.667 }
-  71.537% { opacity: 1; stroke-dashoffset: 3.333 }
-  72.5%, 96.5% { opacity: 1; stroke-dashoffset: 0 }
-  100% { opacity: 0; stroke-dashoffset: 0 }
-}
-@keyframes snCoil {
-  0%, 55.5% { opacity: 0; stroke-dasharray: 0 200; stroke-dashoffset: 0 }
-  55.501% { opacity: 1; stroke-dasharray: 0 200; stroke-dashoffset: 0 }
-  56.463% { opacity: 1; stroke-dasharray: 3.333 200; stroke-dashoffset: 0 }
-  57.309% { opacity: 1; stroke-dasharray: 6.667 200; stroke-dashoffset: 0 }
-  58.054% { opacity: 1; stroke-dasharray: 10 200; stroke-dashoffset: 0 }
-  58.726% { opacity: 1; stroke-dasharray: 13.333 200; stroke-dashoffset: 0 }
-  59.345% { opacity: 1; stroke-dasharray: 16.667 200; stroke-dashoffset: 0 }
-  59.912% { opacity: 1; stroke-dasharray: 20 200; stroke-dashoffset: 0 }
-  60.443% { opacity: 1; stroke-dasharray: 23.333 200; stroke-dashoffset: 0 }
-  60.946% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -3.278 }
-  61.422% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -6.612 }
-  61.878% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -9.945 }
-  62.322% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -13.278 }
-  62.75% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -16.612 }
-  63.171% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -19.945 }
-  63.588% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -23.278 }
-  64% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -26.612 }
-  64.412% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -29.945 }
-  64.83% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -33.278 }
-  65.25% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -36.612 }
-  65.678% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -39.945 }
-  66.122% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -43.278 }
-  66.578% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -46.612 }
-  67.054% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -49.945 }
-  67.557% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -53.278 }
-  68.088% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -56.612 }
-  68.655% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -59.945 }
-  69.274% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -63.278 }
-  69.946% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -66.612 }
-  70.691% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -69.945 }
-  71.537% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -73.278 }
-  72.5% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -76.612 }
-  73.375% { opacity: 1; stroke-dasharray: 15.668 200; stroke-dashoffset: -84.332 }
-  74.25% { opacity: 1; stroke-dasharray: 9.867 200; stroke-dashoffset: -90.133 }
-  75.125% { opacity: 1; stroke-dasharray: 5.71 200; stroke-dashoffset: -94.29 }
-  76% { opacity: 1; stroke-dasharray: 2.924 200; stroke-dashoffset: -97.076 }
-  76.875% { opacity: 1; stroke-dasharray: 1.233 200; stroke-dashoffset: -98.767 }
-  77.75% { opacity: 1; stroke-dasharray: 0.365 200; stroke-dashoffset: -99.635 }
-  78.625% { opacity: 1; stroke-dasharray: 0.046 200; stroke-dashoffset: -99.954 }
-  79.5% { opacity: 1; stroke-dasharray: 0 200; stroke-dashoffset: -100 }
-  79.501% { opacity: 0; stroke-dasharray: 0 200; stroke-dashoffset: -100 }
-  100% { opacity: 0; stroke-dasharray: 0 200; stroke-dashoffset: 0 }
-}
-@keyframes snSnap1 {
-  0%, 3% { opacity: 0; transform: scale(.6) }
-  5.5%, 6.048% { opacity: 1; transform: scale(1) }
-  9.048% { opacity: 0; transform: scale(1.9) }
-  100% { opacity: 0; transform: scale(.6) }
-}
-@keyframes snPing1 {
-  0% { opacity: 0; transform: scale(.5) }
-  6.048% { opacity: .55; transform: scale(.5) }
-  10.048% { opacity: 0; transform: scale(2.3) }
-  100% { opacity: 0; transform: scale(.5) }
-}
-@keyframes snSnap2 {
-  0%, 3.4% { opacity: 0; transform: scale(.6) }
-  5.9%, 17.184% { opacity: 1; transform: scale(1) }
-  20.184% { opacity: 0; transform: scale(1.9) }
-  100% { opacity: 0; transform: scale(.6) }
-}
-@keyframes snPing2 {
-  0% { opacity: 0; transform: scale(.5) }
-  17.184% { opacity: .55; transform: scale(.5) }
-  21.184% { opacity: 0; transform: scale(2.3) }
-  100% { opacity: 0; transform: scale(.5) }
-}
-@keyframes snSnap3 {
-  0%, 3.8% { opacity: 0; transform: scale(.6) }
-  6.3%, 25.481% { opacity: 1; transform: scale(1) }
-  28.481% { opacity: 0; transform: scale(1.9) }
-  100% { opacity: 0; transform: scale(.6) }
-}
-@keyframes snPing3 {
-  0% { opacity: 0; transform: scale(.5) }
-  25.481% { opacity: .55; transform: scale(.5) }
-  29.481% { opacity: 0; transform: scale(2.3) }
-  100% { opacity: 0; transform: scale(.5) }
-}
-@keyframes snSnap4 {
-  0%, 4.2% { opacity: 0; transform: scale(.6) }
-  6.7%, 36.616% { opacity: 1; transform: scale(1) }
-  39.616% { opacity: 0; transform: scale(1.9) }
-  100% { opacity: 0; transform: scale(.6) }
-}
-@keyframes snPing4 {
-  0% { opacity: 0; transform: scale(.5) }
-  36.616% { opacity: .55; transform: scale(.5) }
-  40.616% { opacity: 0; transform: scale(2.3) }
-  100% { opacity: 0; transform: scale(.5) }
-}
-@keyframes snSnap5 {
-  0%, 4.6% { opacity: 0; transform: scale(.6) }
-  7.1%, 41.365% { opacity: 1; transform: scale(1) }
-  44.365% { opacity: 0; transform: scale(1.9) }
-  100% { opacity: 0; transform: scale(.6) }
-}
-@keyframes snPing5 {
-  0% { opacity: 0; transform: scale(.5) }
-  41.365% { opacity: .55; transform: scale(.5) }
-  45.365% { opacity: 0; transform: scale(2.3) }
-  100% { opacity: 0; transform: scale(.5) }
-}
-@keyframes snPlan {
-  0% { opacity: 0 }
-  1.5%, 57% { opacity: 1 }
-  65%, 100% { opacity: 0 }
-}
-@keyframes snFace {
-  0%, 55.5% { opacity: 0 }
-  55.501%, 96.5% { opacity: 1 }
-  100% { opacity: 0 }
-}
-@keyframes snEye1 {
-  0%, 79% { opacity: 0; transform: scale(0) }
-  84%, 96.5% { opacity: 1; transform: scale(1) }
-  100% { opacity: 0; transform: scale(0) }
-}
-@keyframes snEye2 {
-  0%, 80.5% { opacity: 0; transform: scale(0) }
-  85.5%, 96.5% { opacity: 1; transform: scale(1) }
-  100% { opacity: 0; transform: scale(0) }
-}
-@keyframes snMouth {
-  0%, 83% { opacity: 0; stroke-dashoffset: 100 }
-  83.2% { opacity: 1; stroke-dashoffset: 100 }
-  90%, 100% { opacity: 1; stroke-dashoffset: 0 }
-}
-@keyframes snGreet {
-  0%, 89% { transform: scale(1) }
-  91.5% { transform: scale(1.035) }
-  94%, 100% { transform: scale(1) }
-}
-/* <<< gen_loadart bitiş */
+/* 3) plan — üç katman sırayla: dış duvar + orta bölme (tek kalem darbesi), sonra iç bölmeler,
+   en sonda kırpma imleri. pathLength=100 olduğu için dashoffset doğrudan "yüzde kaç
+   çizilmedi" demektir.
+   Sayılar CSS'te DEĞİL, app.js'te hesaplanır (--w1 · --w2 · --cw · --ok düz sayılardır).
+   Sebebi ölçülmüş bir kusurdur: clamp()/calc() ile yazıldığında tarayıcı ifadeyi YÜZDE
+   türünde çözüyor (hesaplanmış değer "0%" olarak çıkıyor) ve kesikli çizgi ölçüsü yol
+   uzunluğuna değil görüntü köşegenine bağlanıyordu. Düz sayı hem doğru, hem eski WebView
+   sürümlerinde güvenli, hem de sınamada okunabilir. Varsayılanlar TAMAMLANMIŞ hâldir. */
+.la-cad .w1, .la-cad .w2 { fill: none; stroke: var(--cad-dim); stroke-width: 2.2;
+                 stroke-linejoin: round; stroke-linecap: round; stroke-dasharray: 100; }
+.la-cad .w1 { stroke-dashoffset: var(--w1, 0); }
+.la-cad .w2 { stroke-dashoffset: var(--w2, 0); }
+.la-cad .crop  { fill: none; stroke: var(--cad-hi); stroke-width: 2.2; stroke-linecap: round;
+                 opacity: var(--cw, 1); }
 
+/* 4) bitti */
+.la-cad .okhalo { fill: var(--cad-hi); stroke: none; opacity: .1;
+                  transform-box: view-box; transform-origin: 60px 60px;
+                  animation: cadPulse 1.8s ease-in-out infinite alternate; }
+.la-cad .okring { fill: none; stroke: var(--cad-hi); stroke-width: 3.6; opacity: .85; }
+.la-cad .okmark { fill: none; stroke: var(--cad-hi); stroke-width: 5; stroke-linecap: round;
+                  stroke-linejoin: round; stroke-dasharray: 100; stroke-dashoffset: var(--ok, 0); }
+
+@keyframes cadPulse { from { transform: scale(.92); opacity: .05 } to { transform: scale(1); opacity: .12 } }
+@keyframes cadScan  { 0% { transform: translateY(0); opacity: 0 }
+                      12%, 88% { opacity: .9 }
+                      100% { transform: translateY(56px); opacity: 0 } }
 
 /* ---- 4. 'doc' — çok sayfalı belge dizgisi (3,2 s) ------------------------------------------ */
 /* Sayfa KALIR, içerik yeniden dizilir: satırlar soldan açılır, arkadaki ikinci sayfa dışarı
@@ -1385,6 +1116,30 @@ body.glove #loading .lbar { height: calc(11px * var(--fs)); }
   opacity: .26; transform: translateX(-100%);
   animation: lSheen 2.6s ease-in-out infinite;
 }
+
+/* Açılan dosyanın adı görselin üstünde; aşama başlığı ile karışmasın diye küçük ve soluktur */
+#loading .lfile { font-size: calc(12.5px * var(--fs)); color: var(--muted); margin-bottom: calc(10px * var(--fs));
+                  max-width: 86vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Dolumun ucunda gezen ışıklı nokta: çubuğun nerede olduğu bir bakışta görünür */
+/* Çubuğun dolumu görselle aynı iki renkten: bakış, çizimden çubuğa geçerken renk değiştirmez */
+#loading .lbar > i { background: linear-gradient(90deg, var(--cad-dim), var(--cad-hi)); }
+#loading .lbar > i::before {
+  content: ""; position: absolute; right: 0; top: 50%; width: calc(9px * var(--fs)); height: calc(9px * var(--fs));
+  transform: translate(45%, -50%); border-radius: 50%;
+  background: var(--cad-hi); box-shadow: 0 0 0 calc(3px * var(--fs)) color-mix(in srgb, var(--cad-hi) 30%, transparent);
+}
+@supports not (color: color-mix(in srgb, red 50%, blue)) { #loading .lbar > i::before { box-shadow: none; } }
+
+/* Aşama noktaları — dört iş aşaması; etkin olan büyür ve vurgu rengini alır */
+#loading .ldots { display: flex; gap: calc(7px * var(--fs)); margin-top: calc(12px * var(--fs)); }
+#loading .ldots > i { width: calc(6px * var(--fs)); height: calc(6px * var(--fs)); border-radius: 50%;
+                      background: var(--line); transition: background .2s linear, transform .2s linear; }
+#loading[data-cad="0"] .ldots > i:nth-child(1),
+#loading[data-cad="1"] .ldots > i:nth-child(2),
+#loading[data-cad="2"] .ldots > i:nth-child(3),
+#loading[data-cad="3"] .ldots > i:nth-child(4),
+#loading[data-cad="4"] .ldots > i { background: var(--cad-hi); transform: scale(1.25); }
 
 @keyframes lSheen { 0% { transform: translateX(-100%) } 55%, 100% { transform: translateX(220%) } }
 

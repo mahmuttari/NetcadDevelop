@@ -90,6 +90,7 @@ export default {
   yNorth: 'Y（北）', xEast: 'X（东）', latLbl: 'φ（纬度）', lonLbl: 'λ（经度）', positionLbl: '位置', drawingCoord: '图纸坐标', gpsOn: 'GPS 已开启', gpsOutside: '位置在图纸范围之外', gpsCheckCrs: '请检查坐标系 / 单位设置。',
   noXrefs: '此图纸没有外部参照或图像底图。', loadedMark: '已加载', insertsN: '次插入', imgLoadFail: '图像无法加载', noCamera: '无法访问摄像头', cameraFail: '无法打开摄像头', sheet: '图幅', pngFail: 'PNG 截图失败（底图的 CORS 限制）。请关闭底图后重试。',
   layersHiddenN: '个图层被冻结/关闭', noModelPrims: '模型空间中没有可绘制的对象。', seeXrefs: '更多 › 参照文件', solidsUnresolved: '个实体模型无法分面', seeSolidDiag: '图纸信息 › 分享实体诊断',
+  stgRead: '正在读取文件…', stgReadSub: '正在加载图纸数据', stgLayer: '正在处理图层…', stgLayerSub: '正在解析图层信息', stgGeom: '正在生成几何…', stgGeomSub: '正在准备图形对象', stgOpt: '正在优化图纸…', stgOptSub: '正在构建空间索引', stgView: '正在设置视图…', stgViewSub: '正在准备视口', stgDone: '图纸已就绪', stgDoneSub: '文件已成功打开',
   stageLib: '正在加载解析器（LibreDWG WebAssembly）…', stageParse: '正在解析文件…', stageScene: '正在准备图纸（展开块、展平几何）…', updateAsk: '要打开下载页面吗？', upToDate: '已是最新版本。', updateFail: '版本检查失败', manualElev: '（手动）', errLogTitle: 'DWG OfficeZip 错误日志', solidDiagTitle: 'DWG OfficeZip 实体诊断',
   aboutApp: '应用', aboutParser: '解析器', aboutParserText: 'LibreDWG（WebAssembly，@mlightcad/libredwg-web 0.7.10）；DXF：内置解析器', aboutSupported: '支持', aboutSupportedText: 'DWG R13 – 2018（AC1012 … AC1032）、ASCII DXF；查看、测量、编辑并另存为 DXF；三维视图（3DFACE、多面网格、MESH、3DSOLID/REGION/BODY — ACIS 三角化）；导出 PDF 和 PNG；查看 PDF、Word、Excel、ZIP 和 RAR',
   aboutLimits: '限制', aboutLimitsText: 'OLE 对象、二进制 DXF、SHX 字体（使用系统字体）', aboutUsage: '操作', aboutUsageText: '二维：单指平移 · 双指缩放 · 双击 2× · 点按查看对象信息 · 长按打开菜单。三维：单指环绕 · 双指平移/缩放 · 点按顶点进行测量',

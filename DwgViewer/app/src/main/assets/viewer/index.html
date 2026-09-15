@@ -341,35 +341,59 @@
          klasik .spinner görünür. Görseller süstür, anlam taşımaz — okuyucu #loadingText'i okur. -->
     <div class="loadart" aria-hidden="true">
 
-      <!-- 1) cad — mimari plan kendi kendini çiziyor: dış duvar → iç bölme → kapı yayı → kolon →
-           ölçü çizgisi. Bütün yollarda pathLength="100" var; dashoffset doğrudan "yüzde kaç
-           çizilmedi" demektir, uzunluk hesabı yapılmaz. -->
-      <!-- cad: kalem planı çizer, sonra kıvrılıp surata döner. Bütün zamanlama app.css'te ve
-           tools/gen_loadart.mjs tarafından ÜRETİLİR; buradaki tek iş geometriyi vermek.
-           Plan yolu bir Euler yoludur: dış duvar + y=56'daki iç bölme, hiçbir duvar iki kez
-           geçilmeden. Yolun bittiği nokta (102,56) ile yüz çemberinin başladığı nokta AYNIdır,
-           bu yüzden kalem durmadan plandan çembere geçer. -->
+      <!-- 1) cad — AŞAMALI açılış görseli. Ötekilerden farkı şudur: bu görsel bir döngü
+           değil, GERÇEK İLERLEMENİN resmidir. app.js yüzdeye göre #loading'e data-cad="0..4"
+           koyar (0 dosya · 1 katmanlar · 2 geometri · 3 plan · 4 bitti) ve aşamanın kendi
+           içindeki oranı --t değişkeniyle verir. Böylece görsel "çalışıyor" demez, NEREDE
+           OLDUĞUNU söyler. Sürekli dönen tek şey nabız ile tarama çizgisidir. -->
       <svg class="la la-cad" viewBox="0 0 120 120" focusable="false">
-        <g class="plan"><path class="trail" pathLength="100" d="M18 56 V86 H102 V26 H18 V56 H102"/></g>
-        <!-- köşelerdeki yakalama imleri: CAD'in uç nokta karesi + yakalandığında açılan halka -->
-        <g class="snaps">
-          <circle class="pg g1" cx="18"  cy="86" r="7"/><rect class="sq q1" x="13.5" y="81.5" width="9" height="9"/>
-          <circle class="pg g2" cx="102" cy="86" r="7"/><rect class="sq q2" x="97.5" y="81.5" width="9" height="9"/>
-          <circle class="pg g3" cx="102" cy="26" r="7"/><rect class="sq q3" x="97.5" y="21.5" width="9" height="9"/>
-          <circle class="pg g4" cx="18"  cy="26" r="7"/><rect class="sq q4" x="13.5" y="21.5" width="9" height="9"/>
-          <circle class="pg g5" cx="18"  cy="56" r="7"/><rect class="sq q5" x="13.5" y="51.5" width="9" height="9"/>
+        <circle class="halo" cx="60" cy="60" r="52"/>
+        <circle class="rim"  cx="60" cy="60" r="42"/>
+
+        <!-- 0) dosya açılıyor / okunuyor: kıvrık köşeli pafta, üstünde tarayan ışık -->
+        <g class="st s0">
+          <path class="sheet" d="M47 32 H68 L80 44 V88 H40 V40 Z"/>
+          <path class="fold"  d="M68 32 V44 H80"/>
+          <path class="ln"    d="M47 55 H73 M47 62 H73 M47 69 H66"/>
+          <rect class="badge" x="40" y="75" width="40" height="11" rx="3"/>
+          <path class="tick"  d="M46 80.5 H52 M56 80.5 H62 M66 80.5 H72"/>
+          <path class="scan"  d="M34 32 H86"/>
         </g>
-        <path class="glow"  pathLength="100" d="M18 56 V86 H102 V26 H18 V56 H102"/>
-        <path class="snake" pathLength="100" d="M18 56 V86 H102 V26 H18 V56 H102"/>
-        <g class="smile">
-          <path class="ring" pathLength="100" d="M102 56 A42 42 0 0 0 18 56 A42 42 0 0 0 102 56"/>
-          <rect class="eye e1" x="41" y="39" width="10" height="10" rx="2"/>
-          <rect class="eye e2" x="69" y="39" width="10" height="10" rx="2"/>
-          <path class="mouth" pathLength="100" d="M41 63 A23 23 0 0 0 79 63"/>
+
+        <!-- 1) katmanlar: dört eşkenar levha, --t ile açılır -->
+        <g class="st s1">
+          <path class="ply" d="M32 40 L60 33 L88 40 L60 47 Z"/>
+          <path class="ply" d="M30 53 L60 46 L90 53 L60 60 Z"/>
+          <path class="ply" d="M28 66 L60 59 L92 66 L60 73 Z"/>
+          <path class="ply on" d="M26 79 L60 72 L94 79 L60 86 Z"/>
         </g>
-        <path class="coilGlow" pathLength="100" d="M102 56 A42 42 0 0 0 18 56 A42 42 0 0 0 102 56"/>
-        <path class="coil"     pathLength="100" d="M102 56 A42 42 0 0 0 18 56 A42 42 0 0 0 102 56"/>
-        <g class="pen"><circle class="aperture" r="8.4"/><circle class="nib" r="3.8"/></g>
+
+        <!-- 2) geometri: taban + eksen sabit, dikmeler ve çatı --t ile yükselir -->
+        <g class="st s2">
+          <path class="base" d="M26 82 H94"/>
+          <path class="axis" d="M60 52 V90"/>
+          <g class="rise">
+            <path class="col" d="M26 82 V53 M43 82 V38 M60 82 V47 M77 82 V32 M94 82 V44"/>
+            <path class="roof" d="M26 53 L60 47 L94 44"/>
+          </g>
+        </g>
+
+        <!-- 3) plan: önce dış duvar ile orta bölme TEK KALEM DARBESİYLE (bir Euler yolu —
+             hiçbir duvar iki kez geçilmez), sonra iki iç bölme, en sonda kırpma imleri.
+             Kesikli çizgi SVG'de her alt yolda yeniden başlar; bu yüzden sıra, tek bir yola
+             yığmakla değil, katmanların --t içindeki payını kaydırmakla kurulur. -->
+        <g class="st s3">
+          <path class="w1" pathLength="100" d="M24 60 V87 H96 V33 H24 V60 H96"/>
+          <path class="w2" pathLength="100" d="M50 33 V60 M73 60 V87"/>
+          <path class="crop" d="M18 27 H32 M18 27 V41 M102 93 H88 M102 93 V79"/>
+        </g>
+
+        <!-- 4) bitti: nabızlı halka ve onay imi -->
+        <g class="st s4">
+          <circle class="okhalo" cx="60" cy="60" r="34"/>
+          <circle class="okring" cx="60" cy="60" r="27"/>
+          <path class="okmark" pathLength="100" d="M47 60 L56 69 L76 47"/>
+        </g>
       </svg>
 
       <!-- 2) doc — çok sayfalı belge dizgisi. .mir sarmalayıcısının kendi animasyonu yoktur;
@@ -434,6 +458,9 @@
 
     </div>
     <div class="spinner"></div>
+    <!-- Açılan dosyanın adı görselin ÜSTÜNDE durur; başlık ile alt başlık aşamayı anlatır,
+         böylece "ne açılıyor" ile "şu an ne yapılıyor" birbirine karışmaz. -->
+    <div id="loadingFile" class="lfile" hidden></div>
     <div id="loadingText" data-i18n="loading">Yükleniyor…</div>
     <div id="loadingSub" class="sub"></div>
     <!-- İlerleme yüzdesi yalnız gerçek bir ölçü varken görünür (indirmede bayt/toplam, DXF ve sahne kurmada
@@ -443,6 +470,9 @@
       <div class="lbar" role="progressbar" aria-labelledby="loadingText" aria-valuemin="0" aria-valuemax="100"><i id="loadingFill"></i></div>
       <span id="loadingPct" class="lpct">%0</span>
     </div>
+    <!-- Aşama noktaları: dört iş aşaması (dosya · katman · geometri · plan). Süstür, okuyucu
+         aşamayı #loadingText'ten okur. -->
+    <div id="loadingDots" class="ldots" aria-hidden="true" hidden><i></i><i></i><i></i><i></i></div>
     <button id="loadingCancel" class="btn small" type="button" data-i18n="cancel">Vazgeç</button>
   </div>
 
