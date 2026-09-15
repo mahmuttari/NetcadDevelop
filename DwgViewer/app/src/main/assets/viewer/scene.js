@@ -1038,7 +1038,20 @@ export class SceneBuilder {
     const st = this.style(e, ctx), info = ctx.info || this.info(e, st);
     const c2 = { ...ctx, info };
     const dv = new DataView(g.buffer, g.byteOffset, g.byteLength), N = g.length;
+    /*
+     * Metafile başlığı (ODA bölüm 29): akış [RL toplam uzunluk][RL kayıt sayısı] ile açılır ve kayıtlar
+     * ancak 8. bayttan sonra gelir. 0. bayttan okumak başlığı kaydın kendisi sanır: "boy" bütün tamponu
+     * gösterdiği için akış tek sahte kayıtta yutulur, "tür" ise kayıt sayısı olur ve rastgele bir dala
+     * düşer (MARFEN'de 10 varlıkta case 6 → matris baytları nokta sanılıp 1e+306 koordinat üretiyordu).
+     * Başlıksız yazan üreticiler de var, bu yüzden atlama deneme yürüyüşüyle doğrulanır: 8. bayttan
+     * yürünen kayıtlar tam N'de kapanmalı ve sayıları başlıktaki sayıya eşit olmalıdır.
+     */
     let p = 0;
+    if (N >= 16 && dv.getInt32(0, true) === N) {
+      let q = 8, n = 0;
+      while (q + 8 <= N) { const s2 = dv.getInt32(q, true); if (s2 < 8 || q + s2 > N) { n = -1; break; } q += s2; n++; }
+      if (n > 0 && q === N && n === dv.getInt32(4, true)) p = 8;
+    }
     const rl = () => { const v = dv.getInt32(p, true); p += 4; return v; };
     const rd = () => { const v = dv.getFloat64(p, true); p += 8; return v; };
     const pt = () => [rd(), rd(), rd()];
@@ -1058,11 +1071,21 @@ export class SceneBuilder {
       const pr = { k: 0, ops, closed: !!closed, fill: !!(face && fillOn), face: !!face, alpha: 1, w: 0, col: colNow(), lay, lt: st.lt, lts: st.lts, lw: st.lw, bb: opsBBox(ops), info, et: 'ACAD_PROXY_ENTITY' };
       this.prims.push(pr); this.layerOf(lay).count++;
     };
-    const pushTri = (a, b, c) => {
-      const A = P(a), B = P(b), C = P(c);
-      const ops = [[0, A[0], A[1], A[2]], [1, B[0], B[1], B[2]], [1, C[0], C[1], C[2]]];
-      this.prims.push({ k: 0, ops, closed: true, face: true, tri: true, fill: false, alpha: 1, w: 0, col: colNow(), lay, lt: null, lts: 1, lw: 0, bb: opsBBox(ops), info, et: 'ACAD_PROXY_ENTITY' });
+    /*
+     * Yüzey çıktısı sıkışık ağ ilkeline (k=5) yazılır: üçgen başına bir JS nesnesi değil, renk başına tek
+     * ilkel ve yazılı diziler. MARFEN pompalarında proxy grafiği tek başına 429.188 üçgen veriyor; nesne
+     * başına ~450 baytla bu ~280 MB ederdi, yazılı dizilerle ~9 MB'a iniyor. Köşeler kabuk kaydı boyunca
+     * paylaşılır (aynı köşe nesnesi ikinci kez yazılmaz).
+     */
+    const meshBuf = new Map();
+    const bufOf = () => { const c = colNow(); const kk = c == null ? 'x' : String(c); let b = meshBuf.get(kk); if (!b) { b = { col: c, vtx: [], idx: [], seg: [] }; meshBuf.set(kk, b); } return b; };
+    let shareV = false;                                       // kabuk kaydı içinde köşe paylaşımı
+    const vidx = (B, q) => {
+      if (shareV) { const mm = B.vm || (B.vm = new Map()); const j = mm.get(q); if (j != null) return j; const w = P(q); const k2 = B.vtx.length / 3; B.vtx.push(w[0], w[1], w[2]); mm.set(q, k2); return k2; }
+      const w = P(q); const k2 = B.vtx.length / 3; B.vtx.push(w[0], w[1], w[2]); return k2;
     };
+    const pushTri = (a, b, c) => { const B = bufOf(); const i0 = vidx(B, a), i1 = vidx(B, b), i2 = vidx(B, c); B.idx.push(i0, i1, i2); };
+    const pushSeg = (pts) => { if (!pts || pts.length < 2) return; const B = bufOf(); let prev = P(pts[0]); for (let i = 1; i < pts.length; i++) { const w = P(pts[i]); B.seg.push(prev[0], prev[1], prev[2], w[0], w[1], w[2]); prev = w; } };
     /** 3B çokgen (delikli olabilir) → üçgenler: Newell düzlemine izdüşüm + kulak kesme */
     const faceTris = (loops) => {
       if (!loops.length) return;
@@ -1114,8 +1137,8 @@ export class SceneBuilder {
     let guard = 0;
     while (p + 8 <= N && guard++ < 5000000) {
       const start = p, size = rl(), type = rl();
-      const end = size >= 8 ? start + size : start + 8 + size;
-      if (size <= 0 || end > N) break;
+      const end = start + size;                               // ölçüldü: boy 8 baytlık kayıt başlığını İÇERİR
+      if (size < 8 || end > N) break;                         // 1-7 arası bozuk boy akışı hizasız kaydırırdı
       try {
         switch (type) {
           case 2: { const c = pt(), r = rd(), n = pt(); pushPath(circlePts(c, r, n, null, 0, TAU, 48), true, fillOn); break; }
@@ -1139,18 +1162,38 @@ export class SceneBuilder {
             const faces = []; let i = 0, prevNeg = true;
             while (i < F.length) { const c = F[i++]; const k = Math.abs(c); if (!k || i + k > F.length) break; const loop = []; for (let q = 0; q < k; q++) { const ix = F[i++]; if (ix >= 0 && ix < nv) loop.push(V[ix]); } if (c < 0 && !prevNeg && faces.length) faces[faces.length - 1].push(loop); else faces.push([loop]); prevNeg = c < 0; }
             // kenar öznitelikleri (görünürlük) ve yüz renkleri
+            /*
+             * Öznitelik blokları: kenar, yüz ve KÖŞE için sırayla birer bayrak sözcüğü gelir. Her kurulu bit
+             * öğe başına 4 bayt taşır; 7. bit (0x80) normaldir ve öğe başına 3 double (24 bayt) tutar.
+             * Bilinen bit okunur, kalanı bayrağından türetilen boyla atlanır — köşe sözcüğü hiç okunmadığı
+             * için MARFEN kabuklarında (köşe bayrağı 0x80) kayıt sonu şaşıyordu.
+             */
             let edgeVis = null, faceCol = null;
             let nEdges = 0; for (const f of faces) for (const l of f) nEdges += l.length;
-            if (p + 4 <= end) { const ef = rl(); if (ef & 0xffff) { if (ef & 1) p += 4 * nEdges; if (ef & 2) p += 4 * nEdges; if (ef & 4) p += 4 * nEdges; if (ef & 0x20) p += 4 * nEdges; if (ef & 0x40) { edgeVis = []; for (let q = 0; q < nEdges && p + 4 <= end; q++) edgeVis.push(rl()); } } }
-            if (p + 4 <= end) { const ff = rl(); if (ff & 0xffff) { if (ff & 1) { faceCol = []; for (let q = 0; q < faces.length && p + 4 <= end; q++) faceCol.push(rl()); } } }
+            const attrs = (flags, cnt, want) => {
+              let got = null;
+              for (let k = 0; k < 16 && p < end; k++) {
+                if (!(flags & (1 << k))) continue;
+                if ((1 << k) === want) { got = []; for (let q = 0; q < cnt && p + 4 <= end; q++) got.push(rl()); }
+                else p += (k === 7 ? 24 : 4) * cnt;
+              }
+              if (p > end) p = end;
+              return got;
+            };
+            if (p + 4 <= end) edgeVis = attrs(rl(), nEdges, 0x40);
+            if (p + 4 <= end) faceCol = attrs(rl(), faces.length, 0x01);
+            if (p + 4 <= end) attrs(rl(), nv, 0);              // köşe öznitelikleri (normal vb.): atlanır
             let ei = 0; const saveCol = col; const loops = [], loopHid = [];
+            shareV = true;
             faces.forEach((f, fi) => {
               if (faceCol && faceCol[fi] != null) { const cv = faceCol[fi]; col = (cv > 0 && cv < 256) ? ACI[cv] : (cv > 256 ? (cv & 0xffffff) : saveCol); }
               faceTris(f);
-              for (const l of f) { const hid = []; for (let q = 0; q < l.length; q++) { const vis = edgeVis ? edgeVis[ei] : 1; ei++; hid.push(vis === 0); } loops.push(l); loopHid.push(hid); }
+              // AcGi kenar görünürlüğü: 0 = görünmez, 1 = görünür, 2 = siluet (üçgenleme kenarı, tel kafes olarak çizilmez)
+              for (const l of f) { const hid = []; for (let q = 0; q < l.length; q++) { const vis = edgeVis && edgeVis[ei] != null ? edgeVis[ei] : 1; ei++; hid.push(vis !== 1); } loops.push(l); loopHid.push(hid); }
             });
             col = saveCol;
-            for (const e2 of meshEdges(loops, loopHid)) pushPath(e2, false, false);   // kabuk kenarları: sınır + kırışıklık, eş düzlemli çaprazlar gizli
+            for (const e2 of meshEdges(loops, loopHid)) pushSeg(e2);   // kabuk kenarları: sınır + kırışıklık, eş düzlemli çaprazlar gizli
+            shareV = false; for (const B of meshBuf.values()) B.vm = null;
             break;
           }
           case 10: case 36: { const sp = pt(); pt(); const dir = pt(); const h = rd(); rd(); rd(); const txt = type === 36 ? pus() : ps(); if (txt && h > 0) { const w = P(sp); this.pushText(w[0], w[1], h, Math.atan2(dir[1], dir[0]), mtextLines(txt), 0, 0, 1, e, c2, { z: w[2], col: colNow() }); } break; }
@@ -1165,7 +1208,21 @@ export class SceneBuilder {
       } catch (_) { /* bozuk kayıt: sonrakine geç */ }
       p = end;
     }
+    for (const B of meshBuf.values()) {
+      if (!B.idx.length && !B.seg.length) continue;
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+      const grow = (a) => { for (let k = 0; k < a.length; k += 3) { const x = a[k], y = a[k + 1], z = a[k + 2];
+        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; if (z < z0) z0 = z; if (z > z1) z1 = z; } };
+      grow(B.vtx); grow(B.seg);
+      if (!isFinite(x0)) continue;
+      this.prims.push({ k: 5, vtx: new Float32Array(B.vtx), idx: new Uint32Array(B.idx), seg: new Float32Array(B.seg),
+        bb: [x0, y0, x1, y1], zmin: z0, zmax: z1, face: true, alpha: 1, w: 0,
+        col: B.col != null ? B.col : st.col, lay, lt: null, lts: 1, lw: st.lw, info, et: 'ACAD_PROXY_ENTITY' });
+      this.layerOf(lay).count++;
+    }
     this.count('ACAD_PROXY_ENTITY_GRAFIK');
+    // LibreDWG'nin çözemediği sınıf: dosya bilgisinde gerçek adıyla görünsün (ör. SURFACE)
+    if (e.unknownClass && e.dxfName) this.count(e.dxfName + ' (önizleme grafiği)');
   }
   /** katı tanılaması: dosya bilgisinde gösterilir (yüzey türleri, atlanan yüzler, bilinmeyen SAB etiketleri, hatalar) */
   solidDiag(e, t, err) {

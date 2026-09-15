@@ -83,7 +83,7 @@ export function initHome(a) {
   const hb = $('homeBack'); if (hb) hb.addEventListener('click', () => setTab('ev'));
   const hh = $('homeHomeBtn'); if (hh) hh.addEventListener('click', () => setTab('ev'));
   // Bellekteki çizime dönüş: dosya kapanmadı, yalnız ana ekran üstüne geldi.
-  const rb = $('homeResumeBtn'); if (rb) rb.addEventListener('click', () => hide());
+  const rb = $('homeResumeBtn'); if (rb) rb.addEventListener('click', () => call(api.resumeOpen));
   // Örnek çizim: ana ekran kapanır, dosya APK içinden okunup açılır.
   const sl = $('sampleList'); if (sl) sl.addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-ornek]'); if (!b) return;
@@ -113,10 +113,12 @@ export function show() {
  */
 export function renderResume() {
   const box = $('homeResume'); if (!box) return;
-  const ad = call(api.currentName) || '';
-  const var_ = !!ad;
-  box.hidden = !var_;
-  if (var_) { const nm = $('homeResumeName'); if (nm) nm.textContent = ad; }
+  const r = call(api.resumeInfo) || null;
+  box.hidden = !r;
+  if (!r) return;
+  const nm = $('homeResumeName'); if (nm) nm.textContent = r.ad;
+  // Bellekteki çizim anında döner; kayıtlı oturum yeniden açılır — düğme bunu söyler.
+  const bt = $('homeResumeBtn'); if (bt) { const sp = bt.querySelector('span'); if (sp) sp.textContent = t(r.bellek ? 'resumeOpen' : 'resumeReopen'); }
 }
 export function hide() {
   const home = $('home'); if (!home) return;

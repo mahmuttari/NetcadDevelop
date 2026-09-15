@@ -10,7 +10,11 @@ import { args, startServer, launchBrowser, noUpdate, checker, PHONE } from './ha
 const { out } = args(import.meta.url);
 const C = checker(), ok = C.ok;
 const errors = [];
-const N = 200000;          // gerçek büyük paftalarda ilkel sayısı bu mertebededir
+// Ölçü, makine hızından bağımsız olmalı. 200.000 ilkelde eşzamanlı kurucu bu ortamda 100-130 ms
+// kilitliyordu; kabul sınırı 120 ms olduğu için B1 (sınamanın ölçtüğü şey gerçek mi) kâh geçiyor
+// kâh kalıyordu. 400.000'de kilit sınırın iki katını aşıyor ve denetim hızlı makinede de anlamlı
+// kalıyor. Gerçek büyük paftalarda ilkel sayısı zaten bu mertebededir (MARFEN 2B: 132.272).
+const N = 400000;
 const KILIT = 120;         // kabul edilen en uzun kilit (ms) — bunun üstü gözle "dondu" olur
 
 const srv = await startServer();

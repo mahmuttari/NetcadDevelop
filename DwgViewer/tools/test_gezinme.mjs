@@ -149,12 +149,21 @@ try { await page.click('#tourSkip', { timeout: 2000 }); } catch (_) { /* tur yok
   ok('F2 geri yükleme başarısızsa kayıt siliniyor',
     /if \(!S\.hasDoc && !Docs\.isOpen\(\)\) \{ try \{ A\(\)\.forgetLastSession\(\)/.test(js));
   ok('F3 Android son oturumu kalıcı yazıyor', /private void sonOturumYaz\(/.test(java) && /prefs\(\)\.edit\(\)[\s\S]{0,120}"sonUri"/.test(java));
-  ok('F4 getPendingFile bellekte dosya yoksa son oturuma düşüyor',
-    /if \(!prefs\(\)\.getBoolean\("resumeLast", true\)\) return "";/.test(java) && /if \(!sonOturumYukle\(\)\) return "";/.test(java));
+  ok('F4 getPendingFile son oturuma yalnız ayar AÇIKKEN düşüyor (varsayılan kapalı)',
+    /if \(!prefs\(\)\.getBoolean\("resumeLast", false\)\) return "";/.test(java) && /if \(!sonOturumYukle\(\)\) return "";/.test(java));
   ok('F5 okunamayan dosyada kayıt siliniyor (izin geri alınmış / dosya silinmiş)',
     /sonOturumSil\(\); return false;/.test(java));
   ok('F6 ayar açılabilir/kapanabilir', /setResumeLast\(boolean on\)/.test(java) && /getResumeLast\(\)/.test(java) && /sResume/.test(js));
   ok('F7 goHome açık belgeyi KAPATMIYOR', /function goHome\(\) \{ closeMenu\(\); Home\.show\(\); \}/.test(js));
+  // Açılışta kendiliğinden dosya açılmaz: son oturum karta düşer, kullanıcı karar verir.
+  ok('F10 son oturum açılışta KENDİLİĞİNDEN yüklenmiyor (varsayılan kapalı)',
+    /prefs\(\)\.getBoolean\("resumeLast", false\)/.test(java) && /getResumeLast\(\) \{ return prefs\(\)\.getBoolean\("resumeLast", false\); \}/.test(java));
+  ok('F11 son oturum karta sunuluyor ve yalnız dokununca açılıyor',
+    /lastSessionInfo\(\)/.test(java) && /openLastSession\(\)/.test(java)
+    && /a\.lastSessionInfo\(\)/.test(js) && /a\.openLastSession\(\)/.test(js));
+  ok('F12 kart iki kaynağı ayırıyor: bellekteki çizim anında döner, kayıtlı oturum yeniden açılır',
+    /function resumeInfo\(\)/.test(js) && /bellek: true/.test(js) && /bellek: false/.test(js)
+    && /if \(r\.bellek\) \{ Home\.hide\(\); return; \}/.test(js));
   ok('F8 sistem geri tuşu ayrı yoldan gidiyor (onBack sözleşmesi bozulmadı)',
     /function onBackSystem\(\) \{[\s\S]{0,600}goHome\(\); return true;/.test(js)
     && /window\.dwgApp\.onBackSystem \? window\.dwgApp\.onBackSystem\(\)/.test(java));

@@ -209,6 +209,8 @@ function synthesizeDropped(lib, db, byType, ownerOf, hex) {
           let g = null; try { g = lib.dwg_entity_get_preview(o); } catch (_) { /* yok */ }
           if (!g || !g.length) continue;
           e.graphics = g instanceof Uint8Array ? new Uint8Array(g) : new Uint8Array(Array.from(g)); e.unknownClass = t === 65534;
+          // sınıfın gerçek DXF adı (ör. SURFACE): dosya bilgisinde hangi varlığın çözülemediği görünsün
+          if (t === 65534) { try { const dn = lib.dwg_object_get_dxfname(o); if (dn) e.dxfName = String(dn); } catch (_) { /* ad yok */ } }
         }
         const rec = ownerH ? recByHandle.get(ownerH) : null;
         if (rec) { if (!rec.entities) rec.entities = []; rec.entities.push(e); if (/^\*MODEL_SPACE$/i.test(rec.name || '') && Array.isArray(db.entities) && db.entities !== rec.entities) db.entities.push(e); }

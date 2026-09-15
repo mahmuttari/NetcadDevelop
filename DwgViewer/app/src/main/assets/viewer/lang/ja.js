@@ -58,6 +58,7 @@ export default {
   docFail: 'ドキュメントを開けませんでした', docOffice: 'Office ドキュメント', docImage: '画像', docText: 'テキスト', docOpenWith: '別のアプリで開く', share: '共有', docKeep: 'オフラインで保存', docKept: 'オフラインコピーを保存しました（ファイルを開く › オフライン）', docKeepFail: 'コピーできませんでした', docEmpty: '空のドキュメント', docUnknown: '認識できないファイル形式です。',
   docOfficeMsg: 'この形式は直接表示できません。Google ドライブにログインしていれば PDF に変換して開けます。そうでなければ別のアプリに送ってください。', prevPage: '前のページ', nextPage: '次のページ', fitWidth: '合わせる', docLayoutPage: 'ページ表示', docLayoutFlow: '連続表示', docPage: 'ページ', docFlow: '連続', files: '個のファイル', extracting: '展開中', wrap: '折り返し', lines: '行', backToArchive: '書庫に戻る',
   resumeTitle: '前回の続きから', resumeOpen: '図面に戻る', resumeKeep: '起動時に最後のファイルを再度開く',
+  resumeReopen: '開き直す', resumeAuto: '起動時に最後のファイルを自動で開く',
   samplesTitle: 'サンプル図面', sample2d: '2D 配置図', sample3d: '3D 設備モデル',
   docEdit: '編集', editPan: '手のひら', editPen: 'ペン', editHi: 'マーカー', editText: '文字', editStamp: 'スタンプ', editErase: '消しゴム', editRotL: '左に回転', editDelPage: 'ページを削除', editSave: '保存', editBold: '太字', editItalic: '斜体', editUnderline: '下線', editAlignL: '左揃え', editAlignC: '中央揃え', editAlignR: '右揃え', editFind: '検索と置換',
   editTextLabel: '文字', editStampText: '承認済み', editFindWhat: '検索する文字列', editReplaceWith: '置換後の文字列', editReplaced: '件を置換しました', editDelPageAsk: 'このページを出力から外しますか？', editLastPage: '最後のページは削除できません', editDiscardAsk: '変更を破棄しますか？',

@@ -101,6 +101,10 @@ public class MainActivity extends androidx.activity.ComponentActivity {
 
     // geçerli dosya
     private Uri currentUri;
+    /** bu açılışta intent'le gelen dosya var mı: 'bekleyen dosya' yalnız budur */
+    private boolean intentBekliyor;
+    /** render süreci çöktükten sonra açık dosya BİR KEZ geri yüklenir (döngüye girmesin diye sayılır) */
+    private int cokmeKurtarma;
     private File currentFile;
     private String currentName;
     private long currentSize;
@@ -181,6 +185,10 @@ public class MainActivity extends androidx.activity.ComponentActivity {
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, cb);
         }
 
+        // 7.46'da 'son oturumu geri yükle' varsayılanı açıktı ve Ayarlar bir kez kaydedilmişse
+        // tercihlere true yazılmış olabilir; 7.47'de varsayılan kapalı olduğundan tek seferlik silinir
+        if (prefs().getInt("prefsSurum", 0) < 70) prefs().edit().remove("resumeLast").putInt("prefsSurum", 70).apply();
+
         // yeniden yaratılmada geçerli dosya durumdan geri alınır; zaten işlenmiş intent (giriş dönüşü vb.) yeniden işlenmez
         if (savedInstanceState == null) handleIntent(getIntent()); else restoreState(savedInstanceState);
         webView.loadUrl(START_URL);
@@ -248,7 +256,11 @@ public class MainActivity extends androidx.activity.ComponentActivity {
                 if (loadOverlay != null) { loadOverlay.unut(); }
                 createWebView();           // setContentView eskisini ağaçtan düşürür
                 old.destroy();
-                webView.loadUrl(START_URL); // sayfa açılınca geçerli dosyayı getPendingFile ile yeniden çeker
+                // Çökme kurtarması: açık dosya sayfa yeniden yüklenince BİR KEZ geri açılır. İkinci
+                // çökmede denenmez — ağır bir model bellek yetmediği için çöküyorsa sonsuz döngü olurdu;
+                // o durumda ana ekran açılır ve dosya devam kartında tek dokunuş uzakta durur.
+                if ((currentUri != null || currentFile != null) && cokmeKurtarma == 0) cokmeKurtarma = 1; else cokmeKurtarma = 2;
+                webView.loadUrl(START_URL); // sayfa açılınca bekleyen dosyayı getPendingFile ile çeker
                 return true;
             }
         });
@@ -272,7 +284,7 @@ public class MainActivity extends androidx.activity.ComponentActivity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        if (handleIntent(intent)) pushCurrentFile(); // yalnız yeni dosya geldiyse; giriş dönüşü ve simge tıklaması yüklemez
+        if (handleIntent(intent)) { pushCurrentFile(); intentBekliyor = false; } // yalnız yeni dosya geldiyse; giriş dönüşü ve simge tıklaması yüklemez
     }
 
     /** true: intent'ten yeni bir dosya alındı */
@@ -300,6 +312,7 @@ public class MainActivity extends androidx.activity.ComponentActivity {
         }
         if (uri == null) return false;
         setCurrent(uri, false);
+        intentBekliyor = true;
         return true;
     }
 
@@ -974,27 +987,55 @@ public class MainActivity extends androidx.activity.ComponentActivity {
         @JavascriptInterface public void pickFiles(String purpose, String mime) { runOnUiThread(() -> openPicker(purpose, mime, true)); }
 
         /**
-         * Sayfa açılırken JS'in soracağı dosya. Bellekte bir dosya yoksa SON OTURUM geri
-         * yüklenir: kullanıcı uygulamadan çıkıp döndüğünde çizim kendiliğinden açılır.
-         * "resume" alanı bunun geri yükleme olduğunu söyler; JS tarafı ayarla kapatabilir.
+         * Sayfa açılırken JS'in soracağı dosya. YALNIZ gerçekten bekleyen bir dosya varsa
+         * (paylaşım, dosya seçici, son dosyalar) döner.
+         *
+         * Son oturum BURADAN AÇILMAZ. Bir süre öyleydi ve yanlıştı: kullanıcı 27 MB'lık bir
+         * modeli bir kez açtıktan sonra uygulama her açılışta onu yeniden çözümlüyordu,
+         * istemediği hâlde. Son oturum artık ana ekrandaki "Kaldığınız yerden devam edin"
+         * kartıyla sunulur (lastSessionInfo) ve yalnız kullanıcı dokununca yüklenir
+         * (openLastSession). Otomatik açılış isteyen için ayar durur, varsayılanı KAPALI.
          */
         @JavascriptInterface
         public String getPendingFile() {
             boolean resume = false;
-            if (currentUri == null && currentFile == null) {
-                if (!prefs().getBoolean("resumeLast", true)) return "";
+            // Bekleyen dosya YALNIZ bu açılışta gelen paylaşım/aç-ile intent'idir. currentUri/currentFile
+            // bellekte kalmış (singleTask yeniden teslim) ya da onSaveInstanceState'ten geri kurulmuş
+            // olabilir; o durumda uygulama kullanıcı dokunmadan çizimle açılırdı. Ayarı açmadıysa ana
+            // ekran korunur, dosya 'kaldığınız yerden devam edin' kartında tek dokunuş uzakta durur.
+            boolean kurtarma = cokmeKurtarma == 1 && (currentUri != null || currentFile != null);
+            if (kurtarma) cokmeKurtarma = 2;
+            if (!intentBekliyor && !kurtarma) {
+                if (!prefs().getBoolean("resumeLast", false)) return "";
                 if (!sonOturumYukle()) return "";
                 resume = true;
             }
+            intentBekliyor = false;
             try {
                 JSONObject o = new JSONObject();
                 o.put("name", currentName); o.put("size", currentSize); o.put("resume", resume);
                 return o.toString();
             } catch (Exception e) { return ""; }
         }
-        /** Ayar: son dosya açılışta geri yüklensin mi (varsayılan açık) */
+        /** Ana ekrandaki devam kartı için: saklanan son dosyanın adı ve boyutu (yüklemeden) */
+        @JavascriptInterface
+        public String lastSessionInfo() {
+            String u = prefs().getString("sonUri", "");
+            if (u == null || u.isEmpty()) return "";
+            try {
+                JSONObject o = new JSONObject();
+                o.put("name", prefs().getString("sonAd", "")); o.put("size", prefs().getLong("sonBoyut", -1));
+                return o.toString();
+            } catch (Exception e) { return ""; }
+        }
+        /** Devam kartına dokunuldu: saklanan son dosya normal yoldan açılır */
+        @JavascriptInterface
+        public void openLastSession() {
+            runOnUiThread(() -> { if (sonOturumYukle()) pushCurrentFile(); else js("window.dwgApp && window.dwgApp.refreshResume && window.dwgApp.refreshResume()"); });
+        }
+        /** Ayar: son dosya açılışta KENDİLİĞİNDEN açılsın mı (varsayılan kapalı) */
         @JavascriptInterface public void setResumeLast(boolean on) { try { prefs().edit().putBoolean("resumeLast", on).apply(); } catch (Exception ignored) { } }
-        @JavascriptInterface public boolean getResumeLast() { return prefs().getBoolean("resumeLast", true); }
+        @JavascriptInterface public boolean getResumeLast() { return prefs().getBoolean("resumeLast", false); }
         /** Son oturum açılamadı: kaydı sil, bir dahaki açılışta denenmesin */
         @JavascriptInterface public void forgetLastSession() { runOnUiThread(() -> { sonOturumSil(); currentUri = null; currentFile = null; }); }
 

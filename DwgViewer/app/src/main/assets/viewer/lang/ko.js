@@ -58,6 +58,7 @@ export default {
   docFail: '문서를 열지 못했습니다', docOffice: 'Office 문서', docImage: '이미지', docText: '텍스트', docOpenWith: '다른 앱으로 열기', share: '공유', docKeep: '오프라인 보관', docKept: '오프라인 사본을 저장했습니다(파일 열기 › 오프라인)', docKeepFail: '복사하지 못했습니다', docEmpty: '빈 문서', docUnknown: '알 수 없는 파일 형식입니다.',
   docOfficeMsg: '이 형식은 바로 표시할 수 없습니다. Google 드라이브에 로그인했다면 PDF로 변환해 열 수 있고, 아니면 다른 앱으로 보내세요.', prevPage: '이전 페이지', nextPage: '다음 페이지', fitWidth: '맞추기', docLayoutPage: '페이지 보기', docLayoutFlow: '연속 보기', docPage: '페이지', docFlow: '연속', files: '개 파일', extracting: '압축 푸는 중', wrap: '줄 바꿈', lines: '줄', backToArchive: '압축 파일로 돌아가기',
   resumeTitle: '이어서 계속하기', resumeOpen: '도면으로 돌아가기', resumeKeep: '시작할 때 마지막 파일 다시 열기',
+  resumeReopen: '다시 열기', resumeAuto: '시작할 때 마지막 파일 자동으로 열기',
   samplesTitle: '예제 도면', sample2d: '2D 배치도', sample3d: '3D 설비 모델',
   docEdit: '편집', editPan: '손', editPen: '펜', editHi: '형광펜', editText: '문자', editStamp: '도장', editErase: '지우개', editRotL: '왼쪽으로 회전', editDelPage: '페이지 삭제', editSave: '저장', editBold: '굵게', editItalic: '기울임', editUnderline: '밑줄', editAlignL: '왼쪽 맞춤', editAlignC: '가운데 맞춤', editAlignR: '오른쪽 맞춤', editFind: '찾기 및 바꾸기',
   editTextLabel: '문자', editStampText: '승인됨', editFindWhat: '찾을 내용', editReplaceWith: '바꿀 내용', editReplaced: '건 바꿈', editDelPageAsk: '이 페이지를 결과에서 뺄까요?', editLastPage: '마지막 페이지는 삭제할 수 없습니다', editDiscardAsk: '변경 내용을 버릴까요?',

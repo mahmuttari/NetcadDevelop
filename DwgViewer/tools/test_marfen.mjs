@@ -26,10 +26,17 @@
 // kurar ve mesh geometrisi collectRaw3D içinde tepe/yüz alt varlıklarından örülür. O
 // mekanizma zaten doğruydu, yalnız beslenmiyordu.
 //
-// İkinci bir kusur daha çıktı ve o da giderildi: proxy grafiği çözülen 18 ilkelde 1e+279
-// mertebesinde anlamsız koordinatlar vardı ve çizimin sınırlarını 1e+305'e taşıyordu — model
-// gerçek 17,6 m boyutuyla görünmez bir noktaya iniyordu. scene.js extents() artık büyüklük
-// denetimi yapıyor (1e15 tavanı); ilkel çizilmeye devam eder, yalnız sınır hesabına girmez.
+// Üçüncü kusur v7.47'de giderildi ve altta duran pompa gövdelerini geri getirdi. Dosyanın 84
+// pompa gövdesi AcDbSurface'tir (sınıf 508); LibreDWG'de böyle bir tür yoktur, hepsi UNKNOWN_ENT'e
+// düşer ve tek veri kaynakları önizleme (proxy) grafiğidir. O grafik bir metafile başlığıyla açılır
+// — [RL toplam uzunluk][RL kayıt sayısı] — ve kayıtlar 8. bayttan sonra gelir; scene.js çözücüyü
+// 0. bayttan başlattığı için başlığı kaydın kendisi sanıyordu: "boy" bütün tamponu gösterdiğinden
+// akış tek sahte kayıtta yutuluyor, "tür" ise kayıt sayısı olup rastgele bir dala düşüyordu. 1e+279
+// mertebesindeki 18 bozuk ilkel de bundandı (case 6'da dönüşüm matrisinin baytları nokta sanılıyordu).
+// Başlık atlandığında 84/84 blob tertemiz çözülüyor: 6.426 kayıt, 3.129 kabuk, 429.188 üçgen ve tek
+// bozuk koordinat yok. Yüzeyler sıkışık ağ ilkeline (k=5) yazılır; üçgen başına nesne üretilseydi
+// telefonda ~280 MB tutardı, şimdi 9,3 MB. extents()'in 1e15 büyüklük denetimi emniyet supabı olarak
+// durur ama artık tek bir ilkeli bile elemiyor.
 // Kullanım: PLAYWRIGHT_PKG=<node_modules> node tools/test_marfen.mjs
 import { args, startServer, launchBrowser, openFile, noUpdate, checker, PHONE, samplesDir } from './harness.mjs';
 import path from 'node:path';
@@ -184,6 +191,44 @@ const durum = () => page.evaluate(() => {
   ok('D5 karta dokunmak çizimi açtı (dosya seçmeden)',
     r.ad === 'MARFEN_YUZER_TERFI_2D.dwg' && r.ilkel === 132272, `${r.ad} · ${r.ilkel} ilkel`);
   ok('D6 ana ekran kapandı, çizim ekranda', await page.evaluate(() => document.getElementById('home').hidden) === true);
+}
+
+// --- E) Pompa gövdeleri: AcDbSurface proxy grafiğinden gelen eğrisel gövdeler ---------------
+// Kullanıcının telefonda gördüğü eksik buydu: kaideler çiziliyor, salyangoz gövdeli dalgıç
+// pompalar çıkmıyordu. 84 yüzey tek blokta (G$CEEC95A0C) durur ve model uzayına iki kez konur.
+{
+  await openFile(page, D3, { timeout: 900000, settle: 200 });
+  const r = await durum();
+  const px = await page.evaluate(() => {
+    const P = window.dwgApp.state.prims || [];
+    const q = P.filter(p => p.et === 'ACAD_PROXY_ENTITY');
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    let tri = 0, seg = 0, bayt = 0, kotu = 0;
+    for (const p of q) {
+      x0 = Math.min(x0, p.bb[0]); y0 = Math.min(y0, p.bb[1]); x1 = Math.max(x1, p.bb[2]); y1 = Math.max(y1, p.bb[3]);
+      if (p.zmin != null) z0 = Math.min(z0, p.zmin); if (p.zmax != null) z1 = Math.max(z1, p.zmax);
+      tri += p.idx ? p.idx.length / 3 : 0; seg += p.seg ? p.seg.length / 6 : 0;
+      bayt += (p.vtx ? p.vtx.byteLength : 0) + (p.idx ? p.idx.byteLength : 0) + (p.seg ? p.seg.byteLength : 0);
+      for (const v of p.vtx || []) if (!isFinite(v) || Math.abs(v) > 1e6) kotu++;
+    }
+    return { adet: q.length, k5: q.every(p => p.k === 5), tri, seg, bayt, kotu,
+      bb: [x0, y0, x1, y1], z: [z0, z1] };
+  });
+  ok('E1 84 AcDbSurface iki yerleşimle tanındı (dosya bilgisinde gerçek adıyla)',
+    r.tur['SURFACE (önizleme grafiği)'] === 168 && r.tur.ACAD_PROXY_ENTITY_GRAFIK === 168,
+    `${r.tur['SURFACE (önizleme grafiği)']} yüzey · ${r.tur.ACAD_PROXY_ENTITY_GRAFIK} grafik`);
+  ok('E2 proxy grafiğinden 429.188 üçgen çıktı (metafile başlığı atlanıyor)',
+    px.tri === 429188, String(px.tri));
+  ok('E3 kenarlar siluet süzgecinden geçti (16.664 = 8.332 × 2 yerleşim)', px.seg === 16664, String(px.seg));
+  ok('E4 yüzeyler sıkışık ağ ilkelinde: 168 nesne, 10 MB altı (üçgen başına nesne olsaydı ~280 MB)',
+    px.adet === 168 && px.k5 && px.bayt < 10 * 1024 * 1024, `${px.adet} ilkel · ${(px.bayt / 1048576).toFixed(1)} MB`);
+  ok('E5 tek bozuk koordinat yok (eskiden 1e+279 mertebesinde 18 ilkel vardı)', px.kotu === 0, String(px.kotu));
+  ok('E6 pompalar yerinde: iki kaide arasında, su altında (Z −2999 … +45)',
+    Math.round(px.bb[0]) === 3124 && Math.round(px.bb[2]) === 13691
+    && Math.round(px.z[0]) === -2999 && Math.round(px.z[1]) === 45,
+    `${px.bb.map(v => Math.round(v)).join(' ')} · z ${px.z.map(v => Math.round(v)).join(' … ')}`);
+  ok('E7 model sınırları pompalarla birlikte gerçek ölçüde kaldı',
+    Math.round(r.ext[2]) === 17288 && Math.abs(r.ext[0]) < 1e6, r.ext.map(x => Math.round(x)).join(' '));
 }
 
 ok('Z sayfa hatası yok', errors.length === 0, errors.join(' | ').slice(0, 300));
