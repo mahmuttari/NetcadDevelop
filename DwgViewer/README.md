@@ -290,6 +290,37 @@ RAR (junrar), gerçek Google Drive ve Android PdfRenderer yalnız cihazda
 
 ## Sürüm geçmişi
 
+## Tarayıcıda emülatör
+
+APK'yı kurmadan, tarayıcıda çalışan gerçek bir Android cihazda denemek için:
+
+```
+APPETIZE_TOKEN=<belirteç> node tools/emulator.mjs
+```
+
+Komut, deponun **genel adresindeki** APK'yı (dosya yüklemeden, yalnız adresi vererek)
+appetize.io'ya tanıtır ve `https://appetize.io/app/<publicKey>` bağlantısını yazar. Bir
+sonraki sürümde aynı adresi korumak için `publicKey` argüman olarak verilir:
+
+```
+APPETIZE_TOKEN=<belirteç> node tools/emulator.mjs <publicKey>
+```
+
+Belirteç depoya yazılmaz, yalnız komutun ortamında durur. Hesap ve belirteç
+appetize.io → Account → API token'dan alınır; ücretsiz kademe aylık süre sınırlıdır.
+
+**Neden bir hizmet gerekiyor:** bu depoyu geliştiren ortamda emülatör çalıştırılamaz —
+donanım sanallaştırma yoktur (`/dev/kvm` yok, işlemcide `vmx`/`svm` bayrağı yok) ve Android
+SDK kurulu değildir. KVM olmadan x86 sistem görüntüsü açılmaz, ARM görüntüsü ise saf
+öykünmeyle kullanılamayacak kadar yavaştır.
+
+**Emülatörde ne sınanabilir:** APK evrenseldir (arm64-v8a · armeabi-v7a · x86 · x86_64,
+minSdk 26), dolayısıyla her cihaz türünde çalışır. Yerli açılış ekranı, geri ve ana sayfa
+düğmeleri, oturum sürekliliği, ölçü ve düzenleme araçları — hepsi gerçek Android'de koşar.
+Çizim dosyası, oturum sırasındaki **Upload File** düğmesiyle cihaza atılır (Android'de her
+dosya türü kabul edilir, en çok 50 MB). Google Drive girişi yalnız OAuth istemcisi
+tanımlandıktan sonra çalışır (bkz. açık iş #5).
+
 | Sürüm | versionCode | Tarih | Başlıca |
 |---|---|---|---|
 | 1.0 | 1 | 2026-09-06 | İlk sürüm: WebView + LibreDWG WebAssembly, DWG/DXF görüntüleme |
