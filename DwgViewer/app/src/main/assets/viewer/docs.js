@@ -316,6 +316,7 @@ export function initDocs(a) {
     const k = b.dataset.doc;
     if (k === 'edit') { startEdit(cur); return; }
     if (k === 'close') close(); else if (k === 'back') back();
+    else if (k === 'home') call(api.goHome);   // belge KAPANMAZ, ana ekran üste gelir
     else if (k === 'share') share(false); else if (k === 'open') share(true); else if (k === 'keep') keep(); else if (k === 'drive') call(api.driveUpload, cur);
     else if (k === 'convert') call(api.driveConvert, cur);
     else if (k === 'pdfprev') pdfGoto(pdfCurrent() - 1); else if (k === 'pdfnext') pdfGoto(pdfCurrent() + 1);
@@ -328,6 +329,8 @@ export function initDocs(a) {
 }
 export const isOpen = () => !!(els && els.view && !els.view.hidden);
 export const current = () => cur;
+/** Ana ekrandaki "kaldığınız yerden devam edin" kartı için açık belgenin adı */
+export const currentName = () => (cur && cur.name) || '';
 /** Android kayıtlı belge {id,name,size,ext}; CAD ise çizim olarak yüklenir */
 export async function openRegistered(info, opts = {}) {
   const kind = kindOf(info.name);

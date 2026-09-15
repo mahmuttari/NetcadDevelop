@@ -353,6 +353,7 @@ async function onClick(ev) {
     if (b.dataset.openAct) { const acts = b.closest('[data-open-acts]'); const uri = acts ? acts.dataset.openActs : ui.menu; recentAction(b.dataset.openAct, uri); return; }
     const k = b.dataset.open;
     if (k === 'close') close();
+    else if (k === 'home') { close(); call(api.goHome); }   // her ekranda ana sayfa düğmesi
     else if (k === 'system') { const p = ui.pick; close(); call(api.systemPick, p ? p.purpose : 'open', p ? p.mime : '*/*'); }
     else if (k === 'grid') { ui.grid = !ui.grid; renderTools(); render(); }
     else if (k === 'menu') { const it = b.closest('[data-open-recent]'); if (it) toggleMenu(it.dataset.uri); }

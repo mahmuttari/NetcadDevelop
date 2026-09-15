@@ -86,6 +86,19 @@ body.compact-status #stCount { display: none; }
 
 /* --- ana ekran (home.js): çizim / belge yokken #main'i kaplar; alt gezinme Ev · Dosya · Bulut · Araçlar --- */
 .home { position: absolute; inset: 0; z-index: 9; display: flex; flex-direction: column; background: var(--bg); color: var(--fg); }
+/* Ana ekranın üst şeridi: her ekranda geri ve ana sayfa düğmesi bulunsun diye eklendi.
+   Boşken (iki düğme de gizliyken) yer kaplamaz — Ev sekmesinde marka bloğu yukarıda kalır. */
+.home-top { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; padding: calc(4px + var(--safe-top)) calc(10px + var(--safe-right)) 0 calc(10px + var(--safe-left)); min-height: 0; }
+.home-top:not(:has(.btn:not([hidden]))) { padding-top: var(--safe-top); }
+.home-top-title { color: var(--muted); font-size: calc(13px * var(--fs)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-top + .home-pages { padding-top: 6px; }
+/* Bellekteki çizime dönüş kartı: ana ekranın en üstünde, açık dosya varken */
+.home-resume { display: flex; align-items: center; gap: 10px; margin: 10px 0 2px; padding: 10px 12px; border: 1px solid var(--accent); border-radius: 12px; background: var(--panel); }
+.home-resume .hr-ic { flex: 0 0 auto; width: 38px; height: 38px; border-radius: 10px; background: var(--btn); display: inline-flex; align-items: center; justify-content: center; color: var(--accent); }
+.home-resume .hr-ic svg.ic { width: 22px; height: 22px; }
+.home-resume .hr-tx { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.home-resume .hr-tx strong { font-size: calc(13px * var(--fs)); }
+.home-resume .hr-tx small { color: var(--muted); font-size: calc(12px * var(--fs)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .home-pages { flex: 1 1 auto; min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch; padding: calc(8px + var(--safe-top)) calc(12px + var(--safe-right)) 16px calc(12px + var(--safe-left)); }
 .home-page { max-width: 640px; margin: 0 auto; }
 .home-brand { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 0 4px; }
@@ -452,6 +465,10 @@ body.left-hand .dpad { left: auto; right: 12px; }
 .cube [data-face] { cursor: pointer; }
 .cube [data-face]:hover, .cube [data-corner]:hover { fill-opacity: .6; }
 body.left-hand .cube { right: auto; left: 10px; }
+/* Karşılama turu çizim ekranına aittir ve z-index'i 20'dir, yani ana ekranın (9) ÜSTÜNDEdir:
+   ana ekrana geçildiğinde turun kartı ana ekranın düğmelerini engelliyordu (sınama yakaladı).
+   Ana ekran kipinde gizlenir; çizime dönüldüğünde kaldığı yerden devam eder. */
+body.homemode #tour { display: none; }
 .tour { position: absolute; inset: 0; display: flex; align-items: flex-start; justify-content: center; padding: 12px; background: transparent; z-index: 20; pointer-events: none; }
 .tour-card { pointer-events: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; max-width: 420px; width: 100%; box-shadow: var(--shadow); }
 .tour-card p { margin: 8px 0 10px; color: var(--muted); font-size: calc(14px * var(--fs)); line-height: 1.45; }
@@ -504,6 +521,10 @@ body.left-hand .cube { right: auto; left: 10px; }
   #topbar { gap: 4px; }
   body:not(.glove) #topbar .btn.icon { width: 36px; height: 36px; }
   #btnDisplay { display: none; }   /* Ekran ayarları şeritte ve Diğer menüsünde var */
+  /* Geri ve Ana sayfa eklenince üst çubuk sekiz düğmeye çıktı: Aç yalnız simge kalır
+     (etiketi ana ekranda ve Diğer menüsünde yazıyla duruyor), böylece 360 px'te de sığar. */
+  #btnOpen span { display: none; }
+  #btnOpen { width: 36px; height: 36px; padding: 0; }
   .filewrap { min-width: 48px; }
   .filesub { display: none; }
 }

@@ -1709,8 +1709,20 @@ function menuAction(act) {
     default: break;
   }
 }
-/** Diğer › Ana ekran: açık belge kapanır, çizim bellekte kalır (Son'dan yeniden açılır), ana ekran gösterilir */
-function goHome() { closeMenu(); if (Docs.isOpen()) Docs.close(); Home.show(); }
+/*
+ * Ana ekran. AÇIK DOSYA KAPANMAZ — ne çizim ne de belge. Ana ekran yalnız üste gelir; çizim
+ * sahnesi (S.scene), görünüm, katmanlar, notlar ve açık belge bellekte durur. Geri dönüş yolu
+ * Ev sekmesinin en üstündeki "Kaldığınız yerden devam edin" kartıdır (home.js renderResume).
+ *
+ * Eskiden burada Docs.close() vardı: belge kapanıyor, kullanıcı ana ekrana düştüğünde dosyanın
+ * kapandığını görüyordu. Artık belge de gizlenir, kapanmaz.
+ */
+function goHome() { closeMenu(); Home.show(); }
+/** Ana ekranda "Kaldığınız yerden devam edin" kartında yazacak ad: belge ya da çizim */
+function currentDocName() {
+  if (Docs.isOpen && Docs.isOpen()) { const n = Docs.currentName && Docs.currentName(); if (n) return n; }
+  return S.hasDoc ? (S.fileName || '') : '';
+}
 $('moreMenu').addEventListener('click', (ev) => { const b = ev.target.closest('[data-act]'); if (b) menuAction(b.dataset.act); });
 
 function showDocInfo() {
@@ -1948,6 +1960,8 @@ function showSettings() {
     [t('lwScale'), `<input id="sLw" type="number" step="0.5" min="1" max="10" value="${S.lwScale}">`, 1],
     [t('decimals'), `<select id="sPrec">${Array.from({ length: PREC_MAX - PREC_MIN + 1 }, (_, i) => PREC_MIN + i).map(n => `<option value="${n}" ${n === S.prec ? 'selected' : ''}>${n}</option>`).join('')}</select>`, 1],
     [t('decimalsPad'), `<label class="chk"><input type="checkbox" id="sPrecPad" ${S.precPad ? 'checked' : ''}> ${esc(t('decimalsPadHint'))}</label>`, 1],
+    // Oturum sürekliliği: yalnız köprü varken anlamlı (tarayıcıda dosya erişimi kalıcı değil)
+    ...(A() && A().getResumeLast ? [[t('resumeKeep'), `<label class="chk"><input type="checkbox" id="sResume" ${A().getResumeLast() ? 'checked' : ''}> ${esc(t('resumeTitle'))}</label>`, 1]] : []),
     [`<div class="full muted">${S.fileKey ? esc(t('geoPerFile')) + ' ' : ''}${esc(t('ed50Note'))}</div>`],
     [`<div class="full btns"><button class="btn primary small" id="sSave">${t('save')}</button><button class="btn small" id="sDisplay">${tt('dispTitle', 'Ekran ayarları')}</button></div>`]]);
   let a11y = null;
@@ -1958,6 +1972,7 @@ function showSettings() {
   $('sSave').onclick = () => {
     settings.lang = $('sLang').value; settings.lwScale = Number($('sLw').value) || 3;
     settings.prec = clampPrec($('sPrec').value); settings.precPad = $('sPrecPad').checked;
+    { const r = $('sResume'); if (r && A() && A().setResumeLast) { try { A().setResumeLast(!!r.checked); } catch (e) { /* köprü yok */ } } }
     const geo = { crs: $('sCrs').value, unit: $('sUnit').value, swap: $('sSwap').checked, dx: Number($('sDx').value) || 0, dy: Number($('sDy').value) || 0 };
     if (S.fileKey) store.set('geo:' + S.fileKey, JSON.stringify(geo));
     Object.assign(settings, geo); saveSettings(); applySettings(); applyGeo();
@@ -2861,8 +2876,10 @@ function onBack() {
   if (Ed.isProPanelOpen()) { Ed.closeProPanel(); return true; }
   if (!$('drivePanel').hidden) { Drive.close(); return true; }
   if (Open.isOpen()) { Open.close(); return true; }
-  if (Docs.isOpen()) { const open0 = openPanels(); if (open0.length) { for (const id of open0) hide(id); return true; } Docs.back(); return true; }
+  // Ana ekran belgenin ÜSTÜNDE de açılabilir (dosya kapanmıyor, yalnız üste geliniyor);
+  // bu yüzden önce ana ekran denetlenir, yoksa görünmeyen belgenin geri tuşu işlerdi.
   if (Home.isShown()) { const open0 = openPanels(); if (open0.length) { for (const id of open0) hide(id); return true; } return Home.back(); }   // Ev'de false: uygulama kapanır
+  if (Docs.isOpen()) { const open0 = openPanels(); if (open0.length) { for (const id of open0) hide(id); return true; } Docs.back(); return true; }
   if (S.gotoMarker) { S.gotoMarker = null; drawOverlay(); return true; }
   const open = openPanels();
   if (open.length) { for (const id of open) hide(id); dockLayers(); if (S.mode !== 'view') setMode('view'); return true; }
@@ -2870,6 +2887,22 @@ function onBack() {
   if (S.notesOn) { toggleNotes(false); return true; }
   if (S.mode !== 'view') { setMode('view'); return true; }
   if (S.selected) { S.selected = null; drawOverlay(); return true; }
+  return false;
+}
+/*
+ * SİSTEM GERİ TUŞU ve üst çubuktaki Geri düğmesi. onBack ile arasındaki fark bilinçlidir:
+ * onBack "en üstteki şeyi kapat, kapatacak bir şey yoksa false" sözleşmesini korur (paneller,
+ * kipler, seçim, ölçü, notlar bunun üzerine kuruludur). Buradaki ek adım gezinmedir: kapatacak
+ * bir şey kalmadıysa ve elde açık bir dosya varsa uygulamadan çıkılmaz, ANA EKRANA dönülür.
+ * Dosya kapanmaz; Ev sekmesindeki "Kaldığınız yerden devam edin" kartıyla geri alınır.
+ * Uygulamadan çıkış ana ekranın Ev sekmesindeki geri tuşuyladır (Home.back false döner), yani
+ * iki ekran arasında döngü oluşmaz.
+ */
+function onBackSystem() {
+  if (onBack()) return true;
+  // Zaten ana ekrandaysak bir daha ana ekrana gitmeyiz: yoksa Ev sekmesinde geri tuşu sonsuza
+  // dek true döner ve uygulamadan çıkılamaz (sınama bunu yakaladı).
+  if (!Home.isShown() && (S.hasDoc || Docs.isOpen())) { goHome(); return true; }
   return false;
 }
 
@@ -2892,7 +2925,7 @@ async function checkUpdate(manual) {
 // ---------------------------------------------------------------------------
 // Başlangıç
 // ---------------------------------------------------------------------------
-window.dwgApp = { loadCurrent, onFilePicked, onLocation, onBack, loadBytes, zoomExtents, render, toScreen, toWorld, state: S, notes, editor, setMode, setLayout, refreshRecent: buildRecent, showInfo,
+window.dwgApp = { loadCurrent, onFilePicked, onLocation, onBack, onBackSystem, loadBytes, zoomExtents, render, toScreen, toWorld, state: S, notes, editor, setMode, setLayout, refreshRecent: buildRecent, showInfo,
   onFilesPicked, onQr: (text) => { try { const s = String(text || '').trim(); if (s) onQr(s); } catch (e) { console.warn(e); } },   // Android ACTION_SEND / EXTRA_TEXT
   onLocationError: (m) => { const perm = /kalıcı olarak reddedildi|permanently denied/i.test(String(m)); const openSet = A() && A().openAppSettings ? () => A().openAppSettings() : null;
     toast('GPS: ' + m, perm && openSet ? { ms: 8000, action: { label: tt('settings', 'Ayarlar'), fn: openSet } } : undefined); },
@@ -2922,17 +2955,24 @@ initEditor({ S, requestRender, drawOverlay, toast, noFaces: showNoFaces, pick: (
   savePng, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, isolateLayers, unisolate, settings, saveSettings, stamp, haptic, openDisplayOptions, setDisplay, getDisplay, toggleDisplay, display: D });
 $('stScale').addEventListener('click', showScalePicker);
 // belgeler (PDF / Word / ZIP / RAR) ve Google Drive
-Docs.initDocs({ toast, loadBytes, openDoc, hide, show, esc, kv, driveAvailable: () => Drive.signedIn(), driveUpload: (d) => { if (d && d.id) Drive.uploadWithPicker({ fileId: d.id, name: d.name, mime: 'application/octet-stream' }); }, driveConvert: (d) => Drive.convertToPdf(d),
+Docs.initDocs({ toast, loadBytes, openDoc, hide, show, esc, kv, goHome, driveAvailable: () => Drive.signedIn(), driveUpload: (d) => { if (d && d.id) Drive.uploadWithPicker({ fileId: d.id, name: d.name, mime: 'application/octet-stream' }); }, driveConvert: (d) => Drive.convertToPdf(d),
   onOpen: () => { closeMenu(); Open.close(); Home.hide(); if (S.notesOn) toggleNotes(false); if (S.mode !== 'view') setMode('view'); cancelZoomWindow(); for (const id of openPanels()) hide(id); dockLayers(); refreshMenu(); },   // belge kipi: çizime ait paneller, ölçü, notlar ve komut çubuğu kapanır
-  onClose: () => { refreshMenu(); if (!S.hasDoc) Home.show(); else requestRender(); },   // çizim yoksa ana ekran, varsa şerit ve durum çubuğu geri gelir
+  onClose: () => { refreshMenu(); if (!S.hasDoc) Home.show(); else requestRender(); Home.renderResume(); },   // çizim yoksa ana ekran, varsa şerit ve durum çubuğu geri gelir
   onCadFromArchive: () => { toast(tt('backToArchive', 'Arşive dön') + '?', { ms: 6000, action: { label: tt('backToArchive', 'Arşive dön'), fn: () => Docs.reopenLast() } }); } });
 Drive.initDrive({ toast, openDoc, hide, show, esc, kv, hideToast: () => { $('toast').hidden = true; }, openRegistered: (info) => Docs.openRegistered(info), openConverted: (info) => Docs.openConverted(info),
   dxfBytes: () => (editor.dxfBase64 ? editor.dxfBase64(false) : null), pngBytes: () => { savePng(); return lastPng; },
   pickForUpload: (folder) => pickFile('upload:' + folder, '*/*') });
 $('btnDrive').addEventListener('click', () => Drive.open());
-Open.initOpen({ toast, loadBytes, openBlob: (f) => Docs.openBlob(f), fileForPurpose, onFilePicked, showServer, startQr, openDrive: () => Drive.open(), systemPick, refreshRecent: buildRecent,
+/*
+ * Her ekranda geri ve ana sayfa. Üst çubuktaki Geri, sistem geri tuşuyla AYNI yolu izler
+ * (onBack): açık panel / kip / seçim varsa onu kapatır, hiçbiri yoksa ana ekrana döner —
+ * dosyayı kapatmadan. Ana sayfa düğmesi doğrudan ana ekrana götürür.
+ */
+$('btnBack').addEventListener('click', onBackSystem);
+$('btnHome').addEventListener('click', goHome);
+Open.initOpen({ toast, loadBytes, openBlob: (f) => Docs.openBlob(f), fileForPurpose, onFilePicked, showServer, startQr, openDrive: () => Drive.open(), systemPick, refreshRecent: buildRecent, goHome,
   onOpen: () => { closeMenu(); Drive.close(); hide('docPanel'); } });
-Home.initHome({ toast, openDoc, hide, kv, newDoc: showNewDoc, hideToast: () => { $('toast').hidden = true; }, menuAction, editorAct: (a) => edCall('act', a), click: (id) => { const b = $(id); if (b) b.click(); }, openProPanel: (x) => Ed.openProPanel(x),
+Home.initHome({ toast, openDoc, hide, kv, newDoc: showNewDoc, currentName: currentDocName, hideToast: () => { $('toast').hidden = true; }, menuAction, editorAct: (a) => edCall('act', a), click: (id) => { const b = $(id); if (b) b.click(); }, openProPanel: (x) => Ed.openProPanel(x),
   openCenter: (tab) => Open.open(tab), systemPick, openDrive: () => Drive.open(), showServer, openRegistered: (info) => Docs.openRegistered(info), refreshRecent: buildRecent,
   onShow: () => { closeMenu(); Drive.close(); Open.close(); for (const id of openPanels()) hide(id); if (S.notesOn) toggleNotes(false); if (S.mode !== 'view') setMode('view'); cancelZoomWindow(); refreshMenu(); buildRecent(); },   // Son dosyalar ızgarası her gösterimde tazelenir (tarayıcıda oturum listesi)
   onHide: () => { refreshMenu(); requestRender(); } });
@@ -2958,7 +2998,26 @@ resize();
 requestRender();
 Home.show();   // çizim / belge yokken ana ekran; setScene ve belge açılışı gizler
 buildRecent();
+/*
+ * OTURUM SÜREKLİLİĞİ. Açılışta bekleyen bir dosya varsa açılır. Bu, iki ayrı durumu kapsar:
+ * (a) kullanıcı bir dosyayı paylaştı / seçti — her zaman açılır; (b) uygulama kapanıp yeniden
+ * açıldı ve son oturum geri yükleniyor (o.resume) — "açık olan dosya kapanmasın" isteği budur.
+ * Geri yükleme başarısız olursa kayıt silinir, bir dahaki açılışta denenmez ve kullanıcı ana
+ * ekranda kalır.
+ */
 if (A() && A().getPendingFile) {
-  try { const pf = A().getPendingFile(); if (pf) { const o = JSON.parse(pf); loadCurrent(o.name, o.size); } } catch (e) { console.warn(e); }
+  try {
+    const pf = A().getPendingFile();
+    if (pf) {
+      const o = JSON.parse(pf);
+      if (o.resume && A().forgetLastSession) {
+        // Geri yükleme denemesi. loadCurrent hatayı kendi içinde yutar (fail), bu yüzden
+        // sonuç DURUMDAN okunur: hiçbir şey açılmadıysa kayıt silinir, bir daha denenmez.
+        loadCurrent(o.name, o.size).then(() => {
+          if (!S.hasDoc && !Docs.isOpen()) { try { A().forgetLastSession(); } catch (e2) { /* köprü yok */ } }
+        });
+      } else loadCurrent(o.name, o.size);
+    }
+  } catch (e) { console.warn(e); }
 }
 setTimeout(() => checkUpdate(false), 4000);

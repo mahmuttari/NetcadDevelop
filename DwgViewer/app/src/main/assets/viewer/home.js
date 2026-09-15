@@ -62,6 +62,11 @@ export function initHome(a) {
     else if (b.dataset.home === 'offline') call(api.openCenter, 'offline');
   });
   const grid = $('toolsGrid'); if (grid) grid.addEventListener('click', (ev) => { const b = ev.target.closest('[data-tool]'); if (b) runTool(b.dataset.tool); });
+  // Üst şerit: Geri (Ev dışındaki sekmeden Ev'e) ve Ana sayfa (Ev sekmesine).
+  const hb = $('homeBack'); if (hb) hb.addEventListener('click', () => setTab('ev'));
+  const hh = $('homeHomeBtn'); if (hh) hh.addEventListener('click', () => setTab('ev'));
+  // Bellekteki çizime dönüş: dosya kapanmadı, yalnız ana ekran üstüne geldi.
+  const rb = $('homeResumeBtn'); if (rb) rb.addEventListener('click', () => hide());
   Cloud.initCloud({ toast: api.toast, openDoc: api.openDoc, hide: api.hide, kv: api.kv, hideToast: api.hideToast, openDrive: api.openDrive, showServer: api.showServer, openRegistered: api.openRegistered,
     gotoCloud: () => { if (ui.shown) setTab('cloud'); }, gotoFilesCloud: () => { setTab('files'); setFilesSeg('cloud'); } });
   window.addEventListener('dwg:edition', () => { if (ui.shown) renderTools(); });
@@ -77,6 +82,19 @@ export function show() {
   home.hidden = false; document.body.classList.add('homemode');
   call(api.onShow);
   setTab(ui.tab, true);
+  renderResume();
+}
+/**
+ * Bellekte açık çizim / belge varsa Ev sekmesinin en üstünde "Kaldığınız yerden devam edin"
+ * kartı görünür. Ana ekrana geçmek dosyayı KAPATMAZ; kart, tek dokunuşla geri dönüş yoludur.
+ * Eskiden böyle bir yol yoktu: ana ekrana düşen kullanıcı, dosya kapanmış sanıyordu.
+ */
+export function renderResume() {
+  const box = $('homeResume'); if (!box) return;
+  const ad = call(api.currentName) || '';
+  const var_ = !!ad;
+  box.hidden = !var_;
+  if (var_) { const nm = $('homeResumeName'); if (nm) nm.textContent = ad; }
 }
 export function hide() {
   const home = $('home'); if (!home) return;
@@ -94,6 +112,12 @@ export function setTab(id, force) {
   document.querySelectorAll('#homeNav [data-home-tab]').forEach(b => b.classList.toggle('on', b.dataset.homeTab === id));
   document.querySelectorAll('#home .home-page').forEach(p => { p.hidden = p.dataset.page !== id; });
   const pages = $('home').querySelector('.home-pages'); if (pages) pages.scrollTop = 0;
+  // Geri ve Ana sayfa yalnız Ev DIŞINDAKİ sekmelerde anlamlıdır; Ev'de gizlenir ki uygulamadan
+  // çıkışı sağlayan sistem geri tuşuyla çelişen bir düğme kalmasın.
+  const evDisi = id !== 'ev';
+  const hb = $('homeBack'); if (hb) hb.hidden = !evDisi;
+  const hh = $('homeHomeBtn'); if (hh) hh.hidden = !evDisi;
+  const ttl = $('homeTopTitle'); if (ttl) ttl.textContent = evDisi ? t(id === 'files' ? 'homeFiles' : id === 'cloud' ? 'homeCloud' : 'homeTools') : '';
   renderTab(id);
 }
 function renderTab(id) {
@@ -102,7 +126,7 @@ function renderTab(id) {
   else if (id === 'cloud') renderCloud();
   else if (id === 'tools') renderTools();
 }
-export function renderHome() { call(api.refreshRecent); }
+export function renderHome() { call(api.refreshRecent); renderResume(); }
 export function renderFiles() {
   setFilesSeg(ui.fseg, true);
 }

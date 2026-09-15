@@ -652,7 +652,43 @@ public class MainActivity extends androidx.activity.ComponentActivity {
     // ---- son dosyalar -----------------------------------------------------------------------
     private SharedPreferences prefs() { return getSharedPreferences("dwgviewer", Context.MODE_PRIVATE); }
 
+    /**
+     * OTURUM SÜREKLİLİĞİ. Son açılan dosya kalıcı olarak saklanır; uygulama kapanıp yeniden
+     * açıldığında getPendingFile bunu döndürür ve çizim kendiliğinden geri yüklenir. Eskiden
+     * yalnız bellekteki currentUri/currentFile vardı: geri tuşuyla çıkıldığında etkinlik
+     * ölüyor, dönüldüğünde dosya açılmamış oluyordu — kullanıcının bildirdiği kusur buydu.
+     */
+    private void sonOturumYaz(String uri, String name, long size) {
+        try { prefs().edit().putString("sonUri", uri == null ? "" : uri).putString("sonAd", name == null ? "" : name).putLong("sonBoyut", size).apply(); }
+        catch (Exception e) { Log.w(TAG, "son oturum", e); }
+    }
+    /** Son oturumu unutur (dosya açılamadığında JS tarafı çağırır) */
+    private void sonOturumSil() { try { prefs().edit().remove("sonUri").remove("sonAd").remove("sonBoyut").apply(); } catch (Exception ignored) { } }
+    /**
+     * Saklanan son dosyayı geçerli dosya yapar. URI hâlâ okunabilir değilse (izin geri
+     * alınmış, dosya silinmiş) false döner ve kayıt silinir; kullanıcı ana ekranda kalır.
+     */
+    private boolean sonOturumYukle() {
+        String u = prefs().getString("sonUri", "");
+        if (u == null || u.isEmpty()) return false;
+        try {
+            Uri uri = Uri.parse(u);
+            if ("file".equals(uri.getScheme())) {
+                File f = new File(uri.getPath());
+                if (!f.canRead()) { sonOturumSil(); return false; }
+                currentFile = f; currentUri = null;
+            } else {
+                try (InputStream in = getContentResolver().openInputStream(uri)) { if (in == null) { sonOturumSil(); return false; } }
+                currentUri = uri; currentFile = null;
+            }
+            currentName = prefs().getString("sonAd", "cizim.dwg");
+            currentSize = prefs().getLong("sonBoyut", -1);
+            return true;
+        } catch (Exception e) { sonOturumSil(); return false; }
+    }
+
     private void addRecent(String uri, String name, long size) {
+        sonOturumYaz(uri, name, size);
         try {
             JSONArray old = new JSONArray(prefs().getString("recent", "[]"));
             JSONArray out = new JSONArray();
@@ -864,7 +900,9 @@ public class MainActivity extends androidx.activity.ComponentActivity {
             return;
         }
         if (webView == null) { super.onBackPressed(); return; }
-        webView.evaluateJavascript("window.dwgApp ? String(window.dwgApp.onBack()) : 'false'", value -> {
+        // onBackSystem: kapatacak bir şey yoksa ve dosya açıksa ana ekrana döner (dosya
+        // kapanmaz); yalnız ana ekranın Ev sekmesinde false döner, orada uygulama kapanır.
+        webView.evaluateJavascript("window.dwgApp ? String(window.dwgApp.onBackSystem ? window.dwgApp.onBackSystem() : window.dwgApp.onBack()) : 'false'", value -> {
             if (!"\"true\"".equals(value) && !"true".equals(value)) finish();
         });
     }
@@ -935,15 +973,30 @@ public class MainActivity extends androidx.activity.ComponentActivity {
         /** Çoklu seçim (toplu işlem): seçilen her dosya için bir yuva açılır, JS'e liste hâlinde bildirilir */
         @JavascriptInterface public void pickFiles(String purpose, String mime) { runOnUiThread(() -> openPicker(purpose, mime, true)); }
 
+        /**
+         * Sayfa açılırken JS'in soracağı dosya. Bellekte bir dosya yoksa SON OTURUM geri
+         * yüklenir: kullanıcı uygulamadan çıkıp döndüğünde çizim kendiliğinden açılır.
+         * "resume" alanı bunun geri yükleme olduğunu söyler; JS tarafı ayarla kapatabilir.
+         */
         @JavascriptInterface
         public String getPendingFile() {
-            if (currentUri == null && currentFile == null) return "";
+            boolean resume = false;
+            if (currentUri == null && currentFile == null) {
+                if (!prefs().getBoolean("resumeLast", true)) return "";
+                if (!sonOturumYukle()) return "";
+                resume = true;
+            }
             try {
                 JSONObject o = new JSONObject();
-                o.put("name", currentName); o.put("size", currentSize);
+                o.put("name", currentName); o.put("size", currentSize); o.put("resume", resume);
                 return o.toString();
             } catch (Exception e) { return ""; }
         }
+        /** Ayar: son dosya açılışta geri yüklensin mi (varsayılan açık) */
+        @JavascriptInterface public void setResumeLast(boolean on) { try { prefs().edit().putBoolean("resumeLast", on).apply(); } catch (Exception ignored) { } }
+        @JavascriptInterface public boolean getResumeLast() { return prefs().getBoolean("resumeLast", true); }
+        /** Son oturum açılamadı: kaydı sil, bir dahaki açılışta denenmesin */
+        @JavascriptInterface public void forgetLastSession() { runOnUiThread(() -> { sonOturumSil(); currentUri = null; currentFile = null; }); }
 
         /**
          * Çizim açılış ekranı: show = true gösterir (açıksa yalnız dosya adını tazeler),

@@ -203,6 +203,8 @@
 </svg>
 <div id="app">
   <header id="topbar">
+    <button id="btnBack" class="btn icon" data-i18n-title="tlBack" data-i18n-aria="tlBack" type="button" aria-label="Geri"><svg class="ic" aria-hidden="true"><use href="#i-arrow-left"/></svg></button>
+    <button id="btnHome" class="btn icon" data-i18n-title="homeTab" data-i18n-aria="homeTab" type="button" aria-label="Ana ekran"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg></button>
     <button id="btnOpen" class="btn primary" data-i18n-title="open" type="button"><svg class="ic" aria-hidden="true"><use href="#i-open"/></svg><span data-i18n="open">Aç</span></button>
     <div class="filewrap"><div id="fileName" class="filename"></div><div id="fileSub" class="filesub"></div></div>
     <button id="btnSearch" class="btn icon" data-i18n-title="search" data-i18n-aria="search" type="button" aria-label="Ara"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg></button>
@@ -231,6 +233,7 @@
           <button type="button" class="btn icon" data-doc="back" hidden data-i18n-aria="tlBack" aria-label="Geri"><svg class="ic" aria-hidden="true"><use href="#i-arrow-left"/></svg></button>
           <div class="doc-title"><strong id="docName"></strong><small id="docMeta"></small></div>
           <div class="doc-acts" id="docActs"></div>
+          <button type="button" class="btn icon" data-doc="home" data-i18n-title="homeTab" data-i18n-aria="homeTab" aria-label="Ana ekran"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg></button>
           <button type="button" class="btn icon" data-doc="close" data-i18n-aria="close" aria-label="Kapat"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
         </div>
         <div class="doc-tools" id="docTools"></div>
@@ -265,11 +268,24 @@
     </div>
     <!-- Ana ekran (home.js): çizim ya da belge açık değilken #viewport'un üstünde tam alan; Ev · Dosya · Bulut · Araçlar alt gezinmesi -->
     <div id="home" class="home" hidden>
+      <!-- Her ekranda geri ve ana sayfa: ana ekranda da bulunur. Geri, Ev dışındaki
+           sekmelerden Ev'e döner; Ev'de gizlenir (sistem geri tuşu uygulamadan çıkar). -->
+      <div id="homeTop" class="home-top">
+        <button id="homeBack" class="btn icon" data-i18n-title="tlBack" data-i18n-aria="tlBack" type="button" aria-label="Geri" hidden><svg class="ic" aria-hidden="true"><use href="#i-arrow-left"/></svg></button>
+        <button id="homeHomeBtn" class="btn icon" data-i18n-title="homeTab" data-i18n-aria="homeTab" type="button" aria-label="Ana ekran" hidden><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg></button>
+        <span id="homeTopTitle" class="home-top-title"></span>
+      </div>
       <div class="home-pages">
         <section id="homeEv" class="home-page" data-page="ev">
           <div class="home-brand"><img class="app-mark" src="img/appmark.png" alt="" width="46" height="46"><h1 data-i18n="welcomeTitle">DWG OfficeZip</h1></div>
           <p class="home-text" data-i18n="welcomeText"></p>
           <p id="proLine" class="pro-line" hidden><span data-i18n="freeLine"></span> <button id="btnGoPro" class="btn small primary" type="button"><svg class="ic" aria-hidden="true"><use href="#i-star"/></svg><span data-i18n="goPro">Pro sürüme geç</span></button></p>
+          <!-- Bellekteki çizim/belge: kapanmaz, buradan tek dokunuşla geri dönülür -->
+          <div id="homeResume" class="home-resume" hidden>
+            <div class="hr-ic"><svg class="ic" aria-hidden="true"><use href="#i-layout"/></svg></div>
+            <div class="hr-tx"><strong data-i18n="resumeTitle">Kaldığınız yerden devam edin</strong><small id="homeResumeName"></small></div>
+            <button id="homeResumeBtn" class="btn primary small" type="button"><span data-i18n="resumeOpen">Çizime dön</span></button>
+          </div>
           <button id="btnOpen2" class="btn primary big" type="button"><svg class="ic" aria-hidden="true"><use href="#i-open"/></svg><span data-i18n="homeOpen">Dosya aç</span></button>
           <button id="btnNew2" class="btn big" type="button"><svg class="ic" aria-hidden="true"><use href="#i-file-add"/></svg><span data-i18n="newFile">Yeni dosya</span></button>
           <input id="fileInput" type="file" accept=".dwg,.dxf,.pdf,.docx,.doc,.xlsx,.zip,.rar,.png,.jpg,.jpeg,.txt,.csv,application/acad,application/x-dwg,application/dxf,application/pdf,application/zip,application/octet-stream" hidden>
@@ -575,6 +591,8 @@
   <!-- Dosya Aç merkezi (open.js): Son · Cihaz · Çevrimdışı; Sunucu / Drive / QR çipleri ilgili araca geçer -->
   <aside id="openPanel" class="panel bottom open-panel" hidden role="dialog" aria-labelledby="openTitle">
     <div class="panel-head">
+      <button type="button" class="btn icon" data-open="close" data-i18n-title="tlBack" data-i18n-aria="tlBack" aria-label="Geri"><svg class="ic" aria-hidden="true"><use href="#i-arrow-left"/></svg></button>
+      <button type="button" class="btn icon" data-open="home" data-i18n-title="homeTab" data-i18n-aria="homeTab" aria-label="Ana ekran"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg></button>
       <strong id="openTitle"><svg class="ic" aria-hidden="true"><use href="#i-open"/></svg> <span data-i18n="openCenter">Dosya Aç</span></strong>
       <button type="button" class="btn icon" data-open="system" data-i18n-title="openSystem" data-i18n-aria="openSystem" aria-label="Sistem dosya seçici"><svg class="ic" aria-hidden="true"><use href="#i-export"/></svg></button>
       <button type="button" class="btn icon close" data-open="close" data-i18n-aria="close" aria-label="Kapat"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
