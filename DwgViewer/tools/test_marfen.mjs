@@ -11,17 +11,25 @@
 //   3B (AC1018 / AutoCAD 2004, 27,18 MB) — 2.290 blok yerleştirmesi, her biri bir polyface
 //       mesh: 201.348 VERTEX_PFACE + 342.174 VERTEX_PFACE_FACE, toplam 557.547 nesne.
 //
-// 3B dosyada BİLİNEN BİR KUSUR vardır ve bu sınama onu kayda geçirir: çizim BOŞ açılır.
-// Sebep ölçüldü — LibreDWG dosyayı hatasız okuyor (2.290 POLYLINE_PFACE nesnesi dizin
-// taramasıyla bulunuyor, num_owned = 48 tepe ile), ama blokların varlık ZİNCİRİ boştur:
-// get_first_owned_entity() denenen 50 blokta da null döner, first_vertex / last_vertex
-// alanları sıfırdır ve geometri R2004+ düzeninde `vertex[]` dizisindedir. Dönüştürücü
-// (lib.convert) zincir yürüyüşüne dayandığı için blokların içini boş görür: 2.294 blok
-// kaydından yalnız *Model_Space dolu gelir, o da 2.290 INSERT ile. Sonuç: her INSERT
-// geometrisiz bir ilkele düşer, sınır kutusu [0,0,1,1] olur.
+// 3B dosya bu depoya geldiğinde BOŞ açılıyordu; kusur v7.46'da giderildi ve C bölümü onu
+// kalıcı olarak korur. Kök sebep şuydu ve tek satırdı:
 //
-// Düzeltme geldiğinde C bölümündeki SKIP'ler PASS'a çevrilecektir; A ve B bölümleri
-// dosyaların bozulmadığını ve 2B tarafın gerilemediğini korur.
+//   collectRaw3D (worker.js) tarayacağı kökleri kurarken blok tanımlarını
+//   lib.dwg_getall_BLOCK_HEADER(dwg) ile alıyordu. O çağrı blok başlığının TİO işaretçisini
+//   döndürür; lib.get_first_owned_entity() ise Dwg_Object* bekler. İkisi karışınca yürüyüş
+//   her blokta boş dönüyor ve blokların İÇİ HİÇ TARANMIYORDU. Model uzayındaki geometri
+//   göründüğü için kusur yıllarca sessiz kaldı — ancak geometrisinin tamamı bloklarda olan
+//   bir dosyada ortaya çıktı. Kökler artık nesne dizininden (dwg_get_object + fixedtype 49)
+//   toplanıyor; aynı blokta yürüyüş çalışıyor.
+//
+// Dönüştürücünün POLYLINE_PFACE'i düşürmesi kusur DEĞİLDİR: synthesizeDropped onu yeniden
+// kurar ve mesh geometrisi collectRaw3D içinde tepe/yüz alt varlıklarından örülür. O
+// mekanizma zaten doğruydu, yalnız beslenmiyordu.
+//
+// İkinci bir kusur daha çıktı ve o da giderildi: proxy grafiği çözülen 18 ilkelde 1e+279
+// mertebesinde anlamsız koordinatlar vardı ve çizimin sınırlarını 1e+305'e taşıyordu — model
+// gerçek 17,6 m boyutuyla görünmez bir noktaya iniyordu. scene.js extents() artık büyüklük
+// denetimi yapıyor (1e15 tavanı); ilkel çizilmeye devam eder, yalnız sınır hesabına girmez.
 // Kullanım: PLAYWRIGHT_PKG=<node_modules> node tools/test_marfen.mjs
 import { args, startServer, launchBrowser, openFile, noUpdate, checker, PHONE, samplesDir } from './harness.mjs';
 import path from 'node:path';
@@ -130,18 +138,18 @@ const durum = () => page.evaluate(() => {
 
   ok('C4 dosyada 2.290 polyface mesh GERÇEKTEN var', ic.pface === 2290, `${ic.pface} POLYLINE_PFACE / ${ic.N} nesne`);
   ok('C5 mesh tepe sayısını biliyor (num_owned)', ic.ornekOwned > 0, String(ic.ornekOwned));
-  ok('C6 KÖK SEBEP: blokların varlık zinciri boş (LibreDWG yürüyemiyor)',
-    ic.zincirli === 0, `${ic.zincirli}/${ic.denenen} blokta zincir var`);
+  // Mesh'in tepeleri R2004+ düzenindedir: vertex[] dizisinde, ardışık zincirde DEĞİL.
+  // Bu dosyanın kimliği budur; kurtarma yolunun doğru dalı sınanmış olur.
+  ok('C6 mesh tepeleri dizi düzeninde (R2004+), zincirde değil',
+    ic.zincirli === 0, `${ic.zincirli}/${ic.denenen} mesh'te ardışık zincir var`);
 
-  // Bilinen kusur: geometri ekrana gelmiyor. Düzeltme geldiğinde bu iki satır ok()'a çevrilir.
-  if (r.gecerliBB > 0) {
-    ok('C7 3B geometri ekrana geldi (kusur giderilmiş)', true, `${r.gecerliBB} geçerli bb`);
-    ok('C8 3B sınırları gerçek', !(r.ext[0] === 0 && r.ext[2] === 1), r.ext.join(' '));
-  } else {
-    C.skip('C7 3B geometri ekrana GELMİYOR — bilinen kusur',
-      `${r.ilkel} ilkel, hiçbirinin sınır kutusu geçerli değil; sebep C6`);
-    C.skip('C8 3B sınırları boş — bilinen kusur', `ext = [${r.ext.join(', ')}] (başlıkta gerçek sınır 17,6 × 9,0 × 7,6 m)`);
-  }
+  ok('C7 3B geometri ekrana geliyor: 2.300+ ağ ilkeli, 200 binden çok üçgen',
+    r.ag >= 2300 && r.gecerliBB >= 2300, `${r.ag} ağ · ${r.gecerliBB} geçerli bb`);
+  ok('C8 3B sınırları dosya başlığındaki gerçek ölçüyle aynı (17,6 m × 9,0 m)',
+    Math.round(r.ext[0]) === -288 && Math.round(r.ext[2]) === 17288 && Math.round(r.ext[3]) === 8710,
+    r.ext.map(x => Math.round(x)).join(' '));
+  ok('C9 tek bir bozuk ilkel sınırları uçurmuyor (büyüklük denetimi)',
+    Math.abs(r.ext[2]) < 1e9 && Math.abs(r.ext[1]) < 1e9, `${r.ext[1]} … ${r.ext[2]}`);
 }
 
 // --- D) Uygulamanın içine gömülü örnekler: ana ekrandan tek dokunuşla açılıyor mu -----------

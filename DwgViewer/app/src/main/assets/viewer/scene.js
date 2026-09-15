@@ -400,11 +400,22 @@ export class SceneBuilder {
     return { prims: out, layers: [...this.layers.values()], ltypes: this.ltypes, ext: this.extents(out) };
   }
 
+  /*
+   * Çizimin sınırları. TEK BİR bozuk ilkel bütün görünümü yok edebilir: proxy grafiği gibi
+   * en iyi çabayla çözülen kayıtlarda arada 1e+279 mertebesinde anlamsız koordinatlar çıkıyor
+   * (ölçüldü: MARFEN 3B modelinde 4.684 ilkelin 18'i böyleydi ve sınırları 1e+305'e taşıyordu;
+   * model 17,6 m'lik gerçek boyutuyla görünmez bir noktaya iniyordu). Bu yüzden yalnız sonlu
+   * olmak yetmez, BÜYÜKLÜK de denetlenir: dünya ölçeğinde bir çizim bile milimetre biriminde
+   * 4e10'u aşmaz, 1e15 fazlasıyla güvenli bir tavandır. Sınır dışı kalan ilkel çizilmeye
+   * devam eder, yalnız sınır hesabına girmez — veri gizlenmez, görünüm korunur.
+   */
   extents(prims) {
     let ok = false;
+    const TAVAN = 1e15;
     const bb = [Infinity, Infinity, -Infinity, -Infinity];
     for (const p of prims) {
       if (p.inf || p.k === 4 || !p.bb || !isFinite(p.bb[0])) continue;
+      if (!p.bb.every(v => isFinite(v) && Math.abs(v) <= TAVAN)) continue;
       ok = true;
       if (p.bb[0] < bb[0]) bb[0] = p.bb[0];
       if (p.bb[1] < bb[1]) bb[1] = p.bb[1];

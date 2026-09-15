@@ -386,7 +386,33 @@ function collectRaw3D(lib, dwg, db, bildir) {
   const roots = [];
   try { const o = lib.dwg_model_space_object(dwg); if (o) roots.push(o); } catch (_) { /* yok */ }
   try { const o = lib.dwg_paper_space_object(dwg); if (o) roots.push(o); } catch (_) { /* yok */ }
-  try { const a = lib.dwg_getall_BLOCK_HEADER(dwg); const arr = Array.isArray(a) ? a : (a && a.size ? Array.from({ length: a.size() }, (_, i) => a.get(i)) : []); for (const o of arr) if (o && !roots.includes(o)) roots.push(o); } catch (_) { /* yok */ }
+  /*
+   * Blok tanımları NESNE DİZİNİNDEN taranır, dwg_getall_BLOCK_HEADER ile DEĞİL.
+   *
+   * Sebep ölçüldü: dwg_getall_BLOCK_HEADER blok başlığının tio işaretçisini döndürür,
+   * get_first_owned_entity ise Dwg_Object* bekler. İkisi karışınca çağrı her blokta boş döner
+   * ve blokların İÇİ HİÇ TARANMAZ. Sessiz bir kayıptı: model uzayındaki geometri göründüğü
+   * için kusur ancak geometrinin tamamı bloklarda olan bir dosyada ortaya çıktı
+   * (samples/MARFEN_YUZER_TERFI_3D.dwg — 2.290 blok, her birinde bir polyface mesh; çizim
+   * bomboş açılıyordu). dwg_get_object doğru türü verir ve aynı blokta yürüyüş çalışır.
+   *
+   * Bu, başka CAD'lerden 3B dışa aktarılan DWG'lerin tipik yapısıdır: her katı bir bloğa
+   * konur, model uzayında yalnız yerleştirmeler (INSERT) durur.
+   */
+  try {
+    const N = lib.dwg_get_num_objects(dwg);
+    const gorulen = new Set(roots.map(o => { try { return Number(lib.dwg_obj_get_handle_value(o)); } catch (_) { return null; } }));
+    for (let i = 0; i < N; i++) {
+      let o = null; try { o = lib.dwg_get_object(dwg, i); } catch (_) { continue; }
+      if (!o) continue;
+      let ft = -1; try { ft = lib.dwg_object_get_fixedtype(o); } catch (_) { continue; }
+      if (ft !== 49) continue;                                    // BLOCK_HEADER
+      let hv = null; try { hv = Number(lib.dwg_obj_get_handle_value(o)); } catch (_) { hv = null; }
+      if (hv != null && gorulen.has(hv)) continue;
+      if (hv != null) gorulen.add(hv);
+      roots.push(o);
+    }
+  } catch (_) { /* yok */ }
   // REGION 37, 3DSOLID 38, BODY 39, MESH 663; AcDbSurface türevleri (ACIS taşır): EXTRUDED 633, LOFTED 660, NURB 675, PLANE 682, REVOLVED 702, SWEPT 720
   const byType = { 37: [], 38: [], 39: [], 663: [], 633: [], 660: [], 675: [], 682: [], 702: [], 720: [], 498: [], 65534: [], 29: [], 30: [] }, ownerOf = new Map();
   const census = {}; const typeName = (ft) => { try { const E = LW.Dwg_Object_Type; const n = E && E[ft]; return n ? String(n).replace(/^DWG_TYPE_/, '') : String(ft); } catch (_) { return String(ft); } };
