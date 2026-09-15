@@ -499,4 +499,5 @@ export default {
   tierPopular: 'Paling banyak dipilih', tierSave: 'hemat pada paket tahunan', perMonth: '/bln', openEmptyDirText: 'Tidak ada berkas untuk ditampilkan di folder ini.', openNoResultText: 'Tidak ada berkas yang cocok dengan nama itu; coba bagian yang lebih pendek atau hapus filternya.', srvNoFiles: 'Tidak ditemukan berkas DWG atau DXF di alamat ini.',
   showLocked: 'Tampilkan alat terkunci di pita', allFeatures: 'Semua kemampuan', tierUnlocks: 'Membuka %s fitur',
   gizmoOn: 'Pegangan pindah / skala / putar pada pilihan', infoTap: 'Buka panel info saat diketuk', infoMore: 'Rincian', infoLess: 'Lebih sedikit',
+  proSrcOwner: 'Akun pengembang',
 };

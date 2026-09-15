@@ -122,7 +122,7 @@ export function proInfo() {
   try {
     const o = JSON.parse(String(a.proInfo() || '{}')) || {};
     if (TIERS.includes(o.edition)) info.edition = o.edition;
-    if (o.source === 'play' || o.source === 'license') info.source = o.source;
+    if (o.source === 'play' || o.source === 'license' || o.source === 'owner') info.source = o.source;
     info.name = String(o.name || ''); info.exp = Number(o.exp) || 0; info.plan = String(o.plan || '');
     if (o.prices && typeof o.prices === 'object') info.prices = o.prices;
     info.billingReady = !!o.billingReady; info.licenseEnabled = !!o.licenseEnabled;
@@ -325,7 +325,8 @@ function renderProPanel() {
     const planTxt = info.plan === 'yearly' ? tt('planYearly', 'Yıllık') : info.plan === 'monthly' ? tt('planMonthly', 'Aylık') : '';
     const src = info.source === 'license'
       ? t('proSrcLicense') + (info.name ? ' — ' + info.name : '') + (info.exp ? ' (' + t('proExpires') + ' ' + dateText(info.exp) + ')' : '')
-      : info.source === 'play' ? t('proSrcPlay') + (planTxt ? ' — ' + planTxt : '') : '';
+      : info.source === 'play' ? t('proSrcPlay') + (planTxt ? ' — ' + planTxt : '')
+      : info.source === 'owner' ? t('proSrcOwner') + (info.name ? ' — ' + info.name : '') : '';
     html += `<div class="full pro-hero pro-status owned" data-pro-status="${esc(info.source)}" data-tier="${esc(curTier)}">`
       + `<span class="pro-hero-ic t-${esc(curTier)}" aria-hidden="true"><svg class="ic"><use href="#${TIER_ICON[curTier] || 'i-star'}"/></svg></span>`
       + `<span class="pro-hero-tx"><strong>${esc(tierName(curTier))}</strong>`
@@ -462,7 +463,7 @@ export function onEdition(ed, reason) {
   if (noAds()) stop(); else start();
   if (isProPanelOpen()) renderProPanel();
   const toast = (m, o) => { if (api && api.toast) api.toast(m, o); };
-  if (r === 'purchased' || r === 'restored' || r === 'license') toast(t('proActivated'), { type: 'ok' });
+  if (r === 'purchased' || r === 'restored' || r === 'license' || r === 'owner') toast(t('proActivated'), { type: 'ok' });
   else if (r === 'pending') toast(t('proPending'), { type: 'warn', ms: 5000 });
   else if (r === 'revoked') toast(t('proRevoked'), { type: 'warn' });
   else if (r === 'none') toast(t('proRestoreNone'), { type: 'warn' });

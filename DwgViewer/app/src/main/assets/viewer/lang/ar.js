@@ -498,4 +498,5 @@ export default {
   tierPopular: 'الأكثر اختيارًا', tierSave: 'توفير في الاشتراك السنوي', perMonth: '‏/شهر', openEmptyDirText: 'لا توجد ملفات لعرضها في هذا المجلد.', openNoResultText: 'لا يوجد ملف يطابق هذا الاسم؛ جرّب جزءًا أقصر منه أو امسح عامل التصفية.', srvNoFiles: 'لم يُعثر على ملف DWG أو DXF في هذا العنوان.',
   showLocked: 'إظهار الأدوات المقفلة في الشريط', allFeatures: 'كل الإمكانات', tierUnlocks: 'يفتح %s ميزة',
   gizmoOn: 'مقابض النقل / التحجيم / التدوير على التحديد', infoTap: 'فتح لوحة المعلومات عند اللمس', infoMore: 'التفاصيل', infoLess: 'أقل',
+  proSrcOwner: 'حساب المطوّر',
 };

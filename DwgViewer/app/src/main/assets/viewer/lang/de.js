@@ -318,4 +318,5 @@ export default {
   tierPopular: 'Am beliebtesten', tierSave: 'Ersparnis im Jahresabo', perMonth: '/Mon.', openEmptyDirText: 'In diesem Ordner gibt es keine Dateien zum Anzeigen.', openNoResultText: 'Keine Datei passt zu diesem Namen; probieren Sie einen kürzeren Teil oder löschen Sie den Filter.', srvNoFiles: 'Unter dieser Adresse wurde keine DWG- oder DXF-Datei gefunden.',
   showLocked: 'Gesperrte Werkzeuge im Menüband zeigen', allFeatures: 'Alle Funktionen', tierUnlocks: 'Schaltet %s Funktionen frei',
   gizmoOn: 'Griffe zum Verschieben / Skalieren / Drehen der Auswahl', infoTap: 'Infofenster beim Antippen öffnen', infoMore: 'Details', infoLess: 'Weniger',
+  proSrcOwner: 'Entwicklerkonto',
 };

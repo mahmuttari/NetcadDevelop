@@ -149,6 +149,9 @@ public class MainActivity extends Activity {
         google = new GoogleDrive(this);
         webdav = new WebDav(this);
         pro = new Pro(this);
+        // Sahip hesabı yetkisi, reklam kurulmadan ÖNCE eşitlenir: yoksa açılışta bir kez reklam kurulur
+        // ve yetki sonradan yükselse de o örnek ayakta kalırdı.
+        syncOwnerGrant();
         ads = new Ads(this);
         if (showsAds()) ads.init();
         // her açılışta Play sahipliği yeniden doğrulanır; hizmet yoksa sessizce geçilir, kayıtlı yetkiye dokunulmaz
@@ -276,7 +279,11 @@ public class MainActivity extends Activity {
         if (Intent.ACTION_VIEW.equals(action)) {
             uri = intent.getData();
             // Google ile giriş yönlendirmesi
-            if (uri != null && google.handleRedirect(uri, (ok, json) -> jsWhenReady("window.dwgApp && window.dwgApp.onGoogle(" + ok + "," + json + ")"))) return false;
+            if (uri != null && google.handleRedirect(uri, (ok, json) -> {
+                // Giriş başarılıysa sahip hesabı yetkisi HEMEN eşitlenir; JS onGoogle'ı aldığında basamak güncel olur.
+                if (ok) runOnUiThread(() -> { if (syncOwnerGrant()) editionChanged(Owner.SOURCE); });
+                jsWhenReady("window.dwgApp && window.dwgApp.onGoogle(" + ok + "," + json + ")");
+            })) return false;
         } else if (Intent.ACTION_SEND.equals(action)) {
             uri = intent.getParcelableExtra(Intent.EXTRA_STREAM);
             if (uri == null) {
@@ -364,6 +371,19 @@ public class MainActivity extends Activity {
         else if (ads == null || "revoked".equals(reason)) { ads = new Ads(this); ads.init(); }
         jsWhenReady("window.dwgApp && window.dwgApp.onEdition(" + JSONObject.quote(ed) + "," + JSONObject.quote(reason) + ")");
         scheduleLicenseExpiry();
+    }
+
+    /**
+     * Sahip hesabı yetkisini Google oturumuyla eşitler: giriş yapılan hesap {@link Owner} listesindeyse
+     * en üst paket verilir, oturum kapalıysa ya da başka bir hesapsa kayıt silinir. Yetki değiştiyse true.
+     * Her açılışta ve her giriş/çıkışta çağrılır — böylece hesap değişince yetki geride kalmaz.
+     */
+    private boolean syncOwnerGrant() {
+        try {
+            String email = (google != null && google.signedIn()) ? Owner.emailOf(google.user()) : "";
+            if (!email.isEmpty() && Owner.is(email)) return pro.set(Owner.SOURCE, Owner.TIER, email, 0, "");
+            return pro.clearOwner();
+        } catch (Exception e) { return false; }
     }
 
     /** Süreli lisansın bitişinde çalışır: Pro.get() süresi dolan kaydı siler; yetki düştüyse JS'e "revoked" bildirilir */
@@ -1355,7 +1375,11 @@ public class MainActivity extends Activity {
         @JavascriptInterface public boolean gConfigured() { return GoogleDrive.configured(); }
         @JavascriptInterface public String gRedirect() { return GoogleDrive.redirectUri(); }
         @JavascriptInterface public String gSignIn() { runOnUiThread(() -> { String r = google.signIn(); if (!r.isEmpty()) Toast.makeText(MainActivity.this, r, Toast.LENGTH_LONG).show(); }); return ""; }
-        @JavascriptInterface public void gSignOut() { google.signOut(); }
+        @JavascriptInterface public void gSignOut() {
+            google.signOut();
+            // Oturum kapanınca sahip hesabı yetkisi de gider (satın alınmış yetki varsa o kalır).
+            runOnUiThread(() -> { if (syncOwnerGrant()) editionChanged("revoked"); });
+        }
         @JavascriptInterface public String gAccount() { return google.signedIn() ? google.user() : ""; }
         /** Asenkron Drive işlemi; sonuç dwgApp.onDrive(reqId, ok, json) ile döner */
         @JavascriptInterface

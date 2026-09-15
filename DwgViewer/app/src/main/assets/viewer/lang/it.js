@@ -499,4 +499,5 @@ export default {
   tierPopular: 'Il più scelto', tierSave: 'risparmio sul piano annuale', perMonth: '/mese', openEmptyDirText: 'Non ci sono file da mostrare in questa cartella.', openNoResultText: 'Nessun file corrisponde a quel nome; prova una parte più breve o cancella il filtro.', srvNoFiles: 'Nessun file DWG o DXF trovato a questo indirizzo.',
   showLocked: 'Mostra gli strumenti bloccati nella barra multifunzione', allFeatures: 'Tutte le funzioni', tierUnlocks: 'Sblocca %s funzioni',
   gizmoOn: 'Maniglie sposta / scala / ruota sulla selezione', infoTap: 'Apri il pannello informazioni al tocco', infoMore: 'Dettagli', infoLess: 'Meno',
+  proSrcOwner: 'Account sviluppatore',
 };

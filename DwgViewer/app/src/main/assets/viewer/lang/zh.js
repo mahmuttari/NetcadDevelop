@@ -300,4 +300,5 @@ export default {
   tierPopular: '最多人选择', tierSave: '年付方案可省', perMonth: '/月', openEmptyDirText: '此文件夹中没有可显示的文件。', openNoResultText: '没有与该名称相符的文件；请试试更短的一段名称，或清除筛选。', srvNoFiles: '在此地址未找到 DWG 或 DXF 文件。',
   showLocked: '在功能区中显示锁定的工具', allFeatures: '全部功能', tierUnlocks: '解锁 %s 项功能',
   gizmoOn: '选择对象上的移动 / 缩放 / 旋转手柄', infoTap: '点按时打开信息面板', infoMore: '详细', infoLess: '简略',
+  proSrcOwner: '开发者账号',
 };
