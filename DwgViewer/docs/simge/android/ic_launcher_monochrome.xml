@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ÖNERİ · "Plan ve Kalem" — tools/gen_simge.mjs üretir, elle düzenlenmez.
+     Ön yüz vektördür: her yoğunlukta keskin, PNG yığınına gerek yok. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:pathData="M31,54 L31,75 L77,75 L77,33 L31,33 L31,54 L77,54"
+        android:strokeColor="#FFFFFF" android:strokeWidth="6"
+        android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path android:pathData="M70.2,54 a6.8,6.8 0 1,0 13.6,0 a6.8,6.8 0 1,0 -13.6,0 Z" android:fillColor="#FFFFFF" />
+</vector>

@@ -791,7 +791,7 @@ html[dir="rtl"] .kv-copy { text-align: right; }
    NE ZAMAN HANGİ SINIF
      #loading.modal            → sınıf yoksa var olan .spinner görünür (geri uyumluluk).
      #loading.modal.load-cad   → çizim çözümleniyor / DXF kuruluyor / sahne hazırlanıyor.
-                                 (yılan oyunu: yem yendikçe plan çizilir, sonra gülen surat)
+                                 (kalem planı çizer, sonra kıvrılıp gülen surata döner)
      #loading.modal.load-doc   → PDF · DOCX · XLSX · TXT belgesi açılıyor, sayfa dizgisi.
      #loading.modal.load-out   → dışa aktarma, yazdırma, PDF üretme, toplu çıktı.
      #loading.modal.load-d3    → 3B sahne kurulumu, katı model, görünüm küpü hazırlığı.
@@ -803,9 +803,10 @@ html[dir="rtl"] .kv-copy { text-align: right; }
      Bekleme örtüsü dakikalarca açık kalabilir (büyük DWG). Göz, saniyenin altındaki ritmi
      "acele" olarak okur ve yorar; 2,5 sn'nin altı huzursuz eder, 4 sn'nin üstü "takıldı"
      izlenimi verir. Bu yüzden tek olaylı döngüler 3,0-4,0 sn arasındadır; iki perdeli 'cad'
-     görseli tek istisnadır (perde başına 2,2 sn):
-       cad 4,4s (yılan oyunu: yem yendikçe plan çizilir, sonra gülen surat — iki perdeli
-                 tek anlatı olduğu için ötekilerden uzun; gerekçesi kendi bölümünde)
+     görseli tek istisnadır (perde başına 3 sn'nin altında kalır):
+       cad 6,0s (kalem planı çizer, sonra kıvrılıp surata döner — iki perdeli tek anlatı
+                 olduğu için ötekilerden uzun; uzun döngü tekrar yorgunluğunu da azaltır,
+                 gerekçesi kendi bölümünde)
        doc 3,2s (satır dizilmesi; satırlar 0,13s aralıkla basamaklanır)
        out 3,0s (iki sayfa 1,5s faz farkıyla → kesintisiz akış, görünür ritim 1,5s)
        d3  4,0s (tam tur; 90°/s'nin altı, baş döndürmeyen ağırlıkta bir dönüş)
@@ -897,87 +898,368 @@ body.glove #loading { --la: min(calc(172px * var(--fs)), 54vw); }
 body.glove #loading .btn { min-height: calc(52px * var(--fs)); min-width: calc(120px * var(--fs)); }
 
 
-/* ---- 3. 'cad' — küçük bir yılan oyunu: yılan planı çizer, sonra gülen surata döner (4,4 s) --
-   İKİ PERDE
-     0 → 58 %  yılan planın hattını dolaşır ve yol üstündeki dört yemi yer; her yemde boyu
-               beş birim uzar. Geçtiği yer .trail üzerinde kalıcı olarak çizilir → plan,
-               yılan tarafından çiziliyormuş gibi tamamlanır.
-     66 → 96 % yem biten yılan kıvrılıp gülen surata döner. Devir teslim sırası önemlidir:
-               önce PLAN söner (66-74), yılan bir an YALNIZ kalır, sonra yüz çemberi onun
-               bittiği noktadan çizilmeye başlar (74) ve yılan söner (76-82). <circle> saat 3
-               yönünden, yani (cx+r, cy) = sağ ortadan çizilir; yılanın son noktası (102,54)
-               da sağ ortadadır — çember tam oradan devralır, "kıvrıldı" okunur.
+/* ---- 3. 'cad' — kalem planı çizer, sonra kıvrılıp surata döner (6,0 s) ----------------------
+   FİKİR
+     Bekleme görseli süs değil, yapılan işin anlatımıdır: DWG okunurken ekranda bir plan
+     ÇİZİLİR. Çizen şey bir CAD imlecidir — küçük bir kalem ucu ve etrafındaki yakalama
+     halkası. Köşelere geldiğinde "snap" eder, orada bir an durur, uç nokta imi açılıp söner
+     ve yılan gövdesi bir boy uzar. Yani yılan oyununun kuralı ile CAD'in kendi davranışı
+     aynı harekette birleşir.
 
-   NEDEN 4,4 s (öteki görseller 3,0-4,0 s)
-     Bu görsel iki perdeli bir anlatıdır; süre tek bir olayın değil ikisinin toplamıdır. Perde
-     başına 2,5 s'nin altında kalır, yani hiçbir perde "acele" okunmaz; 4 s üstü "takıldı"
-     izlenimi ise DURAN görseller için geçerlidir, burada hareket hiç kesilmez.
+   İKİ PERDE, TEK SOLUKTA
+     0 → 52,5 %  kalem planın hattını dolaşır; geçtiği yer arkasında kalıcı olarak çizilir.
+     52,5 → 79,5 % kalem DURMADAN çemberin içine kıvrılır; plan söner, gövde çembere akar,
+                 çember kapanınca gövde suratın içine çekilir.
+     79,5 → 96,5 % gözler ve ağız gelir, surat bir kez "merhaba" der.
+     96,5 → 100 % surat söner, kalem başlangıç noktasında yeniden belirir (dikişsiz döngü).
 
-   YILAN NASIL KURULUYOR
-     .snake ile .trail aynı "d" yolunu paylaşır ve ikisi de pathLength="100" taşır, yani bütün
-     ölçüler yüzdedir. Yılan, yol üzerinde tek bir kesik parçadır:
-       stroke-dasharray: L 200  → boşluk yoldan uzun olduğu için yolda TEK parça bulunur
-                                  (100 verilseydi parça yolun sonundan çıkarken baştan geri
-                                  girer, yılan kendi kuyruğundan doğuyormuş gibi görünürdü)
-       stroke-dashoffset: L − p → parça [p−L, p) aralığını kaplar; p baş konumu, L boy
-     Baş p ile .trail'in dashoffset'i (100 − p) aynı zaman eğrisini izler, bu yüzden çizilen iz
-     her karede tam başın arkasında biter. Boy L yemlerde basamak basamak artar: iki keyframe
-     0,1 % arayla konur, böylece uzama ANLIK olur ve baş yerinden oynamaz.
-     Yemler yolun üstündedir; kayboldukları an başın oradan geçtiği andır (yol yüzdesi 20, 42,
-     62, 85 → zaman yüzdesi 11,6 · 24,4 · 36 · 49,3).
+   NEDEN BÖYLE OTURUYOR — üç karar
+     1. Plan yolu bir EULER YOLUDUR. Dış duvar + y=56'daki iç bölme çizgesinde yalnız iç
+        bölmenin iki ucu tek derecelidir; yol soldaki uçtan başlayıp sağdakine varır ve
+        HİÇBİR duvarı iki kez geçmez. Kalem kendi izine basmaz, plan da eksiksiz çıkar.
+     2. Yüz çemberinin yarıçapı 42, yani genişliği tam planın genişliği (18..102) ve
+        başlangıç noktası (102,56) planın BİTTİĞİ noktanın kendisidir. Devir teslim
+        yaklaşık değil, birebirdir: kalem bir noktada durup başka yerde belirmez.
+     3. Kıvrılmada hız v0/(1+A·sin(πσ)) ile yumuşakça artıp yine iner. σ=0 ve σ=1'de çarpan
+        1'dir; plandan çembere geçişte ve çember kapanırken hız SIÇRAMAZ, aradaki hızlanma
+        "kıvrım" hissini verir. A, kıvrılmanın bütçelenen süreyi tam tutması için çözülür.
+
+   GÖVDE: YILAN OYUNUNUN KENDİ KURALI
+     Yem yenince kuyruk DURUR, baş gitmeye devam eder, gövde o farktan uzar. Kuyruğu geri
+     çekmek daha kolay olurdu ama yanlış olurdu: gerçek yılanda da uzama arkadan eklenir,
+     baş yerinden oynamaz. Gövde yol üzerinde tek kesik parçadır — stroke-dasharray'in
+     boşluğu (200) yoldan uzun tutulur; 100 verilseydi parça yolun sonundan çıkarken baştan
+     geri girer, yılan kendi kuyruğundan doğuyormuş gibi görünürdü.
+
+   NEDEN 6,0 s
+     Bu görsel iki perdeli tek bir anlatıdır; süre bir olayın değil ikisinin toplamıdır.
+     Uzun döngü tekrar yorgunluğunu da azaltır: beklemenin çoğu 3 sn'nin altında bittiği
+     için kullanıcı genellikle yalnız BİRİNCİ perdeyi, yani bilgi veren kısmı görür.
+
+   YUVARLAK UÇ BAŞLIĞI TUZAĞI
+     stroke-linecap: round ile tamamen ötelenmiş bir kesik yol bile ucunda nokta bırakır.
+     Bu yüzden gizli olması gereken her yol (çember, ağız, gövde) ayrıca opacity: 0 taşır;
+     dashoffset tek başına yetmez.
 
    DURGUN KİP
-     Statik değerler döngünün BİLGİ VEREN son hâlidir: plan tam çizilmiş, yemler yenmiş, yılan
-     ve surat gizli. Gülen surat süstür; hareketin kapalı olduğu yerde ekranda kalması gereken
-     şey plandır. */
-.la-cad .trail { stroke-width: 2.6; stroke-dasharray: 100; stroke-dashoffset: 0;   /* statik: plan çizilmiş */
-                 animation: snTrail 4.4s linear infinite; }
-.la-cad .snake { stroke: var(--accent); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round;
-                 opacity: 0; stroke-dasharray: 27 200; stroke-dashoffset: -73;     /* statik: yılan gitmiş */
-                 animation: snBody 4.4s linear infinite; }
-.la-cad .pel   { fill: var(--accent); stroke: none; opacity: 0;                    /* statik: yemler yenmiş */
-                 transform-box: fill-box; transform-origin: 50% 50%; transform: scale(0); }
-.la-cad .p1    { animation: snPel1 4.4s linear infinite; }
-.la-cad .p2    { animation: snPel2 4.4s linear infinite; }
-.la-cad .p3    { animation: snPel3 4.4s linear infinite; }
-.la-cad .p4    { animation: snPel4 4.4s linear infinite; }
-.la-cad .plan  { opacity: 1; animation: snPlan 4.4s linear infinite; }
-.la-cad .smile { opacity: 0; animation: snFace 4.4s linear infinite; }             /* statik: surat gizli */
-.la-cad .face  { stroke: var(--accent); stroke-width: 5; stroke-linecap: round;
-                 stroke-dasharray: 100; stroke-dashoffset: 100; opacity: 0;
-                 animation: snDraw 4.4s cubic-bezier(.4,0,.2,1) infinite; }
-.la-cad .mouth { stroke: var(--accent); stroke-width: 4.5; stroke-linecap: round;
-                 stroke-dasharray: 100; stroke-dashoffset: 100; opacity: 0;
-                 animation: snMouth 4.4s cubic-bezier(.4,0,.2,1) infinite; }
-.la-cad .eye   { fill: var(--accent); stroke: none;
-                 transform-box: fill-box; transform-origin: 50% 50%; transform: scale(0);
-                 animation: snEye 4.4s cubic-bezier(.34,1.4,.5,1) infinite; }
+     Statik değerler döngünün BİLGİ VEREN son hâlidir: plan tam çizili, kalem/im/gövde/surat
+     gizli. Surat süstür; hareketin kapalı olduğu yerde ekranda kalması gereken şey plandır.
 
-/* Baş p = %58'e kadar 0 → 100; iz tam başın arkasında biter */
-@keyframes snTrail { 0% { stroke-dashoffset: 100 } 58%, 100% { stroke-dashoffset: 0 } }
-/* dashoffset = L − p; yemlerde L 7 → 12 → 17 → 22 → 27 (basamak: iki keyframe 0,1 % arayla) */
-@keyframes snBody {
-  0%     { opacity: 1; stroke-dasharray: 7 200;  stroke-dashoffset: 7 }
-  11.6%  { stroke-dasharray: 7 200;  stroke-dashoffset: -13 }
-  11.7%  { stroke-dasharray: 12 200; stroke-dashoffset: -8 }
-  24.4%  { stroke-dasharray: 12 200; stroke-dashoffset: -30 }
-  24.5%  { stroke-dasharray: 17 200; stroke-dashoffset: -25 }
-  36%    { stroke-dasharray: 17 200; stroke-dashoffset: -45 }
-  36.1%  { stroke-dasharray: 22 200; stroke-dashoffset: -40 }
-  49.3%  { stroke-dasharray: 22 200; stroke-dashoffset: -63 }
-  49.4%  { stroke-dasharray: 27 200; stroke-dashoffset: -58 }
-  58%, 76% { opacity: 1; stroke-dasharray: 27 200; stroke-dashoffset: -73 }
-  82%, 100% { opacity: 0; stroke-dasharray: 27 200; stroke-dashoffset: -73 }
+   Bütün keyframe'ler tools/gen_loadart.mjs tarafından üretilir (aşağıdaki işaretli blok).
+   Zamanlama elle düzenlenmez: baş konumu, izin ucu ve gövde boyu tek bir "zaman → yol"
+   eşlemesinden türer, böylece ayrışmaları matematiksel olarak imkânsızdır. Sınama
+   (tools/test_loadart.mjs) bunu tarayıcıda getPointAtLength ile bağımsız olarak doğrular. */
+
+.la-cad .trail { stroke-width: 2.8; stroke-dasharray: 100; stroke-dashoffset: 0;  /* statik: plan çizilmiş */
+                 animation: snTrail 6s linear infinite; }
+.la-cad .plan  { opacity: 1; animation: snPlan 6s linear infinite; }
+
+/* yakalama imi (uç nokta karesi) ve yakalandığında açılan halka */
+.la-cad .sq, .la-cad .pg { stroke: var(--accent); fill: none; opacity: 0;
+                 transform-box: fill-box; transform-origin: 50% 50%; }
+.la-cad .sq { stroke-width: 1.5; transform: scale(.6); }
+.la-cad .pg { stroke-width: 1.2; transform: scale(.5); }
+.la-cad .q1 { animation: snSnap1 6s cubic-bezier(.2,.7,.3,1) infinite; }
+.la-cad .q2 { animation: snSnap2 6s cubic-bezier(.2,.7,.3,1) infinite; }
+.la-cad .q3 { animation: snSnap3 6s cubic-bezier(.2,.7,.3,1) infinite; }
+.la-cad .q4 { animation: snSnap4 6s cubic-bezier(.2,.7,.3,1) infinite; }
+.la-cad .q5 { animation: snSnap5 6s cubic-bezier(.2,.7,.3,1) infinite; }
+.la-cad .g1 { animation: snPing1 6s cubic-bezier(.1,.6,.3,1) infinite; }
+.la-cad .g2 { animation: snPing2 6s cubic-bezier(.1,.6,.3,1) infinite; }
+.la-cad .g3 { animation: snPing3 6s cubic-bezier(.1,.6,.3,1) infinite; }
+.la-cad .g4 { animation: snPing4 6s cubic-bezier(.1,.6,.3,1) infinite; }
+.la-cad .g5 { animation: snPing5 6s cubic-bezier(.1,.6,.3,1) infinite; }
+
+/* gövde: ana kalem + altında çok soluk geniş bir iz (derinlik). İkisi AYNI keyframe'i
+   kullanır — dasharray pathLength biriminde olduğu için kalınlıktan bağımsızdır. */
+.la-cad .snake, .la-cad .glow { stroke: var(--accent); stroke-linecap: round; stroke-linejoin: round;
+                 opacity: 0; stroke-dasharray: 0 200; stroke-dashoffset: 0;      /* statik: gövde yok */
+                 animation: snBody 6s linear infinite; }
+.la-cad .snake { stroke-width: 5; }
+.la-cad .glow  { stroke-width: 11; stroke-opacity: .12; }
+
+/* kalem ucu (imleç): dolu uç + yakalama halkası; konum yol geometrisinden gelir */
+.la-cad .pen { opacity: 0; transform-box: view-box; transform-origin: 0 0;        /* statik: kalem yok */
+               transform: translate(18px, 56px) scale(0); animation: snHead 6s linear infinite; }
+.la-cad .nib { fill: var(--accent); stroke: none; }
+.la-cad .aperture { stroke: var(--accent); stroke-width: 1.3; fill: none; stroke-opacity: .5; }
+
+/* surat: çember planla aynı kalemle çizilir (duvar rengi), gözler ile ağız vurgu rengindedir */
+.la-cad .smile { opacity: 0; transform-box: view-box; transform-origin: 60px 56px;
+                 animation: snFace 6s linear infinite, snGreet 6s ease-in-out infinite; }
+.la-cad .ring  { stroke-width: 3.6; stroke-linecap: round;
+                 stroke-dasharray: 100; stroke-dashoffset: 100; opacity: 0;       /* statik: surat gizli */
+                 animation: snRing 6s linear infinite; }
+.la-cad .eye   { fill: var(--accent); stroke: none; opacity: 0;
+                 transform-box: fill-box; transform-origin: 50% 50%; transform: scale(0); }
+.la-cad .e1 { animation: snEye1 6s cubic-bezier(.34,1.45,.5,1) infinite; }
+.la-cad .e2 { animation: snEye2 6s cubic-bezier(.34,1.45,.5,1) infinite; }
+.la-cad .mouth { stroke: var(--accent); stroke-width: 4.2; stroke-linecap: round;
+                 stroke-dasharray: 100; stroke-dashoffset: 100; opacity: 0;
+                 animation: snMouth 6s cubic-bezier(.33,0,.15,1) infinite; }
+.la-cad .coil, .la-cad .coilGlow { stroke: var(--accent); stroke-linecap: round;
+                 opacity: 0; stroke-dasharray: 0 200; stroke-dashoffset: 0;
+                 animation: snCoil 6s linear infinite; }
+.la-cad .coil     { stroke-width: 5; }
+.la-cad .coilGlow { stroke-width: 11; stroke-opacity: .12; }
+
+/* >>> gen_loadart başlangıç */
+/* ÜRETİLMİŞ — tools/gen_loadart.mjs. Elle düzenlenmez; sayılar tek bir
+   "zaman → yol" eşlemesinden türer, bkz. betiğin başındaki açıklama. */
+@keyframes snTrail {
+  0%, 2.5% { stroke-dashoffset: 100 }
+  6.048%, 7.248% { stroke-dashoffset: 91.935 }
+  17.184%, 18.384% { stroke-dashoffset: 69.355 }
+  25.481%, 26.681% { stroke-dashoffset: 53.226 }
+  36.616%, 37.816% { stroke-dashoffset: 30.645 }
+  41.365%, 42.565% { stroke-dashoffset: 22.581 }
+  52.5%, 100% { stroke-dashoffset: 0 }
 }
-@keyframes snPlan { 0% { opacity: 0 } 4%, 66% { opacity: 1 } 74%, 100% { opacity: 0 } }
-@keyframes snPel1 { 0%, 11.6% { opacity: 1; transform: scale(1) } 14%, 100% { opacity: 0; transform: scale(0) } }
-@keyframes snPel2 { 0%, 24.4% { opacity: 1; transform: scale(1) } 27%, 100% { opacity: 0; transform: scale(0) } }
-@keyframes snPel3 { 0%, 36%   { opacity: 1; transform: scale(1) } 38.5%, 100% { opacity: 0; transform: scale(0) } }
-@keyframes snPel4 { 0%, 49.3% { opacity: 1; transform: scale(1) } 52%, 100% { opacity: 0; transform: scale(0) } }
-@keyframes snFace { 0%, 72% { opacity: 0 } 80%, 96% { opacity: 1 } 100% { opacity: 0 } }
-@keyframes snDraw { 0%, 74% { opacity: 0; stroke-dashoffset: 100 } 74.1% { opacity: 1 } 88%, 100% { opacity: 1; stroke-dashoffset: 0 } }
-@keyframes snMouth { 0%, 88% { opacity: 0; stroke-dashoffset: 100 } 88.1% { opacity: 1 } 95%, 100% { opacity: 1; stroke-dashoffset: 0 } }
-@keyframes snEye { 0%, 86% { transform: scale(0) } 92%, 100% { transform: scale(1) } }
+@keyframes snBody {
+  0% { opacity: 0; stroke-dasharray: 0 200; stroke-dashoffset: 0 }
+  2.5% { opacity: 1; stroke-dasharray: 0 200; stroke-dashoffset: 0 }
+  5.14% { opacity: 1; stroke-dasharray: 6 200; stroke-dashoffset: 0 }
+  6.048%, 7.248% { opacity: 1; stroke-dasharray: 6 200; stroke-dashoffset: -2.065 }
+  9.008% { opacity: 1; stroke-dasharray: 10 200; stroke-dashoffset: -2.065 }
+  17.184%, 18.384% { opacity: 1; stroke-dasharray: 10 200; stroke-dashoffset: -20.645 }
+  20.144% { opacity: 1; stroke-dasharray: 14 200; stroke-dashoffset: -20.645 }
+  25.481%, 26.681% { opacity: 1; stroke-dasharray: 14 200; stroke-dashoffset: -32.774 }
+  28.441% { opacity: 1; stroke-dasharray: 18 200; stroke-dashoffset: -32.774 }
+  36.616%, 37.816% { opacity: 1; stroke-dasharray: 18 200; stroke-dashoffset: -51.355 }
+  39.576% { opacity: 1; stroke-dasharray: 22 200; stroke-dashoffset: -51.355 }
+  41.365%, 42.565% { opacity: 1; stroke-dasharray: 22 200; stroke-dashoffset: -55.419 }
+  44.325% { opacity: 1; stroke-dasharray: 26 200; stroke-dashoffset: -55.419 }
+  52.5%, 52.5% { opacity: 1; stroke-dasharray: 26 200; stroke-dashoffset: -74 }
+  55.5% { opacity: 1; stroke-dasharray: 16.591 200; stroke-dashoffset: -83.409 }
+  56.082% { opacity: 1; stroke-dasharray: 15.209 200; stroke-dashoffset: -84.791 }
+  56.616% { opacity: 1; stroke-dasharray: 13.826 200; stroke-dashoffset: -86.174 }
+  57.11% { opacity: 1; stroke-dasharray: 12.444 200; stroke-dashoffset: -87.556 }
+  57.57% { opacity: 1; stroke-dasharray: 11.061 200; stroke-dashoffset: -88.939 }
+  58.001% { opacity: 1; stroke-dasharray: 9.678 200; stroke-dashoffset: -90.322 }
+  58.406% { opacity: 1; stroke-dasharray: 8.296 200; stroke-dashoffset: -91.704 }
+  58.789% { opacity: 1; stroke-dasharray: 6.913 200; stroke-dashoffset: -93.087 }
+  59.152% { opacity: 1; stroke-dasharray: 5.53 200; stroke-dashoffset: -94.47 }
+  59.498% { opacity: 1; stroke-dasharray: 4.148 200; stroke-dashoffset: -95.852 }
+  59.83% { opacity: 1; stroke-dasharray: 2.765 200; stroke-dashoffset: -97.235 }
+  60.148% { opacity: 1; stroke-dasharray: 1.383 200; stroke-dashoffset: -98.617 }
+  60.454% { opacity: 1; stroke-dasharray: 0 200; stroke-dashoffset: -100 }
+  60.455% { opacity: 0; stroke-dasharray: 0 200; stroke-dashoffset: -100 }
+  100% { opacity: 0; stroke-dasharray: 0 200; stroke-dashoffset: 0 }
+}
+@keyframes snHead {
+  0% { opacity: 0; transform: translate(18px, 56px) scale(0) }
+  2.5%, 2.5% { opacity: 1; transform: translate(18px, 56px) scale(1) }
+  6.048%, 7.248% { opacity: 1; transform: translate(18px, 86px) scale(1) }
+  17.184%, 18.384% { opacity: 1; transform: translate(102px, 86px) scale(1) }
+  25.481%, 26.681% { opacity: 1; transform: translate(102px, 26px) scale(1) }
+  36.616%, 37.816% { opacity: 1; transform: translate(18px, 26px) scale(1) }
+  41.365%, 42.565% { opacity: 1; transform: translate(18px, 56px) scale(1) }
+  52.5% { opacity: 1; transform: translate(102px, 56px) scale(1) }
+  53.85% { opacity: 1; transform: translate(102px, 56px) scale(1.28) }
+  55.5% { opacity: 1; transform: translate(102px, 56px) scale(1) }
+  56.463% { opacity: 1; transform: translate(101.082px, 47.268px) scale(1) }
+  57.309% { opacity: 1; transform: translate(98.369px, 38.917px) scale(1) }
+  58.054% { opacity: 1; transform: translate(93.979px, 31.313px) scale(1) }
+  58.726% { opacity: 1; transform: translate(88.103px, 24.788px) scale(1) }
+  59.345% { opacity: 1; transform: translate(81px, 19.627px) scale(1) }
+  59.912% { opacity: 1; transform: translate(72.979px, 16.056px) scale(1) }
+  60.443% { opacity: 1; transform: translate(64.39px, 14.23px) scale(1) }
+  60.946% { opacity: 1; transform: translate(55.61px, 14.23px) scale(1) }
+  61.422% { opacity: 1; transform: translate(47.021px, 16.056px) scale(1) }
+  61.878% { opacity: 1; transform: translate(39px, 19.627px) scale(1) }
+  62.322% { opacity: 1; transform: translate(31.897px, 24.788px) scale(1) }
+  62.75% { opacity: 1; transform: translate(26.021px, 31.313px) scale(1) }
+  63.171% { opacity: 1; transform: translate(21.631px, 38.917px) scale(1) }
+  63.588% { opacity: 1; transform: translate(18.918px, 47.268px) scale(1) }
+  64% { opacity: 1; transform: translate(18px, 56px) scale(1) }
+  64.412% { opacity: 1; transform: translate(18.918px, 64.732px) scale(1) }
+  64.83% { opacity: 1; transform: translate(21.631px, 73.083px) scale(1) }
+  65.25% { opacity: 1; transform: translate(26.021px, 80.687px) scale(1) }
+  65.678% { opacity: 1; transform: translate(31.897px, 87.212px) scale(1) }
+  66.122% { opacity: 1; transform: translate(39px, 92.373px) scale(1) }
+  66.578% { opacity: 1; transform: translate(47.021px, 95.944px) scale(1) }
+  67.054% { opacity: 1; transform: translate(55.61px, 97.77px) scale(1) }
+  67.557% { opacity: 1; transform: translate(64.39px, 97.77px) scale(1) }
+  68.088% { opacity: 1; transform: translate(72.979px, 95.944px) scale(1) }
+  68.655% { opacity: 1; transform: translate(81px, 92.373px) scale(1) }
+  69.274% { opacity: 1; transform: translate(88.103px, 87.212px) scale(1) }
+  69.946% { opacity: 1; transform: translate(93.979px, 80.687px) scale(1) }
+  70.691% { opacity: 0.96; transform: translate(98.369px, 73.083px) scale(1) }
+  71.537% { opacity: 0.79; transform: translate(101.082px, 64.732px) scale(1) }
+  72.5% { opacity: 0.6; transform: translate(102px, 56px) scale(1) }
+  75.5% { opacity: 0; transform: translate(102px, 56px) scale(1) }
+  76%, 100% { opacity: 0; transform: translate(18px, 56px) scale(0) }
+}
+@keyframes snRing {
+  0%, 55.5% { opacity: 0; stroke-dashoffset: 100 }
+  55.501% { opacity: 1; stroke-dashoffset: 100 }
+  56.463% { opacity: 1; stroke-dashoffset: 96.667 }
+  57.309% { opacity: 1; stroke-dashoffset: 93.333 }
+  58.054% { opacity: 1; stroke-dashoffset: 90 }
+  58.726% { opacity: 1; stroke-dashoffset: 86.667 }
+  59.345% { opacity: 1; stroke-dashoffset: 83.333 }
+  59.912% { opacity: 1; stroke-dashoffset: 80 }
+  60.443% { opacity: 1; stroke-dashoffset: 76.667 }
+  60.946% { opacity: 1; stroke-dashoffset: 73.333 }
+  61.422% { opacity: 1; stroke-dashoffset: 70 }
+  61.878% { opacity: 1; stroke-dashoffset: 66.667 }
+  62.322% { opacity: 1; stroke-dashoffset: 63.333 }
+  62.75% { opacity: 1; stroke-dashoffset: 60 }
+  63.171% { opacity: 1; stroke-dashoffset: 56.667 }
+  63.588% { opacity: 1; stroke-dashoffset: 53.333 }
+  64% { opacity: 1; stroke-dashoffset: 50 }
+  64.412% { opacity: 1; stroke-dashoffset: 46.667 }
+  64.83% { opacity: 1; stroke-dashoffset: 43.333 }
+  65.25% { opacity: 1; stroke-dashoffset: 40 }
+  65.678% { opacity: 1; stroke-dashoffset: 36.667 }
+  66.122% { opacity: 1; stroke-dashoffset: 33.333 }
+  66.578% { opacity: 1; stroke-dashoffset: 30 }
+  67.054% { opacity: 1; stroke-dashoffset: 26.667 }
+  67.557% { opacity: 1; stroke-dashoffset: 23.333 }
+  68.088% { opacity: 1; stroke-dashoffset: 20 }
+  68.655% { opacity: 1; stroke-dashoffset: 16.667 }
+  69.274% { opacity: 1; stroke-dashoffset: 13.333 }
+  69.946% { opacity: 1; stroke-dashoffset: 10 }
+  70.691% { opacity: 1; stroke-dashoffset: 6.667 }
+  71.537% { opacity: 1; stroke-dashoffset: 3.333 }
+  72.5%, 96.5% { opacity: 1; stroke-dashoffset: 0 }
+  100% { opacity: 0; stroke-dashoffset: 0 }
+}
+@keyframes snCoil {
+  0%, 55.5% { opacity: 0; stroke-dasharray: 0 200; stroke-dashoffset: 0 }
+  55.501% { opacity: 1; stroke-dasharray: 0 200; stroke-dashoffset: 0 }
+  56.463% { opacity: 1; stroke-dasharray: 3.333 200; stroke-dashoffset: 0 }
+  57.309% { opacity: 1; stroke-dasharray: 6.667 200; stroke-dashoffset: 0 }
+  58.054% { opacity: 1; stroke-dasharray: 10 200; stroke-dashoffset: 0 }
+  58.726% { opacity: 1; stroke-dasharray: 13.333 200; stroke-dashoffset: 0 }
+  59.345% { opacity: 1; stroke-dasharray: 16.667 200; stroke-dashoffset: 0 }
+  59.912% { opacity: 1; stroke-dasharray: 20 200; stroke-dashoffset: 0 }
+  60.443% { opacity: 1; stroke-dasharray: 23.333 200; stroke-dashoffset: 0 }
+  60.946% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -3.278 }
+  61.422% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -6.612 }
+  61.878% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -9.945 }
+  62.322% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -13.278 }
+  62.75% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -16.612 }
+  63.171% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -19.945 }
+  63.588% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -23.278 }
+  64% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -26.612 }
+  64.412% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -29.945 }
+  64.83% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -33.278 }
+  65.25% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -36.612 }
+  65.678% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -39.945 }
+  66.122% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -43.278 }
+  66.578% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -46.612 }
+  67.054% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -49.945 }
+  67.557% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -53.278 }
+  68.088% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -56.612 }
+  68.655% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -59.945 }
+  69.274% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -63.278 }
+  69.946% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -66.612 }
+  70.691% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -69.945 }
+  71.537% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -73.278 }
+  72.5% { opacity: 1; stroke-dasharray: 23.388 200; stroke-dashoffset: -76.612 }
+  73.375% { opacity: 1; stroke-dasharray: 15.668 200; stroke-dashoffset: -84.332 }
+  74.25% { opacity: 1; stroke-dasharray: 9.867 200; stroke-dashoffset: -90.133 }
+  75.125% { opacity: 1; stroke-dasharray: 5.71 200; stroke-dashoffset: -94.29 }
+  76% { opacity: 1; stroke-dasharray: 2.924 200; stroke-dashoffset: -97.076 }
+  76.875% { opacity: 1; stroke-dasharray: 1.233 200; stroke-dashoffset: -98.767 }
+  77.75% { opacity: 1; stroke-dasharray: 0.365 200; stroke-dashoffset: -99.635 }
+  78.625% { opacity: 1; stroke-dasharray: 0.046 200; stroke-dashoffset: -99.954 }
+  79.5% { opacity: 1; stroke-dasharray: 0 200; stroke-dashoffset: -100 }
+  79.501% { opacity: 0; stroke-dasharray: 0 200; stroke-dashoffset: -100 }
+  100% { opacity: 0; stroke-dasharray: 0 200; stroke-dashoffset: 0 }
+}
+@keyframes snSnap1 {
+  0%, 3% { opacity: 0; transform: scale(.6) }
+  5.5%, 6.048% { opacity: 1; transform: scale(1) }
+  9.048% { opacity: 0; transform: scale(1.9) }
+  100% { opacity: 0; transform: scale(.6) }
+}
+@keyframes snPing1 {
+  0% { opacity: 0; transform: scale(.5) }
+  6.048% { opacity: .55; transform: scale(.5) }
+  10.048% { opacity: 0; transform: scale(2.3) }
+  100% { opacity: 0; transform: scale(.5) }
+}
+@keyframes snSnap2 {
+  0%, 3.4% { opacity: 0; transform: scale(.6) }
+  5.9%, 17.184% { opacity: 1; transform: scale(1) }
+  20.184% { opacity: 0; transform: scale(1.9) }
+  100% { opacity: 0; transform: scale(.6) }
+}
+@keyframes snPing2 {
+  0% { opacity: 0; transform: scale(.5) }
+  17.184% { opacity: .55; transform: scale(.5) }
+  21.184% { opacity: 0; transform: scale(2.3) }
+  100% { opacity: 0; transform: scale(.5) }
+}
+@keyframes snSnap3 {
+  0%, 3.8% { opacity: 0; transform: scale(.6) }
+  6.3%, 25.481% { opacity: 1; transform: scale(1) }
+  28.481% { opacity: 0; transform: scale(1.9) }
+  100% { opacity: 0; transform: scale(.6) }
+}
+@keyframes snPing3 {
+  0% { opacity: 0; transform: scale(.5) }
+  25.481% { opacity: .55; transform: scale(.5) }
+  29.481% { opacity: 0; transform: scale(2.3) }
+  100% { opacity: 0; transform: scale(.5) }
+}
+@keyframes snSnap4 {
+  0%, 4.2% { opacity: 0; transform: scale(.6) }
+  6.7%, 36.616% { opacity: 1; transform: scale(1) }
+  39.616% { opacity: 0; transform: scale(1.9) }
+  100% { opacity: 0; transform: scale(.6) }
+}
+@keyframes snPing4 {
+  0% { opacity: 0; transform: scale(.5) }
+  36.616% { opacity: .55; transform: scale(.5) }
+  40.616% { opacity: 0; transform: scale(2.3) }
+  100% { opacity: 0; transform: scale(.5) }
+}
+@keyframes snSnap5 {
+  0%, 4.6% { opacity: 0; transform: scale(.6) }
+  7.1%, 41.365% { opacity: 1; transform: scale(1) }
+  44.365% { opacity: 0; transform: scale(1.9) }
+  100% { opacity: 0; transform: scale(.6) }
+}
+@keyframes snPing5 {
+  0% { opacity: 0; transform: scale(.5) }
+  41.365% { opacity: .55; transform: scale(.5) }
+  45.365% { opacity: 0; transform: scale(2.3) }
+  100% { opacity: 0; transform: scale(.5) }
+}
+@keyframes snPlan {
+  0% { opacity: 0 }
+  1.5%, 57% { opacity: 1 }
+  65%, 100% { opacity: 0 }
+}
+@keyframes snFace {
+  0%, 55.5% { opacity: 0 }
+  55.501%, 96.5% { opacity: 1 }
+  100% { opacity: 0 }
+}
+@keyframes snEye1 {
+  0%, 79% { opacity: 0; transform: scale(0) }
+  84%, 96.5% { opacity: 1; transform: scale(1) }
+  100% { opacity: 0; transform: scale(0) }
+}
+@keyframes snEye2 {
+  0%, 80.5% { opacity: 0; transform: scale(0) }
+  85.5%, 96.5% { opacity: 1; transform: scale(1) }
+  100% { opacity: 0; transform: scale(0) }
+}
+@keyframes snMouth {
+  0%, 83% { opacity: 0; stroke-dashoffset: 100 }
+  83.2% { opacity: 1; stroke-dashoffset: 100 }
+  90%, 100% { opacity: 1; stroke-dashoffset: 0 }
+}
+@keyframes snGreet {
+  0%, 89% { transform: scale(1) }
+  91.5% { transform: scale(1.035) }
+  94%, 100% { transform: scale(1) }
+}
+/* <<< gen_loadart bitiş */
 
 
 /* ---- 4. 'doc' — çok sayfalı belge dizgisi (3,2 s) ------------------------------------------ */

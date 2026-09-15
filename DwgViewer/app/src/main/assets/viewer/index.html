@@ -344,26 +344,32 @@
       <!-- 1) cad — mimari plan kendi kendini çiziyor: dış duvar → iç bölme → kapı yayı → kolon →
            ölçü çizgisi. Bütün yollarda pathLength="100" var; dashoffset doğrudan "yüzde kaç
            çizilmedi" demektir, uzunluk hesabı yapılmaz. -->
+      <!-- cad: kalem planı çizer, sonra kıvrılıp surata döner. Bütün zamanlama app.css'te ve
+           tools/gen_loadart.mjs tarafından ÜRETİLİR; buradaki tek iş geometriyi vermek.
+           Plan yolu bir Euler yoludur: dış duvar + y=56'daki iç bölme, hiçbir duvar iki kez
+           geçilmeden. Yolun bittiği nokta (102,56) ile yüz çemberinin başladığı nokta AYNIdır,
+           bu yüzden kalem durmadan plandan çembere geçer. -->
       <svg class="la la-cad" viewBox="0 0 120 120" focusable="false">
-        <!-- 1. perde: yılan planın hattını dolaşır. .trail ile .snake AYNI "d" yolunu kullanır;
-             yol tek parçadır (dış duvar → iç bölme) ki yılan onu bir kerede gezebilsin. Yılan
-             geçtikçe .trail o noktaya kadar çizilir: planı yılan çiziyormuş gibi görünür. -->
-        <g class="plan">
-          <path class="trail" pathLength="100" d="M64 86 H18 V26 H102 V86 H64 V54 H102"/>
-          <circle class="pel p1" cx="18" cy="60" r="3.2"/>
-          <circle class="pel p2" cx="62" cy="26" r="3.2"/>
-          <circle class="pel p3" cx="102" cy="58" r="3.2"/>
-          <circle class="pel p4" cx="64" cy="70" r="3.2"/>
+        <g class="plan"><path class="trail" pathLength="100" d="M18 56 V86 H102 V26 H18 V56 H102"/></g>
+        <!-- köşelerdeki yakalama imleri: CAD'in uç nokta karesi + yakalandığında açılan halka -->
+        <g class="snaps">
+          <circle class="pg g1" cx="18"  cy="86" r="7"/><rect class="sq q1" x="13.5" y="81.5" width="9" height="9"/>
+          <circle class="pg g2" cx="102" cy="86" r="7"/><rect class="sq q2" x="97.5" y="81.5" width="9" height="9"/>
+          <circle class="pg g3" cx="102" cy="26" r="7"/><rect class="sq q3" x="97.5" y="21.5" width="9" height="9"/>
+          <circle class="pg g4" cx="18"  cy="26" r="7"/><rect class="sq q4" x="13.5" y="21.5" width="9" height="9"/>
+          <circle class="pg g5" cx="18"  cy="56" r="7"/><rect class="sq q5" x="13.5" y="51.5" width="9" height="9"/>
         </g>
-        <path class="snake" pathLength="100" d="M64 86 H18 V26 H102 V86 H64 V54 H102"/>
-        <!-- 2. perde: yem biten yılan kıvrılıp gülen surata döner. Yüz çemberi de aynı kalemle
-             ve aynı "kendini çizme" tekniğiyle gelir; yılanın kıvrıldığı okunsun diye. -->
+        <path class="glow"  pathLength="100" d="M18 56 V86 H102 V26 H18 V56 H102"/>
+        <path class="snake" pathLength="100" d="M18 56 V86 H102 V26 H18 V56 H102"/>
         <g class="smile">
-          <circle class="face" pathLength="100" cx="60" cy="60" r="28"/>
-          <circle class="eye e1" cx="50" cy="52" r="3.6"/>
-          <circle class="eye e2" cx="70" cy="52" r="3.6"/>
-          <path class="mouth" pathLength="100" d="M46 66 A17 17 0 0 0 74 66"/>
+          <path class="ring" pathLength="100" d="M102 56 A42 42 0 0 0 18 56 A42 42 0 0 0 102 56"/>
+          <rect class="eye e1" x="41" y="39" width="10" height="10" rx="2"/>
+          <rect class="eye e2" x="69" y="39" width="10" height="10" rx="2"/>
+          <path class="mouth" pathLength="100" d="M41 63 A23 23 0 0 0 79 63"/>
         </g>
+        <path class="coilGlow" pathLength="100" d="M102 56 A42 42 0 0 0 18 56 A42 42 0 0 0 102 56"/>
+        <path class="coil"     pathLength="100" d="M102 56 A42 42 0 0 0 18 56 A42 42 0 0 0 102 56"/>
+        <g class="pen"><circle class="aperture" r="8.4"/><circle class="nib" r="3.8"/></g>
       </svg>
 
       <!-- 2) doc — çok sayfalı belge dizgisi. .mir sarmalayıcısının kendi animasyonu yoktur;

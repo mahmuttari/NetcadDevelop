@@ -2377,7 +2377,7 @@ function setLoading(text, sub, pct, kind) {
     const el = $('loading'); if (el) el.classList.remove(...LOAD_KINDS.map(k => 'load-' + k));
     hide('loading'); return;
   }
-  // Bekleme görseli yapılan işe göre değişir: çizim okunurken yılan planı çizer, belgede sayfa
+  // Bekleme görseli yapılan işe göre değişir: çizim okunurken kalem planı çizer, belgede sayfa
   // dizilir, dışa aktarmada sayfa cihazdan çıkar. Çeşit verilmezse önceki korunur — aynı işin
   // ortasında görselin değişmesi, ilerleme sıfırlanmış gibi durur.
   if (kind && LOAD_KINDS.includes(kind)) {
