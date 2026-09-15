@@ -29,13 +29,21 @@ import kotlin.math.min
  * gecikmeler, aynı 1..3 artışı.
  *
  * TEK PARÇA: SIFIRDAN YÜZE, BİR KEZ. Yüzde bir kez 0'dan 100'e çıkar; başa dönmez, tekrarlamaz.
- * Bu, iki uçta iki karar gerektirir ve ikisi de burada verilmiştir:
  *
- *  · Çizim, yüzde 100'e varmadan açılırsa ekran ORTADA KESİLMEZ. Kapatma istendiği anda kalan
- *    yol KAPANIS_TEMPO ile hızlanır (yaklaşık yarım saniye), yüzde 100'e varır, onay imi
- *    görünür, BITIS_BEKLEME_MS kadar durur ve örtü solarak kalkar. Böylece kullanıcı her
- *    açılışta sıfırdan yüze TAM bir geçiş görür — istenen budur.
- *  · Çizim, yüzde 100'e vardıktan sonra da yükleniyorsa ekran 100'de BEKLER; başa dönmez.
+ * YÜZDE 100 "DOSYA AÇILDI" DEMEKTİR. Kural budur ve sürücünün kuruluşu buna göredir: dosya
+ * açılmadan yüzde 100 YAZILMAZ. Serbest akış TAVAN'da (%96) durur; oradan 100'e ancak çizim
+ * açıldığında çıkılır. Tavanın 96 olması keyfî değildir — gönderilen ekran %97'den itibaren
+ * onay imini (drawSuccess) çizer; 96'da beklemek, planın çizildiği son kareyi gösterir, yani
+ * "bitti" demeden bekler.
+ *
+ * İki uç da kapalıdır:
+ *  · Çizim, yüzde tavana varmadan açılırsa ekran ORTADA KESİLMEZ: kalan yol BITIRME_MS içinde
+ *    düzgün bir süpürmeyle 100'e taşınır (nerede olursa olsun aynı süre), onay imi görünür,
+ *    BITIS_BEKLEME_MS kadar durur ve örtü solar. Kullanıcı her açılışta sıfırdan yüze TAM bir
+ *    geçiş görür.
+ *  · Çizim tavana varıldıktan sonra da yükleniyorsa ekran %96'da BEKLER — 100 yazmaz, başa
+ *    da dönmez. Bekleme ölü değildir: gönderilen ekranın nabzı (pulse) ve tarama çizgisi
+ *    (scan) sonsuz geçişlerdir, akmaya devam eder.
  *
  * TEMPO — gönderilen videoya uyum. Paketin gecikmeleri (45/65/50/85 ms) kâğıt üzerinde 0'dan
  * 100'e yaklaşık 3,0 saniyede gider. Gönderilen tanıtım videosu ise kare kare ölçüldüğünde
@@ -52,8 +60,14 @@ class DwgLoadingOverlay(private val activity: Activity) {
     private companion object {
         /** 1.0 = paketin kendi gecikmeleri (~3,0 sn) · 2.4 = gönderilen videonun hızı (~7,1 sn) */
         const val TEMPO = 2.4
-        /** Çizim erken açıldığında kalan yolun hızı. 0.10 ≈ yarım saniyede 100'e varır. */
-        const val KAPANIS_TEMPO = 0.10
+        /**
+         * Serbest akışın tavanı. Dosya açılmadan bu sayının üstü yazılmaz; 100 yalnız
+         * "açıldı" demektir. 96, gönderilen ekranın onay imine geçtiği eşiğin (97) bir
+         * altıdır — bekleme, planın çizildiği son karede olur.
+         */
+        const val TAVAN = 96
+        /** Çizim açıldığında kalan yolun süpürülme süresi — %20'den de %90'dan da aynı. */
+        const val BITIRME_MS = 600L
         /** 100'e varıldıktan sonra onay iminin görülmesi için beklenen süre */
         const val BITIS_BEKLEME_MS = 380L
         /** Örtünün solma süresi */
@@ -83,22 +97,32 @@ class DwgLoadingOverlay(private val activity: Activity) {
             MaterialTheme {
                 var ilerleme by remember { mutableIntStateOf(0) }
                 LaunchedEffect(Unit) {
-                    // Gönderilen paketteki sürücünün aynısı. TEK GEÇİŞ: while (ilerleme < 100).
+                    // TEK GEÇİŞ: while (ilerleme < 100). Başa dönen bir döngü YOKTUR.
                     while (ilerleme < 100) {
-                        val temel = when {
-                            ilerleme < 20 -> 45L
-                            ilerleme < 55 -> 65L
-                            ilerleme < 85 -> 50L
-                            else -> 85L
+                        if (kapanmaIstendi) {
+                            // Çizim açıldı: kalan yol, nerede kalındıysa oradan, sabit sürede
+                            // süpürülür. Artışın ortalaması 2 olduğu için adım sayısı kalan/2.
+                            val adim = ((100 - ilerleme) / 2).coerceAtLeast(1)
+                            delay((BITIRME_MS / adim).coerceAtLeast(3L))
+                            ilerleme = min(100, ilerleme + (1..3).random())
+                        } else {
+                            // Serbest akış: gönderilen paketteki sürücünün aynısı — aynı
+                            // eşikler, aynı gecikmeler, aynı 1..3 artışı; yalnız TEMPO ile
+                            // ölçeklenir. TAVAN'ı geçmez: dosya açılmadan 100 yazılmaz.
+                            val temel = when {
+                                ilerleme < 20 -> 45L
+                                ilerleme < 55 -> 65L
+                                ilerleme < 85 -> 50L
+                                else -> 85L
+                            }
+                            delay((TEMPO * temel).toLong())
+                            ilerleme = min(TAVAN, ilerleme + (1..3).random())
                         }
-                        // Çizim açıldıysa kalan yol hızlanır; geçiş kesilmez, tamamlanır.
-                        val hiz = if (kapanmaIstendi) KAPANIS_TEMPO else TEMPO
-                        delay((hiz * temel).toLong())
-                        ilerleme = min(100, ilerleme + (1..3).random())
                     }
                 }
-                // 100'e varıldı ve çizim de açıldıysa örtü kalkar. Biri eksikse beklenir:
-                // yüzde 100'de durur, başa DÖNMEZ.
+                // Yüzde 100'e yalnız çizim açıldığında varılır (TAVAN kuralı), yani buraya
+                // düşmek "dosya açıldı ve geçiş tamamlandı" demektir: onay imi görülsün diye
+                // kısa bir bekleyişten sonra örtü kalkar.
                 LaunchedEffect(ilerleme, kapanmaIstendi) {
                     if (ilerleme >= 100 && kapanmaIstendi) {
                         delay(BITIS_BEKLEME_MS)
@@ -122,8 +146,9 @@ class DwgLoadingOverlay(private val activity: Activity) {
     }
 
     /**
-     * Çizim açıldı. Örtü HEMEN kalkmaz: yüzde 100'e varmadıysa kalan yol hızlanır, geçiş
-     * tamamlanır, sonra solarak kalkar. Açık değilse bir şey yapmaz.
+     * Çizim açıldı. Örtü HEMEN kalkmaz: yüzde nerede kaldıysa oradan 100'e süpürülür, onay imi
+     * görünür, sonra solarak kalkar. Yüzde 100'ü ancak burası açar — ekranda 100 görünüyorsa
+     * dosya açılmış demektir. Açık değilse bir şey yapmaz.
      */
     fun hide() {
         if (view == null) return

@@ -58,10 +58,19 @@ const disiMetin = i1 >= 0 && i2 > i1 ? kt.slice(0, i1) + kt.slice(i2) : '';
   // TEK PARÇA: sıfırdan yüze bir kez. Başa dönen bir döngü olmamalı.
   ok('B1c geçiş TEK parça: 0\'dan 100\'e bir kez, tekrar yok',
     /while \(ilerleme < 100\)/.test(ov) && !/while \(true\)/.test(ov));
-  ok('B1e çizim erken açılırsa geçiş kesilmez, kalan yol hızlanıp tamamlanır',
-    /const val KAPANIS_TEMPO/.test(ov) && /if \(kapanmaIstendi\) KAPANIS_TEMPO else TEMPO/.test(ov)
-    && /fun hide\(\)[\s\S]{0,160}kapanmaIstendi = true/.test(ov));
-  ok('B1f örtü ancak 100\'e varınca kalkıyor (yüzde 100\'de bekler, başa dönmez)',
+  ok('B1e çizim erken açılırsa geçiş kesilmez, kalan yol sabit sürede süpürülür',
+    /const val BITIRME_MS/.test(ov) && /BITIRME_MS \/ adim/.test(ov)
+    && /fun hide\(\)[\s\S]{0,200}kapanmaIstendi = true/.test(ov));
+  // ASIL KURAL: yüzde 100 "dosya açıldı" demektir. Serbest akış TAVAN'ı geçemez; 100'e
+  // yalnız kapanmaIstendi doğruyken, yani çizim açıldığında çıkılır.
+  ok('B1f serbest akış TAVAN\'da durur: dosya açılmadan 100 YAZILMAZ',
+    /const val TAVAN = 96/.test(ov) && /ilerleme = min\(TAVAN, ilerleme \+ \(1\.\.3\)\.random\(\)\)/.test(ov));
+  ok('B1h 100\'e yalnız kapanma yolundan çıkılıyor (tek min(100, ...) ve o da kapanma dalında)',
+    (ov.match(/min\(100, ilerleme/g) || []).length === 1
+    && /if \(kapanmaIstendi\) \{[\s\S]{0,420}min\(100, ilerleme/.test(ov));
+  ok('B1i TAVAN, onay iminin eşiğinin (97) altında — beklerken \'bitti\' görünmez',
+    /const val TAVAN = 96/.test(ov) && oku(KT).includes('progress < 97 -> drawPlan'));
+  ok('B1j 100\'e varınca örtü kalkıyor (onay imi için kısa bekleyişle)',
     /if \(ilerleme >= 100 && kapanmaIstendi\)/.test(ov) && /BITIS_BEKLEME_MS/.test(ov));
   ok('B1g iptal ve hata ayrı yol: geçiş tamamlanmadan kalkar',
     /fun hideNow\(\)/.test(ov) && /kapanmaIstendi = false[\s\S]{0,40}kaldir\(\)/.test(ov));
