@@ -24,7 +24,14 @@ function run(script) {
     child.on('close', (code, signal) => {
       clearTimeout(timer);
       const m = buf.match(/SONUÇ:[^\n]*/g);
-      resolve({ script, code: timedOut ? 'ZAMAN AŞIMI' : (code === null ? 'sinyal ' + signal : code), ok: !timedOut && code === 0, result: m ? m[m.length - 1].replace(/^SONUÇ:\s*/, '') : '(SONUÇ satırı yok)', secs: ((Date.now() - t0) / 1000).toFixed(0) });
+      const sonuc = m ? m[m.length - 1].replace(/^SONUÇ:\s*/, '') : '(SONUÇ satırı yok)';
+      // Çıkış koduna GÜVENİLMEZ: betikler C.exit() çağırmıyor, yani içinde FAIL olsa da 0 ile
+      // biterler. Bir sınamanın sessizce "geçmiş" görünmesi, hiç sınama olmamasından kötüdür;
+      // bu yüzden karar SONUÇ satırından okunur — kalan denetim ya da sayfa hatası varsa FAIL.
+      const kaldi = /(\d+)\s*kaldı/.exec(sonuc), hata = /sayfa hataları:\s*(\d+)/.exec(sonuc);
+      const temiz = !!m && (!kaldi || +kaldi[1] === 0) && (!hata || +hata[1] === 0);
+      resolve({ script, code: timedOut ? 'ZAMAN AŞIMI' : (code === null ? 'sinyal ' + signal : code),
+        ok: !timedOut && code === 0 && temiz, result: sonuc, secs: ((Date.now() - t0) / 1000).toFixed(0) });
     });
   });
 }

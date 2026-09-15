@@ -106,13 +106,18 @@ ok('B4 yüzde bildirimi geliyor, geri gitmiyor ve 100\'e varıyor',
     await RTree.build(items, p => p.bb, 16, { onPct: (v) => window.dwgApp.__cadLoad(70 + 22 * v / 100, 'sinama.dwg') });
     await new Promise(r => requestAnimationFrame(r));
     const c1 = tara(), w1 = performance.now();
-    return { ilerleme: c1 - c0, gecen: w1 - w0, stage: el.dataset.cad, t: getComputedStyle(el).getPropertyValue('--t').trim() };
+    return { ilerleme: c1 - c0, gecen: w1 - w0, stage: el.dataset.cad,
+      bar: document.getElementById('loadingFill').style.width,
+      baslik: document.getElementById('loadingText').textContent };
   }, N);
   const oran = r.gecen > 0 ? r.ilerleme / r.gecen : 0;
   ok('C1 indeks kurulurken bekleme canlandırması akmaya devam ediyor',
     oran > 0.6, `canlandırma ${Math.round(r.ilerleme)} ms ilerledi, geçen süre ${Math.round(r.gecen)} ms (oran ${oran.toFixed(2)})`);
-  ok('C2 indeks boyunca görsel "optimize" aşamasında ve ilerliyor', r.stage === '3' && Number(r.t) > 0.5,
-    `aşama=${r.stage} t=${r.t}`);
+  // Görsel artık kendi döngüsünü oynar; ilerlemeyi METİN ile ÇUBUK gösterir. Denetim de
+  // onları okur: indeks bandı boyunca aşama "optimize" olmalı ve çubuk 90'a yaklaşmalıdır.
+  ok('C2 indeks boyunca aşama "optimize" ve çubuk ilerlemiş',
+    r.stage === '3' && parseFloat(r.bar) > 85 && /optimize/i.test(r.baslik),
+    `aşama=${r.stage} çubuk=${r.bar} başlık=${r.baslik}`);
 }
 
 ok('D sayfa hatası yok', errors.length === 0, errors.join(' | ').slice(0, 300));

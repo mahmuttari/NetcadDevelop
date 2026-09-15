@@ -1,9 +1,10 @@
-// Aşamalı 'cad' açılış görselinin yüzde yüzde görüntüsü.
+// 'cad' açılış anlatısının döngü kareleri (9 s) + aşama metinlerinin gerçek ilerlemeyle değişimi.
 // Kullanım: PLAYWRIGHT_PKG=<node_modules> node tools/shot_cadload.mjs [çıktı]
 import { args, startServer, launchBrowser, noUpdate, PHONE } from './harness.mjs';
 import fs from 'node:fs';
 const { out } = args(import.meta.url);
-const YUZDE = (process.env.YUZDE || '3,18,28,38,46,58,68,80,90,96,100').split(',').map(Number);
+const DUR = 9000;
+const KARE = (process.env.KARE || '1,8,16,26,33,40,48,55,64,70,76,82,90,95').split(',').map(Number);
 const TEMA = (process.env.TEMA || 'dark').split(',');
 const srv = await startServer();
 const browser = await launchBrowser();
@@ -14,26 +15,27 @@ page.on('pageerror', e => console.log('[pageerror]', e.message));
 await page.goto(srv.url + 'index.html');
 await page.waitForSelector('#btnOpen2');
 fs.mkdirSync(out, { recursive: true });
-const parcalar = [];
+await page.evaluate(() => { document.getElementById('loading').hidden = false; window.dwgApp.__cadLoad(46, 'Proje.dwg · 18,4 MB · 412.905 nesne'); });
+const art = page.locator('#loading .loadart');
+const par = [];
 for (const tema of TEMA) {
   await page.evaluate((x) => document.body.setAttribute('data-theme', x), tema);
-  for (const p of YUZDE) {
-    await page.evaluate((v) => {
-      const el = document.getElementById('loading'); el.hidden = false;
-      window.dwgApp.__cadLoad(v, 'Proje.dwg · 18,4 MB · 412.905 nesne');
-    }, p);
-    await page.waitForTimeout(260);
-    await page.screenshot({ path: `${out}/${tema}_${String(p).padStart(3, '0')}.png` });
-    parcalar.push([tema, p]);
+  await page.waitForTimeout(120);
+  for (const p of KARE) {
+    await page.evaluate((ms) => document.querySelectorAll('#loading .la-cad, #loading .la-cad *')
+      .forEach(el => el.getAnimations().forEach(a => { a.pause(); a.currentTime = ms; })), Math.round(DUR * p / 100));
+    await page.waitForTimeout(60);
+    await art.screenshot({ path: `${out}/${tema}_${String(p).padStart(3, '0')}.png` });
+    par.push([tema, p]);
   }
 }
-const html = `<body style="margin:0;background:#1a1a1a;display:grid;grid-template-columns:repeat(6,1fr);gap:3px;padding:3px">
-${parcalar.map(([tm, p]) => `<figure style="margin:0;position:relative"><img src="${tm}_${String(p).padStart(3, '0')}.png" style="width:100%;display:block">
-<figcaption style="position:absolute;left:5px;top:3px;font:12px system-ui;color:#46cdf2;background:#0009;padding:1px 5px;border-radius:4px">${tm} %${p}</figcaption></figure>`).join('')}</body>`;
+const html = `<body style="margin:0;background:#161c25;display:grid;grid-template-columns:repeat(7,1fr);gap:4px;padding:4px">
+${par.map(([tm, p]) => `<figure style="margin:0;position:relative"><img src="${tm}_${String(p).padStart(3, '0')}.png" style="width:100%;display:block">
+<figcaption style="position:absolute;left:5px;top:3px;font:12px system-ui;color:#46cdf2">%${p}</figcaption></figure>`).join('')}</body>`;
 fs.writeFileSync(out + '/serit.html', html);
 await page.goto('file://' + out + '/serit.html');
-await page.setViewportSize({ width: 1500, height: 1000 });
-await page.waitForTimeout(500);
+await page.setViewportSize({ width: 1500, height: 900 });
+await page.waitForTimeout(400);
 await page.screenshot({ path: out + '/serit.png', fullPage: true });
 console.log('kareler: ' + out);
 await browser.close(); srv.kill();

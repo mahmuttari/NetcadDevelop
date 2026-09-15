@@ -839,7 +839,6 @@ html[dir="rtl"] .kv-copy { text-align: right; }
 #loading {
   background: none;
   color: var(--fg);
-  --t: 1;                                     /* aşama içi oran; app.js satır içi yazar */
   --la: min(calc(148px * var(--fs)), 48vw);   /* bekleme görselinin kenar uzunluğu */
 }
 #loading::before {                                  /* yer rengi */
@@ -899,99 +898,132 @@ body.glove #loading { --la: min(calc(172px * var(--fs)), 54vw); }
 body.glove #loading .btn { min-height: calc(52px * var(--fs)); min-width: calc(120px * var(--fs)); }
 
 
-/* ---- 3. 'cad' — AŞAMALI açılış görseli (döngü değil, gerçek ilerlemenin resmi) -------------
-   NEDEN AŞAMALI
-     Bir bekleme döngüsü yalnız "çalışıyorum" der. Büyük bir DWG dakikalarca açılabilir ve o
-     süre boyunca kullanıcının sorusu "çalışıyor mu" değil, "nerede kaldı"dır. Bu görsel buna
-     cevap verir: app.js gerçek yüzdeyi #loading üzerine data-cad="0..4" ve --t olarak yazar,
-     çizim de o yüzdenin resmi olur.
-       0  dosya açılıyor / okunuyor   → kıvrık köşeli pafta, üstünde tarayan ışık
-       1  katmanlar işleniyor         → dört levha, --t ile açılır
-       2  geometri oluşturuluyor      → dikmeler ve çatı, --t ile yükselir
-       3  çizim optimize / görünüm    → plan, --t ile çizilir
-       4  hazır                       → onay imi
-     Aşama içindeki oran --t (0..1) ile verilir; JS her karede değil, yüzde DEĞİŞTİKÇE yazar.
-     Aşamalar arası geçiş 220 ms opaklık geçişidir, yani sıçrama olmaz.
+/* ---- 3. 'cad' — açılış anlatısı: baştan sona akan TEK DÖNGÜ (9,0 s) ------------------------
+   NEDEN DÖNGÜ, NEDEN AŞAMAYA BAĞLI DEĞİL
+     Görsel bir aralık önce gerçek yüzdeye bağlanmıştı: yüzde hangi banda düşerse o resim
+     görünüyordu. Doğru bilgiyi veriyordu ama ANLATIYI BOZUYORDU — hızlı açılan bir dosyada
+     resimler sıçrayarak geçiyor, yavaş bir aşamada tek kare donup kalıyordu; hiçbir hareket
+     baştan sona görülmüyordu. Artık çizim kendi zamanında, kesintisiz ve sürekli tekrar
+     ederek akar; nerede olunduğunu BAŞLIK, ALT YAZI, ÇUBUK ve AŞAMA NOKTALARI söyler.
+     Böylece iki iş ayrılır: görsel anlatır, metin bilgilendirir.
 
-   NE ZAMAN DÖNER, NE ZAMAN DÖNMEZ
-     Sürekli dönen tek iki şey nabız (halka) ile tarama çizgisidir; ikisi de yalnız transform
-     ve opacity kullanır. Geri kalan her şey ilerlemeye bağlıdır. Yüzde bilinmiyorsa (ölçüsüz
-     aşama) görsel 0. aşamada --t: 1 ile durur ve yalnız tarama çizgisi akar — uydurma yüzde
-     gösterilmez.
+   DÖNGÜNÜN BEŞ PERDESİ (yüzdeler 9,0 s'nin yüzdesidir)
+       0 → 22   pafta açılıyor: kıvrık köşeli sayfa, üstünden iki kez tarayan ışık
+      24 → 42   katmanlar: dört levha birlikte açılır
+      44 → 60   geometri: dikmeler ve çatı taban çizgisinden yükselir
+      62 → 86   plan: dış duvar ile orta bölme TEK KALEM DARBESİYLE (Euler yolu — hiçbir
+                duvar iki kez geçilmez), sonra iç bölmeler, en sonda kırpma imleri
+      88 → 100  onay imi ve sönüş; döngü başa döner
+     Perdeler 2 %'lik (0,18 s) opaklık geçişleriyle devredilir, yani sıçrama olmaz. Her
+     parçanın keyframe'i aynı 9 s'lik saati kullandığı için perdeler ayrışamaz.
+
+   DİKİŞ
+     Her perdenin opaklığı hem 0 %'de hem 100 %'de sıfırdır (0. perde ilk 2 %'de açılır), yani
+     döngü başa dönerken görünür hiçbir parça sıçramaz.
 
    RENKLER
-     İki belirteç: --cad-hi (vurgu çizgisi, tarama, onay) ve --cad-dim (yapı çizgisi). Tema
-     başına tanımlıdır; bölüm içinde tek bir sabit renk yoktur.
+     İki belirteç: --cad-hi (vurgu: tarama, dikmeler, kırpma imi, onay) ve --cad-dim (yapı
+     çizgisi). Tema başına tanımlıdır; bölüm içinde tek bir sabit renk yoktur.
 
    DURGUN KİP
-     Görsel zaten ilerlemeye bağlı olduğu için durgun kipte kaybolan bir bilgi yoktur: yalnız
-     nabız ile tarama durur, aşama resmi olduğu gibi kalır. --t'nin varsayılanı 1'dir, yani
-     JS hiç yazmasa bile her aşama tamamlanmış görünür. */
+     Animasyonlar kapanır ve statik değerler devreye girer. Statik hâl BİLGİ VEREN karedir:
+     plan perdesi görünür ve plan TAM ÇİZİLİdir; pafta, katmanlar, geometri ve onay gizli.
+     Süs yerine işin resmi kalır. */
 
-#loading.load-cad { --la: min(calc(196px * var(--fs)), 62vw); }   /* aşamalı görsel daha büyük okunur */
+#loading.load-cad { --la: min(calc(196px * var(--fs)), 62vw); }   /* anlatı görseli daha büyük okunur */
 body.glove #loading.load-cad { --la: min(calc(216px * var(--fs)), 68vw); }
 
+.la-cad { --cadT: 9s; }                                           /* bütün perdelerin ortak saati */
 .la-cad .halo { fill: var(--cad-hi); stroke: none; opacity: .07;
                 transform-box: view-box; transform-origin: 60px 60px;
                 animation: cadPulse 1.8s ease-in-out infinite alternate; }
 .la-cad .rim  { fill: none; stroke: var(--cad-dim); stroke-width: 1.2; opacity: .5; }
 
-/* aşama geçişi: yalnız opaklık, 220 ms */
-.la-cad .st { opacity: 0; transition: opacity .22s linear; }
-#loading[data-cad="0"] .la-cad .s0, #loading[data-cad="1"] .la-cad .s1,
-#loading[data-cad="2"] .la-cad .s2, #loading[data-cad="3"] .la-cad .s3,
-#loading[data-cad="4"] .la-cad .s4 { opacity: 1; }
-#loading.load-cad:not([data-cad]) .la-cad .s0 { opacity: 1; }   /* yüzde yoksa 0. aşama */
+/* perde görünürlüğü — statik hâl: yalnız plan perdesi açık (durgun kipte kalan kare) */
+.la-cad .st { opacity: 0; }
+.la-cad .s0 { animation: cadS0 var(--cadT) linear infinite; }
+.la-cad .s1 { animation: cadS1 var(--cadT) linear infinite; }
+.la-cad .s2 { animation: cadS2 var(--cadT) linear infinite; }
+.la-cad .s3 { opacity: 1; animation: cadS3 var(--cadT) linear infinite; }
+.la-cad .s4 { animation: cadS4 var(--cadT) linear infinite; }
 
-/* 0) dosya */
+/* 0) pafta */
 .la-cad .sheet { fill: var(--bg); stroke: var(--cad-dim); stroke-width: 2.2; }
 .la-cad .fold  { fill: none; stroke: var(--cad-dim); stroke-width: 2.2; }
 .la-cad .ln    { fill: none; stroke: var(--cad-dim); stroke-width: 1.6; opacity: .55; }
 .la-cad .badge { fill: var(--cad-hi); stroke: none; opacity: .9; }
-.la-cad .tick  { fill: none; stroke: var(--panel); stroke-width: 2.2; }
+.la-cad .tick  { fill: none; stroke: var(--bg); stroke-width: 2.2; }
 .la-cad .scan  { fill: none; stroke: var(--cad-hi); stroke-width: 2.6; stroke-linecap: round;
+                 opacity: 0;                                      /* statik: tarama gizli */
                  transform-box: view-box; transform-origin: 60px 32px;
-                 animation: cadScan 1.35s linear infinite; }
+                 animation: cadScan var(--cadT) linear infinite; }
 
-/* 1) katmanlar — her levha kendi merkezinden --t kadar açılır */
+/* 1) katmanlar — dördü birlikte açılır (kaynak tasarımda da tek bir oran kullanılır) */
 .la-cad .ply { fill: none; stroke: var(--cad-dim); stroke-width: 2; opacity: .55;
-               transform-box: fill-box; transform-origin: 50% 50%; transform: scaleY(var(--t)); }
+               transform-box: fill-box; transform-origin: 50% 50%; transform: scaleY(1);
+               animation: cadPly var(--cadT) cubic-bezier(.2,.7,.3,1) infinite; }
 .la-cad .ply.on { stroke: var(--cad-hi); opacity: 1; }
 
 /* 2) geometri — taban ile eksen sabit, dikmeler taban çizgisinden yükselir */
 .la-cad .base { fill: none; stroke: var(--cad-dim); stroke-width: 2; }
 .la-cad .axis { fill: none; stroke: var(--cad-dim); stroke-width: 1.4; opacity: .5; }
-.la-cad .rise { transform-box: view-box; transform-origin: 60px 82px; transform: scaleY(var(--t)); }
+.la-cad .rise { transform-box: view-box; transform-origin: 60px 82px; transform: scaleY(1);
+                animation: cadRise var(--cadT) cubic-bezier(.2,.7,.3,1) infinite; }
 .la-cad .col  { fill: none; stroke: var(--cad-hi); stroke-width: 2.4; stroke-linecap: round; opacity: .85; }
 .la-cad .roof { fill: none; stroke: var(--cad-hi); stroke-width: 2.2; stroke-linejoin: round; }
 
-/* 3) plan — üç katman sırayla: dış duvar + orta bölme (tek kalem darbesi), sonra iç bölmeler,
-   en sonda kırpma imleri. pathLength=100 olduğu için dashoffset doğrudan "yüzde kaç
-   çizilmedi" demektir.
-   Sayılar CSS'te DEĞİL, app.js'te hesaplanır (--w1 · --w2 · --cw · --ok düz sayılardır).
-   Sebebi ölçülmüş bir kusurdur: clamp()/calc() ile yazıldığında tarayıcı ifadeyi YÜZDE
-   türünde çözüyor (hesaplanmış değer "0%" olarak çıkıyor) ve kesikli çizgi ölçüsü yol
-   uzunluğuna değil görüntü köşegenine bağlanıyordu. Düz sayı hem doğru, hem eski WebView
-   sürümlerinde güvenli, hem de sınamada okunabilir. Varsayılanlar TAMAMLANMIŞ hâldir. */
+/* 3) plan — pathLength=100 olduğu için dashoffset doğrudan "yüzde kaç çizilmedi" demektir.
+   Statik değerler 0'dır: durgun kipte plan TAM ÇİZİLİ kalır, bilgi kaybolmaz. */
 .la-cad .w1, .la-cad .w2 { fill: none; stroke: var(--cad-dim); stroke-width: 2.2;
-                 stroke-linejoin: round; stroke-linecap: round; stroke-dasharray: 100; }
-.la-cad .w1 { stroke-dashoffset: var(--w1, 0); }
-.la-cad .w2 { stroke-dashoffset: var(--w2, 0); }
-.la-cad .crop  { fill: none; stroke: var(--cad-hi); stroke-width: 2.2; stroke-linecap: round;
-                 opacity: var(--cw, 1); }
+                 stroke-linejoin: round; stroke-linecap: round;
+                 stroke-dasharray: 100; stroke-dashoffset: 0; }
+.la-cad .w1 { animation: cadW1 var(--cadT) cubic-bezier(.4,0,.25,1) infinite; }
+.la-cad .w2 { animation: cadW2 var(--cadT) cubic-bezier(.4,0,.25,1) infinite; }
+.la-cad .crop { fill: none; stroke: var(--cad-hi); stroke-width: 2.2; stroke-linecap: round;
+                opacity: 1; animation: cadCrop var(--cadT) linear infinite; }
 
-/* 4) bitti */
+/* 4) onay */
 .la-cad .okhalo { fill: var(--cad-hi); stroke: none; opacity: .1;
                   transform-box: view-box; transform-origin: 60px 60px;
                   animation: cadPulse 1.8s ease-in-out infinite alternate; }
 .la-cad .okring { fill: none; stroke: var(--cad-hi); stroke-width: 3.6; opacity: .85; }
 .la-cad .okmark { fill: none; stroke: var(--cad-hi); stroke-width: 5; stroke-linecap: round;
-                  stroke-linejoin: round; stroke-dasharray: 100; stroke-dashoffset: var(--ok, 0); }
+                  stroke-linejoin: round; stroke-dasharray: 100; stroke-dashoffset: 0;
+                  animation: cadOk var(--cadT) cubic-bezier(.4,0,.25,1) infinite; }
 
+/* Perdeler. Dikiş kuralı: 0 %'deki değer 100 %'deki değere EŞİT olmalı, yoksa döngü başa
+   dönerken sıçrar. Bu yüzden 0. perde (pafta) %97'den itibaren yeniden açılır ve son perde
+   %96-99 arasında sönerken onunla ÇAKIŞIR — dikiş bir kesme değil, bir geçiş olur. Ortadaki
+   perdeler zaten iki uçta da sönüktür.
+   İkinci kural: GELEN perde, GİDEN perde sönerken ve BİREBİR AYNI pencerede açılır. Pencereler
+   kaydırılırsa iki perde de yarı sönük kalır ve toplam görünürlük 1'in altına düşer — ölçüldü
+   (dikişte 0,66'ya iniyordu), düzeltildi. Ayrı
+   pencerelere konursa aralarında bir kare boş kalır ve döngü "takılıyor" gibi görünür —
+   ölçüldü ve düzeltildi. Perdenin içindeki çizim de perdeyle AYNI anda başlar. */
+@keyframes cadS0 { 0%, 20% { opacity: 1 } 22%, 97% { opacity: 0 } 99.5%, 100% { opacity: 1 } }
+@keyframes cadS1 { 0%, 20% { opacity: 0 } 22%, 40% { opacity: 1 } 42%, 100% { opacity: 0 } }
+@keyframes cadS2 { 0%, 40% { opacity: 0 } 42%, 58% { opacity: 1 } 60%, 100% { opacity: 0 } }
+@keyframes cadS3 { 0%, 58% { opacity: 0 } 60%, 84% { opacity: 1 } 86%, 100% { opacity: 0 } }
+@keyframes cadS4 { 0%, 84% { opacity: 0 } 86%, 97% { opacity: 1 } 99.5%, 100% { opacity: 0 } }
+/* tarama: pafta perdesinde iki kez yukarıdan aşağı geçer */
+@keyframes cadScan {
+  0%     { transform: translateY(0);    opacity: 0 }
+  2%     { opacity: .9 }
+  9%     { transform: translateY(56px); opacity: .9 }
+  10%    { transform: translateY(56px); opacity: 0 }
+  10.01% { transform: translateY(0);    opacity: 0 }
+  12%    { opacity: .9 }
+  19%    { transform: translateY(56px); opacity: .9 }
+  20%    { transform: translateY(56px); opacity: 0 }
+  20.01%, 100% { transform: translateY(0); opacity: 0 }
+}
+@keyframes cadPly  { 0%, 20% { transform: scaleY(.06) } 38%, 100% { transform: scaleY(1) } }
+@keyframes cadRise { 0%, 40% { transform: scaleY(.05) } 57%, 100% { transform: scaleY(1) } }
+@keyframes cadW1   { 0%, 54% { stroke-dashoffset: 100 } 74%, 100% { stroke-dashoffset: 0 } }
+@keyframes cadW2   { 0%, 72% { stroke-dashoffset: 100 } 82%, 100% { stroke-dashoffset: 0 } }
+@keyframes cadCrop { 0%, 77% { opacity: 0 } 83%, 100% { opacity: 1 } }
+@keyframes cadOk   { 0%, 84% { stroke-dashoffset: 100 } 93%, 100% { stroke-dashoffset: 0 } }
 @keyframes cadPulse { from { transform: scale(.92); opacity: .05 } to { transform: scale(1); opacity: .12 } }
-@keyframes cadScan  { 0% { transform: translateY(0); opacity: 0 }
-                      12%, 88% { opacity: .9 }
-                      100% { transform: translateY(56px); opacity: 0 } }
 
 /* ---- 4. 'doc' — çok sayfalı belge dizgisi (3,2 s) ------------------------------------------ */
 /* Sayfa KALIR, içerik yeniden dizilir: satırlar soldan açılır, arkadaki ikinci sayfa dışarı

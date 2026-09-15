@@ -2394,10 +2394,7 @@ function setLoading(text, sub, pct, kind, file) {
     // Örtü kapanırken çeşit sınıfı da silinir: bir sonraki bekleme kendi görselini seçmezse
     // öncekinin çizimi kalmasın.
     const el = $('loading');
-    if (el) {
-      el.classList.remove(...LOAD_KINDS.map(k => 'load-' + k)); delete el.dataset.cad;
-      for (const k of ['--t', '--w1', '--w2', '--cw', '--ok']) el.style.removeProperty(k);
-    }
+    if (el) { el.classList.remove(...LOAD_KINDS.map(k => 'load-' + k)); delete el.dataset.cad; }
     loadKind = '';
     hide('loading'); return;
   }
@@ -2432,22 +2429,13 @@ function setLoading(text, sub, pct, kind, file) {
       if (on) {
         const v = Math.max(0, Math.min(100, pct));
         let k = 0; while (k < CAD_STG.length - 1 && v >= CAD_STG[k].b) k++;
-        const a = k ? CAD_STG[k - 1].b : 0, b = CAD_STG[k].b;
+        // data-cad YALNIZ aşama noktaları içindir. Çizimin kendisi buna bakmaz: o, kendi
+        // 9 s'lik döngüsünü baştan sona ve kesintisiz oynar (bkz. app.css bölüm 3). Görsel
+        // anlatır, metin ile çubuk bilgilendirir — ikisini birbirine bağlamak anlatıyı
+        // bozuyordu: hızlı açılışta resimler sıçrıyor, yavaş aşamada tek kare donuyordu.
         el.dataset.cad = String(v >= 99.95 ? 4 : k);
-        const tt = b > a ? Math.max(0, Math.min(1, (v - a) / (b - a))) : 1;
-        // Aşama içi oranın türevleri CSS'te değil BURADA hesaplanır: clamp()/calc() ile
-        // yazıldığında tarayıcı stroke-dashoffset'i yüzde türünde çözüyor ve ölçü yol
-        // uzunluğuna değil görüntü köşegenine bağlanıyordu (ölçüldü). Düz sayı hem doğru,
-        // hem eski WebView'larda güvenli, hem de sınamada okunabilir.
-        const kes = (x) => Math.max(0, Math.min(1, x));
-        el.style.setProperty('--t', tt.toFixed(3));
-        el.style.setProperty('--w1', (100 * (1 - kes(tt / .62))).toFixed(1));        // dış duvar
-        el.style.setProperty('--w2', (100 * (1 - kes((tt - .55) / .45))).toFixed(1));  // iç bölmeler
-        el.style.setProperty('--cw', kes((tt - .6) / .4).toFixed(3));                  // kırpma imleri
-        el.style.setProperty('--ok', (100 * (1 - kes(tt))).toFixed(1));                // onay imi
       } else {
         delete el.dataset.cad;
-        for (const k of ['--t', '--w1', '--w2', '--cw', '--ok']) el.style.removeProperty(k);
       }
     }
     const dots = $('loadingDots'); if (dots) dots.hidden = !on;
