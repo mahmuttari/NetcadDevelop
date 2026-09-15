@@ -933,13 +933,15 @@ public class MainActivity extends androidx.activity.ComponentActivity {
         }
 
         /**
-         * Çizim açılış ekranı. pct 0..100 gösterir/günceller, pct &lt; 0 kapatır. Ekranın kendisi
-         * com.example.dwgloader paketindedir ve gönderildiği gibidir; burada yalnız çağrılır.
+         * Çizim açılış ekranı: show = true gösterir (açıksa yalnız dosya adını tazeler),
+         * show = false kapatır. Yüzde GEÇİLMEZ — ekran, gönderilen paketin kendi sürücüsüyle
+         * akar (bkz. DwgLoadingOverlay). Ekranın kendisi com.example.dwgloader paketindedir ve
+         * gönderildiği gibidir; burada yalnız çağrılır.
          */
-        @JavascriptInterface public void loadingScreen(int pct, String file) {
+        @JavascriptInterface public void loadingScreen(boolean show, String file) {
             runOnUiThread(() -> {
                 if (loadOverlay == null) loadOverlay = new DwgLoadingOverlay(MainActivity.this);
-                if (pct < 0) loadOverlay.hide(); else loadOverlay.show(file == null ? "" : file, pct);
+                if (show) loadOverlay.show(file == null ? "" : file); else loadOverlay.hide();
             });
         }
         @JavascriptInterface public void toast(String msg) { runOnUiThread(() -> Toast.makeText(MainActivity.this, msg, Toast.LENGTH_SHORT).show()); }

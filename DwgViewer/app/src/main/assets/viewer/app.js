@@ -2395,7 +2395,9 @@ function setLoadingCad(pct, file) {
   const v = Math.max(0, Math.min(100, pct));
   if (yerliVar()) {
     try {
-      A().loadingScreen(Math.round(v), file || '');
+      // Yüzde GÖNDERİLMEZ: yerli ekran kendi sürücüsüyle akar. Açılış aşamalarına bağlanınca
+      // hızlı dosyada resimler sıçrıyor, yavaş aşamada tek kare donuyordu; istenen bu değil.
+      A().loadingScreen(true, file || '');
       yerliAcilis = true;
       hide('loading');                     // iki örtü üst üste gelmesin
       return;
@@ -2407,7 +2409,7 @@ function setLoadingCad(pct, file) {
 }
 function setLoading(text, sub, pct, kind, file) {
   if (text == null) {
-    if (yerliAcilis || yerliVar()) { try { A().loadingScreen(-1, ''); } catch (e) { /* köprü yok */ } yerliAcilis = false; }
+    if (yerliAcilis || yerliVar()) { try { A().loadingScreen(false, ''); } catch (e) { /* köprü yok */ } yerliAcilis = false; }
     // Örtü kapanırken çeşit sınıfı da silinir: bir sonraki bekleme kendi görselini seçmezse
     // öncekinin çizimi kalmasın.
     const el = $('loading');

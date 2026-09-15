@@ -36,7 +36,14 @@ const KT = 'app/src/main/java/com/example/dwgloader/MainActivity.kt';
 {
   const ov = oku('app/src/main/java/com/mahmuttari/dwgviewer/DwgLoadingOverlay.kt');
   ok('B1 köprü ekranı gönderildiği imzayla çağırıyor',
-    /DwgLoadingScreen\(fileName = dosya, progress = yuzde\)/.test(ov));
+    /DwgLoadingScreen\(fileName = dosya, progress = ilerleme\)/.test(ov));
+  // Sürücü paketin kendisinden: aynı eşikler, aynı gecikmeler, aynı 1..3 artışı, aynı 550 ms
+  ok('B1b yüzdeyi paketin KENDİ sürücüsü sürüyor (gerçek ilerleme beslenmiyor)',
+    /ilerleme < 20 -> 45L/.test(ov) && /ilerleme < 55 -> 65L/.test(ov) && /ilerleme < 85 -> 50L/.test(ov)
+    && /else -> 85L/.test(ov) && /ilerleme \+ \(1\.\.3\)\.random\(\)/.test(ov) && /550L/.test(ov));
+  ok('B1c yükleme sürerse baştan tekrarlıyor', /while \(true\)/.test(ov) && /ilerleme = 0/.test(ov));
+  ok('B1d tempo tek sabitle ayarlanabiliyor (video hızı 2.4, paketin kendi hızı 1.0)',
+    /const val TEMPO = 2\.4/.test(ov));
   ok('B2 köprü ekranın kendi paketinden alıyor', ov.includes('import com.example.dwgloader.DwgLoadingScreen'));
   ok('B3 örtü kapatılabiliyor ve bileşim serbest bırakılıyor',
     ov.includes('fun hide()') && ov.includes('disposeComposition()'));
@@ -48,8 +55,9 @@ const KT = 'app/src/main/java/com/example/dwgloader/MainActivity.kt';
   const ma = oku('app/src/main/java/com/mahmuttari/dwgviewer/MainActivity.java');
   ok('C1 etkinlik ComponentActivity (ComposeView yaşam döngüsü sahibi ister)',
     /class MainActivity extends androidx\.activity\.ComponentActivity/.test(ma));
-  ok('C2 JS köprüsünde loadingScreen(pct, file) var ve eksi yüzde kapatıyor',
-    /@JavascriptInterface public void loadingScreen\(int pct, String file\)/.test(ma) && /pct < 0\) loadOverlay\.hide\(\)/.test(ma));
+  ok('C2 JS köprüsü aç/kapa: yüzde geçilmiyor',
+    /@JavascriptInterface public void loadingScreen\(boolean show, String file\)/.test(ma)
+    && /if \(show\) loadOverlay\.show\(/.test(ma) && /else loadOverlay\.hide\(\)/.test(ma));
   ok('C3 geri tuşu, gönderilen ekranda olmayan Vazgeç\'in yerini tutuyor',
     /loadOverlay\.isShowing\(\)/.test(ma) && ma.includes('cancelLoading'));
 }
@@ -57,12 +65,12 @@ const KT = 'app/src/main/java/com/example/dwgloader/MainActivity.kt';
 // --- D) JS tarafı: çizim açılışı yerli ekrana gidiyor, tarayıcıda yedek çalışıyor -----------
 {
   const js = oku('app/src/main/assets/viewer/app.js');
-  ok('D1 çizim açılışı köprü varsa yerli ekrana gidiyor',
-    /A\(\)\.loadingScreen\(Math\.round\(v\), file \|\| ''\)/.test(js));
+  ok('D1 çizim açılışı köprü varsa yerli ekrana gidiyor, YÜZDE GÖNDERMEDEN',
+    /A\(\)\.loadingScreen\(true, file \|\| ''\)/.test(js) && !/loadingScreen\(Math\.round/.test(js));
   ok('D2 iki örtü üst üste gelmiyor (yerli açıkken WebView örtüsü gizleniyor)',
     /yerliAcilis = true;[\s\S]{0,120}hide\('loading'\)/.test(js));
   ok('D3 köprü hata verirse WebView örtüsüne düşülüyor', /catch \(e\) \{ yerliAcilis = false; \}/.test(js));
-  ok('D4 kapanışta yerli ekran da kapatılıyor', /loadingScreen\(-1, ''\)/.test(js));
+  ok('D4 kapanışta yerli ekran da kapatılıyor', /loadingScreen\(false, ''\)/.test(js));
   ok('D5 iptal tek yerden: düğme de geri tuşu da aynı yordamı çağırıyor',
     /function cancelLoading\(\)/.test(js) && /addEventListener\('click', cancelLoading\)/.test(js) && /cancelLoading,/.test(js));
 }
