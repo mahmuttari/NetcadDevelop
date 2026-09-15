@@ -499,4 +499,5 @@ export default {
   'th_3:note': 'Place une étiquette sur un point 3D choisi',
   tierPopular: 'Le plus choisi', tierSave: 'économie sur l’offre annuelle', perMonth: '/mois', openEmptyDirText: 'Aucun fichier à afficher dans ce dossier.', openNoResultText: 'Aucun fichier ne correspond à ce nom ; essayez une partie plus courte ou effacez le filtre.', srvNoFiles: 'Aucun fichier DWG ou DXF n’a été trouvé à cette adresse.',
   showLocked: 'Afficher les outils verrouillés dans le ruban', allFeatures: 'Toutes les fonctions', tierUnlocks: 'Débloque %s fonctions',
+  gizmoOn: 'Poignées déplacer / mettre à l’échelle / pivoter sur la sélection', infoTap: 'Ouvrir le panneau d’informations au toucher', infoMore: 'Détails', infoLess: 'Moins',
 };

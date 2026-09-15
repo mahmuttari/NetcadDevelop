@@ -498,4 +498,5 @@ export default {
   'th_3:note': '指定した 3D 点に注記ラベルを置きます',
   tierPopular: 'いちばん人気', tierSave: '年額プランの割引', perMonth: '/月', openEmptyDirText: 'このフォルダーに表示できるファイルはありません。', openNoResultText: 'その名前に一致するファイルはありません。名前の一部を短くするか、絞り込みを解除してください。', srvNoFiles: 'このアドレスに DWG または DXF ファイルは見つかりませんでした。',
   showLocked: 'ロックされたツールをリボンに表示', allFeatures: 'すべての機能', tierUnlocks: '%s 機能を解除',
+  gizmoOn: '選択範囲の移動・拡大縮小・回転ハンドル', infoTap: 'タップで情報パネルを開く', infoMore: '詳細', infoLess: '簡易',
 };

@@ -481,6 +481,7 @@ vp.addEventListener('pointerdown', (ev) => {
   if (pointers.size === 1) gestureView0 = { ...S.view, li: S.layoutIndex };
   closeMenu(); clearLong();
   const arr = [...pointers.values()];
+  if (edCall('gizmoBusy')) return;   // tutamak sürüklenirken ikinci parmak yakınlaştırmaya geçmesin
   if (arr.length === 1) {
     const [sx, sy] = rel(ev);
     if (S.notesOn && S.noteTool !== 'select' && S.noteTool !== 'text' && S.noteTool !== 'photo') {
@@ -489,6 +490,8 @@ vp.addEventListener('pointerdown', (ev) => {
       gesture = { type: 'note' };
       return;
     }
+    // Seçim tutamağı: parmak bir tutamağa indiyse jest kaydırmaya değil dönüşüme gider
+    if (edCall('gizmoDown', sx, sy)) { gesture = { type: 'gizmo' }; S.gestureActive = true; return; }
     if (zoomWin && zoomWin.pending) { zoomWin = { x0: sx, y0: sy, x1: null, y1: null }; gesture = { type: 'zoomwin', x0: sx, y0: sy }; S.gestureActive = true; return; }
     const now = performance.now();
     if (lastTapPos && now - lastTap < TOL.dbl && Math.hypot(lastTapPos[0] - sx, lastTapPos[1] - sy) < 30 && !S.notesOn) {
@@ -513,7 +516,9 @@ vp.addEventListener('pointermove', (ev) => {
   if (!pointers.has(ev.pointerId)) { if (S.hasDoc && ev.pointerType === 'mouse') updateStatus(sx, sy); return; }
   pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
   if (!gesture) return;
-  if (gesture.type === 'note' && noteDraft) {
+  if (gesture.type === 'gizmo') {
+    edCall('gizmoMove', sx, sy);
+  } else if (gesture.type === 'note' && noteDraft) {
     const w = toWorld(sx, sy);
     if (noteDraft.type === 'pen') noteDraft.pts.push(w); else noteDraft.pts[1] = w;
     drawOverlay();
@@ -563,6 +568,12 @@ function endPointer(ev) {
       if (noteDraft.type === 'pen' ? noteDraft.pts.length > 2 : Math.hypot(a[0] - b[0], a[1] - b[1]) > 4) addNote(noteDraft);
     }
     noteDraft = null; gesture = null; S.gestureActive = false; drawOverlay(); return;
+  }
+  if (gesture && gesture.type === 'gizmo') {
+    edCall('gizmoUp', ev.type === 'pointerup');
+    gesture = null; S.gestureActive = false;
+    if (pointers.size === 0) { gestureView0 = null; requestRender(); }
+    return;
   }
   if (gesture && gesture.type === 'zoomwin') {
     const zw = zoomWin; gesture = null; S.gestureActive = false;
@@ -683,7 +694,9 @@ async function onTap(sx, sy) {
   const hit = pick(w, TOL.pick / S.view.scale);
   S.selected = hit;
   drawOverlay();
-  if (hit) showInfo(hit); else hide('infoPanel');
+  // Panelin dokunuşta açılması isteğe bağlıdır (Ayarlar › "Dokununca bilgi panelini aç").
+  // Kapalıyken nesne yine vurgulanır; panel uzun basış menüsündeki "Çizim bilgisi" ile açılır.
+  if (hit && uiPrefs().infoTap !== false) showInfo(hit); else hide('infoPanel');
 }
 
 // ---------------------------------------------------------------------------
@@ -734,55 +747,64 @@ $('stCoord').addEventListener('click', () => { if (lastCoord) copyText(fmt(lastC
 const trType = (x) => tt('ety_' + x, x);   // sözlükte yoksa DXF adının kendisi (LINE, HATCH…)
 const zTxt = (z) => (z != null && isFinite(z) && z !== 0) ? ' ; Z ' + fmt(z) : '';
 let infoPrim = null;
+/**
+ * Nesne bilgisi. İki görünüm vardır: KISA (öntanımlı) yalnız işi olan satırları verir,
+ * AYRINTILI hepsini. Ayrım yerinde yapılır: temel satırlar 'rows'a, ikincil olanlar 'more'a
+ * yazılır; panelin başındaki çip ikisini değiştirir ve seçim ui.infoFull'de saklanır.
+ * Uzun listenin dokunur dokunmaz ekranı kaplaması bu yüzden son bulur.
+ */
 function showInfo(p) {
   infoPrim = p;
   const inf = p.info || {}, u = S.units ? ' ' + S.units : '';
-  const rows = [];
+  const rows = [], more = [];
   const top = inf.t || p.et, sub = p.et;
   $('infoTitle').textContent = trType(top) + (sub !== top ? ' › ' + trType(sub) : '');
   if (top === 'INSERT') {
     rows.push([t('block'), inf.name], [t('insPoint'), fmt(inf.x) + ' ; ' + fmt(inf.y) + zTxt(inf.z)]);
-    if (inf.sx !== 1 || inf.sy !== 1) rows.push([t('scale'), fmt(inf.sx) + ' / ' + fmt(inf.sy)]);
-    if (inf.rot) rows.push([t('rotation'), fmt(inf.rot * 180 / Math.PI, 2) + '°']);
+    if (inf.sx !== 1 || inf.sy !== 1) more.push([t('scale'), fmt(inf.sx) + ' / ' + fmt(inf.sy)]);
+    if (inf.rot) more.push([t('rotation'), fmt(inf.rot * 180 / Math.PI, 2) + '°']);
   }
-  if (top === 'DIMENSION') { rows.push([t('measVal'), inf.meas != null ? fmt(inf.meas) + u : null]); if (inf.text && inf.text !== '<>') rows.push([t('measText'), inf.text]); rows.push([t('dimStyle'), inf.style]); }
+  if (top === 'DIMENSION') { rows.push([t('measVal'), inf.meas != null ? fmt(inf.meas) + u : null]); if (inf.text && inf.text !== '<>') rows.push([t('measText'), inf.text]); more.push([t('dimStyle'), inf.style]); }
   rows.push([t('layer'), p.lay]);
   const L = S.layers.get(p.lay);
   const colTxt = p.col === FG ? '7 (' + (S.dark ? t('white') : t('black')).toLocaleLowerCase(getLang()) + ')' : rgbCss(p.col, '');
-  rows.push([t('color'), (inf.ci === 256 ? t('fromLayer') + ' ' : inf.ci === 0 ? t('fromBlock') + ' ' : '') + colTxt]);
-  rows.push([t('ltype'), p.lt || (L ? L.lt : 'Continuous')]);
-  if (p.lw != null) rows.push([t('lweight'), fmt(p.lw / 100, 2) + ' mm']);
+  more.push([t('color'), (inf.ci === 256 ? t('fromLayer') + ' ' : inf.ci === 0 ? t('fromBlock') + ' ' : '') + colTxt]);
+  more.push([t('ltype'), p.lt || (L ? L.lt : 'Continuous')]);
+  if (p.lw != null) more.push([t('lweight'), fmt(p.lw / 100, 2) + ' mm']);
   if (p.k === 0) {
     const len = pathLength(p.ops, p.closed);
-    if (sub === 'CIRCLE' && p.ops[1]) { const o = p.ops[1]; rows.push([t('center'), fmt(o[1]) + ' ; ' + fmt(o[2])], [t('radius'), fmt(o[3]) + u], [t('circumference'), fmt(len) + u], [t('area'), fmt(Math.PI * o[3] * o[3]) + (u ? u + '²' : '')]); }
-    else if (sub === 'ARC' && p.ops[1] && p.ops[1][0] === 2) { const o = p.ops[1]; rows.push([t('center'), fmt(o[1]) + ' ; ' + fmt(o[2])], [t('radius'), fmt(o[3]) + u], [t('arcLen'), fmt(len) + u], [t('angle'), fmt(((o[5] - o[4] + TAU) % TAU) * 180 / Math.PI, 2) + '°']); }
+    if (sub === 'CIRCLE' && p.ops[1]) { const o = p.ops[1]; rows.push([t('center'), fmt(o[1]) + ' ; ' + fmt(o[2])], [t('radius'), fmt(o[3]) + u], [t('area'), fmt(Math.PI * o[3] * o[3]) + (u ? u + '²' : '')]); more.push([t('circumference'), fmt(len) + u]); }
+    else if (sub === 'ARC' && p.ops[1] && p.ops[1][0] === 2) { const o = p.ops[1]; rows.push([t('radius'), fmt(o[3]) + u], [t('arcLen'), fmt(len) + u], [t('angle'), fmt(((o[5] - o[4] + TAU) % TAU) * 180 / Math.PI, 2) + '°']); more.push([t('center'), fmt(o[1]) + ' ; ' + fmt(o[2])]); }
     else {
       const pts = flatten(p.ops);
       const first = pts[0], last = pts[pts.length - 1];
       rows.push([t('length'), fmt(len) + u]);
-      if (S.unitToM && S.unitToM !== 1) rows.push([t('length') + ' (m)', fmt(len * S.unitToM, 2) + ' m']);
-      if (sub === 'LINE' && first && last) rows.push([t('start'), fmt(first[0]) + ' ; ' + fmt(first[1]) + zTxt(p.ops[0][3])], [t('end'), fmt(last[0]) + ' ; ' + fmt(last[1]) + zTxt(p.ops[1][3])], ['ΔX / ΔY', fmt(last[0] - first[0]) + ' / ' + fmt(last[1] - first[1])]);
-      else if (first) rows.push([t('vertices'), p.ops.length], [t('start'), fmt(first[0]) + ' ; ' + fmt(first[1])], [t('end'), fmt(last[0]) + ' ; ' + fmt(last[1])]);
-      if (p.closed || p.fill) rows.push([t('closed'), t('yes')], [t('area'), fmt(polyArea(pts)) + (u ? u + '²' : '')]);
-      if (p.w) rows.push([t('width'), fmt(p.w) + u]);
-      if (sub === 'HATCH') rows.push([t('pattern'), inf.pattern]);
+      if (S.unitToM && S.unitToM !== 1) more.push([t('length') + ' (m)', fmt(len * S.unitToM, 2) + ' m']);
+      if (sub === 'LINE' && first && last) { rows.push([t('start'), fmt(first[0]) + ' ; ' + fmt(first[1]) + zTxt(p.ops[0][3])], [t('end'), fmt(last[0]) + ' ; ' + fmt(last[1]) + zTxt(p.ops[1][3])]); more.push(['ΔX / ΔY', fmt(last[0] - first[0]) + ' / ' + fmt(last[1] - first[1])]); }
+      else if (first) { rows.push([t('start'), fmt(first[0]) + ' ; ' + fmt(first[1])], [t('end'), fmt(last[0]) + ' ; ' + fmt(last[1])]); more.push([t('vertices'), p.ops.length]); }
+      if (p.closed || p.fill) { rows.push([t('area'), fmt(polyArea(pts)) + (u ? u + '²' : '')]); more.push([t('closed'), t('yes')]); }
+      if (p.w) more.push([t('width'), fmt(p.w) + u]);
+      if (sub === 'HATCH') more.push([t('pattern'), inf.pattern]);
     }
   } else if (p.k === 1) {
-    rows.push([t('textK'), p.lines.join('\n')], [t('height'), fmt(p.h) + u], [t('rotation'), fmt(p.rot * 180 / Math.PI, 2) + '°'], [t('position'), fmt(p.x) + ' ; ' + fmt(p.y)]);
-    if (sub === 'ATTRIB') rows.push([t('tag'), inf.tag]);
+    rows.push([t('textK'), p.lines.join('\n')], [t('position'), fmt(p.x) + ' ; ' + fmt(p.y)]);
+    more.push([t('height'), fmt(p.h) + u], [t('rotation'), fmt(p.rot * 180 / Math.PI, 2) + '°']);
+    if (sub === 'ATTRIB') more.push([t('tag'), inf.tag]);
   } else if (p.k === 3) rows.push([t('file'), inf.file]);
   else if (p.k === 5) {                                   // ağ gövdesi: konum yok, geometrisi dizilerde
     const b = p.bb;
-    rows.push([t('triCount'), fmt(p.idx.length / 3, 0)], [t('vertices'), fmt(p.vtx.length / 3, 0)],
-      [t('size'), fmt(b[2] - b[0]) + ' × ' + fmt(b[3] - b[1]) + u],
+    rows.push([t('size'), fmt(b[2] - b[0]) + ' × ' + fmt(b[3] - b[1]) + u],
       [t('center'), fmt((b[0] + b[2]) / 2) + ' ; ' + fmt((b[1] + b[3]) / 2)],
       [t('elev'), fmt(p.zmin) + ' … ' + fmt(p.zmax) + u]);
+    more.push([t('triCount'), fmt(p.idx.length / 3, 0)], [t('vertices'), fmt(p.vtx.length / 3, 0)]);
   } else rows.push([t('position'), fmt(p.x) + ' ; ' + fmt(p.y) + zTxt(p.z)]);
-  if (inf.attrs && inf.attrs.length) { rows.push(['<strong>' + t('attrs') + '</strong>']); for (const a of inf.attrs) rows.push([a[0] || '–', a[1]]); }
-  if (inf.xd && inf.xd.length) { rows.push(['<strong>' + t('xdata') + '</strong>']); for (const x of inf.xd) rows.push([x[0], x[1]]); }
-  rows.push([t('handle'), inf.h]);
-  $('infoBody').innerHTML = kv(rows);
+  if (inf.attrs && inf.attrs.length) { more.push(['<strong>' + t('attrs') + '</strong>']); for (const a of inf.attrs) more.push([a[0] || '–', a[1]]); }
+  if (inf.xd && inf.xd.length) { more.push(['<strong>' + t('xdata') + '</strong>']); for (const x of inf.xd) more.push([x[0], x[1]]); }
+  more.push([t('handle'), inf.h]);
+  const full = uiPrefs().infoFull === true;
+  $('infoBody').innerHTML = kv(full ? rows.concat(more) : rows);
   ensureInfoActions();
+  { const db = $('iaDetail'); if (db) { db.hidden = !more.length; db.classList.toggle('on', full); db.textContent = full ? tt('infoLess', 'Daha az') : tt('infoMore', 'Ayrıntılar') + ' (' + more.filter(r => r.length > 1).length + ')'; } }
   { const ab = $('iaArea'); if (ab) { ab.hidden = !(p.k === 5 && p.idx && p.idx.length >= 3); Ed.lockMark(ab, 'area3d', 'pill'); } }   // yüzey ölçüsü yalnız üçgen ağı olan gövdede; kilitliyse rozetli
   show('infoPanel');
 }
@@ -791,12 +813,14 @@ function ensureInfoActions() {
   const panel = $('infoPanel'); if (!panel || $('infoActions')) return;
   const row = document.createElement('div'); row.id = 'infoActions'; row.className = 'info-actions';
   row.innerHTML = `<button type="button" class="chip" data-ia="measure">${tt('measureFrom', 'Buradan ölç')}</button><button type="button" class="chip" data-ia="iso">${tt('isolate', 'Katmanı izole et')}</button><button type="button" class="chip" data-ia="samelayer">${tt('selectSameLayer', 'Aynı katmandakileri seç')}</button>`
-    + `<button type="button" class="chip" id="iaArea" data-ia="area" hidden>${esc(t('surfArea'))}</button>`;
+    + `<button type="button" class="chip" id="iaArea" data-ia="area" hidden>${esc(t('surfArea'))}</button>`
+    + `<button type="button" class="chip" id="iaDetail" data-ia="detail" hidden></button>`;
   const body = $('infoBody'); body.parentElement.insertBefore(row, body);
   row.addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-ia]'); if (!b || !infoPrim) return;
     const p = infoPrim;
     if (b.dataset.ia === 'measure') { const pts = p.k === 0 ? flatten(p.ops) : p.k === 5 ? [[(p.bb[0] + p.bb[2]) / 2, (p.bb[1] + p.bb[3]) / 2]] : [[p.x, p.y]]; hide('infoPanel'); setMode('measure'); if (pts[0]) { S.measure.push([pts[0][0], pts[0][1], undefined]); updateMeasure(); drawOverlay(); } }
+    else if (b.dataset.ia === 'detail') { const u = uiPrefs(); u.infoFull = !u.infoFull; try { editorMod.applyUi(); } catch (_) { /* yok */ } showInfo(p); }
     else if (b.dataset.ia === 'area') showMeshArea(p);
     else if (b.dataset.ia === 'iso') isolateLayers([p.lay]);
     else if (b.dataset.ia === 'samelayer') {
@@ -2645,7 +2669,7 @@ ensureStatusChips();
 Ed.initEdition({ toast, rebuildToolbar: () => editor.rebuild(), refreshMenu });   // Ücretsiz / Pro: menü, karşılama kartı, Pro paneli, Drive düğmeleri; reklam zamanlayıcısı; onEdition → şerit yeniden kurulur
 D.initDisplay({ requestRender, drawOverlay, toast, openDoc, show, hide, buildLayerList, settings, saveSettings, editorTheme, zoomExtents, zoomBy, fitPrims, viewHistory, setLayout, editor, ui: uiPrefs(), basemaps: BASEMAPS, haptic });
 mountNavFabs(vp);
-initEditor({ S, requestRender, drawOverlay, toast, noFaces: showNoFaces, pick: (w) => pick(w, TOL.pick / S.view.scale), snap: doSnap, showInfo, openDoc, hide, show, esc, kv, copyText, buildLayerList, fmt, store, RTree, baseName, zoomExtents, tracePath, worldTransform, strokeWorldRect,
+initEditor({ S, requestRender, drawOverlay, toast, noFaces: showNoFaces, pick: (w) => pick(w, TOL.pick / S.view.scale), snap: doSnap, showInfo, openDoc, hide, show, esc, kv, copyText, buildLayerList, fmt, store, RTree, baseName, zoomExtents, tracePath, worldTransform, strokeWorldRect, worldOrigin,
   action: (a) => { if (a === 'layers') $('btnLayers').click(); else if (a === 'search') $('btnSearch').click(); else if (a === 'more') $('btnMore').click(); else menuAction(a); },
   savePng, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, isolateLayers, unisolate, settings, saveSettings, stamp, haptic, openDisplayOptions, setDisplay, getDisplay, toggleDisplay, display: D });
 $('stScale').addEventListener('click', showScalePicker);

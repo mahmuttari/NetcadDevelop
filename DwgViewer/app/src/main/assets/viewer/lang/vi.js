@@ -340,4 +340,5 @@ export default {
   'tl_3:note': 'Ghi chú 3D', 'th_3:note': 'Đặt nhãn ghi chú tại điểm 3D đã chọn',
   tierPopular: 'Được chọn nhiều nhất', tierSave: 'tiết kiệm khi mua theo năm', perMonth: '/tháng', openEmptyDirText: 'Không có tệp nào để hiển thị trong thư mục này.', openNoResultText: 'Không có tệp nào khớp với tên đó; hãy thử một phần ngắn hơn hoặc xoá bộ lọc.', srvNoFiles: 'Không tìm thấy tệp DWG hoặc DXF nào tại địa chỉ này.',
   showLocked: 'Hiện công cụ bị khoá trên dải lệnh', allFeatures: 'Tất cả tính năng', tierUnlocks: 'Mở khoá %s tính năng',
+  gizmoOn: 'Tay nắm di chuyển / tỉ lệ / xoay trên vùng chọn', infoTap: 'Mở bảng thông tin khi chạm', infoMore: 'Chi tiết', infoLess: 'Rút gọn',
 };

@@ -23,6 +23,7 @@ import { TAU } from './geom.js';
 import * as D from './display.js';
 import { askText, askForm } from './dialog.js';
 import { leaderEnts } from './annot.js';
+import * as Gz from './gizmo.js';
 import { has, gate, need, rank, tier, tierName, lockAttr, lockBadge, lockBadgeFor, openProPanel } from './edition.js';
 
 const $ = (id) => document.getElementById(id);
@@ -35,7 +36,7 @@ const ed = { is3D: () => !!(v3 && !$('cv3d').hidden), tools: null, doc: null, cu
 // ---------------------------------------------------------------------------------
 // Kullanım tercihleri (ui) — kalıcı anahtar 'ui'
 // ---------------------------------------------------------------------------------
-const UI_DEFAULTS = { favs: [], tbCollapsed: { portrait: false, landscape: false }, hints: {}, fontScale: 1, glove: false, leftHand: false, contrast: false, reduceMotion: false, haptics: true, dpad: false, compactStatus: false, showLocked: true };
+const UI_DEFAULTS = { favs: [], tbCollapsed: { portrait: false, landscape: false }, hints: {}, fontScale: 1, glove: false, leftHand: false, contrast: false, reduceMotion: false, haptics: true, dpad: false, compactStatus: false, showLocked: true, gizmo: true, infoTap: true, infoFull: false };
 export const ui = (() => {
   const o = JSON.parse(JSON.stringify(UI_DEFAULTS));
   const st = store.json('ui', null);
@@ -650,15 +651,81 @@ export function back() {
   if (ed.sel.size) { ed.sel.clear(); api.drawOverlay(); return true; }
   return false;
 }
-/** 2B kaplama: seçim vurgusu ve araç önizlemesi */
+// ---------------------------------------------------------------------------------
+// Seçim tutamağı (gizmo): taşı · ölçekle · uzat/kısalt · döndür
+// Sürükleme sırasında BELGE DEĞİŞMEZ; yalnız önizleme matrisi tutulur, bırakışta tek bir
+// 'xform' komutu işlenir (tek geri alma adımı).
+// ---------------------------------------------------------------------------------
+let giz = null;   // { kind, bb, w0, m, info }
+/** Tutamak ne zaman görünür: 2B, seçim var, araç çalışmıyor, ölçü/not kipinde değil */
+function gizmoOn() {
+  return !!(S && S.hasDoc && ed.sel.size && !ed.is3D() && !tools.running && S.mode === 'view' && !S.notesOn && ui.gizmo !== false);
+}
+function gizmoLayout() {
+  if (!gizmoOn()) return null;
+  const bb = Gz.boxOf(ed.sel);
+  return bb ? Gz.layout(bb, toScreen, { fs: ui.fontScale, glove: ui.glove }) : null;
+}
+/** İşaretçi bir tutamağa indi mi? true dönerse app.js kaydırma/dokunma yapmaz. */
+ed.gizmoDown = (sx, sy) => {
+  const L = gizmoLayout(); if (!L) return false;
+  const kind = Gz.hit(sx, sy, L); if (!kind) return false;
+  if (!gate(Gz.NEED_OF[kind] || 't:move')) return true;   // yetki yoksa jest yine yutulur: kutu açıldı
+  giz = { kind, bb: Gz.boxOf(ed.sel), w0: toWorld(sx, sy), m: null, info: null };
+  haptic('snap');
+  return true;
+};
+ed.gizmoMove = (sx, sy) => {
+  if (!giz) return false;
+  const r = Gz.drag(giz.kind, giz.bb, giz.w0, toWorld(sx, sy));
+  giz.m = r.m; giz.info = r.info;
+  api.drawOverlay();
+  return true;
+};
+/** commit=false ise (pointercancel) değişiklik atılır */
+ed.gizmoUp = (commit) => {
+  const g = giz; giz = null;
+  if (!g) return false;
+  if (commit && g.m && !Gz.isIdentity(g.m) && doc) {
+    const keys = [...ed.sel].map(p => p.key);
+    if (keys.length) { doc.run({ op: 'xform', keys, m: g.m }); refreshUndo(); api.requestRender(); haptic('toggle'); }
+  }
+  api.drawOverlay();
+  return true;
+};
+ed.gizmoBusy = () => !!giz;
+/** Sürükleme okuması: ölçek yüzdesi / açı / öteleme — durum çubuğu yerine kutunun yanında */
+function gizmoText() {
+  const i = giz && giz.info; if (!i) return '';
+  if (i.tip === 'move') return `${fmt(i.dx)} ; ${fmt(i.dy)}`;
+  if (i.tip === 'rot') return `${fmt(i.deg, 1)}°` + (i.snap ? ' ⌁' : '');
+  return i.uniform ? `%${fmt(i.sx * 100, 1)}` : `%${fmt(i.sx * 100, 1)} × %${fmt(i.sy * 100, 1)}`;
+}
+
+/** 2B kaplama: seçim vurgusu, seçim tutamağı ve araç önizlemesi */
 export function overlay(c) {
   const acc = S.selColor || '#ff9f0a', sw = S.selWidth || 3;
   if (ed.sel.size) {
     c.save();
     api.worldTransform(c);   // köken görünüm merkezi; tracePath / strokeWorldRect yerel koordinat kullanır (büyük UTM sayıları tuvale girmez)
+    // Sürükleme önizlemesi: belge değişmeden seçim, tutamağın matrisiyle çizilir. Matris dünya
+    // koordinatındadır, kaplama ise yerel kökende çizer — Gz.localM konjugasyonu bunu çevirir.
+    if (giz && giz.m) { const [ox, oy] = api.worldOrigin(); const lm = Gz.localM(giz.m, ox, oy); c.transform(lm[0], lm[1], lm[2], lm[3], lm[4], lm[5]); }
     c.strokeStyle = acc; c.lineWidth = sw / S.view.scale; c.setLineDash([6 / S.view.scale, 4 / S.view.scale]); c.globalAlpha = 0.95;
     for (const p of ed.sel) { if (p.k === 0) { c.beginPath(); api.tracePath(c, p.ops); if (p.closed) c.closePath(); c.stroke(); } else api.strokeWorldRect(c, p.bb); }
     c.restore(); c.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);
+    const L = gizmoLayout();
+    if (L) {
+      Gz.draw(c, L, { line: acc, fill: bgColor(), ink: acc }, { fs: ui.fontScale });
+      const txt = gizmoText();
+      if (txt) {
+        c.font = `bold ${Math.round(12 * ui.fontScale)}px sans-serif`; c.textAlign = 'center'; c.textBaseline = 'bottom';
+        const w = c.measureText(txt).width + 12, x = L.cx, y = L.box[1] - 10 * ui.fontScale;
+        c.fillStyle = bgColor(); c.globalAlpha = 0.85; c.fillRect(x - w / 2, y - 18 * ui.fontScale, w, 18 * ui.fontScale);
+        c.globalAlpha = 1; c.fillStyle = acc; c.fillText(txt, x, y - 3 * ui.fontScale);
+        c.textAlign = 'left';
+      }
+    }
   }
   const d = tools.draft;
   if (!d || !tools.running && !d.keep) return;
@@ -1043,6 +1110,7 @@ export function accessibilitySection() {
   const html = `<div class="opt-sec a11y-sec full"><div class="opt-title">${esc(t('a11yTitle'))}</div>` +
     `<div class="opt-row"><span class="opt-lb">${esc(t('fontScale'))}</span><div class="seg" data-key="fontScale">${[[0.9, 'A−'], [1, 'A'], [1.15, 'A+'], [1.3, 'A++']].map(([v, l]) => `<button type="button" data-val="${v}" class="${Math.abs(ui.fontScale - v) < 0.01 ? 'on' : ''}">${l}</button>`).join('')}</div></div>` +
     sw('glove', t('glove')) + sw('leftHand', t('leftHand')) + sw('contrast', t('contrast')) + sw('reduceMotion', t('reduceMotion')) + sw('haptics', t('haptics')) + sw('dpad', t('dpad')) + sw('compactStatus', t('compactStatus')) +
+    sw('gizmo', t('gizmoOn')) + sw('infoTap', t('infoTap')) +
     (rank(tier()) < rank('super') ? sw('showLocked', t('showLocked')) : '') +
     `<div class="opt-row"><button type="button" class="btn small" data-do="hints">${esc(t('hintsReset'))}</button></div></div>`;
   return { html, bind(root) {
@@ -1058,6 +1126,7 @@ export function accessibilitySection() {
       ui[inp.dataset.key] = inp.checked; applyUi();
       if (inp.dataset.key === 'dpad') D.refreshNav();
       if (inp.dataset.key === 'showLocked') ed.rebuild();   // şerit yeniden kurulur (sekme + karo + çağrı karosu)
+      if (inp.dataset.key === 'gizmo') api.drawOverlay();   // tutamak anında görünür / kaybolur
     });
   } };
 }
