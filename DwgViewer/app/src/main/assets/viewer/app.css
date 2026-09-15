@@ -791,6 +791,7 @@ html[dir="rtl"] .kv-copy { text-align: right; }
    NE ZAMAN HANGİ SINIF
      #loading.modal            → sınıf yoksa var olan .spinner görünür (geri uyumluluk).
      #loading.modal.load-cad   → çizim çözümleniyor / DXF kuruluyor / sahne hazırlanıyor.
+                                 (yılan oyunu: yem yendikçe plan çizilir, sonra gülen surat)
      #loading.modal.load-doc   → PDF · DOCX · XLSX · TXT belgesi açılıyor, sayfa dizgisi.
      #loading.modal.load-out   → dışa aktarma, yazdırma, PDF üretme, toplu çıktı.
      #loading.modal.load-d3    → 3B sahne kurulumu, katı model, görünüm küpü hazırlığı.
@@ -801,8 +802,10 @@ html[dir="rtl"] .kv-copy { text-align: right; }
    NEDEN BU SÜRELER
      Bekleme örtüsü dakikalarca açık kalabilir (büyük DWG). Göz, saniyenin altındaki ritmi
      "acele" olarak okur ve yorar; 2,5 sn'nin altı huzursuz eder, 4 sn'nin üstü "takıldı"
-     izlenimi verir. Bu yüzden bütün döngüler 3,0-4,0 sn arasındadır:
-       cad 3,6s (çizim → kolon → ölçü: dört aşamalı, en uzun anlatı)
+     izlenimi verir. Bu yüzden tek olaylı döngüler 3,0-4,0 sn arasındadır; iki perdeli 'cad'
+     görseli tek istisnadır (perde başına 2,2 sn):
+       cad 4,4s (yılan oyunu: yem yendikçe plan çizilir, sonra gülen surat — iki perdeli
+                 tek anlatı olduğu için ötekilerden uzun; gerekçesi kendi bölümünde)
        doc 3,2s (satır dizilmesi; satırlar 0,13s aralıkla basamaklanır)
        out 3,0s (iki sayfa 1,5s faz farkıyla → kesintisiz akış, görünür ritim 1,5s)
        d3  4,0s (tam tur; 90°/s'nin altı, baş döndürmeyen ağırlıkta bir dönüş)
@@ -894,32 +897,87 @@ body.glove #loading { --la: min(calc(172px * var(--fs)), 54vw); }
 body.glove #loading .btn { min-height: calc(52px * var(--fs)); min-width: calc(120px * var(--fs)); }
 
 
-/* ---- 3. 'cad' — mimari plan kendi kendini çiziyor (3,6 s) ---------------------------------- */
-/* Bütün yollarda pathLength="100" var; uzunluk hesabı yapılmaz, dashoffset doğrudan yüzdedir.
-   Sıra: dış duvar → iç bölme (kapı boşluklu) → kapı yayı → kolon dairesi → ölçü çizgisi →
-   ok başları → bekleme → tüm mürekkebin sönmesi. Kapanış sönmeyle olduğu için sıfırlanma
-   görünmez, döngü yumuşak kapanır. */
-.la-cad .dr   { stroke-dasharray: 100; stroke-dashoffset: 0; }   /* statik = çizilmiş hâl */
-.la-cad .w1   { stroke-width: 2.6; animation: cadW1  3.6s cubic-bezier(.4,0,.2,1) infinite; }
-.la-cad .w2   { stroke-width: 1.7; animation: cadW2  3.6s cubic-bezier(.4,0,.2,1) infinite; }
-.la-cad .arc  { stroke-width: 1.2; opacity: .7; animation: cadArc 3.6s cubic-bezier(.4,0,.2,1) infinite; }
-.la-cad .ext,
-.la-cad .dim  { stroke-width: 1.2; animation: cadDim 3.6s cubic-bezier(.4,0,.2,1) infinite; }
-.la-cad .col  { stroke: var(--accent); stroke-width: 2.4;
-                transform-box: fill-box; transform-origin: 50% 50%;
-                animation: cadCol 3.6s cubic-bezier(.34,1.3,.5,1) infinite; }
-.la-cad .tip  { fill: currentColor; stroke: none;
-                transform-box: fill-box; transform-origin: 50% 50%;
-                animation: cadTip 3.6s ease-out infinite; }
-.la-cad .ink  { animation: cadInk 3.6s linear infinite; }
+/* ---- 3. 'cad' — küçük bir yılan oyunu: yılan planı çizer, sonra gülen surata döner (4,4 s) --
+   İKİ PERDE
+     0 → 58 %  yılan planın hattını dolaşır ve yol üstündeki dört yemi yer; her yemde boyu
+               beş birim uzar. Geçtiği yer .trail üzerinde kalıcı olarak çizilir → plan,
+               yılan tarafından çiziliyormuş gibi tamamlanır.
+     66 → 96 % yem biten yılan kıvrılıp gülen surata döner. Devir teslim sırası önemlidir:
+               önce PLAN söner (66-74), yılan bir an YALNIZ kalır, sonra yüz çemberi onun
+               bittiği noktadan çizilmeye başlar (74) ve yılan söner (76-82). <circle> saat 3
+               yönünden, yani (cx+r, cy) = sağ ortadan çizilir; yılanın son noktası (102,54)
+               da sağ ortadadır — çember tam oradan devralır, "kıvrıldı" okunur.
 
-@keyframes cadW1  { 0%, 4%  { stroke-dashoffset: 100 } 28%, 100% { stroke-dashoffset: 0 } }
-@keyframes cadW2  { 0%, 26% { stroke-dashoffset: 100 } 44%, 100% { stroke-dashoffset: 0 } }
-@keyframes cadArc { 0%, 42% { stroke-dashoffset: 100 } 52%, 100% { stroke-dashoffset: 0 } }
-@keyframes cadCol { 0%, 46% { transform: scale(.25); opacity: 0 } 58%, 100% { transform: scale(1); opacity: 1 } }
-@keyframes cadDim { 0%, 54% { stroke-dashoffset: 100 } 72%, 100% { stroke-dashoffset: 0 } }
-@keyframes cadTip { 0%, 70% { opacity: 0; transform: scale(.4) } 80%, 100% { opacity: 1; transform: scale(1) } }
-@keyframes cadInk { 0% { opacity: 0 } 5% { opacity: 1 } 90% { opacity: 1 } 100% { opacity: 0 } }
+   NEDEN 4,4 s (öteki görseller 3,0-4,0 s)
+     Bu görsel iki perdeli bir anlatıdır; süre tek bir olayın değil ikisinin toplamıdır. Perde
+     başına 2,5 s'nin altında kalır, yani hiçbir perde "acele" okunmaz; 4 s üstü "takıldı"
+     izlenimi ise DURAN görseller için geçerlidir, burada hareket hiç kesilmez.
+
+   YILAN NASIL KURULUYOR
+     .snake ile .trail aynı "d" yolunu paylaşır ve ikisi de pathLength="100" taşır, yani bütün
+     ölçüler yüzdedir. Yılan, yol üzerinde tek bir kesik parçadır:
+       stroke-dasharray: L 200  → boşluk yoldan uzun olduğu için yolda TEK parça bulunur
+                                  (100 verilseydi parça yolun sonundan çıkarken baştan geri
+                                  girer, yılan kendi kuyruğundan doğuyormuş gibi görünürdü)
+       stroke-dashoffset: L − p → parça [p−L, p) aralığını kaplar; p baş konumu, L boy
+     Baş p ile .trail'in dashoffset'i (100 − p) aynı zaman eğrisini izler, bu yüzden çizilen iz
+     her karede tam başın arkasında biter. Boy L yemlerde basamak basamak artar: iki keyframe
+     0,1 % arayla konur, böylece uzama ANLIK olur ve baş yerinden oynamaz.
+     Yemler yolun üstündedir; kayboldukları an başın oradan geçtiği andır (yol yüzdesi 20, 42,
+     62, 85 → zaman yüzdesi 11,6 · 24,4 · 36 · 49,3).
+
+   DURGUN KİP
+     Statik değerler döngünün BİLGİ VEREN son hâlidir: plan tam çizilmiş, yemler yenmiş, yılan
+     ve surat gizli. Gülen surat süstür; hareketin kapalı olduğu yerde ekranda kalması gereken
+     şey plandır. */
+.la-cad .trail { stroke-width: 2.6; stroke-dasharray: 100; stroke-dashoffset: 0;   /* statik: plan çizilmiş */
+                 animation: snTrail 4.4s linear infinite; }
+.la-cad .snake { stroke: var(--accent); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round;
+                 opacity: 0; stroke-dasharray: 27 200; stroke-dashoffset: -73;     /* statik: yılan gitmiş */
+                 animation: snBody 4.4s linear infinite; }
+.la-cad .pel   { fill: var(--accent); stroke: none; opacity: 0;                    /* statik: yemler yenmiş */
+                 transform-box: fill-box; transform-origin: 50% 50%; transform: scale(0); }
+.la-cad .p1    { animation: snPel1 4.4s linear infinite; }
+.la-cad .p2    { animation: snPel2 4.4s linear infinite; }
+.la-cad .p3    { animation: snPel3 4.4s linear infinite; }
+.la-cad .p4    { animation: snPel4 4.4s linear infinite; }
+.la-cad .plan  { opacity: 1; animation: snPlan 4.4s linear infinite; }
+.la-cad .smile { opacity: 0; animation: snFace 4.4s linear infinite; }             /* statik: surat gizli */
+.la-cad .face  { stroke: var(--accent); stroke-width: 5; stroke-linecap: round;
+                 stroke-dasharray: 100; stroke-dashoffset: 100; opacity: 0;
+                 animation: snDraw 4.4s cubic-bezier(.4,0,.2,1) infinite; }
+.la-cad .mouth { stroke: var(--accent); stroke-width: 4.5; stroke-linecap: round;
+                 stroke-dasharray: 100; stroke-dashoffset: 100; opacity: 0;
+                 animation: snMouth 4.4s cubic-bezier(.4,0,.2,1) infinite; }
+.la-cad .eye   { fill: var(--accent); stroke: none;
+                 transform-box: fill-box; transform-origin: 50% 50%; transform: scale(0);
+                 animation: snEye 4.4s cubic-bezier(.34,1.4,.5,1) infinite; }
+
+/* Baş p = %58'e kadar 0 → 100; iz tam başın arkasında biter */
+@keyframes snTrail { 0% { stroke-dashoffset: 100 } 58%, 100% { stroke-dashoffset: 0 } }
+/* dashoffset = L − p; yemlerde L 7 → 12 → 17 → 22 → 27 (basamak: iki keyframe 0,1 % arayla) */
+@keyframes snBody {
+  0%     { opacity: 1; stroke-dasharray: 7 200;  stroke-dashoffset: 7 }
+  11.6%  { stroke-dasharray: 7 200;  stroke-dashoffset: -13 }
+  11.7%  { stroke-dasharray: 12 200; stroke-dashoffset: -8 }
+  24.4%  { stroke-dasharray: 12 200; stroke-dashoffset: -30 }
+  24.5%  { stroke-dasharray: 17 200; stroke-dashoffset: -25 }
+  36%    { stroke-dasharray: 17 200; stroke-dashoffset: -45 }
+  36.1%  { stroke-dasharray: 22 200; stroke-dashoffset: -40 }
+  49.3%  { stroke-dasharray: 22 200; stroke-dashoffset: -63 }
+  49.4%  { stroke-dasharray: 27 200; stroke-dashoffset: -58 }
+  58%, 76% { opacity: 1; stroke-dasharray: 27 200; stroke-dashoffset: -73 }
+  82%, 100% { opacity: 0; stroke-dasharray: 27 200; stroke-dashoffset: -73 }
+}
+@keyframes snPlan { 0% { opacity: 0 } 4%, 66% { opacity: 1 } 74%, 100% { opacity: 0 } }
+@keyframes snPel1 { 0%, 11.6% { opacity: 1; transform: scale(1) } 14%, 100% { opacity: 0; transform: scale(0) } }
+@keyframes snPel2 { 0%, 24.4% { opacity: 1; transform: scale(1) } 27%, 100% { opacity: 0; transform: scale(0) } }
+@keyframes snPel3 { 0%, 36%   { opacity: 1; transform: scale(1) } 38.5%, 100% { opacity: 0; transform: scale(0) } }
+@keyframes snPel4 { 0%, 49.3% { opacity: 1; transform: scale(1) } 52%, 100% { opacity: 0; transform: scale(0) } }
+@keyframes snFace { 0%, 72% { opacity: 0 } 80%, 96% { opacity: 1 } 100% { opacity: 0 } }
+@keyframes snDraw { 0%, 74% { opacity: 0; stroke-dashoffset: 100 } 74.1% { opacity: 1 } 88%, 100% { opacity: 1; stroke-dashoffset: 0 } }
+@keyframes snMouth { 0%, 88% { opacity: 0; stroke-dashoffset: 100 } 88.1% { opacity: 1 } 95%, 100% { opacity: 1; stroke-dashoffset: 0 } }
+@keyframes snEye { 0%, 86% { transform: scale(0) } 92%, 100% { transform: scale(1) } }
 
 
 /* ---- 4. 'doc' — çok sayfalı belge dizgisi (3,2 s) ------------------------------------------ */
@@ -1062,7 +1120,6 @@ html[dir="rtl"] #loading .lpct { text-align: left; }
 /* hicontrast teması ve body.contrast ince ayarı zayıf tonu değil, KESKİN ayrımı ister; .7/.45
    gibi opaklıklar siyah-beyazda çizgiyi kaybettirir. Yalnız opaklığı CANLANDIRILMAYAN parçalar
    düzeltilir — .ln, .back ve ışık şeridi kendi keyframe'inde opacity taşıdığı için elleşilmez. */
-body[data-theme="hicontrast"] #loading .arc,  body.contrast #loading .arc,
 body[data-theme="hicontrast"] #loading .arw,  body.contrast #loading .arw,
 body[data-theme="hicontrast"] #loading .slot, body.contrast #loading .slot,
 body[data-theme="hicontrast"] #loading .feet, body.contrast #loading .feet,

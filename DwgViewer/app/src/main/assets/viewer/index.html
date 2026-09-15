@@ -345,15 +345,24 @@
            ölçü çizgisi. Bütün yollarda pathLength="100" var; dashoffset doğrudan "yüzde kaç
            çizilmedi" demektir, uzunluk hesabı yapılmaz. -->
       <svg class="la la-cad" viewBox="0 0 120 120" focusable="false">
-        <g class="ink">
-          <path class="dr w1" pathLength="100" d="M18 24 H102 V82 H18 Z"/>
-          <path class="dr w2" pathLength="100" d="M64 24 V44 M64 58 V82 M64 54 H102"/>
-          <path class="dr arc" pathLength="100" d="M64 58 A14 14 0 0 1 50 44"/>
-          <circle class="col" cx="40" cy="55" r="7.5"/>
-          <path class="dr ext" pathLength="100" d="M18 86 V101 M102 86 V101"/>
-          <path class="dr dim" pathLength="100" d="M22 97 H98"/>
-          <path class="tip" d="M18 97 L25.5 94.3 L25.5 99.7 Z"/>
-          <path class="tip" d="M102 97 L94.5 94.3 L94.5 99.7 Z"/>
+        <!-- 1. perde: yılan planın hattını dolaşır. .trail ile .snake AYNI "d" yolunu kullanır;
+             yol tek parçadır (dış duvar → iç bölme) ki yılan onu bir kerede gezebilsin. Yılan
+             geçtikçe .trail o noktaya kadar çizilir: planı yılan çiziyormuş gibi görünür. -->
+        <g class="plan">
+          <path class="trail" pathLength="100" d="M64 86 H18 V26 H102 V86 H64 V54 H102"/>
+          <circle class="pel p1" cx="18" cy="60" r="3.2"/>
+          <circle class="pel p2" cx="62" cy="26" r="3.2"/>
+          <circle class="pel p3" cx="102" cy="58" r="3.2"/>
+          <circle class="pel p4" cx="64" cy="70" r="3.2"/>
+        </g>
+        <path class="snake" pathLength="100" d="M64 86 H18 V26 H102 V86 H64 V54 H102"/>
+        <!-- 2. perde: yem biten yılan kıvrılıp gülen surata döner. Yüz çemberi de aynı kalemle
+             ve aynı "kendini çizme" tekniğiyle gelir; yılanın kıvrıldığı okunsun diye. -->
+        <g class="smile">
+          <circle class="face" pathLength="100" cx="60" cy="60" r="28"/>
+          <circle class="eye e1" cx="50" cy="52" r="3.6"/>
+          <circle class="eye e2" cx="70" cy="52" r="3.6"/>
+          <path class="mouth" pathLength="100" d="M46 66 A17 17 0 0 0 74 66"/>
         </g>
       </svg>
 
