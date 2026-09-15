@@ -92,6 +92,7 @@ private fun DwgDemoApp() {
 fun DwgLoadingScreen(
     fileName: String,
     progress: Int,
+    ayrinti: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val stage = stageFor(progress)
@@ -169,30 +170,35 @@ fun DwgLoadingScreen(
                 fontWeight = FontWeight.SemiBold
             )
 
-            Spacer(Modifier.height(9.dp))
+            if (ayrinti) {
+                Spacer(Modifier.height(9.dp))
 
-            AnimatedContent(
-                targetState = stage.title,
-                transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(140)) },
-                label = "title"
-            ) { title ->
+                AnimatedContent(
+                    targetState = stage.title,
+                    transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(140)) },
+                    label = "title"
+                ) { title ->
+                    Text(
+                        text = title,
+                        color = Color(0xFFEAF3FF),
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
+                Spacer(Modifier.height(8.dp))
+
                 Text(
-                    text = title,
-                    color = Color(0xFFEAF3FF),
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Medium
+                    text = stage.subtitle,
+                    color = Color(0xFF8FA3B8),
+                    fontSize = 13.sp
                 )
+
+                Spacer(Modifier.height(30.dp))
+            } else {
+                // Ayrıntı kapalı: sayı ile çubuk arasında tek boşluk kalır.
+                Spacer(Modifier.height(26.dp))
             }
-
-            Spacer(Modifier.height(8.dp))
-
-            Text(
-                text = stage.subtitle,
-                color = Color(0xFF8FA3B8),
-                fontSize = 13.sp
-            )
-
-            Spacer(Modifier.height(30.dp))
 
             CadProgressBar(
                 progress = animatedProgress,
@@ -201,17 +207,21 @@ fun DwgLoadingScreen(
                     .height(13.dp)
             )
 
-            Spacer(Modifier.height(18.dp))
+            if (ayrinti) {
+                Spacer(Modifier.height(18.dp))
 
-            StageDots(stageIndex = stage.index)
+                StageDots(stageIndex = stage.index)
+            }
 
             Spacer(Modifier.weight(1f))
 
-            Text(
-                text = if (progress < 100) "DWG görüntüsü hazırlanıyor" else "Tamamlandı",
-                color = Color(0xFF71869A),
-                fontSize = 12.sp
-            )
+            if (ayrinti) {
+                Text(
+                    text = if (progress < 100) "DWG görüntüsü hazırlanıyor" else "Tamamlandı",
+                    color = Color(0xFF71869A),
+                    fontSize = 12.sp
+                )
+            }
 
             Spacer(Modifier.height(34.dp))
         }

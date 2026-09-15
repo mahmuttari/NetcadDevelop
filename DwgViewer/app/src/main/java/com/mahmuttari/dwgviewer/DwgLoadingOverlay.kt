@@ -80,8 +80,12 @@ class DwgLoadingOverlay(private val activity: Activity) {
                         delay((TEMPO * 550L).toLong())
                     }
                 }
-                // Gönderilen ekran, gönderildiği imzayla çağrılır.
-                DwgLoadingScreen(fileName = dosya, progress = ilerleme)
+                // Gönderilen ekran. ayrinti = false: aşama başlığı, alt yazısı, aşama noktaları
+                // ve alttaki durum satırı gizlenir — başvuru sahibinin isteği, dosya tek bir
+                // açılış yüzdesiyle açılsın, ayrıntı bildirmesin. Canlandırma, ilerleme çubuğu
+                // ve yüzde olduğu gibi kalır; anahtar gönderilen dosyanın içindedir, varsayılanı
+                // true'dur, yani paketin kendi demo ekranı hiç değişmemiştir.
+                DwgLoadingScreen(fileName = dosya, progress = ilerleme, ayrinti = false)
             }
         }
         // Dokunuşlar WebView'a geçmesin: örtü açıkken altı tıklanamaz olmalı.

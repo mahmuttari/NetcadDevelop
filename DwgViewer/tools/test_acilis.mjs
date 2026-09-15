@@ -1,9 +1,12 @@
 // Yerli (native) çizim açılış ekranı — başvuru sahibinin GÖNDERDİĞİ Compose dosyasının
 // değişmediğini ve doğru bağlandığını sınar. Tarayıcı gerektirmez.
 //
-// Bu sınamanın varlık sebebi açık bir istektir: "hiç değiştirmeden olduğu gibi ekle". Dosya
-// tek karakter bile değişirse A1 düşer. Değiştirmek gerekirse önce bu özet güncellenir, yani
-// değişiklik bilerek ve görülerek yapılır.
+// Bu sınamanın varlık sebebi açık bir istektir: "hiç değiştirmeden olduğu gibi ekle".
+// Dosyanın DwgLoadingScreen DIŞINDA kalan her baytı (canlandırmanın kendisi, çizim
+// yordamları, ilerleme çubuğu, ızgara, aşama tablosu, demo döngüsü) özetle kilitlidir; tek
+// karakter değişirse A1 düşer. Ekranın gövdesinde ise yalnız bir şey yapılmıştır: ayrıntı
+// yazıları bir anahtarın (ayrinti) arkasına alınmıştır — başvuru sahibinin ikinci isteği,
+// "dosya tek bir açılış oranıyla, ayrıntı bildirmeden açılsın". G bölümü bunu denetler.
 // Kullanım: node tools/test_acilis.mjs
 import { checker } from './harness.mjs';
 import fs from 'node:fs';
@@ -12,31 +15,40 @@ import crypto from 'node:crypto';
 
 const C = checker(), ok = C.ok;
 const oku = (p) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
-// Gönderilen dosyanın özgün özeti ve şu anki özeti. İkisi ayrı tutulur ki fark GÖRÜLSÜN:
-// dosya gönderildiği gibidir, YALNIZ iki satırı derlenebilmek için çevrilmiştir (aşağıda F).
-const GONDERILEN = '2de3a94f570d26a2569f9ca94f77ddd325773d0436427f965a5625b7070bfe3c';
-const SIMDIKI = 'daf9fa1e6e79714653d2e744924a73201873fd5b8184b8f11c9c9c390c531264';
+// Gönderilen dosyanın özgün özeti (iki satırlık derleme düzeltmesinden önceki hâli), kayıt
+// için: 2de3a94f570d26a2569f9ca94f77ddd325773d0436427f965a5625b7070bfe3c
+// DwgLoadingScreen gövdesi DIŞINDA kalan her şeyin özeti. Canlandırmanın kendisi buradadır:
+// DwgStageGraphic, drawDwgFile / drawLayers / drawGeometry / drawPlan / drawSuccess,
+// CadProgressBar, StageDots, BlueprintGrid, stageFor tablosu, demo döngüsü ve FakeViewerScreen.
+// Bu özet, "animasyon aynen kalsın" sözünün karşılığıdır: canlandırmaya dokunulursa düşer.
+const DISI = 'f67770430ee5ec72cedf54a89cd4bd36373a45de1a07dd89d97c7d32d454900a';
 const KT = 'app/src/main/java/com/example/dwgloader/MainActivity.kt';
+const kt = oku(KT);
+// Ekranın gövdesi: imzasından, ardından gelen ilk üst düzey bildirime kadar.
+const i1 = kt.indexOf('@Composable\nfun DwgLoadingScreen(');
+const i2 = kt.indexOf('data class LoadingStage(');
+const disiMetin = i1 >= 0 && i2 > i1 ? kt.slice(0, i1) + kt.slice(i2) : '';
 
-// --- A) Gönderilen dosya birebir duruyor mu -------------------------------------------------
+// --- A) Gönderilen dosyanın canlandırma tarafı birebir duruyor mu ---------------------------
 {
-  const ham = fs.readFileSync(path.join(process.cwd(), KT));
-  const ozet = crypto.createHash('sha256').update(ham).digest('hex');
-  ok('A1 dosya beklenen hâlinde (izinsiz düzenlenmemiş)',
-    ozet === SIMDIKI, ozet.slice(0, 16) + '… / beklenen ' + SIMDIKI.slice(0, 16) + '…');
-  const kt = ham.toString('utf8');
+  ok('A0 ekranın gövdesi dosyada bulundu (özet bölgesi ayrılabildi)', i1 >= 0 && i2 > i1, `${i1} / ${i2}`);
+  const ozet = crypto.createHash('sha256').update(disiMetin, 'utf8').digest('hex');
+  ok('A1 CANLANDIRMA ve bütün çizim yordamları birebir aynı (ekran gövdesi dışında tek bayt değişmedi)',
+    ozet === DISI, ozet.slice(0, 16) + '… / beklenen ' + DISI.slice(0, 16) + '…');
   ok('A2 dosya kendi paketinde ve kendi adıyla', kt.startsWith('package com.example.dwgloader'), kt.split('\n')[0]);
-  ok('A3 ekranın genel (public) girişi var: DwgLoadingScreen(fileName, progress)',
-    /@Composable\s+fun DwgLoadingScreen\(\s*fileName: String,\s*progress: Int/.test(kt));
+  ok('A3 ekranın genel (public) girişi var: DwgLoadingScreen(fileName, progress, ayrinti)',
+    /@Composable\s+fun DwgLoadingScreen\(\s*fileName: String,\s*progress: Int,\s*ayrinti: Boolean = true/.test(kt));
   ok('A4 paketin kendi demo döngüsü dosyada duruyor ama dışarıdan çağrılmıyor',
     kt.includes('LaunchedEffect(Unit)') && kt.includes('private fun DwgDemoApp'));
+  ok('A5 canlandırma çağrısı gönderildiği ölçülerle duruyor (230 dp, pulse, scan)',
+    /DwgStageGraphic\(\s*progress = progress,\s*pulse = pulse,\s*scan = scan,\s*modifier = Modifier\.size\(230\.dp\)/.test(kt));
 }
 
 // --- B) Köprü: ekranı olduğu gibi çağırıyor -------------------------------------------------
 {
   const ov = oku('app/src/main/java/com/mahmuttari/dwgviewer/DwgLoadingOverlay.kt');
-  ok('B1 köprü ekranı gönderildiği imzayla çağırıyor',
-    /DwgLoadingScreen\(fileName = dosya, progress = ilerleme\)/.test(ov));
+  ok('B1 köprü ekranı gönderildiği imzayla, ayrıntı kapalı çağırıyor',
+    /DwgLoadingScreen\(fileName = dosya, progress = ilerleme, ayrinti = false\)/.test(ov));
   // Sürücü paketin kendisinden: aynı eşikler, aynı gecikmeler, aynı 1..3 artışı, aynı 550 ms
   ok('B1b yüzdeyi paketin KENDİ sürücüsü sürüyor (gerçek ilerleme beslenmiyor)',
     /ilerleme < 20 -> 45L/.test(ov) && /ilerleme < 55 -> 65L/.test(ov) && /ilerleme < 85 -> 50L/.test(ov)
@@ -90,15 +102,55 @@ const KT = 'app/src/main/java/com/example/dwgloader/MainActivity.kt';
 // yoktur, topLeft + size ister. Geometri birebir korunarak çevrildi; başka hiçbir satıra
 // dokunulmadı. Bu denetim, "iki satır" sözünün zamanla üç olmasını engeller.
 {
-  const kt = oku(KT);
   const rectli = (kt.match(/drawArc\([^\n]*Rect\(/g) || []).length;
   ok('F1 derlenmeyen Rect kullanımı kalmadı', rectli === 0, String(rectli));
   ok('F2 iki yay da topLeft + size ile ve özgün ölçülerinde',
     kt.includes('topLeft = Offset(left+w*0.27f, y-12), size = Size(w*0.15f, 24f)')
     && kt.includes('topLeft = Offset(left+w*0.72f,y-12), size = Size(w*0.19f, 24f)'));
-  // Özgün dosyadan farkı yalnız bu iki satır olmalı: satır sayısı ve öteki bütün satırlar aynı
-  ok('F3 dosyanın satır sayısı değişmedi (satır eklenip çıkarılmadı)',
-    kt.split('\n').length === 603, String(kt.split('\n').length));
+  ok('F3 iki yay ekranın DIŞINDA, yani özetle kilitli bölgede',
+    disiMetin.includes('topLeft = Offset(left+w*0.27f, y-12)')
+    && disiMetin.includes('topLeft = Offset(left+w*0.72f,y-12)'));
+}
+
+// --- G) İkinci istek: tek açılış yüzdesi, ayrıntı yok ---------------------------------------
+// "Altta farklı farklı detayların açılış oranlarını göstermeye gerek yok. Dosya tek bir açılış
+// oranıyla bilgi vermeden açılsın." Ayrıntılar silinmedi, bir anahtarın arkasına alındı:
+// varsayılan true olduğu için paketin kendi demo ekranı hiç değişmedi; bizim örtümüz false
+// geçiyor. Böylece karar tek kelimeyle geri alınabilir.
+{
+  const ekran = kt.slice(i1, i2);
+  const kapili = (ad) => {
+    const k = ekran.indexOf(ad);
+    if (k < 0) return false;
+    // Geriye doğru en yakın 'if (ayrinti) {' ile o bloğun kapanışı arasında mı
+    const acilis = ekran.lastIndexOf('if (ayrinti) {', k);
+    if (acilis < 0) return false;
+    let d = 0;
+    for (let j = ekran.indexOf('{', acilis); j < ekran.length; j++) {
+      if (ekran[j] === '{') d++;
+      else if (ekran[j] === '}') { d--; if (d === 0) return j > k; }
+    }
+    return false;
+  };
+  ok('G1 aşama başlığı (DWG dosyası açılıyor… / Katmanlar işleniyor…) ayrıntı anahtarının arkasında',
+    kapili('targetState = stage.title'));
+  ok('G2 aşama alt yazısı (Layer bilgileri ayrıştırılıyor…) ayrıntı anahtarının arkasında',
+    kapili('text = stage.subtitle'));
+  ok('G3 aşama noktaları ayrıntı anahtarının arkasında', kapili('StageDots(stageIndex'));
+  ok('G4 alttaki durum satırı ayrıntı anahtarının arkasında', kapili('"DWG görüntüsü hazırlanıyor"'));
+  ok('G5 açılış YÜZDESİ her hâlde görünüyor (anahtarın dışında)',
+    ekran.includes('text = "$progress%"') && !kapili('text = "$progress%"'));
+  ok('G6 ilerleme çubuğu her hâlde görünüyor (anahtarın dışında)',
+    ekran.includes('CadProgressBar(') && !kapili('CadProgressBar('));
+  ok('G7 canlandırma her hâlde görünüyor (anahtarın dışında)',
+    ekran.includes('DwgStageGraphic(') && !kapili('DwgStageGraphic('));
+  ok('G8 ayrıntı kapalıyken sayı ile çubuk arasındaki boşluk korunuyor',
+    /\} else \{[\s\S]{0,200}Spacer\(Modifier\.height\(26\.dp\)\)/.test(ekran));
+  ok('G9 varsayılan açık: paketin kendi demo ekranı ayrıntıyı görmeye devam ediyor',
+    /ayrinti: Boolean = true/.test(kt));
+  ok('G10 ayrıntı yazıları SİLİNMEDİ, yalnız kapatıldı (geri almak tek kelime)',
+    kt.includes('stageFor(progress)') && kt.includes('private fun StageDots')
+    && kt.includes('"Katmanlar işleniyor…"') && kt.includes('"Viewport hazırlanıyor"'));
 }
 
 C.summary();
