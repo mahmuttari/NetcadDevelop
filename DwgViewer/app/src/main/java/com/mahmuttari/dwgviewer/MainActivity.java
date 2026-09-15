@@ -944,6 +944,14 @@ public class MainActivity extends androidx.activity.ComponentActivity {
                 if (show) loadOverlay.show(file == null ? "" : file); else loadOverlay.hide();
             });
         }
+        /**
+         * İptal ya da hata: açılış ekranı geçişini TAMAMLAMADAN kapanır. Normal kapanışta
+         * (loadingScreen(false, ...)) yüzde önce 100'e varır; burada varmaz, çünkü dosya
+         * açılmamıştır.
+         */
+        @JavascriptInterface public void loadingScreenAbort() {
+            runOnUiThread(() -> { if (loadOverlay != null) loadOverlay.hideNow(); });
+        }
         @JavascriptInterface public void toast(String msg) { runOnUiThread(() -> Toast.makeText(MainActivity.this, msg, Toast.LENGTH_SHORT).show()); }
         @JavascriptInterface public void finish() { runOnUiThread(MainActivity.this::finish); }
         /**

@@ -2389,6 +2389,8 @@ const CAD_STG = [
  * Köprü yoksa (tarayıcı, sınama) aşağıdaki WebView örtüsü yedek olarak kullanılır.
  */
 let yerliAcilis = false;
+// İptal ya da hata ile kapanıyoruz: yerli açılış ekranı geçişini TAMAMLAMADAN kalkar.
+let yerliKes = false;
 const yerliVar = () => { const a = A(); return !!(a && typeof a.loadingScreen === 'function'); };
 /** Çizim açılışının tek giriş noktası: yüzdeyi verir, başlığı da görseli de o belirler */
 function setLoadingCad(pct, file) {
@@ -2409,7 +2411,17 @@ function setLoadingCad(pct, file) {
 }
 function setLoading(text, sub, pct, kind, file) {
   if (text == null) {
-    if (yerliAcilis || yerliVar()) { try { A().loadingScreen(false, ''); } catch (e) { /* köprü yok */ } yerliAcilis = false; }
+    // Normal kapanış: yerli ekran yüzdeyi önce 100'e tamamlar, sonra solar — geçiş tek parça
+    // sıfırdan yüzedir, ortadan kesilmez. İPTAL ve HATA başkadır: dosya açılmadığı için yüzde
+    // 100'e koşmak yanlış bilgi olur, örtü olduğu yerde kalkar.
+    if (yerliAcilis || yerliVar()) {
+      try {
+        if (yerliKes && A().loadingScreenAbort) A().loadingScreenAbort();
+        else A().loadingScreen(false, '');
+      } catch (e) { /* köprü yok */ }
+      yerliAcilis = false;
+    }
+    yerliKes = false;
     // Örtü kapanırken çeşit sınıfı da silinir: bir sonraki bekleme kendi görselini seçmezse
     // öncekinin çizimi kalmasın.
     const el = $('loading');
@@ -2489,6 +2501,7 @@ async function fetchBuf(url, onPct) {
  *  buraya gelir — gönderilen ekranda Vazgeç düğmesi yoktur, çıkış yolu geri tuşudur. */
 function cancelLoading() {
   cancelJobs(tt('cancelled', 'İptal edildi'));
+  yerliKes = true;                       // vazgeçildi: açılış ekranı 100'e koşmasın
   setLoading(null);
   toast(tt('cancelled', 'İptal edildi'));
 }
@@ -2496,6 +2509,7 @@ function cancelLoading() {
 function fail(err) {
   if (err && err.cancelled) { console.warn(err.message); return; }   // iptal: yeni yükleme sürüyor, modal ona ait
   console.error(err);
+  yerliKes = true;                       // dosya açılamadı: açılış ekranı 100'e koşmasın
   setLoading(null);
   const msg = (err && err.message) || String(err);
   toast(t('error') + ': ' + msg, 6000);

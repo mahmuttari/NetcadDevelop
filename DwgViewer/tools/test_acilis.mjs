@@ -49,16 +49,29 @@ const disiMetin = i1 >= 0 && i2 > i1 ? kt.slice(0, i1) + kt.slice(i2) : '';
   const ov = oku('app/src/main/java/com/mahmuttari/dwgviewer/DwgLoadingOverlay.kt');
   ok('B1 köprü ekranı gönderildiği imzayla, ayrıntı kapalı çağırıyor',
     /DwgLoadingScreen\(fileName = dosya, progress = ilerleme, ayrinti = false\)/.test(ov));
-  // Sürücü paketin kendisinden: aynı eşikler, aynı gecikmeler, aynı 1..3 artışı, aynı 550 ms
+  // Sürücü paketin kendisinden: aynı eşikler, aynı gecikmeler, aynı 1..3 artışı. Paketin
+  // sondaki 550 ms bekleyişinin yerini BITIS_BEKLEME_MS aldı; paketinki demo ekranını
+  // değiştirmek içindi, bizde örtünün kalkma anını belirler.
   ok('B1b yüzdeyi paketin KENDİ sürücüsü sürüyor (gerçek ilerleme beslenmiyor)',
     /ilerleme < 20 -> 45L/.test(ov) && /ilerleme < 55 -> 65L/.test(ov) && /ilerleme < 85 -> 50L/.test(ov)
-    && /else -> 85L/.test(ov) && /ilerleme \+ \(1\.\.3\)\.random\(\)/.test(ov) && /550L/.test(ov));
-  ok('B1c yükleme sürerse baştan tekrarlıyor', /while \(true\)/.test(ov) && /ilerleme = 0/.test(ov));
+    && /else -> 85L/.test(ov) && /ilerleme \+ \(1\.\.3\)\.random\(\)/.test(ov));
+  // TEK PARÇA: sıfırdan yüze bir kez. Başa dönen bir döngü olmamalı.
+  ok('B1c geçiş TEK parça: 0\'dan 100\'e bir kez, tekrar yok',
+    /while \(ilerleme < 100\)/.test(ov) && !/while \(true\)/.test(ov));
+  ok('B1e çizim erken açılırsa geçiş kesilmez, kalan yol hızlanıp tamamlanır',
+    /const val KAPANIS_TEMPO/.test(ov) && /if \(kapanmaIstendi\) KAPANIS_TEMPO else TEMPO/.test(ov)
+    && /fun hide\(\)[\s\S]{0,160}kapanmaIstendi = true/.test(ov));
+  ok('B1f örtü ancak 100\'e varınca kalkıyor (yüzde 100\'de bekler, başa dönmez)',
+    /if \(ilerleme >= 100 && kapanmaIstendi\)/.test(ov) && /BITIS_BEKLEME_MS/.test(ov));
+  ok('B1g iptal ve hata ayrı yol: geçiş tamamlanmadan kalkar',
+    /fun hideNow\(\)/.test(ov) && /kapanmaIstendi = false[\s\S]{0,40}kaldir\(\)/.test(ov));
   ok('B1d tempo tek sabitle ayarlanabiliyor (video hızı 2.4, paketin kendi hızı 1.0)',
     /const val TEMPO = 2\.4/.test(ov));
   ok('B2 köprü ekranın kendi paketinden alıyor', ov.includes('import com.example.dwgloader.DwgLoadingScreen'));
   ok('B3 örtü kapatılabiliyor ve bileşim serbest bırakılıyor',
     ov.includes('fun hide()') && ov.includes('disposeComposition()'));
+  ok('B5 tekrar açılışta yeni geçiş sıfırdan başlıyor',
+    /kapanmaIstendi = false[\s\S]{0,200}ComposeView\(activity\)/.test(ov));
   ok('B4 örtü açıkken altı tıklanamıyor', ov.includes('isClickable = true'));
 }
 
@@ -70,6 +83,8 @@ const disiMetin = i1 >= 0 && i2 > i1 ? kt.slice(0, i1) + kt.slice(i2) : '';
   ok('C2 JS köprüsü aç/kapa: yüzde geçilmiyor',
     /@JavascriptInterface public void loadingScreen\(boolean show, String file\)/.test(ma)
     && /if \(show\) loadOverlay\.show\(/.test(ma) && /else loadOverlay\.hide\(\)/.test(ma));
+  ok('C2b köprüde iptal/hata yolu ayrı',
+    /@JavascriptInterface public void loadingScreenAbort\(\)/.test(ma) && /loadOverlay\.hideNow\(\)/.test(ma));
   ok('C3 geri tuşu, gönderilen ekranda olmayan Vazgeç\'in yerini tutuyor',
     /loadOverlay\.isShowing\(\)/.test(ma) && ma.includes('cancelLoading'));
 }
@@ -83,6 +98,12 @@ const disiMetin = i1 >= 0 && i2 > i1 ? kt.slice(0, i1) + kt.slice(i2) : '';
     /yerliAcilis = true;[\s\S]{0,120}hide\('loading'\)/.test(js));
   ok('D3 köprü hata verirse WebView örtüsüne düşülüyor', /catch \(e\) \{ yerliAcilis = false; \}/.test(js));
   ok('D4 kapanışta yerli ekran da kapatılıyor', /loadingScreen\(false, ''\)/.test(js));
+  ok('D4b iptal ve hata, geçişi tamamlamayan yolu kullanıyor',
+    /yerliKes && A\(\)\.loadingScreenAbort/.test(js)
+    && /cancelJobs\([\s\S]{0,80}yerliKes = true/.test(js)
+    && /console\.error\(err\);\s*\n\s*yerliKes = true/.test(js));
+  ok('D4c kes bayrağı her kapanışta sıfırlanıyor (bir sonraki açılışa sızmaz)',
+    /yerliAcilis = false;\s*\n\s*\}\s*\n\s*yerliKes = false;/.test(js));
   ok('D5 iptal tek yerden: düğme de geri tuşu da aynı yordamı çağırıyor',
     /function cancelLoading\(\)/.test(js) && /addEventListener\('click', cancelLoading\)/.test(js) && /cancelLoading,/.test(js));
 }
