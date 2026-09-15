@@ -92,6 +92,14 @@ body.compact-status #stCount { display: none; }
 .home-top:not(:has(.btn:not([hidden]))) { padding-top: var(--safe-top); }
 .home-top-title { color: var(--muted); font-size: calc(13px * var(--fs)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .home-top + .home-pages { padding-top: 6px; }
+/* Uygulamayla gelen örnek çizimler: iki kart, dar ekranda alt alta */
+.samples { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.sample { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--fg); text-align: start; min-height: 64px; }
+.sample .s-ic { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 9px; background: var(--btn); display: inline-flex; align-items: center; justify-content: center; color: var(--accent); }
+.sample .s-ic svg.ic { width: 20px; height: 20px; }
+.sample .s-tx { min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.sample .s-tx strong { font-size: calc(13px * var(--fs)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sample .s-tx small { color: var(--muted); font-size: calc(11px * var(--fs)); }
 /* Bellekteki çizime dönüş kartı: ana ekranın en üstünde, açık dosya varken */
 .home-resume { display: flex; align-items: center; gap: 10px; margin: 10px 0 2px; padding: 10px 12px; border: 1px solid var(--accent); border-radius: 12px; background: var(--panel); }
 .home-resume .hr-ic { flex: 0 0 auto; width: 38px; height: 38px; border-radius: 10px; background: var(--btn); display: inline-flex; align-items: center; justify-content: center; color: var(--accent); }

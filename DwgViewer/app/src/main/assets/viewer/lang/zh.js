@@ -58,6 +58,7 @@ export default {
   docFail: '无法打开文档', docOffice: 'Office 文档', docImage: '图像', docText: '文本', docOpenWith: '用其他应用打开', share: '分享', docKeep: '离线保存', docKept: '已保存离线副本（打开文件 › 离线）', docKeepFail: '复制失败', docEmpty: '空文档', docUnknown: '无法识别的文件类型。',
   docOfficeMsg: '此格式无法直接显示。如果已登录 Google 云端硬盘，可转换为 PDF；否则请发送到其他应用。', prevPage: '上一页', nextPage: '下一页', fitWidth: '适应', docLayoutPage: '页面视图', docLayoutFlow: '流式视图', docPage: '页', docFlow: '流式', files: '个文件', extracting: '正在解压', wrap: '自动换行', lines: '行', backToArchive: '返回压缩包',
   resumeTitle: '从上次中断处继续', resumeOpen: '返回图纸', resumeKeep: '启动时重新打开上次的文件',
+  samplesTitle: '示例图纸', sample2d: '二维总平面图', sample3d: '三维设备模型',
   docEdit: '编辑', editPan: '平移', editPen: '画笔', editHi: '高亮', editText: '文字', editStamp: '图章', editErase: '橡皮', editRotL: '向左旋转', editDelPage: '删除页面', editSave: '保存', editBold: '加粗', editItalic: '倾斜', editUnderline: '下划线', editAlignL: '左对齐', editAlignC: '居中', editAlignR: '右对齐', editFind: '查找和替换',
   editTextLabel: '文字', editStampText: '已批准', editFindWhat: '查找', editReplaceWith: '替换为', editReplaced: '处已替换', editDelPageAsk: '要从结果中移除此页吗？', editLastPage: '无法删除最后一页', editDiscardAsk: '要放弃所做的更改吗？',
   editSaving: '正在准备…', editSaved: '已保存', editSaveFail: '保存失败', editDone: '编辑已结束', editSuffix: 'yibianji', editAsDocx: '文档已保存为 DOCX', editFail: '无法开始编辑', editNoBody: '未找到可编辑的内容', editLibFail: '无法加载 PDF 编辑库', editPdfFail: '无法解析 PDF', editPdfEmpty: 'PDF 中没有页面',

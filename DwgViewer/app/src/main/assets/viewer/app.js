@@ -1718,6 +1718,27 @@ function menuAction(act) {
  * kapandığını görüyordu. Artık belge de gizlenir, kapanmaz.
  */
 function goHome() { closeMenu(); Home.show(); }
+/**
+ * Uygulamayla gelen örnek çizimi açar. Dosya APK'nın içindedir; yol GÖRECELİdir, böylece hem
+ * uygulamada (/assets/viewer/ornekler/...) hem tarayıcı sınamasında (/ornekler/...) çözülür.
+ * Açılış, kullanıcının seçtiği bir dosyayla tıpatıp aynı yoldan geçer (loadBytes): aynı
+ * açılış ekranı, aynı kestirim, aynı son dosya kaydı.
+ */
+async function openSample(ad) {
+  const dosya = String(ad || '').replace(/[^\w.-]/g, '');
+  if (!dosya) return;
+  const key = 'ornek|' + dosya;
+  if (loadingKey === key) return;
+  loadingKey = key;
+  try {
+    setLoading(t('loading'), dosya, 0, 'cad');
+    const r = await fetch('./ornekler/' + dosya, { cache: 'force-cache' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const buf = await r.arrayBuffer();
+    await loadBytes(buf, dosya, buf.byteLength);
+  } catch (e) { fail(e); }
+  finally { if (loadingKey === key) loadingKey = null; }
+}
 /** Ana ekranda "Kaldığınız yerden devam edin" kartında yazacak ad: belge ya da çizim */
 function currentDocName() {
   if (Docs.isOpen && Docs.isOpen()) { const n = Docs.currentName && Docs.currentName(); if (n) return n; }
@@ -2938,7 +2959,7 @@ window.dwgApp = { loadCurrent, onFilePicked, onLocation, onBack, onBackSystem, l
   display: D, toast, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, savePng, getSettings: () => settings, requestRender, openDisplayOptions, showSettings, showNewDoc,
   docs: Docs, drive: Drive, onGoogle: (ok, json) => Drive.onGoogle(ok, json), onDrive: (id, ok, json) => Drive.onDrive(id, ok, json), onDriveProgress: (id, d, tot) => Drive.onProgress(id, d, tot), openDrive: () => Drive.open(),
   open: Open, openCenter: (tab) => Open.open(tab), onFsRoot: (obj) => Open.onFsRoot(obj), onFs: (id, ok, json) => Open.onFs(id, ok, json),
-  home: Home, cloud: Cloud, onWebDav: (id, ok, json) => Cloud.onWebDav(id, ok, json), goHome, refreshMenu,
+  home: Home, cloud: Cloud, openSample, onWebDav: (id, ok, json) => Cloud.onWebDav(id, ok, json), goHome, refreshMenu,
   edition: () => Ed.tier(), tier: () => Ed.tier(), has: (id) => Ed.has(id), isPro: () => Ed.isPro(), openProPanel: (x) => Ed.openProPanel(x), proInfo: () => Ed.proInfo(), onEdition: (ed, reason) => Ed.onEdition(String(ed || ''), String(reason || '')), onAd: (reason, shown) => Ed.onAd(String(reason || ''), !!shown), __ads: Ed.__ads,
   // sınama kancaları: çok sayfalı PDF kurucusu, metin toplayıcı ve ölçüm dökümü
   __pdf: { build: (pages, wmm, hmm, title) => buildPdf(pages, wmm, hmm, title) },
@@ -2972,7 +2993,7 @@ $('btnBack').addEventListener('click', onBackSystem);
 $('btnHome').addEventListener('click', goHome);
 Open.initOpen({ toast, loadBytes, openBlob: (f) => Docs.openBlob(f), fileForPurpose, onFilePicked, showServer, startQr, openDrive: () => Drive.open(), systemPick, refreshRecent: buildRecent, goHome,
   onOpen: () => { closeMenu(); Drive.close(); hide('docPanel'); } });
-Home.initHome({ toast, openDoc, hide, kv, newDoc: showNewDoc, currentName: currentDocName, hideToast: () => { $('toast').hidden = true; }, menuAction, editorAct: (a) => edCall('act', a), click: (id) => { const b = $(id); if (b) b.click(); }, openProPanel: (x) => Ed.openProPanel(x),
+Home.initHome({ toast, openDoc, hide, kv, newDoc: showNewDoc, currentName: currentDocName, openSample, hideToast: () => { $('toast').hidden = true; }, menuAction, editorAct: (a) => edCall('act', a), click: (id) => { const b = $(id); if (b) b.click(); }, openProPanel: (x) => Ed.openProPanel(x),
   openCenter: (tab) => Open.open(tab), systemPick, openDrive: () => Drive.open(), showServer, openRegistered: (info) => Docs.openRegistered(info), refreshRecent: buildRecent,
   onShow: () => { closeMenu(); Drive.close(); Open.close(); for (const id of openPanels()) hide(id); if (S.notesOn) toggleNotes(false); if (S.mode !== 'view') setMode('view'); cancelZoomWindow(); refreshMenu(); buildRecent(); },   // Son dosyalar ızgarası her gösterimde tazelenir (tarayıcıda oturum listesi)
   onHide: () => { refreshMenu(); requestRender(); } });

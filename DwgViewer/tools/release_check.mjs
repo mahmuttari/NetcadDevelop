@@ -76,7 +76,8 @@ function checkApk(a, aapt) {
   }
   // gömülü görüntüleyici dosyaları bayt bayt kaynakla aynı mı?
   const srcDir = path.join(projectRoot, 'app/src/main/assets/viewer');
-  const files = walk(srcDir).filter(f => /\.(js|css|html|wasm|json)$/.test(f));
+  // dwg de denetlenir: referans çizimler (ornekler/) APK'ya bozulmadan girmeli
+  const files = walk(srcDir).filter(f => /\.(js|css|html|wasm|json|dwg)$/.test(f));
   const entries = zipEntries(a.yol);
   let same = 0;
   for (const f of files) {

@@ -144,6 +144,40 @@ const durum = () => page.evaluate(() => {
   }
 }
 
+// --- D) Uygulamanın içine gömülü örnekler: ana ekrandan tek dokunuşla açılıyor mu -----------
+// Dosyalar APK'nın içindedir (assets/viewer/ornekler); dosya seçmeye, internete ve emülatöre
+// dosya atmaya gerek kalmadan açılırlar.
+{
+  const d = await page.evaluate(async () => {
+    const yol = (a) => './ornekler/' + a;
+    const r2 = await fetch(yol('MARFEN_YUZER_TERFI_2D.dwg'), { method: 'HEAD' }).catch(() => null);
+    const r3 = await fetch(yol('MARFEN_YUZER_TERFI_3D.dwg'), { method: 'HEAD' }).catch(() => null);
+    return { d2: r2 && r2.ok, d3: r3 && r3.ok, api: typeof window.dwgApp.openSample };
+  });
+  ok('D1 iki örnek de uygulamanın içinden okunabiliyor', d.d2 === true && d.d3 === true, JSON.stringify(d));
+  ok('D2 açma yolu dışa verilmiş', d.api === 'function', d.api);
+
+  // Ana ekranda kartlar
+  await page.evaluate(() => window.dwgApp.goHome());
+  await page.waitForTimeout(150);
+  const k = await page.evaluate(() => {
+    const el = document.getElementById('sampleList');
+    const b = [...el.querySelectorAll('[data-ornek]')];
+    return { sayi: b.length, adlar: b.map(x => x.dataset.ornek), etiket: b.map(x => x.querySelector('strong').textContent) };
+  });
+  ok('D3 ana ekranda iki örnek kartı var', k.sayi === 2, k.adlar.join(' · '));
+  ok('D4 kart etiketleri çevrilmiş', k.etiket.every(x => x && x.length > 2), k.etiket.join(' · '));
+
+  // Karta dokunmak gerçekten açıyor mu (2B ile sınanır: hızlı ve tam açılıyor)
+  await page.evaluate(() => { window.dwgApp.state.hasDoc = false; });
+  await page.click('[data-ornek="MARFEN_YUZER_TERFI_2D.dwg"]');
+  await page.waitForFunction(() => { const a = window.dwgApp; return a.state.hasDoc && a.state.fileName === 'MARFEN_YUZER_TERFI_2D.dwg' && document.getElementById('loading').hidden; }, null, { timeout: 600000 });
+  const r = await durum();
+  ok('D5 karta dokunmak çizimi açtı (dosya seçmeden)',
+    r.ad === 'MARFEN_YUZER_TERFI_2D.dwg' && r.ilkel === 132272, `${r.ad} · ${r.ilkel} ilkel`);
+  ok('D6 ana ekran kapandı, çizim ekranda', await page.evaluate(() => document.getElementById('home').hidden) === true);
+}
+
 ok('Z sayfa hatası yok', errors.length === 0, errors.join(' | ').slice(0, 300));
 C.summary(errors);
 await browser.close(); srv.kill();

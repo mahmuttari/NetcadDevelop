@@ -289,6 +289,12 @@
           <button id="btnOpen2" class="btn primary big" type="button"><svg class="ic" aria-hidden="true"><use href="#i-open"/></svg><span data-i18n="homeOpen">Dosya aç</span></button>
           <button id="btnNew2" class="btn big" type="button"><svg class="ic" aria-hidden="true"><use href="#i-file-add"/></svg><span data-i18n="newFile">Yeni dosya</span></button>
           <input id="fileInput" type="file" accept=".dwg,.dxf,.pdf,.docx,.doc,.xlsx,.zip,.rar,.png,.jpg,.jpeg,.txt,.csv,application/acad,application/x-dwg,application/dxf,application/pdf,application/zip,application/octet-stream" hidden>
+          <!-- Uygulamayla gelen referans çizimler (assets/viewer/ornekler): dosya seçmeden,
+               internetsiz açılır. Kartlar home.js renderSamples ile doldurulur. -->
+          <div id="sampleWrap">
+            <div class="home-sec"><h3 data-i18n="samplesTitle">Örnek çizimler</h3></div>
+            <div id="sampleList" class="samples"></div>
+          </div>
           <div id="recentWrap" hidden>
             <div class="home-sec"><h3 data-i18n="recent">Son dosyalar</h3><button id="recentAll" class="btn small" data-i18n="openAllRecent" type="button">Tümü…</button></div>
             <div id="recentList" class="recent"></div>

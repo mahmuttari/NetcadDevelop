@@ -50,6 +50,23 @@ export const TOOLS = [
   { id: 'pro', icon: 'i-star', i18n: 'editionPro', run: (a) => a.openProPanel() },
 ];
 
+/*
+ * Uygulamayla gelen referans çizimler. Dosyalar APK'nın içindedir
+ * (app/src/main/assets/viewer/ornekler), dolayısıyla dosya seçmeden ve internetsiz açılırlar;
+ * emülatörde de cihaza dosya atmaya gerek kalmaz. Yol GÖRECELİdir: uygulamada
+ * /assets/viewer/ornekler/..., tarayıcı sınamasında /ornekler/... olarak çözülür.
+ */
+export const ORNEKLER = [
+  { dosya: 'MARFEN_YUZER_TERFI_2D.dwg', i18n: 'sample2d', icon: 'i-layout' },
+  { dosya: 'MARFEN_YUZER_TERFI_3D.dwg', i18n: 'sample3d', icon: 'i-cube' },
+];
+export function renderSamples() {
+  const el = $('sampleList'); if (!el) return;
+  el.innerHTML = ORNEKLER.map(o => `<button type="button" class="sample" data-ornek="${esc(o.dosya)}">`
+    + `<span class="s-ic">${ICON(o.icon)}</span>`
+    + `<span class="s-tx"><strong>${esc(t(o.i18n))}</strong><small>${esc(o.dosya)}</small></span></button>`).join('');
+}
+
 export function initHome(a) {
   api = a;
   const home = $('home'); if (!home) return;
@@ -67,11 +84,16 @@ export function initHome(a) {
   const hh = $('homeHomeBtn'); if (hh) hh.addEventListener('click', () => setTab('ev'));
   // Bellekteki çizime dönüş: dosya kapanmadı, yalnız ana ekran üstüne geldi.
   const rb = $('homeResumeBtn'); if (rb) rb.addEventListener('click', () => hide());
+  // Örnek çizim: ana ekran kapanır, dosya APK içinden okunup açılır.
+  const sl = $('sampleList'); if (sl) sl.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-ornek]'); if (!b) return;
+    hide(); call(api.openSample, b.dataset.ornek);
+  });
   Cloud.initCloud({ toast: api.toast, openDoc: api.openDoc, hide: api.hide, kv: api.kv, hideToast: api.hideToast, openDrive: api.openDrive, showServer: api.showServer, openRegistered: api.openRegistered,
     gotoCloud: () => { if (ui.shown) setTab('cloud'); }, gotoFilesCloud: () => { setTab('files'); setFilesSeg('cloud'); } });
   window.addEventListener('dwg:edition', () => { if (ui.shown) renderTools(); });
   window.addEventListener('dwg:google', () => { if (ui.shown) Cloud.refresh(); });
-  window.addEventListener('dwg:lang', () => { if (ui.shown) { renderTools(); Cloud.refresh(); Open.refresh(); } });   // gömülü Cihaz gezgini de (arama yer tutucusu dâhil)
+  window.addEventListener('dwg:lang', () => { if (ui.shown) { renderTools(); renderSamples(); Cloud.refresh(); Open.refresh(); } });   // gömülü Cihaz gezgini de (arama yer tutucusu dâhil)
 }
 export const isShown = () => ui.shown;
 export const tab = () => ui.tab;
@@ -126,7 +148,7 @@ function renderTab(id) {
   else if (id === 'cloud') renderCloud();
   else if (id === 'tools') renderTools();
 }
-export function renderHome() { call(api.refreshRecent); renderResume(); }
+export function renderHome() { call(api.refreshRecent); renderResume(); renderSamples(); }
 export function renderFiles() {
   setFilesSeg(ui.fseg, true);
 }
