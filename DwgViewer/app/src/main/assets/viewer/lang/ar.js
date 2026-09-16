@@ -503,4 +503,17 @@ export default {
   showLocked: 'إظهار الأدوات المقفلة في الشريط', allFeatures: 'كل الإمكانات', tierUnlocks: 'يفتح %s ميزة',
   gizmoOn: 'مقابض النقل / التحجيم / التدوير على التحديد', infoTap: 'فتح لوحة المعلومات عند اللمس', infoMore: 'التفاصيل', infoLess: 'أقل',
   proSrcOwner: 'حساب المطوّر',
+  // budama · uzatma · kavis · pah · köşe tutamakları
+  notPath: 'هذا الكائن ليس له حافة مستقيمة', trimNoHit: 'لا يوجد تقاطع مع حافة القطع', trimSplit: 'تم تقسيم الجزء إلى قسمين',
+  trimSelf: 'لا يمكن قص حافة القطع نفسها', extendNoHit: 'لا يصل إلى الحد', filletFail: 'لا يمكن إنشاء تدوير عند هذه الزاوية',
+  filletRadius: 'نصف قطر التدوير:', chamferDist: 'مسافة الشطف:', gripsOn: 'مقابض الرؤوس على المسار المحدد',
+  gripsOnMsg: 'مقابض الرؤوس مفعّلة', gripsOffMsg: 'مقابض الرؤوس متوقفة', gripsTooMany: 'عدد الرؤوس كبير جدًا، لم تُرسم المقابض',
+  tool_trim: 'قص', tstep_trim_0: 'المس حافة القطع', tstep_trim_1: 'المس الجزء المراد حذفه (يتكرر)',
+  tool_extend: 'إطالة', tstep_extend_0: 'المس الحد', tstep_extend_1: 'المس الطرف المراد إطالته (يتكرر)',
+  tool_fillet: 'تدوير', tstep_fillet_0: 'المس الخط الأول', tstep_fillet_1: 'المس الخط الثاني',
+  tool_chamfer: 'شطف', tstep_chamfer_0: 'المس الخط الأول', tstep_chamfer_1: 'المس الخط الثاني',
+  tl_grips: 'مقابض الرؤوس', th_grips: 'اسحب كل رأس من رؤوس المسار المحدد', 'tl_t:trim': 'قص',
+  'th_t:trim': 'المس حافة القطع ثم الجزء المراد حذفه', 'tl_t:extend': 'إطالة', 'th_t:extend': 'المس الحد ثم الطرف المراد إطالته',
+  'tl_t:fillet': 'تدوير', 'th_t:fillet': 'المس خطين واكتب نصف القطر', 'tl_t:chamfer': 'شطف',
+  'th_t:chamfer': 'المس خطين واكتب المسافة',
 };

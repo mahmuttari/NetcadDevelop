@@ -10,7 +10,7 @@
  *   fmt(v)   units()     unitToM()
  * Nokta girişi: dokunma (yakalamalı) ya da yazılı: "x,y" | "x,y,z" | "@dx,dy" | "@L<açı"
  */
-import { TAU, flatten, polyArea, pathLength, pathLength3, segDist, opsBBox, enclosingPrim } from './geom.js';
+import { TAU, flatten, polyArea, pathLength, pathLength3, segDist, opsBBox, enclosingPrim, segmentsOf, segAt, trimPath, extendPath, filletCorner, chamferCorner, cornerAt } from './geom.js';
 import { newId, offsetPoints } from './edit.js';
 import { t, addStrings } from './i18n.js';
 import { askText, askConfirm, askForm } from './dialog.js';
@@ -65,6 +65,10 @@ export const TOOLS = {
   textsize: { name: 'Yazı yüksekliği', en: 'Text height', steps: ['Yazıları seçin · Bitir', 'Yüksekliği yazın'], stepsEn: ['Select texts · Finish', 'Type the height'] },
   explode: { name: 'Patlat', en: 'Explode', steps: ['Blok yerleştirmesine dokunun'], stepsEn: ['Tap a block insertion'] },
   attr: { name: 'Öznitelik düzenle', en: 'Edit attributes', steps: ['Blok yerleştirmesine dokunun'], stepsEn: ['Tap a block insertion'] },
+  trim: { name: 'Buda', en: 'Trim', steps: ['Kesici kenara dokunun', 'Atılacak parçaya dokunun (sürer)'], stepsEn: ['Tap the cutting edge', 'Tap the piece to remove (repeats)'] },
+  extend: { name: 'Uzat', en: 'Extend', steps: ['Sınıra dokunun', 'Uzatılacak uca dokunun (sürer)'], stepsEn: ['Tap the boundary', 'Tap the end to extend (repeats)'] },
+  fillet: { name: 'Kavis', en: 'Fillet', steps: ['Birinci doğruya dokunun', 'İkinci doğruya dokunun'], stepsEn: ['Tap the first line', 'Tap the second line'] },
+  chamfer: { name: 'Pah', en: 'Chamfer', steps: ['Birinci doğruya dokunun', 'İkinci doğruya dokunun'], stepsEn: ['Tap the first line', 'Tap the second line'] },
 };
 { const tr = {}, en = {}; for (const [k, d] of Object.entries(TOOLS)) { tr['tool_' + k] = d.name; en['tool_' + k] = d.en || d.name; d.steps.forEach((st, i) => { tr[`tstep_${k}_${i}`] = st; en[`tstep_${k}_${i}`] = (d.stepsEn && d.stepsEn[i]) || st; }); } addStrings(tr, en); }
 const toolName = (k) => t('tool_' + k);
@@ -73,7 +77,7 @@ const SELECT_TOOLS = new Set(['move', 'copy', 'rotate', 'scale', 'mirror', 'offs
 /** Sayı girişi bekleyen araçlar ve hangi adımda beklediği — TEK kaynak (say / typed / tap buraya bakar) */
 const NUMBER_STEP = { circle: 1, rotate: 2, scale: 2, offset: 1, setz: 1, thick: 1, textsize: 1 };
 /** Nokta değil NESNE (ya da kapalı alan) seçilerek çalışan araçlar */
-const OBJECT_TOOLS = new Set(['radius', 'edittext', 'dimr', 'dimd', 'explode', 'attr', 'hatch', 'fillarea', 'ident']);
+const OBJECT_TOOLS = new Set(['radius', 'edittext', 'dimr', 'dimd', 'explode', 'attr', 'hatch', 'fillarea', 'ident', 'trim', 'extend', 'fillet', 'chamfer']);
 /** Çok noktalı ölçülendirme / açıklama araçları: taslakları çizgi olarak gösterilir */
 const PATH_TOOLS = new Set(['dim', 'dimh', 'dimv', 'dima', 'leader', 'cloud']);
 /** Sonraki numara: sayıysa artar, harfle bitiyorsa harf ilerler ("A1"→"A2", "B"→"C") */
@@ -104,6 +108,7 @@ export class ToolManager {
     if (!def) return;
     this.cancel(true);
     this.active = name; this.pts = []; this.step = 0; this.draft = null; this.results = []; this.balloonNext = null;
+    this.cut = null; this.c1 = null;
     if (SELECT_TOOLS.has(name)) {
       this.selecting = this.api.sel.size === 0;
       if (!this.selecting) { this.step = 1; }
@@ -113,7 +118,7 @@ export class ToolManager {
   }
   cancel(silent) {
     if (this.active && this.active !== 'select' && this.pts.length && ['pline', 'pline3d', 'face3d', 'area', 'cloud'].includes(this.active)) this.finish();
-    this.active = null; this.pts = []; this.step = 0; this.draft = null; this.selecting = false;
+    this.active = null; this.pts = []; this.step = 0; this.draft = null; this.selecting = false; this.cut = null; this.c1 = null;
     if (!silent) { this.api.prompt(null); this.api.overlay(); }
   }
   say() {
@@ -272,6 +277,8 @@ export class ToolManager {
   async objectTap(w) {
     const A = this.api, act = this.active;
     if (act === 'hatch' || act === 'fillarea') { await this.regionTap(w); return; }
+    if (act === 'trim' || act === 'extend') { await this.cutTap(w); return; }
+    if (act === 'fillet' || act === 'chamfer') { await this.cornerTap(w); return; }
     const p = A.pick(w);
     if (!p) { A.toast(t('noObject')); return; }
     if (act === 'ident') { this.identify(p); return; }
@@ -315,6 +322,134 @@ export class ToolManager {
       if (A.run({ op: 'attrib', h: inf.h, items })) { A.toast(t('applied')); A.render(); }
     }
   }
+  /*
+   * Budama ve uzatma. İki dokunuş: önce kesici kenar / sınır, sonra hedef. Kesici korunur ve
+   * araç 1. adımda KALIR — AutoCAD'de olduğu gibi aynı kesiciyle arka arkaya budanabilir.
+   * Yalnız DÜZ segmentler budanır; yay, daire ve elips hedeflerinde 'notPath' basılır.
+   */
+  async cutTap(w) {
+    const A = this.api, act = this.active;
+    const p = A.pick(w);
+    if (!p) { A.toast(t('noObject')); return; }
+    if (p.k !== 0 || !p.ops || p.ops.length < 2) { A.toast(t('notPath')); return; }
+    if (this.step === 0) {
+      const { segs } = segmentsOf(p);
+      if (!segs.length) { A.toast(t('notPath')); return; }
+      this.cut = { key: p.key, segs };
+      this.draft = { segs: segs.map(q => [[q[0], q[1], 0], [q[2], q[3], 0]]), keep: true };
+      this.step = 1; this.say(); A.overlay();
+      return;
+    }
+    if (p.key === this.cut.key) { A.toast(t('trimSelf')); return; }
+    // Hedefte hiç düz segment yoksa (daire, yay, elips) neden 'kesişmiyor' değil, 'desteklenmiyor'dur.
+    if (!segAt(p.ops, p.closed, w)) { A.toast(t('notPath')); return; }
+    if (act === 'trim') {
+      const r = trimPath(p.ops, p.closed, this.cut.segs, w);
+      if (!r) { A.toast(t('trimNoHit')); return; }
+      const ci = (p.info && p.info.ci != null) ? p.info.ci : 256;
+      let ok;
+      if (r.parts.length === 1) {
+        ok = A.run({ op: 'reshape', items: [{ key: p.key, ops: r.parts[0].ops, closed: r.parts[0].closed }] });
+      } else {
+        // Ortadan budama yolu İKİYE böler: kalanı yeniden şekillendir, ikinci yarıyı yeni
+        // ilkel olarak ekle. 'group' ikisini tek geri alma adımı yapar.
+        ok = A.run({ op: 'group', cmds: [
+          { op: 'reshape', items: [{ key: p.key, ops: r.parts[0].ops, closed: false }] },
+          { op: 'add', ents: [{ id: newId(), type: 'PATH', ops: r.parts[1].ops, closed: false, layer: p.lay || A.layer(), color: ci }] },
+        ] });
+        if (ok) A.toast(t('trimSplit'));
+      }
+      if (ok) A.render(); else A.toast(t('error'));
+      return;
+    }
+    const r = extendPath(p.ops, p.closed, this.cut.segs, w);
+    if (!r) { A.toast(t('extendNoHit')); return; }
+    if (A.run({ op: 'reshape', items: [{ key: p.key, ops: r.ops }] })) A.render(); else A.toast(t('error'));
+  }
+
+  /*
+   * Kavis ve pah. İki doğruya dokunulur, yarıçap / mesafe sorulur.
+   * Aynı yolun iki ARDIŞIK segmentinde köşe yolun içinde kalır (tek reshape, polyline tek parça).
+   * İki AYRI ilkelde her iki doğrunun ucu teğet noktasına çekilir, yay ya da pah kenarı ayrı
+   * ilkel olarak eklenir; hepsi tek 'group' içindedir.
+   */
+  async cornerTap(w) {
+    const A = this.api, act = this.active;
+    const p = A.pick(w);
+    if (!p) { A.toast(t('noObject')); return; }
+    if (p.k !== 0 || !p.ops || p.ops.length < 2) { A.toast(t('notPath')); return; }
+    if (!segAt(p.ops, p.closed, w)) { A.toast(t('notPath')); return; }
+    if (this.step === 0) {
+      const { segs } = segmentsOf(p);
+      this.c1 = { key: p.key, ops: p.ops, closed: p.closed, lay: p.lay, ci: (p.info && p.info.ci != null) ? p.info.ci : 256, w: [w[0], w[1]] };
+      this.draft = { segs: segs.map(q => [[q[0], q[1], 0], [q[2], q[3], 0]]), keep: true };
+      this.step = 1; this.say(); A.overlay();
+      return;
+    }
+    const c1 = this.c1;
+    const ayni = p.key === c1.key;
+    const k = cornerAt(ayni ? p.ops : c1.ops, ayni ? p.closed : c1.closed, c1.w, p.ops, p.closed, w);
+    if (!k) { A.toast(t('filletFail')); return; }
+    const varsayilan = A.textHeight() * 2;
+    let r0, r1;
+    if (act === 'fillet') {
+      const v = await askText(t('filletRadius'), String(this.lastR != null ? this.lastR : A.fmt(varsayilan)), { type: 'number' });
+      if (v === null) { this.cancel(); return; }
+      r0 = parseFloat(String(v).replace(',', '.'));
+      if (!(r0 > 0)) { A.toast(t('numberExpected')); return; }
+      this.lastR = r0;
+    } else {
+      const v = await askText(t('chamferDist'), String(this.lastD != null ? this.lastD : A.fmt(varsayilan)), { type: 'number' });
+      if (v === null) { this.cancel(); return; }
+      r0 = r1 = parseFloat(String(v).replace(',', '.'));
+      if (!(r0 > 0)) { A.toast(t('numberExpected')); return; }
+      this.lastD = r0;
+    }
+    const g = act === 'fillet' ? filletCorner(k.p0, k.c, k.p1, r0) : chamferCorner(k.p0, k.c, k.p1, r0, r1);
+    if (!g) { A.toast(t('filletFail')); return; }
+    const z = (p.ops[0] && p.ops[0][3]) || 0;
+    const yayOp = () => (act === 'fillet'
+      ? [g.ccw ? 2 : -2, g.cx, g.cy, g.r, g.a0, g.a1, z]
+      : [1, g.t1[0], g.t1[1], z]);
+    let ok;
+    if (k.kind === 'same') {
+      // Köşe düğümü teğet noktasına çekilir, ardına yay (ya da pah kenarı) girer: ops +1.
+      const yeni = c1.ops.map(o => o.slice());
+      yeni[k.i] = [yeni[k.i][0], g.t0[0], g.t0[1], z];
+      yeni.splice(k.i + 1, 0, yayOp());
+      // Yaydan sonraki düğüme dokunulmaz: o segment zaten t1'den başlayıp p1'de bitiyor.
+      ok = A.run({ op: 'reshape', items: [{ key: c1.key, ops: yeni, closed: c1.closed }] });
+    } else {
+      /*
+       * Dokunulan segmentin KÖŞEYE YAKIN ucu teğet noktasına çekilir; uzak uç yerinde kalır.
+       * Böylece kavis kullanıcının dokunduğu tarafa oturur. Uç bir yay işlemiyse taşınamaz,
+       * o zaman null döner ve araç 'filletFail' basar.
+       */
+      const cek = (ops, i, q) => {
+        if (i < 1 || i >= ops.length) return null;
+        const d = (j) => Math.hypot(ops[j][1] - k.c[0], ops[j][2] - k.c[1]);
+        const uc = (ops[i - 1][0] === 0 || ops[i - 1][0] === 1) && d(i - 1) < d(i) ? i - 1 : i;
+        if (ops[uc][0] !== 0 && ops[uc][0] !== 1) return null;
+        const n = ops.map(o => o.slice());
+        n[uc] = [n[uc][0], q[0], q[1], z];
+        return n;
+      };
+      const n1 = cek(c1.ops, k.i, g.t0), n2 = cek(p.ops, k.j, g.t1);
+      if (!n1 || !n2) { A.toast(t('filletFail')); return; }
+      const ekOps = act === 'fillet'
+        ? [[0, g.t0[0], g.t0[1], z], [g.ccw ? 2 : -2, g.cx, g.cy, g.r, g.a0, g.a1, z]]
+        : [[0, g.t0[0], g.t0[1], z], [1, g.t1[0], g.t1[1], z]];
+      ok = A.run({ op: 'group', cmds: [
+        { op: 'reshape', items: [
+          { key: c1.key, ops: n1, closed: c1.closed },
+          { key: p.key, ops: n2, closed: p.closed },
+        ] },
+        { op: 'add', ents: [{ id: newId(), type: 'PATH', ops: ekOps, closed: false, layer: c1.lay || A.layer(), color: c1.ci }] },
+      ] });
+    }
+    if (ok) { A.render(); this.done(); } else A.toast(t('error'));
+  }
+
   /** Kapalı alana dokunma: tarama ekler ya da alanı ölçer */
   async regionTap(w) {
     const A = this.api;

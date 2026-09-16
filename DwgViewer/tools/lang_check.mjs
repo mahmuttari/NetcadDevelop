@@ -50,7 +50,7 @@ const holders = (s) => (String(s).match(/%\d*\$?[sd]|\{\w+\}/g) || []).sort().jo
 const TRc = /[ığşĞİŞ]/;   // yalnız Türkçe'ye özgü harfler (ç ö ü Almanca ve Fransızca'da da var)
 
 let bad = 0, warn = 0;
-console.log(`Tam anahtar kümesi: ${KEYS.length} (i18n.js ${Object.keys(i18n.TR).length - 269} + addStrings 269)`);
+console.log(`Tam anahtar kümesi: ${KEYS.length} (i18n.js ${Object.keys(i18n.TR).length - 291} + addStrings 291)`);
 const rows = [];
 for (const id of i18n.LANG_IDS) {
   if (id === 'tr' || id === 'en') { rows.push([id, KEYS.length, 0, 0, 0, 'gömülü']); continue; }

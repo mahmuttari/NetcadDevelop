@@ -212,8 +212,11 @@ satırla anlatılmalıdır — ikisinin de rakipte hiçbir kademede karşılığ
 - `profile` — kot / eğim profili (her parçada uzunluk, Δh, ‰ ve %, kümülatif Σ)
 - `savedelta` — yalnız değişenleri DXF olarak teslim etme
 
-Yetenek toplamı değişmedi (65); dağılım değişti: Premium 47 → **52**,
-Super 18 → **13**.
+Hizalamanın kendisi toplamı değiştirmedi (65); dağılımı değiştirdi:
+Premium 47 → **52**, Super 18 → **13**. Toplam daha sonra aynı sürümde
+eklenen yeteneklerle **75**'e çıktı (aşağıya bakınız): katman düzenleme ve
+desen seçici ile 70, budama ailesi ve köşe tutamağıyla 75; bugünkü dağılım
+Premium **61**, Super **14**.
 
 **Kart metni kapıdan türemez.** Paket kartındaki madde listesi
 `tierFeat_*` anahtarlarından okunur (`edition.js` `featureList`), kapı ise
@@ -222,6 +225,38 @@ başka bir şey söyleyebilir. Bu yüzden 15 dil dosyasının tamamı elle
 güncellendi ve `tools/test_lock.mjs` 15a-15d denetimleri eklendi: beş
 kimliğin kapısı, Super'in iki ayırt edici özelliği ve kartın sözü birlikte
 sınanır.
+
+### Rakipte olup bizde olmayan düzenleme araçları — YAPILDI (v7.48)
+
+Rakip karşılaştırmasında altı başlık "bizde yok" ya da "kısmen" çıktı ve
+hepsi kapatıldı. Dördü klasik 2B düzenleme, biri katman yönetimi, biri
+tarama:
+
+| Yetenek | Kimlik | Kademe | Ne yapar |
+|---|---|---|---|
+| Budama | `t:trim` | premium | Kesici kenara, sonra atılacak parçaya dokunulur; kesici korunur, araç sürer |
+| Uzatma | `t:extend` | premium | Sınıra, sonra uzatılacak uca dokunulur; sınırlı kesişim yoksa kenarın sonsuz doğrusuna düşülür |
+| Kavis | `t:fillet` | premium | İki doğruya dokunulup yarıçap yazılır; aynı polyline'da yay yolun İÇİNE girer |
+| Pah | `t:chamfer` | premium | İki doğruya dokunulup mesafe yazılır |
+| Köşe tutamakları | `grips` | premium | Seçili yolun her düğümü tek tek sürüklenir; bırakış yakalamaya oturur |
+| Katman düzenleme | `layeredit` | premium | Ad, renk, donuk ve kilitli; silme nesneleriyle birlikte tek geri-al adımı |
+| Tarama deseni | `hatchpat` | premium | ANSI31/32/33/37, NET, LINE, DOTS, CROSS, EARTH, GRAVEL |
+
+Dördü de **düz segmentler** üzerinde çalışır; yay, daire ve elips
+hedeflerinde araç "bu nesnede düz kenar yok" der ve belgeye dokunmaz. Yay-yay
+kavisi, çoklu seçimle toplu budama ve kesici kenarsız (serbest) budama bu
+sürümün dışındadır.
+
+Geometriyi yeniden yazan tek bir komut eklendi: **`reshape`**. Var olan
+`xform` yalnız afin matris uygular; budama, kavis ve tek köşe taşıma afin
+değildir. Bölünme (budamada ortadan kesme) ve kavis yayının ayrı ilkel
+olarak eklenmesi için yeni op yazılmadı — var olan `group` ikisini tek geri
+alma adımı yapıyor.
+
+**Köşe tutamağı varsayılan KAPALIDIR.** Bir polyline'ın düğümleri çoğu zaman
+seçim kutusunun köşelerine denk gelir (dikdörtgende birebir); açık bırakılsa
+kutuyla ölçekleme yapılamaz hâle gelirdi. Karodan açıldığında düğüm önceliği
+kazanır. `tools/test_budama.mjs` bunu ölçüyor (15a-15e).
 
 ### Fiyatlar değişmedi
 

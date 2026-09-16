@@ -512,6 +512,39 @@ export class EditDoc {
         C.rebuild();
         return () => { for (const sN of snaps) { sN.p.info = sN.info; sN.p.key = sN.key; } C.rebuild(); };
       }
+      case 'reshape': {
+        /*
+         * Bir yolun köşelerini YERİNDE yeniden yazar. Budama, uzatma, kavis, pah ve tek köşe
+         * sürüklemesi bunu kullanır; hiçbiri afin dönüşüm değildir, bu yüzden 'xform' ile
+         * anlatılamazlar. Bölme (budamada ortadan kesme) ve kavis yayının ayrı ilkel olarak
+         * eklenmesi için yeni op yazılmaz — var olan 'group' ikisini tek geri alma adımı yapar.
+         */
+        const map = new Map((cmd.items || []).map(it => [it.key, it]));
+        const ps = C.prims().filter(p => map.has(p.key) && p.k === 0);
+        if (!ps.length) return null;
+        const snaps = ps.map(p => clonePrim(p));
+        for (const p of ps) {
+          const it = map.get(p.key);
+          if (!Array.isArray(it.ops) || it.ops.length < 2) continue;
+          // Kot her zaman sayıya indirgenir: kalıcı günlük JSON'dur ve undefined orada null olur,
+          // yeniden yüklemede NaN üretirdi.
+          p.ops = it.ops.map(o => o.map(v => (typeof v === 'number' && isFinite(v) ? v : 0)));
+          if (it.closed != null) p.closed = !!it.closed;
+          p.bb = opsBBox(p.ops);
+          p.info = { ...p.info, edited: true };
+          // p.ent ile p.ops ayrışmamalı: blok kitaplığı, pano ve bilgi paneli ent'i okur.
+          if (p.ent) {
+            const duz = p.ops.every(o => o[0] === 0 || o[0] === 1);
+            if (duz && (p.ent.type === 'LINE' || p.ent.type === 'LWPOLYLINE' || p.ent.type === 'POLYLINE3D')) {
+              p.ent = { ...p.ent, type: p.ops.length === 2 ? p.ent.type : (p.ent.type === 'LINE' ? 'LWPOLYLINE' : p.ent.type), pts: p.ops.map(o => [o[1], o[2], o[3] || 0]), closed: !!p.closed };
+            } else {
+              p.ent = { ...p.ent, type: 'PATH', ops: p.ops.map(o => o.slice()), closed: !!p.closed };
+            }
+          }
+        }
+        C.rebuild();
+        return () => { ps.forEach((p, i) => Object.assign(p, snaps[i])); C.rebuild(); };
+      }
       default: return null;
     }
   }

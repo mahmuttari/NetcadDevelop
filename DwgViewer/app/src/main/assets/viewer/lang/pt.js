@@ -504,4 +504,17 @@ export default {
   showLocked: 'Mostrar as ferramentas bloqueadas no friso', allFeatures: 'Todas as funcionalidades', tierUnlocks: 'Desbloqueia %s funcionalidades',
   gizmoOn: 'Pegas de mover / dimensionar / rodar na seleção', infoTap: 'Abrir o painel de informações ao tocar', infoMore: 'Detalhes', infoLess: 'Menos',
   proSrcOwner: 'Conta de programador',
+  // budama · uzatma · kavis · pah · köşe tutamakları
+  notPath: 'Este objeto não tem nenhuma aresta reta', trimNoHit: 'Sem interseção com a aresta de corte', trimSplit: 'O trecho foi dividido em dois',
+  trimSelf: 'A própria aresta de corte não pode ser aparada', extendNoHit: 'Não alcança o limite', filletFail: 'Não é possível criar concordância neste canto',
+  filletRadius: 'Raio da concordância:', chamferDist: 'Distância do chanfro:', gripsOn: 'Alças de vértice na polilinha selecionada',
+  gripsOnMsg: 'Alças de vértice ativadas', gripsOffMsg: 'Alças de vértice desativadas', gripsTooMany: 'Vértices demais; alças não desenhadas',
+  tool_trim: 'Aparar', tstep_trim_0: 'Toque na aresta de corte', tstep_trim_1: 'Toque no trecho a remover (repete)',
+  tool_extend: 'Estender', tstep_extend_0: 'Toque no limite', tstep_extend_1: 'Toque na extremidade a estender (repete)',
+  tool_fillet: 'Concordância', tstep_fillet_0: 'Toque na primeira linha', tstep_fillet_1: 'Toque na segunda linha',
+  tool_chamfer: 'Chanfro', tstep_chamfer_0: 'Toque na primeira linha', tstep_chamfer_1: 'Toque na segunda linha',
+  tl_grips: 'Alças de vértice', th_grips: 'Arraste cada vértice da polilinha selecionada', 'tl_t:trim': 'Aparar',
+  'th_t:trim': 'Toque na aresta de corte e depois no trecho a remover', 'tl_t:extend': 'Estender', 'th_t:extend': 'Toque no limite e depois na extremidade a estender',
+  'tl_t:fillet': 'Concordância', 'th_t:fillet': 'Toque em duas linhas e digite o raio', 'tl_t:chamfer': 'Chanfro',
+  'th_t:chamfer': 'Toque em duas linhas e digite a distância',
 };

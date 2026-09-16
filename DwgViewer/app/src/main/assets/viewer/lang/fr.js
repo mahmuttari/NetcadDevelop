@@ -505,4 +505,17 @@ export default {
   showLocked: 'Afficher les outils verrouillés dans le ruban', allFeatures: 'Toutes les fonctions', tierUnlocks: 'Débloque %s fonctions',
   gizmoOn: 'Poignées déplacer / mettre à l’échelle / pivoter sur la sélection', infoTap: 'Ouvrir le panneau d’informations au toucher', infoMore: 'Détails', infoLess: 'Moins',
   proSrcOwner: 'Compte développeur',
+  // budama · uzatma · kavis · pah · köşe tutamakları
+  notPath: 'Cet objet n\'a aucune arête droite', trimNoHit: 'Aucune intersection avec l\'arête de coupe', trimSplit: 'La pièce a été coupée en deux',
+  trimSelf: 'L\'arête de coupe elle-même ne peut pas être ajustée', extendNoHit: 'N\'atteint pas la limite', filletFail: 'Aucun raccord possible sur ce coin',
+  filletRadius: 'Rayon du raccord :', chamferDist: 'Distance du chanfrein :', gripsOn: 'Poignées de sommet sur le tracé sélectionné',
+  gripsOnMsg: 'Poignées de sommet activées', gripsOffMsg: 'Poignées de sommet désactivées', gripsTooMany: 'Trop de sommets, poignées non tracées',
+  tool_trim: 'Ajuster', tstep_trim_0: 'Touchez l\'arête de coupe', tstep_trim_1: 'Touchez la partie à supprimer (répété)',
+  tool_extend: 'Prolonger', tstep_extend_0: 'Touchez la limite', tstep_extend_1: 'Touchez l\'extrémité à prolonger (répété)',
+  tool_fillet: 'Raccord', tstep_fillet_0: 'Touchez la première ligne', tstep_fillet_1: 'Touchez la deuxième ligne',
+  tool_chamfer: 'Chanfrein', tstep_chamfer_0: 'Touchez la première ligne', tstep_chamfer_1: 'Touchez la deuxième ligne',
+  tl_grips: 'Poignées de sommet', th_grips: 'Faites glisser chaque sommet du tracé sélectionné', 'tl_t:trim': 'Ajuster',
+  'th_t:trim': 'Touchez l\'arête de coupe, puis la partie à supprimer', 'tl_t:extend': 'Prolonger', 'th_t:extend': 'Touchez la limite, puis l\'extrémité à prolonger',
+  'tl_t:fillet': 'Raccord', 'th_t:fillet': 'Touchez deux lignes et saisissez le rayon', 'tl_t:chamfer': 'Chanfrein',
+  'th_t:chamfer': 'Touchez deux lignes et saisissez la distance',
 };

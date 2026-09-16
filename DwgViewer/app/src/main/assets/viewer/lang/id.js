@@ -504,4 +504,17 @@ export default {
   showLocked: 'Tampilkan alat terkunci di pita', allFeatures: 'Semua kemampuan', tierUnlocks: 'Membuka %s fitur',
   gizmoOn: 'Pegangan pindah / skala / putar pada pilihan', infoTap: 'Buka panel info saat diketuk', infoMore: 'Rincian', infoLess: 'Lebih sedikit',
   proSrcOwner: 'Akun pengembang',
+  // budama · uzatma · kavis · pah · köşe tutamakları
+  notPath: 'Objek ini tidak memiliki tepi lurus', trimNoHit: 'Tidak ada perpotongan dengan tepi pemotong', trimSplit: 'Bagian terbelah menjadi dua',
+  trimSelf: 'Tepi pemotong itu sendiri tidak dapat dipangkas', extendNoHit: 'Tidak mencapai batas', filletFail: 'Tidak dapat membuat filet di sudut ini',
+  filletRadius: 'Jari-jari filet:', chamferDist: 'Jarak champer:', gripsOn: 'Gagang titik pada jalur terpilih',
+  gripsOnMsg: 'Gagang titik aktif', gripsOffMsg: 'Gagang titik nonaktif', gripsTooMany: 'Terlalu banyak titik, gagang tidak digambar',
+  tool_trim: 'Pangkas', tstep_trim_0: 'Ketuk tepi pemotong', tstep_trim_1: 'Ketuk bagian yang dibuang (berulang)',
+  tool_extend: 'Perpanjang', tstep_extend_0: 'Ketuk batas', tstep_extend_1: 'Ketuk ujung yang diperpanjang (berulang)',
+  tool_fillet: 'Filet', tstep_fillet_0: 'Ketuk garis pertama', tstep_fillet_1: 'Ketuk garis kedua',
+  tool_chamfer: 'Champer', tstep_chamfer_0: 'Ketuk garis pertama', tstep_chamfer_1: 'Ketuk garis kedua',
+  tl_grips: 'Gagang titik', th_grips: 'Seret setiap titik jalur terpilih satu per satu', 'tl_t:trim': 'Pangkas',
+  'th_t:trim': 'Ketuk tepi pemotong, lalu bagian yang dibuang', 'tl_t:extend': 'Perpanjang', 'th_t:extend': 'Ketuk batas, lalu ujung yang diperpanjang',
+  'tl_t:fillet': 'Filet', 'th_t:fillet': 'Ketuk dua garis lalu ketik jari-jarinya', 'tl_t:chamfer': 'Champer',
+  'th_t:chamfer': 'Ketuk dua garis lalu ketik jaraknya',
 };

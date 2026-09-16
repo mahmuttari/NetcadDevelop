@@ -473,7 +473,7 @@ function* siralaGen(sira, key) {
 
 // ---- yakalama (osnap) ---------------------------------------------------------------
 /** Yol ilkelinden doğru parçaları [x1,y1,x2,y2,z1,z2] ve yayları toplar */
-function segmentsOf(p) {
+export function segmentsOf(p) {
   const segs = [], arcs = [];
 
   let lx = 0, ly = 0, lz, sx = 0, sy = 0, sz;
@@ -488,14 +488,242 @@ function segmentsOf(p) {
   if (p.closed && (lx !== sx || ly !== sy)) segs.push([lx, ly, sx, sy, lz, sz]);
   return { segs, arcs };
 }
-export function segIntersect(a, b) {
+/*
+ * İki doğru parçasının kesişimi. inf=false (öntanımlı) iken kesişim İKİ PARÇANIN da içinde
+ * olmak zorundadır — yakalamanın 'int' kipi bunu ister, yoksa uzakta duran iki çizginin
+ * uzantısında sahte kesişim çıkar. inf=true ise parçalar SONSUZ doğru sayılır; uzatma (extend)
+ * ve iki ayrı doğru arasındaki kavis köşeyi böyle bulur. Matematik tek yerde durur.
+ */
+export function segIntersect(a, b, inf = false) {
   const d = (a[2] - a[0]) * (b[3] - b[1]) - (a[3] - a[1]) * (b[2] - b[0]);
   if (Math.abs(d) < 1e-12) return null;
   const t = ((b[0] - a[0]) * (b[3] - b[1]) - (b[1] - a[1]) * (b[2] - b[0])) / d;
   const u = ((b[0] - a[0]) * (a[3] - a[1]) - (b[1] - a[1]) * (a[2] - a[0])) / d;
-  if (t < -1e-9 || t > 1 + 1e-9 || u < -1e-9 || u > 1 + 1e-9) return null;
+  if (!inf && (t < -1e-9 || t > 1 + 1e-9 || u < -1e-9 || u > 1 + 1e-9)) return null;
   return [a[0] + t * (a[2] - a[0]), a[1] + t * (a[3] - a[1])];
 }
+// ---- budama · uzatma · kavis · pah ---------------------------------------------------
+/*
+ * Bu bölüm YALNIZ DÜZ segmentlerle çalışır. Yay, daire ve elips hedeflerinde null döner;
+ * çağıran kullanıcıya "bu nesne desteklenmiyor" der. Yay–yay kavisi, çoklu seçimle toplu
+ * budama ve kesici kenarsız (serbest) budama bu sürümün dışındadır.
+ *
+ * ops biçimi: [0,x,y,z] moveTo · [1,x,y,z] lineTo · [2,cx,cy,r,a0,a1,z] CCW yay ·
+ * [-2,…] CW yay · [3,…] elips. Dizin (i) her zaman segmentin BİTİŞ işleminin dizinidir;
+ * kapalı yolun kapanış segmenti i = ops.length ile gösterilir.
+ */
+const zNum = (v) => (typeof v === 'number' && isFinite(v) ? v : 0);
+
+/**
+ * Dokunulan noktaya en yakın DÜZ segment.
+ * → { i, t, a:[x,y,z], b:[x,y,z], d } ya da null (hiç düz segment yoksa)
+ * t segment üzerindeki oran; segFoot yerine doğrudan izdüşümle hesaplanır, çünkü segFoot
+ * aralık dışında null döner ve uçlara dokunulduğunda budama yapılamaz hâle gelirdi.
+ */
+export function segAt(ops, closed, w) {
+  let lx = 0, ly = 0, lz = 0, sx = 0, sy = 0, sz = 0, has = false, best = null;
+  let mn = Infinity, mx = -Infinity;   // kapanış payı için yolun büyüklüğü
+  const dene = (i, ax, ay, az, bx, by, bz) => {
+    const d = segDist(w[0], w[1], ax, ay, bx, by);
+    if (best && d >= best.d) return;
+    const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+    let t = l2 ? ((w[0] - ax) * dx + (w[1] - ay) * dy) / l2 : 0;
+    t = Math.max(0, Math.min(1, t));
+    best = { i, t, a: [ax, ay, az], b: [bx, by, bz], d };
+  };
+  const genis = (x, y) => { if (x < mn) mn = x; if (x > mx) mx = x; if (y < mn) mn = y; if (y > mx) mx = y; };
+  for (let i = 0; i < ops.length; i++) {
+    const o = ops[i];
+    if (o[0] === 0) { lx = sx = o[1]; ly = sy = o[2]; lz = sz = zNum(o[3]); has = true; genis(o[1], o[2]); continue; }
+    if (o[0] === 1) { if (has) dene(i, lx, ly, lz, o[1], o[2], zNum(o[3])); lx = o[1]; ly = o[2]; lz = zNum(o[3]); genis(o[1], o[2]); continue; }
+    // yay ve elips tutamak almaz; ama imleç konumu korunmalı, yoksa sonraki segment kayar
+    if (o[0] === 2 || o[0] === -2) { lx = o[1] + o[3] * Math.cos(o[5]); ly = o[2] + o[3] * Math.sin(o[5]); lz = zNum(o[6]); genis(o[1] - o[3], o[2] - o[3]); genis(o[1] + o[3], o[2] + o[3]); continue; }
+    const pts = []; ellipsePts(o[1], o[2], o[3], o[4], o[5], o[6], o[7], pts);
+    lx = pts[pts.length - 1][0]; ly = pts[pts.length - 1][1];
+  }
+  /*
+   * Kapanış segmenti YALNIZ gerçekten bir uzunluğu varsa sayılır. Tam daire ops'u
+   * [moveTo(cx+r, cy), arc(0 → 2π)] biçimindedir ve yay Math.sin(2π) = −2,4e−16 yüzünden
+   * başladığı noktaya kılpayı dönmez; ham eşitlik denetimi orada sıfıra yakın bir kapanış
+   * segmenti uydurur ve daire "budanabilir düz kenarı var" gibi görünürdü.
+   */
+  const pay = isFinite(mx - mn) ? Math.max(mx - mn, 1) * 1e-9 : 1e-9;
+  if (closed && has && Math.hypot(lx - sx, ly - sy) > pay) dene(ops.length, lx, ly, lz, sx, sy, sz);
+  return best;
+}
+
+/**
+ * Budama. Dokunulan segmenti kesici kenarlarla kesip dokunulan parçayı atar.
+ * → { parts:[{ops, closed}], cut:[[x,y],[x,y]] } ya da null (kesişim yok / düz segment yok)
+ * Kapalı yolda budama yolu AÇAR: kalan tek parça, atılan aralığın bittiği yerden başlayıp
+ * kapanış üzerinden dolaşarak başladığı yerde biter.
+ */
+export function trimPath(ops, closed, cutSegs, w) {
+  const s = segAt(ops, closed, w);
+  if (!s) return null;
+  const [ax, ay, az] = s.a, [bx, by, bz] = s.b;
+  const ts = [];
+  for (const c of cutSegs) {
+    const q = segIntersect([ax, ay, bx, by], [c[0], c[1], c[2], c[3]]);
+    if (!q) continue;
+    const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+    if (!l2) continue;
+    const t = ((q[0] - ax) * dx + (q[1] - ay) * dy) / l2;
+    if (t > 1e-9 && t < 1 - 1e-9 && !ts.some(v => Math.abs(v - t) < 1e-9)) ts.push(t);
+  }
+  ts.sort((p, q) => p - q);
+  let tA = 0, tB = 1;
+  for (const t of ts) { if (t <= s.t) tA = t; else { tB = t; break; } }
+  if (tA === 0 && tB === 1) return null;
+  const nokta = (t) => [ax + t * (bx - ax), ay + t * (by - ay), az + t * (bz - az)];
+  const A = nokta(tA), B = nokta(tB);
+  const kopya = (o) => o.slice();
+  const i = s.i, N = ops.length;
+  if (!ops[0] || ops[0][0] !== 0) return null;
+  const bas = [1, ops[0][1], ops[0][2], zNum(ops[0][3])];   // kapanış kenarının varış noktası
+  const opAt = (k) => (k < N ? kopya(ops[k]) : bas.slice());
+  let parts;
+  if (closed) {
+    /*
+     * Kapalı yolda budama yolu AÇAR. B'den başlanır, dokunulan segmentin bittiği yere gidilir,
+     * halka boyunca bir tam tur atılır (kapanış kenarı N. segment sayılır) ve A'da durulur.
+     * Segmentler 1..N-1 sıradan işlemler, N ise kapanıştır; halka sırası bu yüzden modülodur.
+     */
+    const yeni = [[0, B[0], B[1], B[2]]];
+    if (tB < 1 - 1e-9) yeni.push(opAt(i));
+    for (let m = 1; m < N; m++) yeni.push(opAt(((i - 1 + m) % N) + 1));
+    if (tA > 1e-9) yeni.push([1, A[0], A[1], A[2]]);
+    parts = yeni.length > 1 ? [{ ops: yeni, closed: false }] : [];
+  } else {
+    parts = [];
+    // Birinci parça: budanan aralığın BAŞINA kadar. tA sıfırsa kesim tam segmentin başındadır,
+    // öndeki işlemler yine de kalır — bu parça atlanırsa yolun yarısı sessizce kaybolur.
+    const p1 = [];
+    for (let k = 0; k < i && k < N; k++) p1.push(kopya(ops[k]));
+    if (tA > 1e-9) p1.push([1, A[0], A[1], A[2]]);
+    if (p1.length > 1) parts.push({ ops: p1, closed: false });
+    // İkinci parça: B'den segmentin KENDİ bitişine, oradan yolun kalanına.
+    const p2 = [[0, B[0], B[1], B[2]]];
+    if (tB < 1 - 1e-9) p2.push(opAt(i));
+    for (let k = i + 1; k < N; k++) p2.push(kopya(ops[k]));
+    if (p2.length > 1) parts.push({ ops: p2, closed: false });
+  }
+  if (!parts.length) return null;
+  return { parts, cut: [[A[0], A[1]], [B[0], B[1]]] };
+}
+
+/**
+ * Uzatma. Yolun dokunulan ucunu, sınır parçalarıyla kesişene kadar uzatır.
+ * → { ops, at:'start'|'end', p:[x,y,z] } ya da null
+ * Sınırın SINIRLI parçasıyla kesişim bulunamazsa sınırın SONSUZ doğrusuna düşülür — bu
+ * AutoCAD'in "kenar uzat" (edge extend) kipine denktir ve bilerek açıktır: kullanıcı kısa
+ * bir sınır çizgisine dokunduğunda araç sessizce hiçbir şey yapmasın diye.
+ */
+export function extendPath(ops, closed, bndSegs, w) {
+  if (closed || !ops.length) return null;
+  let bas = -1, son = -1;
+  for (let i = 0; i < ops.length; i++) { const o = ops[i]; if (o[0] === 0 && bas < 0) bas = i; if (o[0] === 1) son = i; }
+  if (bas < 0 || son < 0) return null;
+  const basKom = ops[bas + 1] && ops[bas + 1][0] === 1 ? ops[bas + 1] : null;
+  const sonKom = son - 1 >= 0 && (ops[son - 1][0] === 0 || ops[son - 1][0] === 1) ? ops[son - 1] : null;
+  const adaylar = [];
+  if (basKom) adaylar.push({ at: 'start', i: bas, uc: ops[bas], kom: basKom });
+  if (sonKom && son !== bas) adaylar.push({ at: 'end', i: son, uc: ops[son], kom: sonKom });
+  if (!adaylar.length) return null;
+  adaylar.sort((p, q) => Math.hypot(p.uc[1] - w[0], p.uc[2] - w[1]) - Math.hypot(q.uc[1] - w[0], q.uc[2] - w[1]));
+  const a = adaylar[0];
+  let vx = a.uc[1] - a.kom[1], vy = a.uc[2] - a.kom[2];
+  const vl = Math.hypot(vx, vy);
+  if (vl < 1e-12) return null;
+  vx /= vl; vy /= vl;
+  let mnx = Infinity, mny = Infinity, mxx = -Infinity, mxy = -Infinity;
+  for (const c of bndSegs) { mnx = Math.min(mnx, c[0], c[2]); mxx = Math.max(mxx, c[0], c[2]); mny = Math.min(mny, c[1], c[3]); mxy = Math.max(mxy, c[1], c[3]); }
+  if (!isFinite(mnx)) return null;
+  const K = Math.max(Math.hypot(mxx - mnx, mxy - mny), Math.hypot(a.uc[1] - mnx, a.uc[2] - mny)) * 4 + 1;
+  const isin = [a.uc[1], a.uc[2], a.uc[1] + vx * K, a.uc[2] + vy * K];
+  const ara = (inf) => {
+    let en = null, ed = Infinity;
+    for (const c of bndSegs) {
+      const q = segIntersect(isin, [c[0], c[1], c[2], c[3]], inf);
+      if (!q) continue;
+      const d = (q[0] - a.uc[1]) * vx + (q[1] - a.uc[2]) * vy;
+      if (d > 1e-9 && d < ed) { ed = d; en = q; }
+    }
+    return en;
+  };
+  const q = ara(false) || ara(true);
+  if (!q) return null;
+  const yeni = ops.map(o => o.slice());
+  const z = zNum(a.uc[3]);
+  yeni[a.i] = [a.uc[0], q[0], q[1], z];
+  return { ops: yeni, at: a.at, p: [q[0], q[1], z] };
+}
+
+/**
+ * Kavis (fillet). p0–c–p1 köşesine r yarıçaplı teğet yay oturtur.
+ * → { t0, t1, cx, cy, r, a0, a1, ccw } ya da null (çakışık / doğrudaş köşe)
+ * İstenen yarıçap kollara sığmıyorsa en kısa kola göre KIRPILIR ve kırpılan değer r'de döner;
+ * çağıran isterse kullanıcıya bildirir. Sessizce başarısız olmaktansa sığanı yapmak yeğdir.
+ */
+export function filletCorner(p0, c, p1, r) {
+  let u0x = p0[0] - c[0], u0y = p0[1] - c[1], u1x = p1[0] - c[0], u1y = p1[1] - c[1];
+  const l0 = Math.hypot(u0x, u0y), l1 = Math.hypot(u1x, u1y);
+  if (l0 < 1e-9 || l1 < 1e-9) return null;
+  u0x /= l0; u0y /= l0; u1x /= l1; u1y /= l1;
+  const nokta = Math.max(-1, Math.min(1, u0x * u1x + u0y * u1y));
+  const ang = Math.acos(nokta);
+  if (ang < 1e-6 || Math.abs(ang - Math.PI) < 1e-6) return null;
+  const tan = Math.tan(ang / 2);
+  let rr = Math.max(1e-9, r), L = rr / tan;
+  const Lmax = Math.min(l0, l1);
+  if (L > Lmax) { L = Lmax; rr = L * tan; }
+  const t0 = [c[0] + u0x * L, c[1] + u0y * L], t1 = [c[0] + u1x * L, c[1] + u1y * L];
+  let bx = u0x + u1x, by = u0y + u1y;
+  const bl = Math.hypot(bx, by);
+  if (bl < 1e-12) return null;
+  bx /= bl; by /= bl;
+  const h = rr / Math.sin(ang / 2);
+  const cx = c[0] + bx * h, cy = c[1] + by * h;
+  const a0 = Math.atan2(t0[1] - cy, t0[0] - cx), a1 = Math.atan2(t1[1] - cy, t1[0] - cx);
+  // Yayın yönü: t0'dan t1'e giderken hangi yönde döndüğü. Çapraz çarpım işareti verir.
+  const ccw = (u0x * u1y - u0y * u1x) < 0;
+  return { t0, t1, cx, cy, r: rr, a0, a1, ccw };
+}
+
+/** Pah (chamfer). Köşeyi d0/d1 mesafelerinde kesip düz bir kenarla birleştirir. */
+export function chamferCorner(p0, c, p1, d0, d1) {
+  let u0x = p0[0] - c[0], u0y = p0[1] - c[1], u1x = p1[0] - c[0], u1y = p1[1] - c[1];
+  const l0 = Math.hypot(u0x, u0y), l1 = Math.hypot(u1x, u1y);
+  if (l0 < 1e-9 || l1 < 1e-9) return null;
+  u0x /= l0; u0y /= l0; u1x /= l1; u1y /= l1;
+  const ang = Math.acos(Math.max(-1, Math.min(1, u0x * u1x + u0y * u1y)));
+  if (ang < 1e-6 || Math.abs(ang - Math.PI) < 1e-6) return null;
+  const a = Math.min(Math.max(1e-9, d0), l0), b = Math.min(Math.max(1e-9, d1), l1);
+  return { t0: [c[0] + u0x * a, c[1] + u0y * a], t1: [c[0] + u1x * b, c[1] + u1y * b] };
+}
+
+/**
+ * İki dokunuşun tarif ettiği köşeyi çözer.
+ * → { kind:'same'|'two', i, j, c, p0, p1 } ya da null
+ * kind 'same': aynı ilkelde ARDIŞIK iki segment — ortak köşe zaten vardır, kavis içeri girer.
+ * kind 'two': ayrı ilkeller — köşe, iki segmentin SONSUZ doğrularının kesişimidir; p0/p1 her
+ * segmentin kesişimden UZAK ucudur, böylece kavis kullanıcının dokunduğu tarafa oturur.
+ */
+export function cornerAt(opsA, closedA, wA, opsB, closedB, wB) {
+  const sA = segAt(opsA, closedA, wA), sB = segAt(opsB, closedB, wB);
+  if (!sA || !sB) return null;
+  if (opsA === opsB) {
+    if (sA.i === sB.i) return null;
+    const [ilk, son] = sA.i < sB.i ? [sA, sB] : [sB, sA];
+    if (son.i !== ilk.i + 1) return null;               // yalnız ARDIŞIK segmentler
+    return { kind: 'same', i: ilk.i, j: son.i, c: [ilk.b[0], ilk.b[1]], p0: [ilk.a[0], ilk.a[1]], p1: [son.b[0], son.b[1]] };
+  }
+  const c = segIntersect([sA.a[0], sA.a[1], sA.b[0], sA.b[1]], [sB.a[0], sB.a[1], sB.b[0], sB.b[1]], true);
+  if (!c) return null;
+  const uzak = (s) => (Math.hypot(s.a[0] - c[0], s.a[1] - c[1]) >= Math.hypot(s.b[0] - c[0], s.b[1] - c[1]) ? [s.a[0], s.a[1]] : [s.b[0], s.b[1]]);
+  return { kind: 'two', i: sA.i, j: sB.i, c, p0: uzak(sA), p1: uzak(sB) };
+}
+
 /**
  * Yakalama. modes: Set('end','mid','cen','per','int','nea','node')
  * prims: aday ilkeller; w: dünya noktası; tol: dünya birimi; prev: önceki nokta (dik için)

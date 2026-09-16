@@ -346,4 +346,17 @@ export default {
   showLocked: 'Hiện công cụ bị khoá trên dải lệnh', allFeatures: 'Tất cả tính năng', tierUnlocks: 'Mở khoá %s tính năng',
   gizmoOn: 'Tay nắm di chuyển / tỉ lệ / xoay trên vùng chọn', infoTap: 'Mở bảng thông tin khi chạm', infoMore: 'Chi tiết', infoLess: 'Rút gọn',
   proSrcOwner: 'Tài khoản nhà phát triển',
+  // budama · uzatma · kavis · pah · köşe tutamakları
+  notPath: 'Đối tượng này không có cạnh thẳng', trimNoHit: 'Không giao với cạnh cắt', trimSplit: 'Đoạn đã được tách làm hai',
+  trimSelf: 'Không thể cắt chính cạnh cắt', extendNoHit: 'Không chạm tới biên', filletFail: 'Không tạo được bo tròn tại góc này',
+  filletRadius: 'Bán kính bo tròn:', chamferDist: 'Khoảng vát:', gripsOn: 'Nút đỉnh trên đường đã chọn',
+  gripsOnMsg: 'Đã bật nút đỉnh', gripsOffMsg: 'Đã tắt nút đỉnh', gripsTooMany: 'Quá nhiều đỉnh, không vẽ nút',
+  tool_trim: 'Cắt tỉa', tstep_trim_0: 'Chạm vào cạnh cắt', tstep_trim_1: 'Chạm vào đoạn cần bỏ (lặp lại)',
+  tool_extend: 'Kéo dài', tstep_extend_0: 'Chạm vào biên', tstep_extend_1: 'Chạm vào đầu cần kéo dài (lặp lại)',
+  tool_fillet: 'Bo tròn', tstep_fillet_0: 'Chạm vào đường thứ nhất', tstep_fillet_1: 'Chạm vào đường thứ hai',
+  tool_chamfer: 'Vát góc', tstep_chamfer_0: 'Chạm vào đường thứ nhất', tstep_chamfer_1: 'Chạm vào đường thứ hai',
+  tl_grips: 'Nút đỉnh', th_grips: 'Kéo từng đỉnh của đường đã chọn', 'tl_t:trim': 'Cắt tỉa',
+  'th_t:trim': 'Chạm vào cạnh cắt, rồi đoạn cần bỏ', 'tl_t:extend': 'Kéo dài', 'th_t:extend': 'Chạm vào biên, rồi đầu cần kéo dài',
+  'tl_t:fillet': 'Bo tròn', 'th_t:fillet': 'Chạm hai đường và nhập bán kính', 'tl_t:chamfer': 'Vát góc',
+  'th_t:chamfer': 'Chạm hai đường và nhập khoảng cách',
 };

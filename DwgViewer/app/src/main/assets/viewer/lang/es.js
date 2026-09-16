@@ -504,4 +504,17 @@ export default {
   showLocked: 'Mostrar las herramientas bloqueadas en la cinta', allFeatures: 'Todas las funciones', tierUnlocks: 'Desbloquea %s funciones',
   gizmoOn: 'Controles de mover / escalar / girar en la selección', infoTap: 'Abrir el panel de información al tocar', infoMore: 'Detalles', infoLess: 'Menos',
   proSrcOwner: 'Cuenta de desarrollador',
+  // budama · uzatma · kavis · pah · köşe tutamakları
+  notPath: 'Este objeto no tiene ninguna arista recta', trimNoHit: 'No hay intersección con la arista de corte', trimSplit: 'La pieza se dividió en dos',
+  trimSelf: 'La propia arista de corte no se puede recortar', extendNoHit: 'No llega al límite', filletFail: 'No se puede crear un empalme en esta esquina',
+  filletRadius: 'Radio del empalme:', chamferDist: 'Distancia del chaflán:', gripsOn: 'Pinzamientos de vértice en la polilínea seleccionada',
+  gripsOnMsg: 'Pinzamientos de vértice activados', gripsOffMsg: 'Pinzamientos de vértice desactivados', gripsTooMany: 'Demasiados vértices; no se dibujaron los pinzamientos',
+  tool_trim: 'Recortar', tstep_trim_0: 'Toque la arista de corte', tstep_trim_1: 'Toque la parte que se va a eliminar (se repite)',
+  tool_extend: 'Alargar', tstep_extend_0: 'Toque el límite', tstep_extend_1: 'Toque el extremo que se va a alargar (se repite)',
+  tool_fillet: 'Empalme', tstep_fillet_0: 'Toque la primera línea', tstep_fillet_1: 'Toque la segunda línea',
+  tool_chamfer: 'Chaflán', tstep_chamfer_0: 'Toque la primera línea', tstep_chamfer_1: 'Toque la segunda línea',
+  tl_grips: 'Pinzamientos de vértice', th_grips: 'Arrastre cada vértice de la polilínea seleccionada', 'tl_t:trim': 'Recortar',
+  'th_t:trim': 'Toque la arista de corte y luego la parte que se va a eliminar', 'tl_t:extend': 'Alargar', 'th_t:extend': 'Toque el límite y luego el extremo que se va a alargar',
+  'tl_t:fillet': 'Empalme', 'th_t:fillet': 'Toque dos líneas y escriba el radio', 'tl_t:chamfer': 'Chaflán',
+  'th_t:chamfer': 'Toque dos líneas y escriba la distancia',
 };

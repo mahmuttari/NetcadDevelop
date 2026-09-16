@@ -109,6 +109,8 @@ export const FEATURE_TIER = new Map([
   // --- 2B düzenleme eklentileri
   ['t:array', 'premium'], ['t:explode', 'premium'], ['t:textsize', 'premium'], ['t:attr', 'premium'], ['findrep', 'premium'],
   ['blocklib', 'premium'], ['copyclip', 'premium'], ['pasteclip', 'premium'],
+  ['t:trim', 'premium'], ['t:extend', 'premium'], ['t:fillet', 'premium'], ['t:chamfer', 'premium'],
+  ['grips', 'premium'],                  // köşe tutamağı: geometriyi değiştirir, düzenleme rafında durur
   // --- 2B çıktı eklentileri
   ['textout', 'premium'], ['tableout', 'premium'],
   // --- 3B üretim (Super) · PDF→CAD ve toplu işlem Premium'a indirildi (rakip ikisini de Premium'da veriyor)

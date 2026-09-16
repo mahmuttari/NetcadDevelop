@@ -504,4 +504,17 @@ export default {
   showLocked: 'रिबन में लॉक किए गए टूल दिखाएँ', allFeatures: 'सभी क्षमताएँ', tierUnlocks: '%s सुविधाएँ खोलता है',
   gizmoOn: 'चयन पर ले जाएँ / आकार बदलें / घुमाएँ हैंडल', infoTap: 'टैप करने पर जानकारी पैनल खोलें', infoMore: 'विवरण', infoLess: 'कम',
   proSrcOwner: 'डेवलपर खाता',
+  // budama · uzatma · kavis · pah · köşe tutamakları
+  notPath: 'इस वस्तु में कोई सीधा किनारा नहीं है', trimNoHit: 'काटने वाले किनारे से कोई प्रतिच्छेदन नहीं', trimSplit: 'भाग दो हिस्सों में बँट गया',
+  trimSelf: 'काटने वाले किनारे को स्वयं नहीं काटा जा सकता', extendNoHit: 'सीमा तक नहीं पहुँचता', filletFail: 'इस कोने पर गोलाई नहीं बनाई जा सकी',
+  filletRadius: 'गोलाई की त्रिज्या:', chamferDist: 'चैम्फर दूरी:', gripsOn: 'चयनित पथ पर शीर्ष ग्रिप',
+  gripsOnMsg: 'शीर्ष ग्रिप चालू', gripsOffMsg: 'शीर्ष ग्रिप बंद', gripsTooMany: 'बहुत अधिक शीर्ष, ग्रिप नहीं बनाए गए',
+  tool_trim: 'काटें', tstep_trim_0: 'काटने वाले किनारे को छुएँ', tstep_trim_1: 'हटाने वाले भाग को छुएँ (दोहराता है)',
+  tool_extend: 'बढ़ाएँ', tstep_extend_0: 'सीमा को छुएँ', tstep_extend_1: 'बढ़ाने वाले सिरे को छुएँ (दोहराता है)',
+  tool_fillet: 'गोलाई', tstep_fillet_0: 'पहली रेखा को छुएँ', tstep_fillet_1: 'दूसरी रेखा को छुएँ',
+  tool_chamfer: 'चैम्फर', tstep_chamfer_0: 'पहली रेखा को छुएँ', tstep_chamfer_1: 'दूसरी रेखा को छुएँ',
+  tl_grips: 'शीर्ष ग्रिप', th_grips: 'चयनित पथ के हर शीर्ष को अलग-अलग खींचें', 'tl_t:trim': 'काटें',
+  'th_t:trim': 'काटने वाले किनारे को छुएँ, फिर हटाने वाले भाग को', 'tl_t:extend': 'बढ़ाएँ', 'th_t:extend': 'सीमा को छुएँ, फिर बढ़ाने वाले सिरे को',
+  'tl_t:fillet': 'गोलाई', 'th_t:fillet': 'दो रेखाओं को छुएँ और त्रिज्या लिखें', 'tl_t:chamfer': 'चैम्फर',
+  'th_t:chamfer': 'दो रेखाओं को छुएँ और दूरी लिखें',
 };

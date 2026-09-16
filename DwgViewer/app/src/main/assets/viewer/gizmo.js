@@ -78,15 +78,93 @@ export function layout(bb, ts, opts = {}) {
   };
 }
 
-/** Ekran noktası hangi tutamağın üstünde? Öncelik: döndür > taşı > köşe > kenar. */
-export function hit(sx, sy, L) {
+/*
+ * Ekran noktası hangi tutamağın üstünde? Öncelik: döndür > taşı > KÖŞE DÜĞÜMÜ > kutu köşesi > kenar.
+ * VL verilmezse (köşe tutamakları kapalıyken) davranış birebir eskisi gibidir — bir polyline'ın
+ * düğümleri çoğu zaman sınır kutusunun köşelerine denk gelir (dikdörtgende birebir), o yüzden
+ * düğüm önceliği ancak kullanıcı köşe tutamaklarını açtığında devreye girer.
+ */
+export function hit(sx, sy, L, VL) {
   if (!L) return null;
   const near = (p, r) => Math.hypot(sx - p[0], sy - p[1]) <= r;
   if (near(L.pts.rot, L.hitR)) return 'rot';
   if (near(L.pts.move, L.hitR)) return 'move';
+  if (VL && VL.pts) {
+    let en = -1, ed = VL.hitR;
+    for (let i = 0; i < VL.pts.length; i++) {
+      const d = Math.hypot(sx - VL.pts[i][0], sy - VL.pts[i][1]);
+      if (d <= ed) { ed = d; en = i; }
+    }
+    if (en >= 0) return 'v:' + VL.verts[en].i;
+  }
   for (const k of CORNERS) if (near(L.pts[k], L.hitR)) return k;
   if (!L.tiny) for (const k of EDGES) if (near(L.pts[k], L.hitR)) return k;
   return null;
+}
+
+// ---- köşe (düğüm) tutamakları -------------------------------------------------------
+/**
+ * Yol ilkelinin sürüklenebilir düğümleri. Yalnız düz işlemler (moveTo / lineTo) tutamak alır:
+ * bir yayın merkezini sürüklemek yayın iki ucunu da bozardı, o başka bir araçtır.
+ * limit aşılırsa BOŞ dizi döner — binlerce düğümlü bir polyline ekranı tutamakla doldurur ve
+ * hiçbiri isabetle tutulamaz; çağıran kullanıcıya 'gripsTooMany' der.
+ */
+export function vertsOf(prim, limit = 200) {
+  if (!prim || prim.k !== 0 || !Array.isArray(prim.ops)) return [];
+  const out = [];
+  for (let i = 0; i < prim.ops.length; i++) {
+    const o = prim.ops[i];
+    if (o[0] !== 0 && o[0] !== 1) continue;
+    out.push({ i, x: o[1], y: o[2], z: typeof o[3] === 'number' && isFinite(o[3]) ? o[3] : 0 });
+    if (out.length > limit) return [];
+  }
+  return out;
+}
+
+/**
+ * Düğümlerin ekran yerleşimi. Tutamak ve dokunma yarıçapı kutu tutamaklarından BİR TIK
+ * küçüktür: ikisi üst üste geldiğinde hangisinin kazanacağı hit()'teki sıraya bırakılmaz,
+ * ölçüyle de desteklenir.
+ */
+export function layoutVerts(verts, ts, opts = {}) {
+  if (!verts || !verts.length) return null;
+  const fs = opts.fs || 1, glove = !!opts.glove;
+  return {
+    verts,
+    pts: verts.map(v => ts(v.x, v.y)),
+    r: Math.round((glove ? 9 : 7) * fs),
+    hitR: Math.round((glove ? 24 : 20) * fs),
+  };
+}
+
+/** Tutamak kimliğinin istediği yetki ('v:3' → 'grips') */
+export const needOf = (kind) => (typeof kind === 'string' && kind.startsWith('v:') ? 'grips' : (NEED_OF[kind] || 't:move'));
+
+/**
+ * i. düğümü (x, y)'ye taşınmış ops kopyası. Kaplamadaki ÖNİZLEME ile bırakışta çalıştırılan
+ * komut AYNI işlevi kullanır; böylece görünen ile yazılan ayrışamaz.
+ */
+export function movedOps(ops, i, x, y) {
+  const n = ops.map(o => o.slice());
+  if (!n[i]) return n;
+  n[i] = [n[i][0], x, y, typeof n[i][3] === 'number' && isFinite(n[i][3]) ? n[i][3] : 0];
+  return n;
+}
+
+/** Düğüm tutamaklarını çizer: küçük dolu kareler, sürüklenen düğüm içi boş. */
+export function drawVerts(c, VL, col, opts = {}) {
+  if (!VL || !VL.pts.length) return;
+  const line = col.line || '#ff9f0a', fill = col.fill || '#101820';
+  const aktif = opts.active == null ? -1 : opts.active;
+  c.save();
+  c.lineWidth = Math.max(1.4, 1.8 * (opts.fs || 1));
+  for (let i = 0; i < VL.pts.length; i++) {
+    const p = VL.pts[i], r = VL.r;
+    c.fillStyle = VL.verts[i].i === aktif ? fill : line;
+    c.strokeStyle = line;
+    c.beginPath(); c.rect(p[0] - r, p[1] - r, r * 2, r * 2); c.fill(); c.stroke();
+  }
+  c.restore();
 }
 
 /** Dünya kutusunun köşesi / kenar ortası (kimliğe göre) */

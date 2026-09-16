@@ -504,4 +504,17 @@ export default {
   showLocked: 'Mostra gli strumenti bloccati nella barra multifunzione', allFeatures: 'Tutte le funzioni', tierUnlocks: 'Sblocca %s funzioni',
   gizmoOn: 'Maniglie sposta / scala / ruota sulla selezione', infoTap: 'Apri il pannello informazioni al tocco', infoMore: 'Dettagli', infoLess: 'Meno',
   proSrcOwner: 'Account sviluppatore',
+  // budama · uzatma · kavis · pah · köşe tutamakları
+  notPath: 'Questo oggetto non ha alcun bordo rettilineo', trimNoHit: 'Nessuna intersezione con il bordo di taglio', trimSplit: 'Il tratto è stato diviso in due',
+  trimSelf: 'Il bordo di taglio stesso non può essere tagliato', extendNoHit: 'Non raggiunge il limite', filletFail: 'Non è possibile creare un raccordo in questo spigolo',
+  filletRadius: 'Raggio del raccordo:', chamferDist: 'Distanza dello smusso:', gripsOn: 'Grip dei vertici sulla polilinea selezionata',
+  gripsOnMsg: 'Grip dei vertici attivi', gripsOffMsg: 'Grip dei vertici disattivati', gripsTooMany: 'Troppi vertici, grip non disegnati',
+  tool_trim: 'Taglia', tstep_trim_0: 'Tocca il bordo di taglio', tstep_trim_1: 'Tocca il tratto da rimuovere (si ripete)',
+  tool_extend: 'Estendi', tstep_extend_0: 'Tocca il limite', tstep_extend_1: 'Tocca l\'estremità da estendere (si ripete)',
+  tool_fillet: 'Raccordo', tstep_fillet_0: 'Tocca la prima linea', tstep_fillet_1: 'Tocca la seconda linea',
+  tool_chamfer: 'Smusso', tstep_chamfer_0: 'Tocca la prima linea', tstep_chamfer_1: 'Tocca la seconda linea',
+  tl_grips: 'Grip dei vertici', th_grips: 'Trascina ogni vertice della polilinea selezionata', 'tl_t:trim': 'Taglia',
+  'th_t:trim': 'Tocca il bordo di taglio, poi il tratto da rimuovere', 'tl_t:extend': 'Estendi', 'th_t:extend': 'Tocca il limite, poi l\'estremità da estendere',
+  'tl_t:fillet': 'Raccordo', 'th_t:fillet': 'Tocca due linee e digita il raggio', 'tl_t:chamfer': 'Smusso',
+  'th_t:chamfer': 'Tocca due linee e digita la distanza',
 };

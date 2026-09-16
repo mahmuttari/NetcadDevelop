@@ -504,4 +504,17 @@ export default {
   showLocked: '잠긴 도구를 리본에 표시', allFeatures: '전체 기능', tierUnlocks: '%s개 기능 해제',
   gizmoOn: '선택 항목의 이동 / 크기 조절 / 회전 핸들', infoTap: '탭하면 정보 패널 열기', infoMore: '자세히', infoLess: '간단히',
   proSrcOwner: '개발자 계정',
+  // budama · uzatma · kavis · pah · köşe tutamakları
+  notPath: '이 객체에는 직선 모서리가 없습니다', trimNoHit: '절단 모서리와 교차하지 않습니다', trimSplit: '선이 둘로 나뉘었습니다',
+  trimSelf: '절단 모서리 자체는 자를 수 없습니다', extendNoHit: '경계에 닿지 않습니다', filletFail: '이 모서리에는 모깎기를 만들 수 없습니다',
+  filletRadius: '모깎기 반지름:', chamferDist: '모따기 거리:', gripsOn: '선택한 경로의 정점 그립',
+  gripsOnMsg: '정점 그립 켜짐', gripsOffMsg: '정점 그립 꺼짐', gripsTooMany: '정점이 너무 많아 그립을 그리지 않았습니다',
+  tool_trim: '자르기', tstep_trim_0: '절단 모서리를 누르세요', tstep_trim_1: '제거할 부분을 누르세요 (반복)',
+  tool_extend: '연장', tstep_extend_0: '경계를 누르세요', tstep_extend_1: '연장할 끝점을 누르세요 (반복)',
+  tool_fillet: '모깎기', tstep_fillet_0: '첫 번째 선을 누르세요', tstep_fillet_1: '두 번째 선을 누르세요',
+  tool_chamfer: '모따기', tstep_chamfer_0: '첫 번째 선을 누르세요', tstep_chamfer_1: '두 번째 선을 누르세요',
+  tl_grips: '정점 그립', th_grips: '선택한 경로의 각 정점을 따로 끌어 보세요', 'tl_t:trim': '자르기',
+  'th_t:trim': '절단 모서리를 누른 다음 제거할 부분을 누르세요', 'tl_t:extend': '연장', 'th_t:extend': '경계를 누른 다음 연장할 끝점을 누르세요',
+  'tl_t:fillet': '모깎기', 'th_t:fillet': '두 선을 누르고 반지름을 입력하세요', 'tl_t:chamfer': '모따기',
+  'th_t:chamfer': '두 선을 누르고 거리를 입력하세요',
 };

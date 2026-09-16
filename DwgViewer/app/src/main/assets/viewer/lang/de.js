@@ -323,4 +323,17 @@ export default {
   showLocked: 'Gesperrte Werkzeuge im Menüband zeigen', allFeatures: 'Alle Funktionen', tierUnlocks: 'Schaltet %s Funktionen frei',
   gizmoOn: 'Griffe zum Verschieben / Skalieren / Drehen der Auswahl', infoTap: 'Infofenster beim Antippen öffnen', infoMore: 'Details', infoLess: 'Weniger',
   proSrcOwner: 'Entwicklerkonto',
+  // budama · uzatma · kavis · pah · köşe tutamakları
+  notPath: 'Dieses Objekt hat keine gerade Kante', trimNoHit: 'Kein Schnittpunkt mit der Schnittkante', trimSplit: 'Das Teil wurde in zwei geteilt',
+  trimSelf: 'Die Schnittkante selbst kann nicht gestutzt werden', extendNoHit: 'Erreicht die Grenze nicht', filletFail: 'An dieser Ecke ist keine Rundung möglich',
+  filletRadius: 'Rundungsradius:', chamferDist: 'Fasenabstand:', gripsOn: 'Eckpunktgriffe am gewählten Pfad',
+  gripsOnMsg: 'Eckpunktgriffe ein', gripsOffMsg: 'Eckpunktgriffe aus', gripsTooMany: 'Zu viele Eckpunkte, Griffe nicht gezeichnet',
+  tool_trim: 'Stutzen', tstep_trim_0: 'Schnittkante antippen', tstep_trim_1: 'Zu entfernendes Teil antippen (wiederholt)',
+  tool_extend: 'Dehnen', tstep_extend_0: 'Grenze antippen', tstep_extend_1: 'Zu dehnendes Ende antippen (wiederholt)',
+  tool_fillet: 'Abrunden', tstep_fillet_0: 'Erste Linie antippen', tstep_fillet_1: 'Zweite Linie antippen',
+  tool_chamfer: 'Fase', tstep_chamfer_0: 'Erste Linie antippen', tstep_chamfer_1: 'Zweite Linie antippen',
+  tl_grips: 'Eckpunktgriffe', th_grips: 'Jeden Eckpunkt des gewählten Pfads einzeln ziehen', 'tl_t:trim': 'Stutzen',
+  'th_t:trim': 'Schnittkante antippen, dann das zu entfernende Teil', 'tl_t:extend': 'Dehnen', 'th_t:extend': 'Grenze antippen, dann das zu dehnende Ende',
+  'tl_t:fillet': 'Abrunden', 'th_t:fillet': 'Zwei Linien antippen und den Radius eingeben', 'tl_t:chamfer': 'Fase',
+  'th_t:chamfer': 'Zwei Linien antippen und den Abstand eingeben',
 };

@@ -504,4 +504,17 @@ export default {
   showLocked: 'ロックされたツールをリボンに表示', allFeatures: 'すべての機能', tierUnlocks: '%s 機能を解除',
   gizmoOn: '選択範囲の移動・拡大縮小・回転ハンドル', infoTap: 'タップで情報パネルを開く', infoMore: '詳細', infoLess: '簡易',
   proSrcOwner: '開発者アカウント',
+  // budama · uzatma · kavis · pah · köşe tutamakları
+  notPath: 'このオブジェクトには直線の辺がありません', trimNoHit: '切断エッジと交差していません', trimSplit: '図形が 2 つに分割されました',
+  trimSelf: '切断エッジ自体はトリムできません', extendNoHit: '境界に届きません', filletFail: 'この角にはフィレットを作成できません',
+  filletRadius: 'フィレット半径:', chamferDist: '面取り距離:', gripsOn: '選択したパスの頂点グリップ',
+  gripsOnMsg: '頂点グリップ オン', gripsOffMsg: '頂点グリップ オフ', gripsTooMany: '頂点が多すぎるため、グリップを表示しません',
+  tool_trim: 'トリム', tstep_trim_0: '切断エッジをタップ', tstep_trim_1: '削除する部分をタップ (繰り返し)',
+  tool_extend: '延長', tstep_extend_0: '境界をタップ', tstep_extend_1: '延長する端点をタップ (繰り返し)',
+  tool_fillet: 'フィレット', tstep_fillet_0: '1 本目の線をタップ', tstep_fillet_1: '2 本目の線をタップ',
+  tool_chamfer: '面取り', tstep_chamfer_0: '1 本目の線をタップ', tstep_chamfer_1: '2 本目の線をタップ',
+  tl_grips: '頂点グリップ', th_grips: '選択したパスの各頂点を個別にドラッグ', 'tl_t:trim': 'トリム',
+  'th_t:trim': '切断エッジ、次に削除する部分をタップ', 'tl_t:extend': '延長', 'th_t:extend': '境界、次に延長する端点をタップ',
+  'tl_t:fillet': 'フィレット', 'th_t:fillet': '2 本の線をタップして半径を入力', 'tl_t:chamfer': '面取り',
+  'th_t:chamfer': '2 本の線をタップして距離を入力',
 };

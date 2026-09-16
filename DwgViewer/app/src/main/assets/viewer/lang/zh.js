@@ -305,4 +305,17 @@ export default {
   showLocked: '在功能区中显示锁定的工具', allFeatures: '全部功能', tierUnlocks: '解锁 %s 项功能',
   gizmoOn: '选择对象上的移动 / 缩放 / 旋转手柄', infoTap: '点按时打开信息面板', infoMore: '详细', infoLess: '简略',
   proSrcOwner: '开发者账号',
+  // budama · uzatma · kavis · pah · köşe tutamakları
+  notPath: '该对象没有直线边', trimNoHit: '与剪切边没有交点', trimSplit: '线段已被分成两段',
+  trimSelf: '不能修剪剪切边本身', extendNoHit: '未到达边界', filletFail: '无法在此角点创建圆角',
+  filletRadius: '圆角半径：', chamferDist: '倒角距离：', gripsOn: '所选路径的顶点夹点',
+  gripsOnMsg: '顶点夹点已开启', gripsOffMsg: '顶点夹点已关闭', gripsTooMany: '顶点过多，未绘制夹点',
+  tool_trim: '修剪', tstep_trim_0: '点击剪切边', tstep_trim_1: '点击要删除的部分（可重复）',
+  tool_extend: '延伸', tstep_extend_0: '点击边界', tstep_extend_1: '点击要延伸的端点（可重复）',
+  tool_fillet: '圆角', tstep_fillet_0: '点击第一条线', tstep_fillet_1: '点击第二条线',
+  tool_chamfer: '倒角', tstep_chamfer_0: '点击第一条线', tstep_chamfer_1: '点击第二条线',
+  tl_grips: '顶点夹点', th_grips: '逐个拖动所选路径的每个顶点', 'tl_t:trim': '修剪',
+  'th_t:trim': '先点击剪切边，再点击要删除的部分', 'tl_t:extend': '延伸', 'th_t:extend': '先点击边界，再点击要延伸的端点',
+  'tl_t:fillet': '圆角', 'th_t:fillet': '点击两条线并输入半径', 'tl_t:chamfer': '倒角',
+  'th_t:chamfer': '点击两条线并输入距离',
 };

@@ -36,7 +36,7 @@ const ed = { is3D: () => !!(v3 && !$('cv3d').hidden), tools: null, doc: null, cu
 // ---------------------------------------------------------------------------------
 // Kullanım tercihleri (ui) — kalıcı anahtar 'ui'
 // ---------------------------------------------------------------------------------
-const UI_DEFAULTS = { favs: [], tbCollapsed: { portrait: false, landscape: false }, hints: {}, fontScale: 1, glove: false, leftHand: false, contrast: false, reduceMotion: false, haptics: true, dpad: false, compactStatus: false, showLocked: true, gizmo: true, infoTap: true, infoFull: false, pick3: 'auto' };
+const UI_DEFAULTS = { favs: [], tbCollapsed: { portrait: false, landscape: false }, hints: {}, fontScale: 1, glove: false, leftHand: false, contrast: false, reduceMotion: false, haptics: true, dpad: false, compactStatus: false, showLocked: true, gizmo: true, infoTap: true, infoFull: false, pick3: 'auto', grips: false };
 export const ui = (() => {
   const o = JSON.parse(JSON.stringify(UI_DEFAULTS));
   const st = store.json('ui', null);
@@ -100,9 +100,9 @@ const TABS = [
     { cap: 'grpCur', items: [T('layer', 'i-layers', 'Katman', 'Layer'), T('color', 'i-palette', 'Renk', 'Color')] },
     { cap: 'grpHist', items: [T('undo', 'i-undo', 'Geri al', 'Undo'), T('redo', 'i-redo', 'Yinele', 'Redo')] } ] },
   { id: 'edit', i18n: 'tabEdit', icon: 'i-select', groups: [
-    { cap: 'grpSel', items: [T('t:select', 'i-select', 'Seç', 'Select', 'Dokunarak seçim; Tümü düğmesiyle hepsi', 'Tap to select'), T('props', 'i-props', 'Özellikler', 'Properties', 'Seçimin katmanı ve rengi', 'Layer and color of the selection')] },
+    { cap: 'grpSel', items: [T('t:select', 'i-select', 'Seç', 'Select', 'Dokunarak seçim; Tümü düğmesiyle hepsi', 'Tap to select'), T('props', 'i-props', 'Özellikler', 'Properties', 'Seçimin katmanı ve rengi', 'Layer and color of the selection'), T('grips', 'i-grips', 'Köşe tutamakları', 'Vertex grips', 'Seçili yolun her köşesini ayrı ayrı sürükleyin', 'Drag each vertex of the selected path')] },
     { cap: 'grpXform', items: [T('t:move', 'i-move', 'Taşı', 'Move'), T('t:copy', 'i-copy', 'Kopyala', 'Copy'), T('t:rotate', 'i-rotate', 'Döndür', 'Rotate'), T('t:scale', 'i-scale', 'Ölçekle', 'Scale'), T('t:mirror', 'i-mirror', 'Aynala', 'Mirror'), T('t:offset', 'i-offset', 'Ofset', 'Offset')] },
-    { cap: 'grpModify', items: [T('t:del', 'i-trash', 'Sil', 'Delete'), T('t:setz', 'i-z', 'Kot ata', 'Set Z', 'Seçime Z kotu atar', 'Assign elevation'), T('t:edittext', 'i-edittext', 'Yazı düzenle', 'Edit text'), T('t:array', 'i-array', 'Dizi', 'Array', 'Dikdörtgen ya da kutupsal artımlı kopya', 'Rectangular or polar incremental copy'), T('t:thick', 'i-thick', 'Kalınlık', 'Thickness', '2B nesneye yükseklik vererek 3B gövde üretir', 'Extrude 2D objects into 3D bodies'), T('t:explode', 'i-explode', 'Patlat', 'Explode', 'Blok yerleştirmesini parçalarına ayırır', 'Break a block insertion into its parts'), T('t:textsize', 'i-textsize', 'Yazı yüksekliği', 'Text height', 'Seçili yazıların yüksekliğini değiştirir', 'Change the height of selected texts'), T('t:attr', 'i-attr', 'Öznitelik', 'Attributes', 'Blok özniteliklerini düzenler', 'Edit block attributes'), T('findrep', 'i-findrep', 'Bul-değiştir', 'Find & replace', 'Çizimdeki yazılarda toplu değiştirme', 'Bulk replace across drawing texts')] },
+    { cap: 'grpModify', items: [T('t:del', 'i-trash', 'Sil', 'Delete'), T('t:setz', 'i-z', 'Kot ata', 'Set Z', 'Seçime Z kotu atar', 'Assign elevation'), T('t:edittext', 'i-edittext', 'Yazı düzenle', 'Edit text'), T('t:array', 'i-array', 'Dizi', 'Array', 'Dikdörtgen ya da kutupsal artımlı kopya', 'Rectangular or polar incremental copy'), T('t:thick', 'i-thick', 'Kalınlık', 'Thickness', '2B nesneye yükseklik vererek 3B gövde üretir', 'Extrude 2D objects into 3D bodies'), T('t:explode', 'i-explode', 'Patlat', 'Explode', 'Blok yerleştirmesini parçalarına ayırır', 'Break a block insertion into its parts'), T('t:textsize', 'i-textsize', 'Yazı yüksekliği', 'Text height', 'Seçili yazıların yüksekliğini değiştirir', 'Change the height of selected texts'), T('t:attr', 'i-attr', 'Öznitelik', 'Attributes', 'Blok özniteliklerini düzenler', 'Edit block attributes'), T('findrep', 'i-findrep', 'Bul-değiştir', 'Find & replace', 'Çizimdeki yazılarda toplu değiştirme', 'Bulk replace across drawing texts'), T('t:trim', 'i-trim', 'Buda', 'Trim', 'Kesici kenara, sonra atılacak parçaya dokunun', 'Tap the cutting edge, then the piece to remove'), T('t:extend', 'i-extend', 'Uzat', 'Extend', 'Sınıra, sonra uzatılacak uca dokunun', 'Tap the boundary, then the end to extend'), T('t:fillet', 'i-fillet', 'Kavis', 'Fillet', 'İki doğruya dokunun, yarıçapı yazın', 'Tap two lines and type the radius'), T('t:chamfer', 'i-chamfer', 'Pah', 'Chamfer', 'İki doğruya dokunun, mesafeyi yazın', 'Tap two lines and type the distance')] },
     { cap: 'grpBlock', items: [T('blocklib', 'i-block', 'Blok kütüphanesi', 'Block library', 'Seçimden blok oluştur, kaydet, çizime ekle', 'Create, save and insert blocks'), T('copyclip', 'i-copy', 'Panoya kopyala', 'Copy to clipboard', 'Seçimi panoya alır; başka çizimde yapıştırılır', 'Copy the selection for pasting into another drawing'), T('pasteclip', 'i-paste', 'Panodan yapıştır', 'Paste', 'Panodaki nesneleri bu çizime ekler', 'Paste clipboard objects into this drawing')] },
     { cap: 'grpHist', items: [T('undo', 'i-undo', 'Geri al', 'Undo'), T('redo', 'i-redo', 'Yinele', 'Redo')] } ] },
   { id: '3d', i18n: 'tab3d', icon: 'i-cube', groups: [
@@ -348,7 +348,7 @@ function refreshTiles() {
   if (S) {
     on.theme = !S.dark; on.sun = !!S.sun; on.text = S.show.text; on.hatch = S.show.hatch; on.dim = S.show.dim; on.points = S.show.point; on.images = S.show.image;
     on.lw = !!S.lw; on.mono = S.colorMode === 'mono'; on.ltype = S.show.ltype; on.grid = S.grid.on; on.crosshair = S.crosshair !== 'off'; on.rulers = !!S.rulers; on.fade = S.fade.on;
-    on.osnap = S.snapModes && S.snapModes.size > 0; on['3d'] = ed.is3D();
+    on.osnap = S.snapModes && S.snapModes.size > 0; on['3d'] = ed.is3D(); on.grips = !!ui.grips;
   }
   if (v3) { const o = v3.opts; on.grid3 = o.grid; on.axes3 = o.axes; on.cube3 = o.cube; on.hud3 = o.hud; on.light3 = o.light; on.turn3 = o.turntable; on.persp = v3.cam.persp; on.clip3 = !!o.clip; on.shadow3 = o.shadow; on.sil3 = !!v3._styleFx().silhouette; on.edges3 = !!v3._styleFx().edges; }
   document.querySelectorAll('#toolbar [data-act]').forEach(b => { const k = b.dataset.act; if (k in on) { b.classList.toggle('on', !!on[k]); b.setAttribute('aria-pressed', String(!!on[k])); } if (!FREE.has(k) && !HIST.has(k)) b.disabled = has(k) ? !(S && S.hasDoc) : false; });
@@ -512,6 +512,7 @@ function act(name, btn) {
     case 'layers': case 'search': case 'notes': case 'gps': case 'pdf': case 'png': case 'more': case 'profile': case 'info': case 'views': case 'layouts': case 'basemap': case 'compare': case 'drive': case 'count': case 'textout':
     case 'markdim': case 'findrep': case 'blocklib': case 'copyclip': case 'pasteclip': case 'mesh3d': case 'tableout': case 'batch': case 'pdfcad': api.action(name); break;
     case 'osnap': toggleOsnap(); break;
+    case 'grips': toggleGrips(); break;
     case 'display': call(api.openDisplayOptions, { seg: ed.is3D() ? '3d' : '2d' }); break;
     case 'undo': if (doc && doc.undo()) { refreshUndo(); api.requestRender(); if (ed.is3D()) { refresh3D(); v3.render(); } api.toast(t('undone')); } break;
     case 'redo': if (doc && doc.redo()) { refreshUndo(); api.requestRender(); if (ed.is3D()) { refresh3D(); v3.render(); } api.toast(t('redone')); } break;
@@ -544,6 +545,20 @@ function act(name, btn) {
   refreshTiles();
 }
 let osnapBackup = null;
+/*
+ * Köşe tutamaklarını açar / kapar. Açıldığında tek bir yol seçiliyse düğümler belirir; düğüm
+ * sayısı sınırı aşıyorsa tutamak çizilmez ve kullanıcıya nedeni söylenir — sessizce hiçbir şey
+ * olmaması "bozuk" gibi görünür.
+ */
+function toggleGrips() {
+  ui.grips = !ui.grips;
+  applyUi(); haptic('toggle'); refreshTiles(); api.drawOverlay();
+  if (ui.grips && ed.sel.size === 1) {
+    const p = [...ed.sel][0];
+    if (p && p.k === 0 && !Gz.vertsOf(p).length) api.toast(t('gripsTooMany'), 2200);
+  }
+  api.toast(ui.grips ? t('gripsOnMsg') : t('gripsOffMsg'), 1200);
+}
 function toggleOsnap() {
   if (S.snapModes.size) { osnapBackup = [...S.snapModes]; S.snapModes.clear(); api.toast(t('osnapOff'), 1200); }
   else { for (const m of (osnapBackup && osnapBackup.length ? osnapBackup : ['end', 'mid', 'cen', 'int', 'ins', 'node'])) S.snapModes.add(m); api.toast(t('osnapOn'), 1200); }
@@ -716,17 +731,48 @@ function gizmoLayout() {
   const bb = Gz.boxOf(ed.sel);
   return bb ? Gz.layout(bb, toScreen, { fs: ui.fontScale, glove: ui.glove }) : null;
 }
+/*
+ * Köşe (düğüm) tutamakları. VARSAYILAN KAPALIDIR: bir polyline'ın düğümleri çoğu zaman sınır
+ * kutusunun köşeleriyle çakışır (dikdörtgende birebir), açık bırakılırsa kutuyla ölçekleme
+ * yapılamaz hâle gelir. Kullanıcı karodan açtığında düğüm önceliği kazanır.
+ * Yalnız TEK bir yol ilkeli seçiliyken görünür; çoklu seçimde hangi yolun düğümü olduğu
+ * anlaşılmaz ve tutamaklar birbirine girer.
+ */
+function gizmoVertLayout() {
+  if (!ui.grips || !gizmoOn() || ed.sel.size !== 1) return null;
+  const p = [...ed.sel][0];
+  if (!p || p.k !== 0) return null;
+  const vs = Gz.vertsOf(p);
+  if (!vs.length) return null;
+  const VL = Gz.layoutVerts(vs, toScreen, { fs: ui.fontScale, glove: ui.glove });
+  return VL ? { p, vs, VL } : null;
+}
 /** İşaretçi bir tutamağa indi mi? true dönerse app.js kaydırma/dokunma yapmaz. */
 ed.gizmoDown = (sx, sy) => {
   const L = gizmoLayout(); if (!L) return false;
-  const kind = Gz.hit(sx, sy, L); if (!kind) return false;
-  if (!gate(Gz.NEED_OF[kind] || 't:move')) return true;   // yetki yoksa jest yine yutulur: kutu açıldı
+  const G = gizmoVertLayout();
+  const kind = Gz.hit(sx, sy, L, G && G.VL); if (!kind) return false;
+  if (!gate(Gz.needOf(kind))) return true;   // yetki yoksa jest yine yutulur: kutu açıldı
+  if (String(kind).startsWith('v:')) {
+    const vi = +kind.slice(2);
+    giz = { kind, vi, prim: G.p, ops0: G.p.ops.map(o => o.slice()), w0: toWorld(sx, sy), p: null, m: null, info: null };
+    haptic('snap');
+    return true;
+  }
   giz = { kind, bb: Gz.boxOf(ed.sel), w0: toWorld(sx, sy), m: null, info: null };
   haptic('snap');
   return true;
 };
 ed.gizmoMove = (sx, sy) => {
   if (!giz) return false;
+  if (giz.vi != null) {
+    // Bırakma noktası yakalamaya oturur: düğüm bir başka çizginin ucuna TAM denk gelsin diye.
+    const w = toWorld(sx, sy), sn = api.snap(w), q = sn ? sn.p : w;
+    giz.p = [q[0], q[1]];
+    giz.info = { tip: 'vertex', dx: q[0] - giz.ops0[giz.vi][1], dy: q[1] - giz.ops0[giz.vi][2] };
+    api.drawOverlay();
+    return true;
+  }
   const r = Gz.drag(giz.kind, giz.bb, giz.w0, toWorld(sx, sy));
   giz.m = r.m; giz.info = r.info;
   api.drawOverlay();
@@ -736,6 +782,15 @@ ed.gizmoMove = (sx, sy) => {
 ed.gizmoUp = (commit) => {
   const g = giz; giz = null;
   if (!g) return false;
+  if (g.vi != null) {
+    const kip = g.p && (Math.abs(g.p[0] - g.ops0[g.vi][1]) > 0 || Math.abs(g.p[1] - g.ops0[g.vi][2]) > 0);
+    if (commit && kip && doc) {
+      doc.run({ op: 'reshape', items: [{ key: g.prim.key, ops: Gz.movedOps(g.ops0, g.vi, g.p[0], g.p[1]) }] });
+      refreshUndo(); api.requestRender(); haptic('toggle');
+    }
+    api.drawOverlay();
+    return true;
+  }
   if (commit && g.m && !Gz.isIdentity(g.m) && doc) {
     const keys = [...ed.sel].map(p => p.key);
     if (keys.length) { doc.run({ op: 'xform', keys, m: g.m }); refreshUndo(); api.requestRender(); haptic('toggle'); }
@@ -747,7 +802,7 @@ ed.gizmoBusy = () => !!giz;
 /** Sürükleme okuması: ölçek yüzdesi / açı / öteleme — durum çubuğu yerine kutunun yanında */
 function gizmoText() {
   const i = giz && giz.info; if (!i) return '';
-  if (i.tip === 'move') return `${fmt(i.dx)} ; ${fmt(i.dy)}`;
+  if (i.tip === 'move' || i.tip === 'vertex') return `${fmt(i.dx)} ; ${fmt(i.dy)}`;
   if (i.tip === 'rot') return `${fmt(i.deg, 1)}°` + (i.snap ? ' ⌁' : '');
   return i.uniform ? `%${fmt(i.sx * 100, 1)}` : `%${fmt(i.sx * 100, 1)} × %${fmt(i.sy * 100, 1)}`;
 }
@@ -762,11 +817,23 @@ export function overlay(c) {
     // koordinatındadır, kaplama ise yerel kökende çizer — Gz.localM konjugasyonu bunu çevirir.
     if (giz && giz.m) { const [ox, oy] = api.worldOrigin(); const lm = Gz.localM(giz.m, ox, oy); c.transform(lm[0], lm[1], lm[2], lm[3], lm[4], lm[5]); }
     c.strokeStyle = acc; c.lineWidth = sw / S.view.scale; c.setLineDash([6 / S.view.scale, 4 / S.view.scale]); c.globalAlpha = 0.95;
-    for (const p of ed.sel) { if (p.k === 0) { c.beginPath(); api.tracePath(c, p.ops); if (p.closed) c.closePath(); c.stroke(); } else api.strokeWorldRect(c, p.bb); }
+    // Düğüm sürüklenirken matris YOKTUR (tek köşeyi taşımak afin değildir): o ilkel, taşınmış
+    // ops'uyla çizilir. Önizleme ile bırakışta işlenen komut aynı Gz.movedOps'tan gelir.
+    const surukVi = giz && giz.vi != null && giz.p ? giz : null;
+    for (const p of ed.sel) {
+      if (p.k === 0) {
+        c.beginPath();
+        api.tracePath(c, surukVi && surukVi.prim === p ? Gz.movedOps(surukVi.ops0, surukVi.vi, surukVi.p[0], surukVi.p[1]) : p.ops);
+        if (p.closed) c.closePath();
+        c.stroke();
+      } else api.strokeWorldRect(c, p.bb);
+    }
     c.restore(); c.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);
     const L = gizmoLayout();
     if (L) {
       Gz.draw(c, L, { line: acc, fill: bgColor(), ink: acc }, { fs: ui.fontScale });
+      const G = gizmoVertLayout();
+      if (G) Gz.drawVerts(c, G.VL, { line: acc, fill: bgColor(), ink: acc }, { fs: ui.fontScale, active: giz && giz.vi != null ? giz.vi : -1 });
       const txt = gizmoText();
       if (txt) {
         c.font = `bold ${Math.round(12 * ui.fontScale)}px sans-serif`; c.textAlign = 'center'; c.textBaseline = 'bottom';
@@ -1202,7 +1269,7 @@ export function accessibilitySection() {
   const html = `<div class="opt-sec a11y-sec full"><div class="opt-title">${esc(t('a11yTitle'))}</div>` +
     `<div class="opt-row"><span class="opt-lb">${esc(t('fontScale'))}</span><div class="seg" data-key="fontScale">${[[0.9, 'A−'], [1, 'A'], [1.15, 'A+'], [1.3, 'A++']].map(([v, l]) => `<button type="button" data-val="${v}" class="${Math.abs(ui.fontScale - v) < 0.01 ? 'on' : ''}">${l}</button>`).join('')}</div></div>` +
     sw('glove', t('glove')) + sw('leftHand', t('leftHand')) + sw('contrast', t('contrast')) + sw('reduceMotion', t('reduceMotion')) + sw('haptics', t('haptics')) + sw('dpad', t('dpad')) + sw('compactStatus', t('compactStatus')) +
-    sw('gizmo', t('gizmoOn')) + sw('infoTap', t('infoTap')) +
+    sw('gizmo', t('gizmoOn')) + sw('grips', t('gripsOn')) + sw('infoTap', t('infoTap')) +
     (rank(tier()) < rank('super') ? sw('showLocked', t('showLocked')) : '') +
     `<div class="opt-row"><button type="button" class="btn small" data-do="hints">${esc(t('hintsReset'))}</button></div></div>`;
   return { html, bind(root) {
@@ -1218,7 +1285,7 @@ export function accessibilitySection() {
       ui[inp.dataset.key] = inp.checked; applyUi();
       if (inp.dataset.key === 'dpad') D.refreshNav();
       if (inp.dataset.key === 'showLocked') ed.rebuild();   // şerit yeniden kurulur (sekme + karo + çağrı karosu)
-      if (inp.dataset.key === 'gizmo') api.drawOverlay();   // tutamak anında görünür / kaybolur
+      if (inp.dataset.key === 'gizmo' || inp.dataset.key === 'grips') { refreshTiles(); api.drawOverlay(); }   // tutamak anında görünür / kaybolur
     });
   } };
 }
