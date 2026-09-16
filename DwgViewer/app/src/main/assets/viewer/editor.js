@@ -36,7 +36,7 @@ const ed = { is3D: () => !!(v3 && !$('cv3d').hidden), tools: null, doc: null, cu
 // ---------------------------------------------------------------------------------
 // Kullanım tercihleri (ui) — kalıcı anahtar 'ui'
 // ---------------------------------------------------------------------------------
-const UI_DEFAULTS = { favs: [], tbCollapsed: { portrait: false, landscape: false }, hints: {}, fontScale: 1, glove: false, leftHand: false, contrast: false, reduceMotion: false, haptics: true, dpad: false, compactStatus: false, showLocked: true, gizmo: true, infoTap: true, infoFull: false, pick3: 'auto', grips: false };
+const UI_DEFAULTS = { favs: [], tbCollapsed: { portrait: false, landscape: false }, hints: {}, fontScale: 1, glove: false, leftHand: false, contrast: false, reduceMotion: false, haptics: true, dpad: false, compactStatus: false, showLocked: true, gizmo: true, infoTap: true, infoFull: false, pick3: 'auto', grips: false, palmReject: true, penHover: true, penPressure: true, penDraw: false, penBarrel: 'menu' };
 export const ui = (() => {
   const o = JSON.parse(JSON.stringify(UI_DEFAULTS));
   const st = store.json('ui', null);
@@ -1271,7 +1271,7 @@ export function accessibilitySection() {
     sw('glove', t('glove')) + sw('leftHand', t('leftHand')) + sw('contrast', t('contrast')) + sw('reduceMotion', t('reduceMotion')) + sw('haptics', t('haptics')) + sw('dpad', t('dpad')) + sw('compactStatus', t('compactStatus')) +
     sw('gizmo', t('gizmoOn')) + sw('grips', t('gripsOn')) + sw('infoTap', t('infoTap')) +
     (rank(tier()) < rank('super') ? sw('showLocked', t('showLocked')) : '') +
-    `<div class="opt-row"><button type="button" class="btn small" data-do="hints">${esc(t('hintsReset'))}</button></div></div>`;
+    `<div class="opt-row"><button type="button" class="btn small" data-do="hints">${esc(t('hintsReset'))}</button></div></div>` + penSection();
   return { html, bind(root) {
     const sec = (root || document).querySelector('.a11y-sec'); if (!sec) return;
     sec.addEventListener('click', (ev) => {
@@ -1287,7 +1287,56 @@ export function accessibilitySection() {
       if (inp.dataset.key === 'showLocked') ed.rebuild();   // şerit yeniden kurulur (sekme + karo + çağrı karosu)
       if (inp.dataset.key === 'gizmo' || inp.dataset.key === 'grips') { refreshTiles(); api.drawOverlay(); }   // tutamak anında görünür / kaybolur
     });
+    penBind(root);
   } };
+}
+
+/*
+ * KALEM AYARLARI
+ *
+ * Bölüm her zaman görünür — kalem daha hiç kullanılmamışken de ayarlanabilsin diye. Üstteki
+ * satır cihazda kalem görülüp görülmediğini DÜRÜSTÇE söyler; "kalemim çalışmıyor" diyen
+ * kullanıcının bakacağı ilk yer burasıdır. Elenen avuç sayısı da orada yazar, çünkü avuç reddi
+ * çalıştığında kullanıcı hiçbir şey görmez ve çalıştığını ancak bu sayaçtan anlar.
+ *
+ * Avuç reddi ÜCRETSİZDİR; ötekiler Premium'dur ve kilitliyken rozetli görünür, dokunulduğunda
+ * yükseltme kutusu açılır (anahtar geri alınır, sessizce açılmış gibi durmaz).
+ */
+function penSection() {
+  const kilit = !has('pen');
+  const rozet = kilit ? lockBadge('pen', 'pill') : '';
+  const sw = (key, label, pro) => `<div class="opt-row"><span class="opt-lb">${esc(label)}${pro ? ' ' + rozet : ''}</span><label class="switch"><input type="checkbox" data-pen="${key}" ${ui[key] && (!pro || !kilit) ? 'checked' : ''}><span class="knob"></span></label></div>`;
+  const acts = ['menu', 'erase', 'snap', 'undo', 'none'];
+  const durum = S.pen && S.pen.seen
+    ? t('penFound') + (S.pen.real ? ' · ' + t('penPressureOk') : '') + (S.pen.drop ? ' · ' + t('penPalmDropped').replace('%s', String(S.pen.drop)) : '')
+    : t('penNotFound');
+  return `<div class="opt-sec pen-sec full"><div class="opt-title">${esc(t('penTitle'))}</div>` +
+    `<div class="opt-row full muted">${esc(durum)}</div>` +
+    sw('palmReject', t('palmReject'), false) +
+    sw('penHover', t('penHover'), true) +
+    sw('penDraw', t('penDraw'), true) +
+    sw('penPressure', t('penPressure'), true) +
+    `<div class="opt-row"><span class="opt-lb">${esc(t('penBarrel'))}${kilit ? ' ' + rozet : ''}</span><div class="seg" data-pen-act="1">${acts.map(v => `<button type="button" data-val="${v}" class="${String(ui.penBarrel || 'menu') === v ? 'on' : ''}">${esc(t('penAct_' + v))}</button>`).join('')}</div></div>` +
+    `<div class="opt-row full muted">${esc(t('penHint'))}</div></div>`;
+}
+function penBind(root) {
+  const sec = (root || document).querySelector('.pen-sec'); if (!sec) return;
+  const PRO = new Set(['penHover', 'penDraw', 'penPressure']);
+  sec.addEventListener('change', (ev) => {
+    const inp = ev.target; if (!(inp instanceof HTMLInputElement) || !inp.dataset.pen) return;
+    const key = inp.dataset.pen;
+    // Kilitli anahtar açılmaya çalışılırsa yükseltme kutusu açılır ve anahtar ESKİ hâline döner:
+    // açık görünüp çalışmayan bir ayar, kilitli görünmekten daha kötüdür.
+    if (PRO.has(key) && !gate('pen')) { inp.checked = false; return; }
+    ui[key] = inp.checked; applyUi(); api.drawOverlay();
+  });
+  sec.addEventListener('click', (ev) => {
+    const b = ev.target.closest('.seg[data-pen-act] button'); if (!b || !b.dataset.val) return;
+    if (!gate('pen')) return;
+    ui.penBarrel = b.dataset.val;
+    b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+    applyUi(); haptic('toggle');
+  });
 }
 
 // ---------------------------------------------------------------------------------
@@ -1324,6 +1373,22 @@ ed.setCurLayer = (name) => { if (!name || !S.layers.has(name)) return false; ed.
 ed.openTab = (id) => { if ($('toolbar').classList.contains('collapsed')) collapse(false); setTab(id); };
 ed.collapse = (on) => collapse(!!on);
 ed.refreshTiles = refreshTiles;
+/*
+ * Anahtarla silme (kalem silgisi buradan geçer). Silmek yalnız bir belge komutu değildir:
+ * seçim temizlenmeli, geri-al düğmesi tazelenmeli, 3B'deyse sahne yeniden kurulmalıdır. Bu
+ * değişmezler editor.js'in sorumluluğudur; app.js onları bilmek zorunda kalmasın diye tek
+ * kapıdan geçiriliyor. Yetki kapısı t:del'dir — silgi ucu da aynı kapıdan geçer.
+ */
+ed.eraseKeys = (keys) => {
+  const ks = (keys || []).filter(Boolean);
+  if (!ks.length || !doc) return false;
+  if (!gate('t:del')) return false;
+  if (!doc.run({ op: 'delete', keys: ks })) return false;
+  for (const p of [...ed.sel]) if (ks.includes(p.key)) ed.sel.delete(p);
+  refreshUndo(); api.requestRender();
+  if (ed.is3D()) { refresh3D(); render3D(); overlay3D(); } else api.drawOverlay();
+  return true;
+};
 /** Yetki değişince (edition.onEdition) şeridi yeniden kurar: sekmeler / karolar yeniden çizilir, geçerli sekme korunur (yoksa 'view'), çalışan araç (2B tools ya da 3B ed.m3) işaretli kalır */
 ed.rebuild = () => { closePop(); buildToolbar(); if (ed.m3) markActive('3:' + ed.m3.name); else if (tools && tools.running && tools.active) markActive('t:' + tools.active); };
 /** Karo eylemi (dolaylı yol: sınama, kabuk); Ücretsiz sürümde gate() uygulanır */

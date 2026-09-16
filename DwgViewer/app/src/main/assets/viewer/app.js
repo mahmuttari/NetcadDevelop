@@ -22,6 +22,7 @@ import * as Open from './open.js';
 import * as Ed from './edition.js';
 import * as Home from './home.js';
 import * as Cloud from './cloud.js';
+import * as Pen from './stylus.js';
 import { writeDxf } from './edit.js';
 import { dwgObjectCount } from './dwgstat.js';
 import { skelList, emptyBox } from './skel.js';
@@ -347,6 +348,7 @@ function drawOverlay() {
     c.fillRect(x, y, w, h); c.strokeRect(x, y, w, h); c.setLineDash([]);
   }
   drawCrosshair(c, fg);
+  drawPenHover(c, fg);
   if (S.ui2d.scaleBar) drawScaleBar(c, fg);
   if (S.ui2d.north) drawNorth(c, fg);
   if (S.rulers) drawRulers(c, fg);
@@ -408,6 +410,39 @@ function drawCrosshair(c, fg) {
   else { c.moveTo(s[0] - 12, s[1] + 0.5); c.lineTo(s[0] + 12, s[1] + 0.5); c.moveTo(s[0] + 0.5, s[1] - 12); c.lineTo(s[0] + 0.5, s[1] + 12); }
   c.stroke(); c.globalAlpha = 1;
   if (S.crosshair === 'full') { c.font = '11px system-ui, sans-serif'; c.textBaseline = 'bottom'; c.textAlign = 'left'; const txt = fmt(S.lastPoint[0]) + ' ; ' + fmt(S.lastPoint[1]); const w = c.measureText(txt).width + 8; c.fillStyle = S.dark ? 'rgba(20,26,34,.85)' : 'rgba(255,255,255,.85)'; c.fillRect(s[0] + 8, s[1] - 22, w, 18); c.fillStyle = fg; c.fillText(txt, s[0] + 12, s[1] - 6); }
+}
+/*
+ * HAVADA GEZİNEN KALEM UCU. Üç şey gösterilir: nereye düşeceği (artı), hangi noktaya
+ * yakalanacağı (yakalama işareti) ve o noktanın koordinatı. Kesikli çizilir — bu bir SEÇİM
+ * ya da ölçüm değil, henüz yapılmamış bir dokunuşun önizlemesidir; dolu çizgi "oldu" derdi.
+ */
+function drawPenHover(c, fg) {
+  if (!penHover || !penHover.w) return;
+  const sn = penHover.snap;
+  const s = sn ? toScreen(sn.p[0], sn.p[1]) : [penHover.sx, penHover.sy];
+  const acc = S.selColor || '#ff9f0a';
+  c.save();
+  c.setLineDash([3, 3]); c.lineWidth = 1; c.strokeStyle = fg; c.globalAlpha = 0.55;
+  c.beginPath();
+  c.moveTo(s[0] - 14, s[1] + 0.5); c.lineTo(s[0] + 14, s[1] + 0.5);
+  c.moveTo(s[0] + 0.5, s[1] - 14); c.lineTo(s[0] + 0.5, s[1] + 14);
+  c.stroke();
+  c.setLineDash([]); c.globalAlpha = 1;
+  if (sn) {
+    // Yakalanan nokta dolu kare ile: dokunulduğunda tam oraya oturacağı belli olsun.
+    c.strokeStyle = acc; c.fillStyle = acc; c.lineWidth = 2;
+    c.beginPath(); c.rect(s[0] - 5, s[1] - 5, 10, 10); c.stroke();
+  }
+  const p = sn ? sn.p : penHover.w;
+  const txt = fmt(p[0]) + ' ; ' + fmt(p[1]) + (sn ? '  ' + String(sn.kind || '').toUpperCase() : '');
+  c.font = '11px system-ui, sans-serif'; c.textBaseline = 'bottom'; c.textAlign = 'left';
+  const w = c.measureText(txt).width + 10;
+  // Kutu imlecin sağına sığmıyorsa soluna geçer; ekran kenarında yazı kırpılmasın.
+  const bx = s[0] + 14 + w > S.W ? s[0] - 14 - w : s[0] + 14;
+  c.fillStyle = S.dark ? 'rgba(20,26,34,.88)' : 'rgba(255,255,255,.88)';
+  c.fillRect(bx, s[1] - 24, w, 18);
+  c.fillStyle = sn ? acc : fg; c.fillText(txt, bx + 5, s[1] - 8);
+  c.restore();
 }
 function label(c, text, x, y) {
   c.font = 'bold 12px sans-serif';
@@ -473,25 +508,78 @@ readTolerances();
 const gestureStart = () => { if (!S.gestureActive) { S.gestureActive = true; } };
 const clearLong = () => { if (longTimer) { clearTimeout(longTimer); longTimer = 0; } };
 
+// ---- kalem (S Pen / Apple Pencil / genel kalemler) ----------------------------------
+const palm = new Pen.PalmGuard();
+const press = new Pen.Pressure();
+let penHover = null, penHoverRaf = 0;
+/** Avuç reddi ve kalem kipi ÜCRETSİZDİR: bunlar özellik değil, kalemli cihazda doğru çalışmadır. */
+const penPrefs = () => uiPrefs();
+const palmOn = () => penPrefs().palmReject !== false;
+/** Gelişmiş kalem yetenekleri (havada önizleme, silgi, yan düğme, basınç) Premium'dadır. */
+const penPro = () => Ed.has('pen');
+/** "Kalem çizer, parmak gezinir": açıkken dokunuş yalnız kaydırır/yakınlaştırır, seçmez, çizmez */
+const penNavOnly = () => S.pen.seen && penPrefs().penDraw === true && penPro();
+function penClearHover() {
+  if (!penHover) return;
+  penHover = null; S.pen.hover = null;
+  showSnapChip(null);
+  drawOverlay();
+}
+/** Basılı duran DOKUNUŞ işaretçilerinin kimlikleri (avuç reddi kalem inince bunları iptal eder) */
+const touchIds = () => [...pointers.entries()].filter(([, p]) => p.pt === 'touch').map(([id]) => id);
+/** Kalem inince elin kenarıyla başlamış jest atılır: işaretçiler düşürülür, jest sıfırlanır */
+function dropTouches(ids) {
+  if (!ids || !ids.length) return;
+  for (const id of ids) { pointers.delete(id); try { vp.releasePointerCapture(id); } catch (_) { /* yakalama yoksa önemsiz */ } }
+  if (pointers.size === 0 || (gesture && gesture.type === 'pinch')) { gesture = null; S.gestureActive = false; }
+  if (noteDraft) { noteDraft = null; drawOverlay(); }
+  S.pen.drop = palm.dropped;
+}
+
 vp.addEventListener('pointerdown', (ev) => {
   if (!S.hasDoc) return;
   if (ev.target.closest && ev.target.closest('.notesbar, .fab, .home, .cmdbar, .hud, .docview')) return; // görüntü alanı içindeki düğmeler
-  vp.setPointerCapture(ev.pointerId);
-  pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+  // AVUÇ REDDİ — kalem ekrana değdiği sürece dokunuş dinlenmez. El kenarı kalemden önce de
+  // sonra da inebildiği için iki yön de kapatılır; karar stylus.js'te, uygulaması burada.
+  palm.enabled = palmOn();
+  const penKind = Pen.kindOf(ev);
+  const pd = palm.down(ev, performance.now(), touchIds());
+  if (pd.block) { S.pen.drop = palm.dropped; return; }
+  if (pd.drop.length) dropTouches(pd.drop);
+  if (ev.pointerType === 'pen') {
+    S.pen.seen = true; S.pen.kind = penKind;
+    S.pen.pressure = press.feed(ev); S.pen.real = press.real; S.pen.tilt = Pen.tiltOf(ev);
+    penClearHover();
+    // YAN DÜĞME: basılıyken kalem indiyse atanan görev çalışır ve çizim YAPILMAZ.
+    if (Pen.barrelOf(ev) && penPro()) { const [bx, by] = rel(ev); if (penBarrel(bx, by)) return; }
+  }
+  // Yakalama başarısız olabilir (işaretçi çoktan bırakılmışsa NotFoundError atar); jest yine
+  // yürümelidir, yakalama yalnız parmağın öğeden çıkmasına karşı bir kolaylıktır.
+  try { vp.setPointerCapture(ev.pointerId); } catch (_) { /* yakalama yoksa jest yine çalışır */ }
+  pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY, pt: ev.pointerType, kind: penKind });
   if (pointers.size === 1) gestureView0 = { ...S.view, li: S.layoutIndex };
   closeMenu(); clearLong();
   const arr = [...pointers.values()];
   if (edCall('gizmoBusy')) return;   // tutamak sürüklenirken ikinci parmak yakınlaştırmaya geçmesin
   if (arr.length === 1) {
     const [sx, sy] = rel(ev);
-    if (S.notesOn && S.noteTool !== 'select' && S.noteTool !== 'text' && S.noteTool !== 'photo') {
+    // "Kalem çizer, parmak gezinir": açıkken parmak yalnız kaydırır ve yakınlaştırır. Çizim,
+    // seçim ve tutamak yalnız kalemin işidir; masaüstü CAD'deki fare/klavye ayrımının karşılığı.
+    const navOnly = penNavOnly() && ev.pointerType === 'touch';
+    // SİLGİ UCU: ters çevrilen kalem nesneyi ya da notu siler; çizime hiç girmez.
+    if (penKind === 'eraser' && penPro() && !navOnly) { gesture = { type: 'erase', sx, sy }; S.gestureActive = true; return; }
+    if (!navOnly && S.notesOn && S.noteTool !== 'select' && S.noteTool !== 'text' && S.noteTool !== 'photo') {
       const w = toWorld(sx, sy);
+      const pr = ev.pointerType === 'pen' ? press.feed(ev) : 0;
       noteDraft = { type: S.noteTool, pts: [w, w], color: S.noteColor, width: 2 };
+      // Basınç yalnız serbest çizgide ve gerçek basınç ölçüldüyse kaydedilir; yoksa dizi hiç
+      // kurulmaz ve not eski biçiminde (tek kalınlık) kalır.
+      if (S.noteTool === 'pen' && press.real && penPrefs().penPressure !== false && penPro()) noteDraft.pr = [pr, pr];
       gesture = { type: 'note' };
       return;
     }
     // Seçim tutamağı: parmak bir tutamağa indiyse jest kaydırmaya değil dönüşüme gider
-    if (edCall('gizmoDown', sx, sy)) { gesture = { type: 'gizmo' }; S.gestureActive = true; return; }
+    if (!navOnly && edCall('gizmoDown', sx, sy)) { gesture = { type: 'gizmo' }; S.gestureActive = true; return; }
     if (zoomWin && zoomWin.pending) { zoomWin = { x0: sx, y0: sy, x1: null, y1: null }; gesture = { type: 'zoomwin', x0: sx, y0: sy }; S.gestureActive = true; return; }
     const now = performance.now();
     if (lastTapPos && now - lastTap < TOL.dbl && Math.hypot(lastTapPos[0] - sx, lastTapPos[1] - sy) < 30 && !S.notesOn) {
@@ -499,8 +587,8 @@ vp.addEventListener('pointerdown', (ev) => {
       gesture = { type: 'dtap', sx, sy, y0: ev.clientY, view: { ...S.view }, moved: false };
       lastTap = 0;
     } else {
-      gesture = { type: 'pan', x0: ev.clientX, y0: ev.clientY, view: { ...S.view }, moved: false, t0: now };
-      const canLong = !(editor.tools && editor.tools.running) && S.mode === 'view' && !S.notesOn && !editor.is3D();
+      gesture = { type: 'pan', x0: ev.clientX, y0: ev.clientY, view: { ...S.view }, moved: false, t0: now, navOnly };
+      const canLong = !navOnly && !(editor.tools && editor.tools.running) && S.mode === 'view' && !S.notesOn && !editor.is3D();
       if (canLong) longTimer = setTimeout(() => { longTimer = 0; if (gesture && gesture.type === 'pan' && !gesture.moved && pointers.size === 1) { gesture.longFired = true; haptic('long'); longPressMenu(sx, sy); } }, TOL.long);
     }
   } else if (arr.length === 2) {
@@ -513,14 +601,26 @@ vp.addEventListener('pointerdown', (ev) => {
 });
 vp.addEventListener('pointermove', (ev) => {
   const [sx, sy] = rel(ev);
-  if (!pointers.has(ev.pointerId)) { if (S.hasDoc && ev.pointerType === 'mouse') updateStatus(sx, sy); return; }
-  pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+  if (!pointers.has(ev.pointerId)) {
+    if (!S.hasDoc) return;
+    // HAVADA GEZİNME: kalem ekrana değmeden de konum bildirir (buttons === 0). CAD'de en çok
+    // işe yarayan kalem yeteneği budur — dokunmadan önce nereye düşeceği ve hangi noktaya
+    // yakalanacağı görülür, böylece nokta seçimi el yordamıyla değil bakarak yapılır.
+    if (ev.pointerType === 'pen') { palm.watch(ev, performance.now()); S.pen.seen = true; penHoverMove(sx, sy, ev); return; }
+    if (ev.pointerType === 'mouse') updateStatus(sx, sy);
+    return;
+  }
+  if (ev.pointerType === 'pen') { S.pen.pressure = press.feed(ev); S.pen.real = press.real; palm.watch(ev, performance.now()); }
+  pointers.set(ev.pointerId, { ...(pointers.get(ev.pointerId) || {}), x: ev.clientX, y: ev.clientY });
   if (!gesture) return;
   if (gesture.type === 'gizmo') {
     edCall('gizmoMove', sx, sy);
+  } else if (gesture.type === 'erase') {
+    gesture.sx = sx; gesture.sy = sy;   // silgi sürüklenebilir: bırakışta son noktadaki nesne silinir
   } else if (gesture.type === 'note' && noteDraft) {
     const w = toWorld(sx, sy);
-    if (noteDraft.type === 'pen') noteDraft.pts.push(w); else noteDraft.pts[1] = w;
+    if (noteDraft.type === 'pen') { noteDraft.pts.push(w); if (noteDraft.pr) noteDraft.pr.push(S.pen.pressure); }
+    else noteDraft.pts[1] = w;
     drawOverlay();
   } else if (gesture.type === 'zoomwin') {
     zoomWin.x1 = sx; zoomWin.y1 = sy; drawOverlay();
@@ -556,12 +656,73 @@ vp.addEventListener('pointermove', (ev) => {
     requestRender(true);
   }
 });
+/*
+ * Havada gezinen kalem ucu. Olay saniyede yüzlerce kez gelir; yakalama araması ve yeniden
+ * çizim bir kare ile sınırlanır (rAF), yoksa gezinme tek başına çizimi yavaşlatırdı.
+ */
+function penHoverMove(sx, sy, ev) {
+  if (!penPro() || penPrefs().penHover === false) { if (penHover) penClearHover(); return; }
+  const tilt = Pen.tiltOf(ev);
+  penHover = { sx, sy, tilt, snap: penHover ? penHover.snap : null, w: null };
+  S.pen.tilt = tilt;
+  if (penHoverRaf) return;
+  penHoverRaf = requestAnimationFrame(() => {
+    penHoverRaf = 0;
+    if (!penHover || !S.hasDoc) return;
+    const w = toWorld(penHover.sx, penHover.sy);
+    penHover.w = w;
+    // Yakalama, dokunuştaki ile AYNI yolu kullanır (doSnap değil: o S.lastPoint'i ve titreşimi
+    // değiştirir; gezinme belgeye ve duruma hiç dokunmamalıdır).
+    const tol = TOL.snap / S.view.scale;
+    penHover.snap = S.snapModes.size ? snapPoint(candidates(w, tol), w, tol, S.snapModes, null) : null;
+    S.pen.hover = penHover.snap ? penHover.snap.p.slice(0, 2) : [w[0], w[1]];
+    showSnapChip(penHover.snap ? penHover.snap.kind : null);
+    updateStatus(penHover.sx, penHover.sy);
+    drawOverlay();
+  });
+}
+/** Yan (barrel) düğme görevi. true dönerse kalem indiği hâlde çizim yapılmaz. */
+function penBarrel(sx, sy) {
+  const act = penPrefs().penBarrel || 'menu';
+  if (act === 'none') return false;
+  haptic('long');
+  if (act === 'menu') { longPressMenu(sx, sy); return true; }
+  if (act === 'undo') { editor.act('undo'); return true; }
+  if (act === 'snap') { editor.act('osnap'); return true; }
+  if (act === 'erase') { penErase(sx, sy); return true; }
+  return false;
+}
+/*
+ * SİLGİ. Notlar açıkken önce notu siler (kullanıcı orada notla uğraşıyordur), yoksa çizim
+ * nesnesini siler. Silme her zaman belge komutudur — tek geri alma adımı olur.
+ */
+function penErase(sx, sy) {
+  const w = toWorld(sx, sy);
+  if (S.notesOn) {
+    const n = hitNote(sx, sy, TOL.pick * 1.4);
+    if (n) { removeNote(n.id); haptic('step'); toast(t('deleted')); drawOverlay(); return true; }
+  }
+  const hit = pick(w, TOL.pick / S.view.scale);
+  if (!hit) { toast(t('noObject')); return false; }
+  if (!editor.eraseKeys([hit.key])) return false;
+  S.selected = null;
+  haptic('step'); toast(t('deleted'));
+  return true;
+}
 let gestureView0 = null; // jest başındaki görünüm (geçmiş için)
 function endPointer(ev) {
+  const elenen = palm.up(ev);
+  if (ev.pointerType === 'pen') { S.pen.kind = null; S.pen.pressure = 0; }
   const had = pointers.delete(ev.pointerId);
-  if (!had) return;
+  if (!had) { if (elenen) S.pen.drop = palm.dropped; return; }
   const [sx, sy] = rel(ev);
   clearLong();
+  if (gesture && gesture.type === 'erase') {
+    gesture = null; S.gestureActive = false;
+    if (ev.type === 'pointerup') penErase(sx, sy);
+    if (pointers.size === 0) { gestureView0 = null; requestRender(); }
+    return;
+  }
   if (gesture && gesture.type === 'note') {
     if (noteDraft && ev.type === 'pointerup') {
       const a = toScreen(noteDraft.pts[0][0], noteDraft.pts[0][1]), b = toScreen(noteDraft.pts[noteDraft.pts.length - 1][0], noteDraft.pts[noteDraft.pts.length - 1][1]);
@@ -591,6 +752,7 @@ function endPointer(ev) {
     lastTap = 0; lastTapPos = null;
   } else if (gesture && gesture.type === 'pan' && !gesture.moved && !gesture.longFired && pointers.size === 0 && ev.type === 'pointerup') {
     if (gesture.twoTap && performance.now() - gesture.twoTap.t < 250) { zoomAtScreen(gesture.twoTap.mid[0], gesture.twoTap.mid[1], 0.5); lastTap = 0; }
+    else if (gesture.navOnly) { lastTap = 0; lastTapPos = null; }   // kalem kipi: parmak seçmez
     else if (!gesture.fromPinch) { lastTap = performance.now(); lastTapPos = [sx, sy]; onTap(sx, sy); }
   }
   if (pointers.size === 0) {
@@ -606,6 +768,9 @@ function endPointer(ev) {
 }
 vp.addEventListener('pointerup', endPointer);
 vp.addEventListener('pointercancel', endPointer);
+// Kalem menzilden çıkınca havadaki imleç kalkar; kalmasa "orada bir şey var" sanılırdı.
+vp.addEventListener('pointerout', (ev) => { if (ev.pointerType === 'pen') penClearHover(); });
+vp.addEventListener('pointerleave', (ev) => { if (ev.pointerType === 'pen') penClearHover(); });
 vp.addEventListener('wheel', (ev) => {
   if (!S.hasDoc) return; ev.preventDefault();
   const [x, y] = rel(ev);

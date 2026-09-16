@@ -336,4 +336,11 @@ export default {
   'th_t:trim': 'Schnittkante antippen, dann das zu entfernende Teil', 'tl_t:extend': 'Dehnen', 'th_t:extend': 'Grenze antippen, dann das zu dehnende Ende',
   'tl_t:fillet': 'Abrunden', 'th_t:fillet': 'Zwei Linien antippen und den Radius eingeben', 'tl_t:chamfer': 'Fase',
   'th_t:chamfer': 'Zwei Linien antippen und den Abstand eingeben',
+  // kalem (S Pen · Apple Pencil · genel Android kalemleri)
+  penTitle: 'Stift', penFound: 'Stift erkannt', penNotFound: 'Noch kein Stift erkannt — einmal mit dem Stift tippen',
+  penPressureOk: 'Druck wird unterstützt', penPalmDropped: '%s Handballenberührungen verworfen', palmReject: 'Handballenerkennung (Berührung bei aufgesetztem Stift ignorieren)',
+  penHover: 'Schwebevorschau (Position und Fang vor dem Aufsetzen)', penDraw: 'Stift zeichnet, Finger navigiert', penPressure: 'Druckabhängige Linienstärke (in Notizen)',
+  penBarrel: 'Funktion der Stifttaste', penAct_menu: 'Menü', penAct_erase: 'Löschen',
+  penAct_snap: 'Fang', penAct_undo: 'Rückgängig', penAct_none: 'Keine',
+  penHint: 'Stift umdrehen: Die Radiererspitze löscht Objekte. S Pen, Apple Pencil und gängige Android-Stifte werden unterstützt.',
 };

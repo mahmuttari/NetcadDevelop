@@ -516,4 +516,11 @@ export default {
   'th_t:trim': 'المس حافة القطع ثم الجزء المراد حذفه', 'tl_t:extend': 'إطالة', 'th_t:extend': 'المس الحد ثم الطرف المراد إطالته',
   'tl_t:fillet': 'تدوير', 'th_t:fillet': 'المس خطين واكتب نصف القطر', 'tl_t:chamfer': 'شطف',
   'th_t:chamfer': 'المس خطين واكتب المسافة',
+  // kalem (S Pen · Apple Pencil · genel Android kalemleri)
+  penTitle: 'القلم', penFound: 'تم التعرف على القلم', penNotFound: 'لم يتم التعرف على قلم بعد — المس مرة واحدة بالقلم',
+  penPressureOk: 'الضغط مدعوم', penPalmDropped: 'تم تجاهل %s لمسة من راحة اليد', palmReject: 'رفض راحة اليد (تجاهل اللمس أثناء ملامسة القلم)',
+  penHover: 'معاينة عند التحويم (الموضع والالتقاط قبل الملامسة)', penDraw: 'القلم يرسم والإصبع يتنقل', penPressure: 'سماكة الخط حسب الضغط (في الملاحظات)',
+  penBarrel: 'مهمة الزر الجانبي', penAct_menu: 'القائمة', penAct_erase: 'مسح',
+  penAct_snap: 'الالتقاط', penAct_undo: 'تراجع', penAct_none: 'بدون',
+  penHint: 'اقلب القلم: طرف الممحاة يحذف الكائنات. مدعوم مع S Pen وApple Pencil وأقلام أندرويد الشائعة.',
 };

@@ -318,4 +318,11 @@ export default {
   'th_t:trim': '先点击剪切边，再点击要删除的部分', 'tl_t:extend': '延伸', 'th_t:extend': '先点击边界，再点击要延伸的端点',
   'tl_t:fillet': '圆角', 'th_t:fillet': '点击两条线并输入半径', 'tl_t:chamfer': '倒角',
   'th_t:chamfer': '点击两条线并输入距离',
+  // kalem (S Pen · Apple Pencil · genel Android kalemleri)
+  penTitle: '触控笔', penFound: '已检测到触控笔', penNotFound: '尚未检测到触控笔 — 请用笔轻点一次',
+  penPressureOk: '支持压感', penPalmDropped: '已忽略 %s 次手掌触摸', palmReject: '防误触 (笔接触屏幕时忽略触摸)',
+  penHover: '悬停预览 (落笔前显示位置和捕捉)', penDraw: '笔绘图，手指导航', penPressure: '按压感应线宽（批注中）',
+  penBarrel: '侧键功能', penAct_menu: '菜单', penAct_erase: '删除',
+  penAct_snap: '捕捉', penAct_undo: '撤销', penAct_none: '无',
+  penHint: '把笔翻转过来，橡皮端可删除对象。支持 S Pen、Apple Pencil 及常见的 Android 触控笔。',
 };

@@ -517,4 +517,11 @@ export default {
   'th_t:trim': 'Ketuk tepi pemotong, lalu bagian yang dibuang', 'tl_t:extend': 'Perpanjang', 'th_t:extend': 'Ketuk batas, lalu ujung yang diperpanjang',
   'tl_t:fillet': 'Filet', 'th_t:fillet': 'Ketuk dua garis lalu ketik jari-jarinya', 'tl_t:chamfer': 'Champer',
   'th_t:chamfer': 'Ketuk dua garis lalu ketik jaraknya',
+  // kalem (S Pen · Apple Pencil · genel Android kalemleri)
+  penTitle: 'Pena', penFound: 'Pena terdeteksi', penNotFound: 'Belum ada pena terdeteksi — ketuk sekali dengan pena',
+  penPressureOk: 'tekanan didukung', penPalmDropped: '%s sentuhan telapak diabaikan', palmReject: 'Penolakan telapak (abaikan sentuhan saat pena menempel)',
+  penHover: 'Pratinjau melayang (posisi dan pengunci sebelum menyentuh)', penDraw: 'Pena menggambar, jari menavigasi', penPressure: 'Ketebalan garis mengikuti tekanan (di catatan)',
+  penBarrel: 'Tugas tombol samping', penAct_menu: 'Menu', penAct_erase: 'Hapus',
+  penAct_snap: 'Pengunci', penAct_undo: 'Urungkan', penAct_none: 'Tidak ada',
+  penHint: 'Balik pena: ujung penghapus menghapus objek. Mendukung S Pen, Apple Pencil, dan pena Android umum.',
 };

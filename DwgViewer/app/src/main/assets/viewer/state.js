@@ -19,6 +19,9 @@ export const S = {
   selColor: '#ff9f0a', selWidth: 3, smooth: true, fastPan: 'auto',
   ui2d: { scaleBar: true, north: true, northBig: false, navFabs: true, dpad: false, coordInfo: true, vpFrames: true, compareOnlyDiff: false },
   lastPoint: null, gotoMarker: null, viewHist: { stack: [], i: -1 }, layerPalette: new Map(),
+  // kalem (S Pen / Apple Pencil / genel kalemler): seen cihazda kalem görüldü mü, hover havada
+  // gezinen ucun ekran ve dünya noktası, kind son işaretçinin türü, drop elenen avuç sayısı
+  pen: { seen: false, hover: null, kind: null, pressure: 0, real: false, tilt: null, drop: 0 },
   curLayerName: '0', glove: false,
   // araçlar
   mode: 'view', measure: [], snap: null, snapModes: new Set(['end', 'mid', 'cen', 'int', 'ins', 'node']), selected: null,

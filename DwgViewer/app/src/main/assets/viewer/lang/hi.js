@@ -517,4 +517,11 @@ export default {
   'th_t:trim': 'काटने वाले किनारे को छुएँ, फिर हटाने वाले भाग को', 'tl_t:extend': 'बढ़ाएँ', 'th_t:extend': 'सीमा को छुएँ, फिर बढ़ाने वाले सिरे को',
   'tl_t:fillet': 'गोलाई', 'th_t:fillet': 'दो रेखाओं को छुएँ और त्रिज्या लिखें', 'tl_t:chamfer': 'चैम्फर',
   'th_t:chamfer': 'दो रेखाओं को छुएँ और दूरी लिखें',
+  // kalem (S Pen · Apple Pencil · genel Android kalemleri)
+  penTitle: 'स्टाइलस', penFound: 'स्टाइलस मिला', penNotFound: 'अभी तक कोई स्टाइलस नहीं मिला — पेन से एक बार छुएँ',
+  penPressureOk: 'दबाव समर्थित है', penPalmDropped: '%s हथेली स्पर्श अस्वीकृत', palmReject: 'हथेली अस्वीकृति (पेन लगे रहने पर स्पर्श अनदेखा करें)',
+  penHover: 'हवा में पूर्वावलोकन (छूने से पहले स्थिति और स्नैप)', penDraw: 'पेन बनाता है, उँगली चलाती है', penPressure: 'दबाव के अनुसार रेखा मोटाई (नोट्स में)',
+  penBarrel: 'साइड बटन का काम', penAct_menu: 'मेनू', penAct_erase: 'मिटाएँ',
+  penAct_snap: 'स्नैप', penAct_undo: 'पूर्ववत', penAct_none: 'कोई नहीं',
+  penHint: 'पेन को उलट दें: रबर सिरा वस्तुएँ मिटाता है। S Pen, Apple Pencil और सामान्य Android स्टाइलस समर्थित हैं।',
 };

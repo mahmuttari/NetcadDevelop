@@ -517,4 +517,11 @@ export default {
   'th_t:trim': 'Toque na aresta de corte e depois no trecho a remover', 'tl_t:extend': 'Estender', 'th_t:extend': 'Toque no limite e depois na extremidade a estender',
   'tl_t:fillet': 'Concordância', 'th_t:fillet': 'Toque em duas linhas e digite o raio', 'tl_t:chamfer': 'Chanfro',
   'th_t:chamfer': 'Toque em duas linhas e digite a distância',
+  // kalem (S Pen · Apple Pencil · genel Android kalemleri)
+  penTitle: 'Caneta', penFound: 'Caneta detetada', penNotFound: 'Ainda não foi detetada nenhuma caneta — toque uma vez com a caneta',
+  penPressureOk: 'pressão suportada', penPalmDropped: '%s toques da palma descartados', palmReject: 'Rejeição da palma (ignorar o toque enquanto a caneta está pousada)',
+  penHover: 'Pré-visualização no ar (posição e ajuste antes de tocar)', penDraw: 'A caneta desenha, o dedo navega', penPressure: 'Espessura da linha conforme a pressão (nas notas)',
+  penBarrel: 'Ação do botão lateral', penAct_menu: 'Menu', penAct_erase: 'Apagar',
+  penAct_snap: 'Ajuste', penAct_undo: 'Anular', penAct_none: 'Nenhuma',
+  penHint: 'Vire a caneta: a ponta borracha apaga objetos. São suportadas a S Pen, a Apple Pencil e as canetas Android comuns.',
 };

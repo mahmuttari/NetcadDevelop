@@ -111,6 +111,12 @@ export const FEATURE_TIER = new Map([
   ['blocklib', 'premium'], ['copyclip', 'premium'], ['pasteclip', 'premium'],
   ['t:trim', 'premium'], ['t:extend', 'premium'], ['t:fillet', 'premium'], ['t:chamfer', 'premium'],
   ['grips', 'premium'],                  // köşe tutamağı: geometriyi değiştirir, düzenleme rafında durur
+  /*
+   * Kalem: GELİŞMİŞ yetenekler Premium'dadır (havada önizleme, silgi ucu, yan düğme, basınç).
+   * Kalem TANIMA ve AVUÇ REDDİ bilerek dışarıda bırakılmıştır — onlar özellik değil, kalemli
+   * bir cihazda doğru çalışmadır; paranın arkasına konsa uygulama S Pen sahibinde bozuk görünürdü.
+   */
+  ['pen', 'premium'],
   // --- 2B çıktı eklentileri
   ['textout', 'premium'], ['tableout', 'premium'],
   // --- 3B üretim (Super) · PDF→CAD ve toplu işlem Premium'a indirildi (rakip ikisini de Premium'da veriyor)

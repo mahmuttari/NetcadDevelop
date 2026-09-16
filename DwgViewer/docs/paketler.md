@@ -216,7 +216,8 @@ Hizalamanın kendisi toplamı değiştirmedi (65); dağılımı değiştirdi:
 Premium 47 → **52**, Super 18 → **13**. Toplam daha sonra aynı sürümde
 eklenen yeteneklerle **75**'e çıktı (aşağıya bakınız): katman düzenleme ve
 desen seçici ile 70, budama ailesi ve köşe tutamağıyla 75; bugünkü dağılım
-Premium **61**, Super **14**.
+Premium **61**, Super **14**; gelişmiş kalem desteğiyle toplam **76**'ya çıktı
+(Premium 62).
 
 **Kart metni kapıdan türemez.** Paket kartındaki madde listesi
 `tierFeat_*` anahtarlarından okunur (`edition.js` `featureList`), kapı ise
@@ -257,6 +258,40 @@ alma adımı yapıyor.
 seçim kutusunun köşelerine denk gelir (dikdörtgende birebir); açık bırakılsa
 kutuyla ölçekleme yapılamaz hâle gelirdi. Karodan açıldığında düğüm önceliği
 kazanır. `tools/test_budama.mjs` bunu ölçüyor (15a-15e).
+
+### Kalem desteği — YAPILDI (v7.49)
+
+Rakibin hiçbir kademesinde kalem için ayrı bir söz yoktur; bizde altı yetenek vardır.
+Ayrım bilinçlidir ve iki gruba bölünür:
+
+| Yetenek | Kimlik | Kademe | Gerekçe |
+|---|---|---|---|
+| Kalem tanıma | — | **ücretsiz** | Özellik değil, doğru çalışma |
+| Avuç reddi | — | **ücretsiz** | Olmadan uygulama kalemli cihazda bozuk görünür |
+| Havada önizleme | `pen` | premium | Uç değmeden konum, yakalama ve koordinat |
+| Silgi ucu | `pen` | premium | Kalemi ters çevirince nesne silinir |
+| Yan düğme görevi | `pen` | premium | Menü / sil / yakalama / geri al / yok |
+| Basınca göre kalınlık | `pen` | premium | Not kaleminin serbest çizgisinde |
+| Kalem çizer, parmak gezinir | `pen` | premium | Masaüstündeki fare/klavye ayrımının karşılığı |
+
+**Avuç reddini paranın arkasına koymamak bir pazarlama kararı değil, doğruluk kararıdır.**
+Kalemli bir telefonda avuç reddi yoksa kullanıcı "uygulama bozuk" der ve siler; o kullanıcı
+Premium'u hiç görmez. Kilitlenecek olan, uygulamanın çalışması değil, fazladan verdiğidir.
+
+Yetenek toplamı 75 → **76** (yalnız `pen` sayaca girer): Premium **62**, Super **14**.
+
+**Cihaz adına göre hiçbir kural yazılmamıştır.** "Samsung ise şunu yap" biçiminde bir dal
+yoktur; İşaretçi Olayları (Pointer Events) standardı ne veriyorsa o okunur, böylece adını
+bilmediğimiz kalemler de çalışır. Standardın garanti etmediği iki şey — basınç ve temas
+büyüklüğü — varsayılmaz, ÖLÇÜLEREK öğrenilir: basınç bildirmeyen bir kalem temas ettiği
+sürece sabit 0,5 verir, bu yüzden değerin gerçekten oynadığı görülene kadar "basınç var"
+denmez.
+
+**Apple Pencil hakkında dürüst not:** uygulama Android'dir, iPad'de kurulmaz. Apple Pencil
+desteği, görüntüleyicinin tarayıcıda açılan web sürümü için geçerlidir — iPadOS Safari
+kalemi aynı standart alanlarla bildirir, bu yüzden aynı kod yolu çalışır. Mağaza metninde
+bu ayrım korunmalı, "Apple Pencil destekli Android uygulaması" gibi yanıltıcı bir cümle
+kurulmamalıdır.
 
 ### Fiyatlar değişmedi
 

@@ -359,4 +359,11 @@ export default {
   'th_t:trim': 'Chạm vào cạnh cắt, rồi đoạn cần bỏ', 'tl_t:extend': 'Kéo dài', 'th_t:extend': 'Chạm vào biên, rồi đầu cần kéo dài',
   'tl_t:fillet': 'Bo tròn', 'th_t:fillet': 'Chạm hai đường và nhập bán kính', 'tl_t:chamfer': 'Vát góc',
   'th_t:chamfer': 'Chạm hai đường và nhập khoảng cách',
+  // kalem (S Pen · Apple Pencil · genel Android kalemleri)
+  penTitle: 'Bút cảm ứng', penFound: 'Đã nhận ra bút', penNotFound: 'Chưa nhận ra bút nào — hãy chạm một lần bằng bút',
+  penPressureOk: 'hỗ trợ lực nhấn', penPalmDropped: 'Đã bỏ qua %s lần chạm lòng bàn tay', palmReject: 'Chống chạm lòng bàn tay (bỏ qua chạm khi bút đang tì)',
+  penHover: 'Xem trước khi di (vị trí và bắt điểm trước khi chạm)', penDraw: 'Bút vẽ, ngón tay di chuyển', penPressure: 'Độ dày nét theo lực nhấn (trong ghi chú)',
+  penBarrel: 'Nhiệm vụ nút bên', penAct_menu: 'Menu', penAct_erase: 'Xóa',
+  penAct_snap: 'Bắt điểm', penAct_undo: 'Hoàn tác', penAct_none: 'Không',
+  penHint: 'Lật ngược bút: đầu tẩy sẽ xóa đối tượng. Hỗ trợ S Pen, Apple Pencil và các bút Android thông dụng.',
 };

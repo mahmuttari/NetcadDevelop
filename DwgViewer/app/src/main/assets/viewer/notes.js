@@ -4,6 +4,7 @@
  */
 import { S, toScreen, store } from './state.js';
 import { segDist } from './geom.js';
+import { strokeVarying } from './stylus.js';
 
 export const notes = { items: [], key: '', dirty: false };
 
@@ -52,9 +53,10 @@ export function drawNotes(c, toS, scalePx, selectedId, draft, photos) {
     c.strokeStyle = col; c.fillStyle = col; c.lineWidth = Math.max(1.5, lw); c.lineCap = 'round'; c.lineJoin = 'round';
     if (n.id && n.id === selectedId) { c.shadowColor = '#f5b342'; c.shadowBlur = 10; }
     if (n.type === 'pen' || n.type === 'line') {
-      c.beginPath(); c.moveTo(pts[0][0], pts[0][1]);
-      for (let i = 1; i < pts.length; i++) c.lineTo(pts[i][0], pts[i][1]);
-      c.stroke();
+      // Kalemle çizilmiş serbest çizgide her nokta kendi basıncını taşır (n.pr); kalınlık nokta
+      // nokta değişir. Basınç kaydedilmemişse tek yol çizilir — eski notlar birebir aynı görünür.
+      if (n.type === 'pen' && n.pr && n.pr.length === pts.length) strokeVarying(c, pts, n.pr, Math.max(1.5, lw));
+      else { c.beginPath(); c.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) c.lineTo(pts[i][0], pts[i][1]); c.stroke(); }
     } else if (n.type === 'arrow' && pts.length > 1) {
       const a = pts[0], b = pts[pts.length - 1];
       c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke();

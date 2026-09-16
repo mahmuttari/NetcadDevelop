@@ -518,4 +518,11 @@ export default {
   'th_t:trim': 'Touchez l\'arête de coupe, puis la partie à supprimer', 'tl_t:extend': 'Prolonger', 'th_t:extend': 'Touchez la limite, puis l\'extrémité à prolonger',
   'tl_t:fillet': 'Raccord', 'th_t:fillet': 'Touchez deux lignes et saisissez le rayon', 'tl_t:chamfer': 'Chanfrein',
   'th_t:chamfer': 'Touchez deux lignes et saisissez la distance',
+  // kalem (S Pen · Apple Pencil · genel Android kalemleri)
+  penTitle: 'Stylet', penFound: 'Stylet détecté', penNotFound: 'Aucun stylet détecté — touchez une fois avec le stylet',
+  penPressureOk: 'pression prise en charge', penPalmDropped: '%s appuis de paume ignorés', palmReject: 'Rejet de la paume (ignorer le toucher quand le stylet est posé)',
+  penHover: 'Aperçu en survol (position et accrochage avant le contact)', penDraw: 'Le stylet dessine, le doigt navigue', penPressure: 'Épaisseur du trait selon la pression (dans les notes)',
+  penBarrel: 'Action du bouton latéral', penAct_menu: 'Menu', penAct_erase: 'Effacer',
+  penAct_snap: 'Accrochage', penAct_undo: 'Annuler', penAct_none: 'Aucune',
+  penHint: 'Retournez le stylet : la pointe gomme supprime les objets. S Pen, Apple Pencil et les stylets Android courants sont pris en charge.',
 };

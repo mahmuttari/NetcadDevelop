@@ -317,13 +317,14 @@ await setEd('free');
     return { counts, lists, total: p.querySelectorAll('.lk-all li').length, cap: Ed.capabilityList().length, title: !!p.querySelector('.lk-all .opt-title') };
   });
   // Sayaç KÜMÜLATİFtir: Super kartı, Premium'un açtıklarını da açar. Okuyucu dökümdeki grupları
-  // toplayarak doğrulayabilir — Premium = 61, Super = 61 + 14 = 75. (Beş özellik v7.48'de
+  // toplayarak doğrulayabilir — Premium = 62, Super = 62 + 14 = 76. (Beş özellik v7.48'de
   // Super'den Premium'a indi; driveShare, webdavWrite, target3, hatchpat ve layeredit eklendi: 65 → 70;
-  // budama, uzatma, kavis, pah ve köşe tutamağı ile 70 → 75.)
+  // budama, uzatma, kavis, pah ve köşe tutamağı ile 70 → 75; gelişmiş kalem desteği ile 75 → 76.
+  // Kalem TANIMA ve AVUÇ REDDİ ücretsizdir, bu yüzden sayaca girmez.)
   const cum = (x) => ['adfree', 'premium', 'super'].slice(0, ['adfree', 'premium', 'super'].indexOf(x) + 1).reduce((a, y) => a + (r.lists[y] || 0), 0);
   const same = ['premium', 'super'].every(x => r.counts[x] === cum(x));
-  ok('14 kart sayacı dökümdeki grupların toplamıyla birebir aynı (Premium 61, Super 61+14=75); Ad-Free\'de sayaç yok',
-    r.title && same && r.total === r.cap && r.counts.adfree === 0 && r.total === 75, JSON.stringify({ ...r, cumPremium: cum('premium'), cumSuper: cum('super') }));
+  ok('14 kart sayacı dökümdeki grupların toplamıyla birebir aynı (Premium 62, Super 62+14=76); Ad-Free\'de sayaç yok',
+    r.title && same && r.total === r.cap && r.counts.adfree === 0 && r.total === 76, JSON.stringify({ ...r, cumPremium: cum('premium'), cumSuper: cum('super') }));
   await page.screenshot({ path: `${out}/lock_panel.png` });
 
   /*

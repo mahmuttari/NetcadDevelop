@@ -517,4 +517,11 @@ export default {
   'th_t:trim': 'Toque la arista de corte y luego la parte que se va a eliminar', 'tl_t:extend': 'Alargar', 'th_t:extend': 'Toque el límite y luego el extremo que se va a alargar',
   'tl_t:fillet': 'Empalme', 'th_t:fillet': 'Toque dos líneas y escriba el radio', 'tl_t:chamfer': 'Chaflán',
   'th_t:chamfer': 'Toque dos líneas y escriba la distancia',
+  // kalem (S Pen · Apple Pencil · genel Android kalemleri)
+  penTitle: 'Lápiz', penFound: 'Lápiz detectado', penNotFound: 'Aún no se detecta ningún lápiz — toque una vez con el lápiz',
+  penPressureOk: 'presión compatible', penPalmDropped: '%s toques de palma descartados', palmReject: 'Rechazo de palma (ignorar el toque mientras el lápiz está apoyado)',
+  penHover: 'Vista previa en el aire (posición y forzado antes de tocar)', penDraw: 'El lápiz dibuja, el dedo navega', penPressure: 'Grosor de línea según la presión (en las notas)',
+  penBarrel: 'Acción del botón lateral', penAct_menu: 'Menú', penAct_erase: 'Borrar',
+  penAct_snap: 'Forzado', penAct_undo: 'Deshacer', penAct_none: 'Ninguna',
+  penHint: 'Dé la vuelta al lápiz: la punta de goma borra objetos. Compatible con S Pen, Apple Pencil y lápices Android habituales.',
 };

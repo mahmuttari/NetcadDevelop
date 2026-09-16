@@ -517,4 +517,11 @@ export default {
   'th_t:trim': 'Tocca il bordo di taglio, poi il tratto da rimuovere', 'tl_t:extend': 'Estendi', 'th_t:extend': 'Tocca il limite, poi l\'estremità da estendere',
   'tl_t:fillet': 'Raccordo', 'th_t:fillet': 'Tocca due linee e digita il raggio', 'tl_t:chamfer': 'Smusso',
   'th_t:chamfer': 'Tocca due linee e digita la distanza',
+  // kalem (S Pen · Apple Pencil · genel Android kalemleri)
+  penTitle: 'Penna', penFound: 'Penna rilevata', penNotFound: 'Nessuna penna rilevata — tocca una volta con la penna',
+  penPressureOk: 'pressione supportata', penPalmDropped: '%s tocchi del palmo scartati', palmReject: 'Rifiuto del palmo (ignora il tocco mentre la penna è appoggiata)',
+  penHover: 'Anteprima in sospensione (posizione e aggancio prima del contatto)', penDraw: 'La penna disegna, il dito naviga', penPressure: 'Spessore della linea in base alla pressione (nelle note)',
+  penBarrel: 'Azione del pulsante laterale', penAct_menu: 'Menu', penAct_erase: 'Cancella',
+  penAct_snap: 'Aggancio', penAct_undo: 'Annulla', penAct_none: 'Nessuna',
+  penHint: 'Capovolgi la penna: la punta gomma elimina gli oggetti. Sono supportati S Pen, Apple Pencil e le penne Android più diffuse.',
 };

@@ -517,4 +517,11 @@ export default {
   'th_t:trim': '절단 모서리를 누른 다음 제거할 부분을 누르세요', 'tl_t:extend': '연장', 'th_t:extend': '경계를 누른 다음 연장할 끝점을 누르세요',
   'tl_t:fillet': '모깎기', 'th_t:fillet': '두 선을 누르고 반지름을 입력하세요', 'tl_t:chamfer': '모따기',
   'th_t:chamfer': '두 선을 누르고 거리를 입력하세요',
+  // kalem (S Pen · Apple Pencil · genel Android kalemleri)
+  penTitle: '펜', penFound: '펜이 감지되었습니다', penNotFound: '아직 펜이 감지되지 않았습니다 — 펜으로 한 번 누르세요',
+  penPressureOk: '필압 지원', penPalmDropped: '손바닥 터치 %s건 무시됨', palmReject: '손바닥 무시 (펜이 닿아 있을 때 터치 무시)',
+  penHover: '호버 미리보기 (닿기 전에 위치와 스냅 표시)', penDraw: '펜으로 그리고 손가락으로 이동', penPressure: '필압에 따른 선 두께 (메모)',
+  penBarrel: '측면 버튼 동작', penAct_menu: '메뉴', penAct_erase: '지우기',
+  penAct_snap: '스냅', penAct_undo: '실행 취소', penAct_none: '없음',
+  penHint: '펜을 뒤집으면 지우개 쪽으로 객체를 지웁니다. S Pen, Apple Pencil 및 일반 Android 펜을 지원합니다.',
 };

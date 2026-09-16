@@ -517,4 +517,11 @@ export default {
   'th_t:trim': '切断エッジ、次に削除する部分をタップ', 'tl_t:extend': '延長', 'th_t:extend': '境界、次に延長する端点をタップ',
   'tl_t:fillet': 'フィレット', 'th_t:fillet': '2 本の線をタップして半径を入力', 'tl_t:chamfer': '面取り',
   'th_t:chamfer': '2 本の線をタップして距離を入力',
+  // kalem (S Pen · Apple Pencil · genel Android kalemleri)
+  penTitle: 'ペン', penFound: 'ペンを検出しました', penNotFound: 'まだペンを検出していません — ペンで一度タップしてください',
+  penPressureOk: '筆圧に対応', penPalmDropped: '手のひらのタッチを %s 件除外', palmReject: 'パームリジェクション (ペン接地中はタッチを無視)',
+  penHover: 'ホバー プレビュー (接地前に位置とスナップを表示)', penDraw: 'ペンで描き、指で移動', penPressure: '筆圧による線の太さ (メモ)',
+  penBarrel: 'サイドボタンの動作', penAct_menu: 'メニュー', penAct_erase: '削除',
+  penAct_snap: 'スナップ', penAct_undo: '元に戻す', penAct_none: 'なし',
+  penHint: 'ペンを裏返すと消しゴム側でオブジェクトを削除できます。S Pen、Apple Pencil、一般的な Android ペンに対応。',
 };
