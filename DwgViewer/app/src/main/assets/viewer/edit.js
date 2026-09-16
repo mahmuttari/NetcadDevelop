@@ -62,11 +62,16 @@ export function entToPrim(ent, layers) {
       const ops = P.map((p, i) => [i ? 1 : 0, p[0], p[1], p[2] || 0]);
       return { ...base, k: 0, ops, closed: true, fill: true, alpha: ent.alpha == null ? 1 : ent.alpha, w: 0, bb: opsBBox(ops) };
     }
-    case 'HATCH': {                                   // dolu tarama; sınır kapalı çokgen
+    case 'HATCH': {                                   // tarama; sınır kapalı çokgen
       if (P.length < 3) return null;
       const ops = P.map((p, i) => [i ? 1 : 0, p[0], p[1], p[2] || 0]);
-      info.pattern = ent.pattern || 'SOLID'; info.solid = true;
-      return { ...base, k: 0, ops, closed: true, fill: true, alpha: ent.alpha == null ? 1 : ent.alpha, w: 0, bb: opsBBox(ops) };
+      const ad = String(ent.pattern || 'SOLID').toUpperCase();
+      const dolu = ad === 'SOLID';
+      info.pattern = ent.pattern || 'SOLID'; info.solid = dolu;
+      // Desenli tarama İKİ ilkelden oluşur: sınır (dolgusuz, çerçeve) ve desen çizgileri.
+      // Ayrı tutulmalarının sebebi çizim değil YAZMA: DXF'e desenli HATCH olarak yazılırken
+      // çizgiler ayrıca LWPOLYLINE olarak çıkmamalıdır (hpart bayrağı onları süzer).
+      return { ...base, k: 0, ops, closed: true, fill: dolu, alpha: ent.alpha == null ? 1 : ent.alpha, w: 0, bb: opsBBox(ops) };
     }
     case 'CLOUD': {                                   // revizyon bulutu: yol üzerinde dışa kabaran yaylar
       const ops = cloudOps(P, ent.r || 0, ent.closed !== false);
@@ -94,7 +99,9 @@ export function entToPrim(ent, layers) {
       if (ops.length < 2) return null;
       // ent.ops OLUŞTURMA ANI’nın görüntüsüdür; ilkel sonradan taşınırsa transformPrim yalnız p.ops’u
       // günceller. Bloğa ya da panoya yeniden alırken primToEnt p.ops’u okur, bu yüzden ayrışma olmaz.
-      return { ...base, k: 0, ops, closed: !!ent.closed, fill: !!ent.fill, alpha: ent.alpha == null ? 1 : ent.alpha, w: ent.width || 0, bb: opsBBox(ops) };
+      const pr = { ...base, k: 0, ops, closed: !!ent.closed, fill: !!ent.fill, alpha: ent.alpha == null ? 1 : ent.alpha, w: ent.width || 0, bb: opsBBox(ops) };
+      if (ent.hp != null) pr.hp = ent.hp;             // desen adımı: LOD dolgusu bunu okur (render.js)
+      return pr;
     }
     case 'MESH': {                                    // hazır üçgen ağı (blok, pano)
       const V = ent.vtx, I = ent.idx;
@@ -328,6 +335,72 @@ export class EditDoc {
         C.layers.set(cmd.name, { name: cmd.name, color: cmd.color === -1 || cmd.color == null ? FG : ACI[cmd.color], lt: 'Continuous', lw: 25, frozen: false, off: false, visible: true, count: 0, added: true });
         return () => { C.layers.delete(cmd.name); };
       }
+      /*
+       * KATMAN ÖZELLİKLERİ. Yeniden adlandırma, renk, çizgi tipi, kalınlık, dondur/çöz ve kilit
+       * tek komutta toplanır: kullanıcı katman kutusunda hepsini birlikte değiştirir, geri alma
+       * da tek adım olmalıdır.
+       *
+       * Yeniden adlandırmada katmanın ADI nesnelerin üzerinde taşındığı için (p.lay) bütün
+       * ilkeller taranıp güncellenir. '0' katmanı yeniden adlandırılamaz — DXF'te ayrılmış addır
+       * ve renk/çizgi tipi "katmandan" çözümlemesinin dayanağıdır.
+       */
+      case 'layerprops': {
+        const l = C.layers.get(cmd.name); if (!l) return null;
+        const yeniAd = cmd.newName && cmd.newName !== cmd.name ? String(cmd.newName).trim() : null;
+        if (yeniAd && (cmd.name === '0' || C.layers.has(yeniAd) || !yeniAd)) return null;
+        const onceki = { ...l };
+        const etkilenen = yeniAd ? this.ctx.prims().filter(p => p.lay === cmd.name) : [];
+        const eskiRenkler = new Map();
+        if (cmd.color != null) for (const p of this.ctx.prims()) if (p.lay === cmd.name) eskiRenkler.set(p, p.col);
+        if (cmd.color != null) l.color = cmd.color === -1 ? FG : (cmd.color >= 1 && cmd.color <= 255 ? ACI[cmd.color] : FG);
+        if (cmd.lt != null) l.lt = cmd.lt;
+        if (cmd.lw != null) l.lw = cmd.lw;
+        if (cmd.frozen != null) { l.frozen = !!cmd.frozen; l.visible = !l.frozen && !l.off; }
+        if (cmd.off != null) { l.off = !!cmd.off; l.visible = !l.frozen && !l.off; }
+        if (cmd.locked != null) l.locked = !!cmd.locked;
+        l.edited = true;
+        // Katman rengiyle çizilen nesneler (colorIndex 256) yeni rengi almalı
+        if (cmd.color != null) for (const p of eskiRenkler.keys()) if (p.info && p.info.ci === 256) p.col = l.color;
+        if (yeniAd) {
+          C.layers.delete(cmd.name);
+          l.name = yeniAd;
+          C.layers.set(yeniAd, l);
+          for (const p of etkilenen) { p.lay = yeniAd; if (p.info) p.info = { ...p.info, lay: yeniAd }; if (p.ent) p.ent = { ...p.ent, layer: yeniAd }; }
+        }
+        return () => {
+          if (yeniAd) { C.layers.delete(yeniAd); for (const p of etkilenen) { p.lay = cmd.name; if (p.info) p.info = { ...p.info, lay: cmd.name }; if (p.ent) p.ent = { ...p.ent, layer: cmd.name }; } }
+          C.layers.set(cmd.name, Object.assign(l, onceki));
+          for (const [p, c] of eskiRenkler) p.col = c;
+        };
+      }
+      /*
+       * KATMAN SİLME. İki kip: içindeki nesneler de silinir ('ents') ya da '0' katmanına taşınır
+       * ('move'). Varsayılan taşımadır — silme geri alınabilir olsa bile kullanıcının nesnesini
+       * sessizce yok etmek doğru değildir. '0' katmanı silinemez.
+       */
+      case 'layerdel': {
+        if (cmd.name === '0') return null;
+        const l = C.layers.get(cmd.name); if (!l) return null;
+        const icerik = this.ctx.prims().filter(p => p.lay === cmd.name);
+        const kip = cmd.mode === 'ents' ? 'ents' : 'move';
+        const onceki = { ...l };
+        let silinen = null;
+        if (kip === 'ents') {
+          const set = new Set(icerik);
+          silinen = icerik.map(p => ({ p, i: this.ctx.prims().indexOf(p) }));
+          const arr = this.ctx.prims();
+          for (let i = arr.length - 1; i >= 0; i--) if (set.has(arr[i])) arr.splice(i, 1);
+        } else {
+          const sifir = C.layers.get('0');
+          for (const p of icerik) { p.lay = '0'; if (p.info) p.info = { ...p.info, lay: '0' }; if (p.ent) p.ent = { ...p.ent, layer: '0' }; if (p.info && p.info.ci === 256 && sifir) p.col = sifir.color; }
+        }
+        C.layers.delete(cmd.name);
+        return () => {
+          C.layers.set(cmd.name, Object.assign(l, onceki));
+          if (kip === 'ents' && silinen) { const arr = this.ctx.prims(); for (const { p, i } of silinen) arr.splice(Math.min(i, arr.length), 0, p); }
+          else for (const p of icerik) { p.lay = cmd.name; if (p.info) p.info = { ...p.info, lay: cmd.name }; if (p.ent) p.ent = { ...p.ent, layer: cmd.name }; if (p.info && p.info.ci === 256) p.col = l.color; }
+        };
+      }
       case 'edittext': {
         const ps = this.find(cmd.keys).filter(p => p.k === 1);
         if (!ps.length) return null;
@@ -491,7 +564,9 @@ export function writeDxf(prims, layers, opts = {}) {
   const w = (c, v) => { out.push(String(c)); out.push(String(v)); };
   let handle = 0x100;
   const H = () => (handle++).toString(16).toUpperCase();
-  const ents = prims.filter(p => p.k !== 4 && !p.inf && (!opts.onlyEdited || (p.info && p.info.edited)));
+  // Desen çizgileri ayrı LWPOLYLINE olarak YAZILMAZ: desenli tarama DXF'e HATCH olarak çıkar ve
+  // AutoCAD deseni kendisi üretir. Yazılsaydı dosyada hem dolgu hem çizgiler olur, çift görünürdü.
+  const ents = prims.filter(p => p.k !== 4 && !p.inf && !(p.ent && p.ent.hpart) && (!opts.onlyEdited || (p.info && p.info.edited)));
   const usedLayers = new Set(ents.map(p => p.lay));
   const bb = ents.length ? ents.reduce((a, p) => [Math.min(a[0], p.bb[0]), Math.min(a[1], p.bb[1]), Math.max(a[2], p.bb[2]), Math.max(a[3], p.bb[3])], [Infinity, Infinity, -Infinity, -Infinity]) : [0, 0, 1, 1];
   // HEADER
@@ -510,10 +585,10 @@ export function writeDxf(prims, layers, opts = {}) {
   for (const k of Object.keys(ltypes)) { const lt = ltypes[k]; w(0, 'LTYPE'); w(5, H()); w(100, 'AcDbSymbolTableRecord'); w(100, 'AcDbLinetypeTableRecord'); w(2, lt.name || k); w(70, 0); w(3, ''); w(72, 65); w(73, lt.pat.length); w(40, f6(lt.len)); for (const e of lt.pat) { w(49, f6(e)); w(74, 0); } }
   w(0, 'ENDTAB');
   w(0, 'TABLE'); w(2, 'LAYER'); w(5, H()); w(100, 'AcDbSymbolTable'); w(70, layers.size + 1);
-  const layList = [...layers.values()].filter(l => usedLayers.has(l.name) || l.name === '0' || l.added);
+  const layList = [...layers.values()].filter(l => usedLayers.has(l.name) || l.name === '0' || l.added || l.edited);   // düzenlenmiş boş katman da korunur
   if (!layList.some(l => l.name === '0')) layList.unshift({ name: '0', color: FG, lt: 'Continuous', lw: 25 });
   for (const l of layList) {
-    w(0, 'LAYER'); w(5, H()); w(100, 'AcDbSymbolTableRecord'); w(100, 'AcDbLayerTableRecord'); w(2, l.name); w(70, l.frozen ? 1 : 0);
+    w(0, 'LAYER'); w(5, H()); w(100, 'AcDbSymbolTableRecord'); w(100, 'AcDbLayerTableRecord'); w(2, l.name); w(70, (l.frozen ? 1 : 0) | (l.locked ? 4 : 0));   // DXF LAYER 70: bit 1 dondurulmuş, bit 4 kilitli
     w(62, (l.off ? -1 : 1) * aciOf(l.color, null)); w(6, l.lt && ltypes[(l.lt || '').toUpperCase()] ? l.lt : 'Continuous'); w(370, l.lw || 25); w(390, 0);
   }
   w(0, 'ENDTAB');

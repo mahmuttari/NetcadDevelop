@@ -206,8 +206,10 @@ await setEd('free');
     r.tab === 'draw' && !r.panel && r.tiles === 13 && r.locked === 13 && r.cta === 1 && r.ctaTier === 'premium' && r.first, JSON.stringify(r));
   await page.click('#toolbar [data-tab="annot"]'); await page.waitForTimeout(180);
   const a = await ev(() => { const row = document.querySelector('#toolbar .tb-row[data-for="annot"]'); return { empty: !!row.querySelector('.tb-empty'), tiles: row.querySelectorAll('[data-act]').length, txt: row.textContent }; });
-  ok('8b Açıklama sekmesi artık boş değil (eskiden 15 karo da elenip yanlış "favEmpty" metni çıkıyordu)',
-    !a.empty && a.tiles === 15 && !/uzun basarak/.test(a.txt), JSON.stringify({ empty: a.empty, tiles: a.tiles }));
+  // Karo sayısı sabit yazılmaz: sekmeye yeni araç eklendiğinde sınama yanlış kırmızı verirdi.
+  // Denetlenecek şey sayı değil DAVRANIŞtır — satır boş görünmemeli ve "favEmpty" metni çıkmamalı.
+  ok('8b Açıklama sekmesi artık boş değil (eskiden bütün karolar elenip yanlış "favEmpty" metni çıkıyordu)',
+    !a.empty && a.tiles >= 15 && !/uzun basarak/.test(a.txt), JSON.stringify({ empty: a.empty, tiles: a.tiles }));
   // 9) çağrı karosu: kutu açmadan panel
   await page.click('#toolbar .tb-row[data-for="annot"] .lk-cta'); await page.waitForTimeout(220);
   const p = await ev(() => { const el = document.getElementById('proPanel'); return { open: !el.hidden, focus: [...el.querySelectorAll('.tier-card.focus')].map(c => c.dataset.tier) }; });
@@ -315,12 +317,12 @@ await setEd('free');
     return { counts, lists, total: p.querySelectorAll('.lk-all li').length, cap: Ed.capabilityList().length, title: !!p.querySelector('.lk-all .opt-title') };
   });
   // Sayaç KÜMÜLATİFtir: Super kartı, Premium'un açtıklarını da açar. Okuyucu dökümdeki grupları
-  // toplayarak doğrulayabilir — Premium = 54, Super = 54 + 14 = 68. (Beş özellik v7.48'de
-  // Super'den Premium'a indi; driveShare, webdavWrite ve target3 eklendi: 65 → 68.)
+  // toplayarak doğrulayabilir — Premium = 54, Super = 56 + 14 = 70. (Beş özellik v7.48'de
+  // Super'den Premium'a indi; driveShare, webdavWrite, target3, hatchpat ve layeredit eklendi: 65 → 70.)
   const cum = (x) => ['adfree', 'premium', 'super'].slice(0, ['adfree', 'premium', 'super'].indexOf(x) + 1).reduce((a, y) => a + (r.lists[y] || 0), 0);
   const same = ['premium', 'super'].every(x => r.counts[x] === cum(x));
-  ok('14 kart sayacı dökümdeki grupların toplamıyla birebir aynı (Premium 54, Super 54+14=68); Ad-Free\'de sayaç yok',
-    r.title && same && r.total === r.cap && r.counts.adfree === 0 && r.total === 68, JSON.stringify({ ...r, cumPremium: cum('premium'), cumSuper: cum('super') }));
+  ok('14 kart sayacı dökümdeki grupların toplamıyla birebir aynı (Premium 56, Super 56+14=70); Ad-Free\'de sayaç yok',
+    r.title && same && r.total === r.cap && r.counts.adfree === 0 && r.total === 70, JSON.stringify({ ...r, cumPremium: cum('premium'), cumSuper: cum('super') }));
   await page.screenshot({ path: `${out}/lock_panel.png` });
 
   /*

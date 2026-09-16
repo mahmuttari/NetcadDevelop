@@ -1072,7 +1072,8 @@ $('layerList').addEventListener('pointerdown', (ev) => {
 $('layerList').addEventListener('contextmenu', (ev) => { const row = ev.target.closest('[data-layer-row]'); if (row) { ev.preventDefault(); layerMenu(row.dataset.layerRow); } });
 function layerMenu(name) {
   const l = S.layers.get(name); if (!l) return;
-  const items = [['fit', tt('fitLayer', 'Katmana sığdır')], ['cur', tt('makeCurrent', 'Geçerli katman yap')], ['iso', tt('onlyThis', 'Yalnız bu')], ['fade', l.faded ? tt('unfade', 'Soldurmayı kaldır') : tt('fadeLayer', 'Soldur')], ['lock', l.locked ? tt('unlock', 'Kilidi aç') : tt('lock', 'Kilitle')]];
+  const items = [['fit', tt('fitLayer', 'Katmana sığdır')], ['cur', tt('makeCurrent', 'Geçerli katman yap')], ['iso', tt('onlyThis', 'Yalnız bu')], ['fade', l.faded ? tt('unfade', 'Soldurmayı kaldır') : tt('fadeLayer', 'Soldur')], ['lock', l.locked ? tt('unlock', 'Kilidi aç') : tt('lock', 'Kilitle')],
+    ['props', t('layerEdit')], ['del', t('layerDelete')]];
   openDoc(t('layer') + ': ' + name, `<div class="full list ctx-list">${items.map(i => `<div class="item" data-lm="${i[0]}">${esc(i[1])}</div>`).join('')}</div>`);
   $('docBody').onclick = (ev) => {
     const it = ev.target.closest('[data-lm]'); if (!it) return;
@@ -1083,9 +1084,66 @@ function layerMenu(name) {
       case 'iso': isolateLayers([name]); break;
       case 'fade': setLayerFaded(name, !l.faded); break;
       case 'lock': l.locked = !l.locked; S.cacheValid = false; buildLayerList(); requestRender(); break;
+      case 'props': void layerProps(name); break;
+      case 'del': void layerDelete(name); break;
       default: break;
     }
   };
+}
+// Standart ACI renkleri: kutuda ad yerine numara ve örnek gösterilir; 256 "değiştirme" demektir
+const ACI_SECIM = [[1, 'Kırmızı'], [2, 'Sarı'], [3, 'Yeşil'], [4, 'Camgöbeği'], [5, 'Mavi'], [6, 'Macenta'], [7, 'Siyah / beyaz'], [8, 'Koyu gri'], [9, 'Açık gri'], [30, 'Turuncu'], [140, 'Çelik mavisi'], [250, 'Gri']]
+  .map(([i, ad]) => [String(i), i + ' · ' + ad]);
+/*
+ * KATMANIN KENDİSİNİ DÜZENLEME. Bugüne kadar katman paneli yalnız görünürlük ve izolasyon
+ * yapıyordu; katmanın adı, rengi, çizgi tipi, kalınlığı ve dondurma durumu değiştirilemiyordu.
+ * Hepsi TEK kutuda toplanır ve tek geri alma adımı üretir. '0' katmanı yeniden adlandırılamaz:
+ * DXF'te ayrılmış addır ve "katmandan" renk çözümlemesinin dayanağıdır.
+ */
+async function layerProps(name) {
+  const l = S.layers.get(name); if (!l) return;
+  if (!Ed.gate('layeredit')) return;
+  const lts = ['Continuous', ...Object.keys(S.ltypes || {})].filter((v, i, a) => a.indexOf(v) === i).slice(0, 40);
+  const r = await askForm(t('layer') + ': ' + name, [
+    { id: 'name', label: t('layerNewName'), value: name, hint: name === '0' ? t('layer0Protected') : '' },
+    { id: 'color', label: t('color'), type: 'select', value: '256',
+      options: [['256', t('noChange')], ...ACI_SECIM] },
+    { id: 'lt', label: t('ltype'), type: 'select', value: l.lt || 'Continuous', options: lts.map(x => [x, x]) },
+    { id: 'lw', label: t('lweight') + ' (mm)', type: 'number', value: String(((l.lw == null ? 25 : l.lw) / 100).toFixed(2)) },
+    { id: 'frozen', label: t('layerFreeze'), type: 'check', value: !!l.frozen },
+    { id: 'locked', label: t('lock'), type: 'check', value: !!l.locked },
+  ], { ok: t('save') });
+  if (!r) return;
+  const cmd = { op: 'layerprops', name };
+  const yeni = String(r.name || '').trim();
+  if (name !== '0' && yeni && yeni !== name) {
+    if (S.layers.has(yeni)) { toast(t('layerExists'), { type: 'warn' }); return; }
+    cmd.newName = yeni;
+  }
+  const ci = parseInt(r.color, 10);
+  if (isFinite(ci) && ci !== 256) cmd.color = ci;
+  if (r.lt && r.lt !== l.lt) cmd.lt = r.lt;
+  const lw = parseFloat(String(r.lw).replace(',', '.'));
+  if (isFinite(lw) && lw >= 0) cmd.lw = Math.round(lw * 100);
+  cmd.frozen = !!r.frozen; cmd.locked = !!r.locked;
+  if (!edCall('runCmd', cmd)) { toast(t('error'), { type: 'error' }); return; }
+  S.cacheValid = false; buildLayerList(); requestRender();
+  toast(t('layerUpdated') + ': ' + (cmd.newName || name), { type: 'ok' });
+}
+/** Katman silme: içindeki nesneler '0'a taşınır (varsayılan) ya da birlikte silinir */
+async function layerDelete(name) {
+  if (name === '0') { toast(t('layer0Protected'), { type: 'warn' }); return; }
+  const l = S.layers.get(name); if (!l) return;
+  if (!Ed.gate('layeredit')) return;
+  const n = S.prims.filter(p => p.lay === name && p.k !== 4 && !p.inf).length;
+  const r = await askForm(t('layerDelete') + ': ' + name, [
+    { id: 'mode', label: t('layerDelMode'), type: 'select', value: 'move',
+      options: [['move', t('layerDelMove')], ['ents', t('layerDelEnts') + (n ? ' (' + fmt(n, 0) + ')' : '')]] },
+  ], { ok: t('delete') });
+  if (!r) return;
+  if (r.mode === 'ents' && n > 0 && !(await askConfirm(t('layerDelAsk') + ' ' + name + ' · ' + fmt(n, 0)))) return;
+  if (!edCall('runCmd', { op: 'layerdel', name, mode: r.mode })) { toast(t('error'), { type: 'error' }); return; }
+  S.cacheValid = false; buildLayerList(); requestRender();
+  toast(t('layerDeleted') + ': ' + name, { type: 'ok' });
 }
 for (const [id, fn] of [['btnLayersUniso', () => unisolate()], ['btnLayersInvert', () => { for (const l of S.layers.values()) l.visible = !l.visible; S.cacheValid = false; buildLayerList(); requestRender(); }]]) { const b = $(id); if (b) b.addEventListener('click', fn); }
 { const ss = $('layerSort'); if (ss) ss.addEventListener('change', buildLayerList); const ov = $('layerOnlyVis'); if (ov) ov.addEventListener('change', buildLayerList); }

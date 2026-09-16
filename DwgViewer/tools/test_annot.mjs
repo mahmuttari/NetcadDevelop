@@ -256,7 +256,12 @@ const tiers = await page.evaluate(async () => {
 });
 ok('9a ölçülendirme ve açıklama Premium', ['t:dim', 't:dimh', 't:dimv', 't:dimr', 't:dimd', 't:dima', 't:leader', 't:cloud', 't:balloon', 't:hatch', 'markdim'].every(k => tiers[k] === 'premium'), JSON.stringify(tiers));
 ok('9b 2B düzenleme eklentileri Premium', ['t:array', 't:explode', 't:textsize', 't:attr', 'findrep', 'blocklib', 'copyclip', 'pasteclip', 'tableout'].every(k => tiers[k] === 'premium'));
-ok('9c 3B üretim ve dönüştürme Super', ['t:thick', '3:geo', '3:note', 'mesh3d', 'batch', 'pdfcad'].every(k => tiers[k] === 'super'));
+// PDF→CAD ve toplu işlem v7.48'de Super'den Premium'a indi (rakip ikisini de Premium'da veriyor);
+// 3B ÜRETİM Super'de kaldı — Super'i ayıran şey 3B'dir, dönüştürme değil.
+ok('9c 3B üretim Super, dönüştürme ve toplu işlem Premium',
+  ['t:thick', '3:geo', '3:note', 'mesh3d'].every(k => tiers[k] === 'super')
+  && ['batch', 'pdfcad'].every(k => tiers[k] === 'premium'),
+  JSON.stringify({ thick: tiers['t:thick'], mesh3d: tiers.mesh3d, batch: tiers.batch, pdfcad: tiers.pdfcad }));
 ok('9d dolgu alanı ölçümü ücretsiz', tiers['t:fillarea'] === 'free', tiers['t:fillarea']);
 
 // ---- 10. Araçları gerçek dokunuşla sürme -----------------------------------------------------------

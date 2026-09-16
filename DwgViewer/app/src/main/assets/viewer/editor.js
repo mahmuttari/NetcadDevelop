@@ -31,7 +31,7 @@ const tt = (k, tr) => { const v = t(k); return v === k ? tr : v; };
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const call = (fn, ...a) => { try { return typeof fn === 'function' ? fn(...a) : undefined; } catch (e) { console.warn(e); return undefined; } };
 let api, S, tools, doc = null, v3 = null;
-const ed = { is3D: () => !!(v3 && !$('cv3d').hidden), tools: null, doc: null, curLayer: '0', curColor: 256, tab: 'view', sel: new Set(), result: null, m3: null };
+const ed = { is3D: () => !!(v3 && !$('cv3d').hidden), tools: null, doc: null, curLayer: '0', curColor: 256, tab: 'view', sel: new Set(), result: null, m3: null, curPattern: { name: 'SOLID', scale: 1, angle: 0 } };
 
 // ---------------------------------------------------------------------------------
 // Kullanım tercihleri (ui) — kalıcı anahtar 'ui'
@@ -96,7 +96,7 @@ const TABS = [
     { cap: 'grpHist', items: [T('undo', 'i-undo', 'Geri al', 'Undo'), T('redo', 'i-redo', 'Yinele', 'Redo')] } ] },
   { id: 'annot', i18n: 'tabAnnot', icon: 'i-dim', groups: [
     { cap: 'grpDim', items: [T('t:dim', 'i-dim', 'Doğrusal ölçü', 'Linear', 'İki nokta + ölçü çizgisi; eğik ölçü', 'Two points + dimension line; aligned'), T('t:dimh', 'i-dim-h', 'Yatay ölçü', 'Horizontal', 'Yatay mesafeyi ölçülendirir', 'Dimension the horizontal distance'), T('t:dimv', 'i-dim-v', 'Düşey ölçü', 'Vertical', 'Düşey mesafeyi ölçülendirir', 'Dimension the vertical distance'), T('t:dimr', 'i-radius', 'Yarıçap', 'Radius', 'Daire ya da yaya dokunun', 'Tap a circle or arc'), T('t:dimd', 'i-diameter', 'Çap', 'Diameter', 'Daire ya da yaya dokunun', 'Tap a circle or arc'), T('t:dima', 'i-angle', 'Açı ölçüsü', 'Angular', 'Tepe + iki kol', 'Vertex + two arms')] },
-    { cap: 'grpMark', items: [T('t:leader', 'i-leader', 'Açıklama', 'Leader', 'Ok başlı kılavuz çizgi ve yazı', 'Leader line with an arrow and text'), T('t:cloud', 'i-cloud', 'Revizyon bulutu', 'Revision cloud', 'Değişen bölgeyi bulutla çevreler', 'Cloud around a revised area'), T('t:balloon', 'i-balloon', 'Numaralandır', 'Numbering', 'Artan numaralı balon; her dokunuşta bir sonraki', 'Balloon with an auto-incrementing number'), T('t:hatch', 'i-hatch', 'Tarama', 'Hatch', 'Kapalı alanın içine dokunun, dolgu ekler', 'Tap inside a closed area to fill it'), T('markdim', 'i-dim', 'Ölçümü işle', 'Mark measurement', 'Son ölçüm sonucunu açıklama olarak çizime yazar', 'Write the last measurement onto the drawing')] },
+    { cap: 'grpMark', items: [T('t:leader', 'i-leader', 'Açıklama', 'Leader', 'Ok başlı kılavuz çizgi ve yazı', 'Leader line with an arrow and text'), T('t:cloud', 'i-cloud', 'Revizyon bulutu', 'Revision cloud', 'Değişen bölgeyi bulutla çevreler', 'Cloud around a revised area'), T('t:balloon', 'i-balloon', 'Numaralandır', 'Numbering', 'Artan numaralı balon; her dokunuşta bir sonraki', 'Balloon with an auto-incrementing number'), T('t:hatch', 'i-hatch', 'Tarama', 'Hatch', 'Kapalı alanın içine dokunun, dolgu ekler', 'Tap inside a closed area to fill it'), T('hatchpat', 'i-hatch', 'Desen', 'Pattern', 'Çizilecek taramanın deseni, ölçeği ve açısı', 'Pattern, scale and angle for new hatches'), T('markdim', 'i-dim', 'Ölçümü işle', 'Mark measurement', 'Son ölçüm sonucunu açıklama olarak çizime yazar', 'Write the last measurement onto the drawing')] },
     { cap: 'grpCur', items: [T('layer', 'i-layers', 'Katman', 'Layer'), T('color', 'i-palette', 'Renk', 'Color')] },
     { cap: 'grpHist', items: [T('undo', 'i-undo', 'Geri al', 'Undo'), T('redo', 'i-redo', 'Yinele', 'Redo')] } ] },
   { id: 'edit', i18n: 'tabEdit', icon: 'i-select', groups: [
@@ -163,6 +163,7 @@ export function initEditor(a) {
     visiblePrims: () => S.prims.filter(p => !(S.layers.get(p.lay) && !S.layers.get(p.lay).visible)),
     allPrims: () => (S.scene ? S.scene.layouts[0].prims : []),
     trType: (x) => tt('ety_' + x, x),               // DXF tür adının yerelleşmiş karşılığı (yoksa adın kendisi)
+    hatchPattern: () => ed.curPattern,              // çizilecek taramanın deseni (SOLID varsayılan)
     meshMetrics: (p) => { try { return p && p.vtx && p.idx ? meshMetrics(p.vtx, p.idx) : null; } catch (_) { return null; } },
   });
   ed.tools = tools;
@@ -378,6 +379,28 @@ function vstylePop(btn) {
  * vstylePop ile birebir aynı düzen — ayrı bir bileşen yazılmaz.
  */
 const PICK3 = [['vertex', 'pick3Vertex'], ['surface', 'pick3Surface'], ['auto', 'pick3Auto']];
+/*
+ * DESEN SEÇİCİ. Çizilecek taramanın deseni, ölçeği ve açısı. Varsayılan SOLID'dir ve öyle
+ * kalmalıdır: eski davranış (düz dolgu) hiçbir ayara dokunmayan kullanıcı için değişmez.
+ * Desen adları geom.HATCH_PATTERNS'ten gelir — tek tanım, tek çizici.
+ */
+async function hatchPatPop() {
+  if (!gate('t:hatch')) return;
+  const G = await import('./geom.js');
+  const adlar = Object.keys(G.HATCH_PATTERNS);
+  const cur = ed.curPattern || { name: 'SOLID', scale: 1, angle: 0 };
+  const r = await askForm(t('hatchPatTitle'), [
+    { id: 'name', label: tileLabel('hatchpat'), type: 'select', value: cur.name,
+      options: adlar.map(n => [n, n === 'SOLID' ? t('patSolid') : n]) },
+    { id: 'scale', label: t('hatchScale'), type: 'number', value: String(cur.scale) },
+    { id: 'angle', label: t('hatchAngle'), type: 'number', value: String(cur.angle) },
+  ], { ok: t('ok') });
+  if (!r) return;
+  const sc = parseFloat(String(r.scale).replace(',', '.')), an = parseFloat(String(r.angle).replace(',', '.'));
+  ed.curPattern = { name: adlar.includes(r.name) ? r.name : 'SOLID', scale: isFinite(sc) && sc > 0 ? sc : 1, angle: isFinite(an) ? an : 0 };
+  refreshTiles();
+  api.toast(ed.curPattern.name === 'SOLID' ? t('patSolid') : ed.curPattern.name);
+}
 function targetPop(btn) {
   if (!v3 || !ed.is3D()) { if (!needModel()) return; enter3D(); }
   if (!gate('target3')) return;
@@ -502,6 +525,7 @@ function act(name, btn) {
     case 'zscale': optionPop(btn, renderZScale, tt('zscaleTitle', 'Düşey abartı')); break;
     case 'vstyle': vstylePop(btn); break;
     case 'target3': targetPop(btn); break;
+    case 'hatchpat': void hatchPatPop(); break;
     case 'clip3': optionPop(btn, renderClip, tt('clipTitle', 'Kesit')); break;
     case 'color3': call(api.openDisplayOptions, { seg: '3d', focus: 'colorMode' }); break;
     case 'light3': if (v3) v3.set('light', !v3.opts.light); break;

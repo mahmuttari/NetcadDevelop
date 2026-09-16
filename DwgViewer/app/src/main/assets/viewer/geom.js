@@ -729,6 +729,114 @@ export function planePlane3(p1, p2) {
 }
 
 /*
+ * TARAMA DESENİ. AutoCAD .pat biçimli tanım satırları: her satır bir çizgi ailesidir —
+ * [açı°, taban x, taban y, Δx, Δy, ...çizgi/boşluk dizisi]. Δ, ardışık çizgiler arası ötelemedir;
+ * dizi boşsa çizgi süreklidir, negatif değer boşluktur, sıfır noktadır.
+ *
+ * Tablo acad.pat değerleridir ve BURADA TEK KOPYA durur: DWG/DXF'ten gelen tanımlar da, bizim
+ * ürettiğimiz taramalar da aynı çiziciden (hatchLines) geçer. İkinci bir desen tanımı ya da
+ * ikinci bir çizici yazılmaz — yoksa okunan ile üretilen tarama zamanla ayrışır.
+ */
+export const HATCH_PATTERNS = {
+  SOLID: [],
+  ANSI31: [[45, 0, 0, 0, 0.125]],
+  ANSI32: [[45, 0, 0, 0, 0.375], [45, 0.176776695, 0, 0, 0.375]],
+  ANSI33: [[45, 0, 0, 0, 0.25], [45, 0.176776695, 0, 0, 0.25, 0.125, -0.0625]],
+  ANSI37: [[45, 0, 0, 0, 0.125], [135, 0, 0, 0, 0.125]],
+  NET: [[0, 0, 0, 0, 0.125], [90, 0, 0, 0, 0.125]],
+  LINE: [[0, 0, 0, 0, 0.125]],
+  DOTS: [[0, 0, 0, 0.03125, 0.0625, 0, -0.0625]],
+  CROSS: [[0, 0, 0, 0.25, 0.25, 0.125, -0.375], [90, 0.0625, -0.0625, 0.25, 0.25, 0.125, -0.375]],
+  EARTH: [[0, 0, 0, 0.25, 0.25, 0.25, -0.0625], [0, 0, 0.09375, 0.25, 0.25, 0.25, -0.0625], [90, 0, 0, 0.25, 0.25, 0.25, -0.0625], [90, 0.09375, 0, 0.25, 0.25, 0.25, -0.0625]],
+  GRAVEL: [[45, 0, 0, 0.21875, 0.1875, 0.0625, -0.125], [45, 0.0625, 0.0625, 0.21875, 0.1875, 0.0625, -0.125]],
+};
+/** Desen adı → çizici tanım satırları. ölçek ve dönüş uygulanır; bilinmeyen ad ya da SOLID → [] */
+export function patternDefs(name, scale = 1, angleDeg = 0) {
+  const raw = HATCH_PATTERNS[String(name || '').toUpperCase()];
+  if (!raw || !raw.length) return [];
+  const k = Math.abs(scale) > 1e-9 ? Math.abs(scale) : 1;
+  const rot = (angleDeg || 0) * Math.PI / 180, cs = Math.cos(rot), sn = Math.sin(rot);
+  return raw.map(r => {
+    const a = (r[0] || 0) * Math.PI / 180 + rot;
+    const bx = (r[1] || 0) * k, by = (r[2] || 0) * k;
+    const dx = (r[3] || 0) * k, dy = (r[4] || 0) * k;
+    return {
+      angle: a,
+      base: { x: bx * cs - by * sn, y: bx * sn + by * cs },
+      offset: { x: dx * cs - dy * sn, y: dx * sn + dy * cs },
+      dashLengths: r.slice(5).map(v => v * k),
+    };
+  });
+}
+/**
+ * Kapalı çokgenleri desen tanımına göre çizgi parçalarına böler.
+ * polys: [[ [x,y], … ], …] · defs: patternDefs çıktısı ya da DXF/DWG tanım satırları
+ * Dönüş { ops, segs, minStep } ya da bütçe aşılırsa null.
+ *
+ * Gövde scene.js'teki çiziciden OLDUĞU GİBİ taşındı; davranış değişmedi, yalnız `this` bağı
+ * kesildi ve bütçeler parametre oldu. Okunan tarama ile ürettiğimiz tarama aynı koddan geçer.
+ */
+export function hatchLines(polys, defs, opt = {}) {
+  if (!polys || !polys.length || !defs || !defs.length) return null;
+  const maxSeg = opt.maxSeg != null ? opt.maxSeg : 120000;
+  const maxWork = opt.maxWork != null ? opt.maxWork : 4e6;
+  const bb = [Infinity, Infinity, -Infinity, -Infinity];
+  for (const pl of polys) for (const q of pl) { if (q[0] < bb[0]) bb[0] = q[0]; if (q[1] < bb[1]) bb[1] = q[1]; if (q[0] > bb[2]) bb[2] = q[0]; if (q[1] > bb[3]) bb[3] = q[1]; }
+  const diag = Math.hypot(bb[2] - bb[0], bb[3] - bb[1]);
+  if (!(diag > 0)) return false;
+  const corners = [[bb[0], bb[1]], [bb[2], bb[1]], [bb[2], bb[3]], [bb[0], bb[3]]];
+  const npts = polys.reduce((t, l) => t + l.length, 0);
+  const out = []; let segs = 0, lines = 0, minStep = Infinity;
+  for (const dl of defs) {
+    const a = dl.angle || 0, ux = Math.cos(a), uy = Math.sin(a), nx = -uy, ny = ux;
+    const base = dl.base || { x: 0, y: 0 }, off = dl.offset || { x: 0, y: 0 };
+    const step = (off.x || 0) * nx + (off.y || 0) * ny;             // ardışık çizgiler arası dik uzaklık (işaretli)
+    if (!(Math.abs(step) > 1e-12)) continue;
+    if (Math.abs(step) < minStep) minStep = Math.abs(step);
+    const dashes = (dl.dashLengths || []).filter(v => typeof v === 'number' && isFinite(v));
+    const period = dashes.reduce((t, v) => t + Math.abs(v), 0);
+    let dmin = Infinity, dmax = -Infinity;
+    for (const c of corners) { const d = (c[0] - base.x) * nx + (c[1] - base.y) * ny; if (d < dmin) dmin = d; if (d > dmax) dmax = d; }
+    const i0 = Math.floor(Math.min(dmin / step, dmax / step)) - 1, i1 = Math.ceil(Math.max(dmin / step, dmax / step)) + 1;
+    lines += i1 - i0 + 1;
+    if (lines > maxSeg || lines * npts > maxWork || (period > 0 && lines * (diag / period) * dashes.length > maxSeg * 4)) return null;   // kırpma maliyeti de sınırlı
+    for (let i = i0; i <= i1; i++) {
+      const ox = base.x + off.x * i, oy = base.y + off.y * i;
+      const ts = [];
+      for (const pl of polys) {
+        for (let j = 0, m = pl.length; j < m; j++) {
+          const p = pl[j], q = pl[(j + 1) % m];
+          const den = (q[0] - p[0]) * nx + (q[1] - p[1]) * ny;
+          if (Math.abs(den) < 1e-15) continue;
+          const sPar = ((ox - p[0]) * nx + (oy - p[1]) * ny) / den;
+          if (sPar < 0 || sPar >= 1) continue;
+          ts.push((p[0] + sPar * (q[0] - p[0]) - ox) * ux + (p[1] + sPar * (q[1] - p[1]) - oy) * uy);
+        }
+      }
+      if (ts.length < 2) continue;
+      ts.sort((x, y) => x - y);
+      for (let j = 0; j + 1 < ts.length; j += 2) {
+        const t0 = ts[j], t1 = ts[j + 1];
+        if (!(t1 - t0 > 1e-12)) continue;
+        if (!(period > 0)) { out.push([0, ox + ux * t0, oy + uy * t0], [1, ox + ux * t1, oy + uy * t1]); segs++; continue; }
+        let t = Math.floor(t0 / period) * period, di = 0;               // çizgi-boşluk dizisi çizginin kendi başlangıcından (i. taban) sayılır
+        while (t < t1) {
+          const v = dashes[di], len = Math.abs(v);
+          if (v >= 0) {
+            const s0 = Math.max(t0, t), s1 = v === 0 ? Math.min(t1, t + diag * 1e-4) : Math.min(t1, t + len);
+            if (s1 > s0) { out.push([0, ox + ux * s0, oy + uy * s0], [1, ox + ux * s1, oy + uy * s1]); segs++; }
+          }
+          t += len; di = (di + 1) % dashes.length;
+          if (segs > maxSeg) return null;
+        }
+      }
+    }
+  }
+  if (!out.length || !isFinite(minStep)) return null;
+  return { ops: out, segs, minStep };
+}
+
+/*
  * IŞIN-KUTU (slab testi). ix/iy/iz ÇAĞIRAN tarafından bir kez hesaplanmış 1/d değerleridir:
  * her gövde için üç bölme yapmamak içindir, binlerce gövdede fark eder. Işın yönünün bir
  * bileşeni sıfırken 1/0 = ±Infinity doğru sonucu verir (ışın o eksende hiç ilerlemez);

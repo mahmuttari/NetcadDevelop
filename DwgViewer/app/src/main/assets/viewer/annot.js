@@ -17,7 +17,7 @@
  * geometri her okuyucuda birebir aynı görünür ve DXF'e sorunsuz yazılır. Parçalar `itype`
  * ile DIMENSION damgası taşıdığı için "Ölçüleri gizle" süzgeci onları da gizler.
  */
-import { TAU } from './geom.js';
+import { TAU, patternDefs, hatchLines } from './geom.js';
 
 const D2R = Math.PI / 180;
 const sub = (a, b) => [a[0] - b[0], a[1] - b[1]];
@@ -204,4 +204,24 @@ export function arrayItems(kind, prm) {
     out.push({ m: [1, 0, 0, 1, dx * i, dy * j], dz: dz * (i + j) });
   }
   return out;
+}
+
+/*
+ * TARAMA ÜRETİCİSİ. Saf: kimlik üretmez, sahneye dokunmaz, yalnız varlık listesi döndürür.
+ * SOLID'de tek varlık (dolu çokgen) verir; desenli olduğunda İKİ varlık: sınır çerçevesi ve
+ * desen çizgileri. Çizgiler geom.hatchLines ile üretilir — okunan taramayla AYNI çizici.
+ * Desen bulunamazsa ya da bütçe aşılırsa SOLID'e düşer: kullanıcı boş sonuçla karşılaşmaz.
+ */
+export function hatchEnts(pts, o = {}) {
+  if (!pts || pts.length < 3) return null;
+  const ad = String(o.pattern || 'SOLID').toUpperCase();
+  const z = (pts[0] && pts[0][2]) || 0;
+  const ortak = { layer: o.layer, color: o.color, group: o.group };
+  if (ad === 'SOLID') return { ents: [{ ...ortak, type: 'HATCH', pts: pts.map(p => [p[0], p[1], z]), pattern: 'SOLID', alpha: o.alpha == null ? 1 : o.alpha }], pattern: 'SOLID', segs: 0 };
+  const defs = patternDefs(ad, o.scale || 1, o.angle || 0);
+  const r = defs.length ? hatchLines([pts.map(p => [p[0], p[1]])], defs, { maxSeg: 20000, maxWork: 1e6 }) : null;
+  if (!r) return hatchEnts(pts, { ...o, pattern: 'SOLID' });
+  const sinir = { ...ortak, type: 'HATCH', pts: pts.map(p => [p[0], p[1], z]), pattern: ad, alpha: o.alpha == null ? 1 : o.alpha };
+  const cizgi = { ...ortak, type: 'PATH', ops: r.ops.map(op => [op[0], op[1], op[2], z]), closed: false, fill: false, hp: r.minStep, hpart: 1 };
+  return { ents: [sinir, cizgi], pattern: ad, segs: r.segs };
 }

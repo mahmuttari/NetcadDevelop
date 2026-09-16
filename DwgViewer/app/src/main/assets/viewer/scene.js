@@ -20,7 +20,7 @@
  * Ortak: col (RGB; -1 = ön plan), lay, lt (ad), lts (çizgi tipi ölçeği), lw (1/100 mm), bb, info
  */
 import { parseAcis, tessellate, triangulate, newell } from './acis.js';
-import { TAU, IDENT, mul, apply, isIdent, isSim, simScale, simRot, det, insertMatrix, arcPts, ellipsePts, bulgeArc, bsplinePts, catmullPts, opsBBox, flatten } from './geom.js';
+import { TAU, IDENT, mul, apply, isIdent, isSim, simScale, simRot, det, insertMatrix, arcPts, ellipsePts, bulgeArc, bsplinePts, catmullPts, opsBBox, flatten, hatchLines } from './geom.js';
 
 export const FG = -1;
 /** desenli taramada üretilecek en çok çizgi parçası; aşılırsa düz dolgu */
@@ -1400,6 +1400,11 @@ export class SceneBuilder {
    * Üst sınır HATCH_MAX_SEG parça; aşılırsa false döner ve düz dolguya düşülür.
    * Dönüş: en sık desen aralığı (dünya birimi, bağlam ölçeği uygulanmış) — render.js'te uzaklık düzeyi (LOD) için.
    */
+  /*
+   * Desenli tarama. Çizici geom.hatchLines'tadır: DWG/DXF'ten okunan tanım satırları da,
+   * bizim ürettiğimiz taramalar da aynı koddan geçsin diye oraya taşındı. Burada kalan iş
+   * bağlama özgüdür: sahne bütçesi, ops → çokgen dönüşümü ve sonucun ilkel olarak yazılması.
+   */
   hatchPattern(e, ops, ctx) {
     const defs = e.definitionLines || e.patternLines || [];
     if (!defs.length) return false;
@@ -1408,63 +1413,12 @@ export class SceneBuilder {
     for (const o of ops) { if (o[0] === 0) { cur = [o]; loops.push(cur); } else if (cur) cur.push(o); }
     const polys = loops.map(l => flatten(l)).filter(l => l.length >= 3);
     if (!polys.length) return false;
-    const bb = [Infinity, Infinity, -Infinity, -Infinity];
-    for (const pl of polys) for (const q of pl) { if (q[0] < bb[0]) bb[0] = q[0]; if (q[1] < bb[1]) bb[1] = q[1]; if (q[0] > bb[2]) bb[2] = q[0]; if (q[1] > bb[3]) bb[3] = q[1]; }
-    const diag = Math.hypot(bb[2] - bb[0], bb[3] - bb[1]);
-    if (!(diag > 0)) return false;
-    const corners = [[bb[0], bb[1]], [bb[2], bb[1]], [bb[2], bb[3]], [bb[0], bb[3]]];
-    const npts = polys.reduce((t, l) => t + l.length, 0);
-    const out = []; let segs = 0, lines = 0, minStep = Infinity;
-    for (const dl of defs) {
-      const a = dl.angle || 0, ux = Math.cos(a), uy = Math.sin(a), nx = -uy, ny = ux;
-      const base = dl.base || { x: 0, y: 0 }, off = dl.offset || { x: 0, y: 0 };
-      const step = (off.x || 0) * nx + (off.y || 0) * ny;             // ardışık çizgiler arası dik uzaklık (işaretli)
-      if (!(Math.abs(step) > 1e-12)) continue;
-      if (Math.abs(step) < minStep) minStep = Math.abs(step);
-      const dashes = (dl.dashLengths || []).filter(v => typeof v === 'number' && isFinite(v));
-      const period = dashes.reduce((t, v) => t + Math.abs(v), 0);
-      let dmin = Infinity, dmax = -Infinity;
-      for (const c of corners) { const d = (c[0] - base.x) * nx + (c[1] - base.y) * ny; if (d < dmin) dmin = d; if (d > dmax) dmax = d; }
-      const i0 = Math.floor(Math.min(dmin / step, dmax / step)) - 1, i1 = Math.ceil(Math.max(dmin / step, dmax / step)) + 1;
-      lines += i1 - i0 + 1;
-      if (lines > HATCH_MAX_SEG || lines * npts > 4e6 || (period > 0 && lines * (diag / period) * dashes.length > HATCH_MAX_SEG * 4)) return false;   // kırpma maliyeti de sınırlı
-      for (let i = i0; i <= i1; i++) {
-        const ox = base.x + off.x * i, oy = base.y + off.y * i;
-        const ts = [];
-        for (const pl of polys) {
-          for (let j = 0, m = pl.length; j < m; j++) {
-            const p = pl[j], q = pl[(j + 1) % m];
-            const den = (q[0] - p[0]) * nx + (q[1] - p[1]) * ny;
-            if (Math.abs(den) < 1e-15) continue;
-            const sPar = ((ox - p[0]) * nx + (oy - p[1]) * ny) / den;
-            if (sPar < 0 || sPar >= 1) continue;
-            ts.push((p[0] + sPar * (q[0] - p[0]) - ox) * ux + (p[1] + sPar * (q[1] - p[1]) - oy) * uy);
-          }
-        }
-        if (ts.length < 2) continue;
-        ts.sort((x, y) => x - y);
-        for (let j = 0; j + 1 < ts.length; j += 2) {
-          const t0 = ts[j], t1 = ts[j + 1];
-          if (!(t1 - t0 > 1e-12)) continue;
-          if (!(period > 0)) { out.push([0, ox + ux * t0, oy + uy * t0], [1, ox + ux * t1, oy + uy * t1]); segs++; continue; }
-          let t = Math.floor(t0 / period) * period, di = 0;               // çizgi-boşluk dizisi çizginin kendi başlangıcından (i. taban) sayılır
-          while (t < t1) {
-            const v = dashes[di], len = Math.abs(v);
-            if (v >= 0) {
-              const s0 = Math.max(t0, t), s1 = v === 0 ? Math.min(t1, t + diag * 1e-4) : Math.min(t1, t + len);
-              if (s1 > s0) { out.push([0, ox + ux * s0, oy + uy * s0], [1, ox + ux * s1, oy + uy * s1]); segs++; }
-            }
-            t += len; di = (di + 1) % dashes.length;
-            if (segs > HATCH_MAX_SEG) return false;
-          }
-        }
-      }
-    }
-    if (!out.length || !isFinite(minStep)) return false;
-    this._hatchSegs = (this._hatchSegs || 0) + segs;
+    const r = hatchLines(polys, defs, { maxSeg: HATCH_MAX_SEG, maxWork: 4e6 });
+    if (!r) return false;
+    this._hatchSegs = (this._hatchSegs || 0) + r.segs;
     const m = ctx.m, k = isIdent(m) ? 1 : Math.sqrt(Math.abs(det(m))) || 1;
-    const hp = minStep * k;
-    const pr = this.addPath(out, {}, e, ctx);
+    const hp = r.minStep * k;
+    const pr = this.addPath(r.ops, {}, e, ctx);
     if (pr) pr.hp = hp;
     return hp;
   }

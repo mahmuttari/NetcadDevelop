@@ -14,7 +14,7 @@ import { TAU, flatten, polyArea, pathLength, pathLength3, segDist, opsBBox, encl
 import { newId, offsetPoints } from './edit.js';
 import { t, addStrings } from './i18n.js';
 import { askText, askConfirm, askForm } from './dialog.js';
-import { dimLinear, dimRadial, dimAngular, leaderEnts, cloudEnt, balloonEnts, arrayItems } from './annot.js';
+import { dimLinear, dimRadial, dimAngular, leaderEnts, cloudEnt, balloonEnts, arrayItems, hatchEnts } from './annot.js';
 
 const R2D = 180 / Math.PI, D2R = Math.PI / 180;
 
@@ -333,8 +333,12 @@ export class ToolManager {
       A.overlay();
       return;
     }
-    this.commitMany([{ type: 'HATCH', pts, alpha: 1 }]);
-    A.toast(t('hatchAdded') + ' \u00b7 ' + A.fmt(reg.area) + (u ? u + '\u00b2' : ''));
+    // Desen, araç çubuğundaki "Desen" karosundan gelir; SOLID varsayılandır (eski davranış).
+    const hp = (A.hatchPattern && A.hatchPattern()) || { name: 'SOLID', scale: 1, angle: 0 };
+    const r = hatchEnts(pts, { pattern: hp.name, scale: hp.scale, angle: hp.angle, layer: A.layer(), color: A.color(), alpha: 1 });
+    if (!r) { A.toast(t('error')); return; }
+    this.commitMany(r.ents);
+    A.toast(t('hatchAdded') + ' \u00b7 ' + (r.pattern === 'SOLID' ? t('patSolid') : r.pattern) + ' \u00b7 ' + A.fmt(reg.area) + (u ? u + '\u00b2' : ''));
   }
   /** Açıklama üreticilerine verilen ortak seçenekler (yazı yüksekliği, katman, renk, grup) */
   annotOpts(extra) {

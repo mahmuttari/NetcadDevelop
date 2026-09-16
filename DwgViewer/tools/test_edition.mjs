@@ -106,16 +106,25 @@ const fakeBridge = ({ price, prices }) => {
   // Diğer menüsü (belge yokken ana ekran açıktır ve üst çubuk gizlidir: düğme programla tıklanır, menü ana ekranın üstünde açılır)
   {
     await ev(() => document.getElementById('btnMore').click()); await page.waitForTimeout(100);
-    const r = await ev(() => { const q = (a) => document.querySelector(`#moreMenu [data-act="${a}"]`); const n = (a) => q(a).dataset.need || ''; return { notes: q('notes').hidden, profile: q('profile').hidden, compare: q('compare').hidden, pdf: q('pdf').hidden, pro: q('pro').hidden, proVis: q('pro').offsetParent !== null, proText: q('pro').textContent.trim(), png: q('png').hidden, info: q('info').hidden, about: q('about').hidden, need: [n('notes'), n('profile'), n('compare'), n('pdf'), n('png'), n('info'), n('pro')].join('|'), pills: document.querySelectorAll('#moreMenu .lk-pill').length }; });
-    ok('1j Diğer menüsü: notes/profile/compare/pdf ARTIK GÖRÜNÜR ve rozetli, pro görünür', !r.notes && !r.profile && !r.compare && !r.pdf && !r.pro && r.proVis && r.proText.startsWith('Paketlere bak') && !r.png && !r.info && !r.about && r.need === 'premium|super|super|premium|||' && r.pills >= 4, JSON.stringify(r));
+    // Rozet basamağı FEATURE_TIER'den okunur: bir yetenek Premium'a inince test kırılmaz, sözleşme sınanır.
+    const r = await ev(async () => {
+      const Ed = await import('./edition.js');
+      const q = (a) => document.querySelector(`#moreMenu [data-act="${a}"]`); const n = (a) => q(a).dataset.need || '';
+      const kilitli = ['notes', 'profile', 'compare', 'pdf'], serbest = ['png', 'info', 'about'];
+      return { notes: q('notes').hidden, profile: q('profile').hidden, compare: q('compare').hidden, pdf: q('pdf').hidden, pro: q('pro').hidden, proVis: q('pro').offsetParent !== null, proText: q('pro').textContent.trim(), png: q('png').hidden, info: q('info').hidden, about: q('about').hidden, need: [n('notes'), n('profile'), n('compare'), n('pdf'), n('png'), n('info'), n('pro')].join('|'), rozet: kilitli.every(a => !Ed.has(a) && n(a) === Ed.need(a)) && serbest.every(a => Ed.has(a) && !n(a)), pills: document.querySelectorAll('#moreMenu .lk-pill').length };
+    });
+    ok('1j Diğer menüsü: notes/profile/compare/pdf ARTIK GÖRÜNÜR ve rozetli, pro görünür', !r.notes && !r.profile && !r.compare && !r.pdf && !r.pro && r.proVis && r.proText.startsWith('Paketlere bak') && !r.png && !r.info && !r.about && r.rozet && r.pills >= 4, JSON.stringify(r));
     await shot('free_more_menu');
     await page.click('#moreMenu [data-act="pro"]'); await page.waitForTimeout(80);
     const p = await panel();
     ok('1k menü › Paketlere bak → menü kapanır, #proPanel açılır', await ev(() => document.getElementById('moreMenu').hidden) && p.open && p.prices.includes(PRICE), JSON.stringify(p).slice(0, 120));
     await page.click('#proPanel [data-close="proPanel"]'); await page.waitForTimeout(50);
     ok('1k2 kapat düğmesi paneli kapatır', (await panel()).open === false);
-    const up = await ev(() => { const b = document.querySelector('#drivePanel [data-drive="upload"]'); return { hidden: b.hidden, need: b.dataset.need || '', bar: !!b.querySelector('.lk-bar'), aria: b.getAttribute('aria-label') || '' }; });
-    ok('1l Drive yükleme düğmesi GÖRÜNÜR, super rozetli, adına kilit cümlesi eklenmiş', up.hidden === false && up.need === 'super' && up.bar && up.aria.includes('Super paketinde bulunur.') && await ev(() => !document.querySelector('#drivePanel [data-drive="refresh"]').hidden), JSON.stringify(up));
+    const up = await ev(async () => {
+      const Ed = await import('./edition.js'); const b = document.querySelector('#drivePanel [data-drive="upload"]');
+      return { hidden: b.hidden, need: b.dataset.need || '', bekl: Ed.need('driveUpload'), ad: Ed.tierName(Ed.need('driveUpload')), bar: !!b.querySelector('.lk-bar'), aria: b.getAttribute('aria-label') || '' };
+    });
+    ok('1l Drive yükleme düğmesi GÖRÜNÜR, rozetli, adına kilit cümlesi eklenmiş', up.hidden === false && up.need === up.bekl && up.need !== 'free' && up.bar && up.aria.includes(up.ad + ' paketinde bulunur.') && await ev(() => !document.querySelector('#drivePanel [data-drive="refresh"]').hidden), JSON.stringify(up));
   }
   // belge açılışı → reklam
   ok('1m belge açılmadan reklam isteği yok', (await calls()).length === 0);

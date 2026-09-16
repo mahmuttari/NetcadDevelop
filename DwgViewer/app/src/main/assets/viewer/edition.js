@@ -85,6 +85,7 @@ export const FEATURE_TIER = new Map([
   ['t:scale', 'premium'], ['t:mirror', 'premium'], ['t:offset', 'premium'], ['t:del', 'premium'], ['t:edittext', 'premium'],
   // --- özellikler, katman, renk, geri alma
   ['props', 'premium'], ['layer', 'premium'], ['color', 'premium'], ['undo', 'premium'], ['redo', 'premium'],
+  ['layeredit', 'premium'],              // katmanın kendisini düzenleme ve silme
   // --- notlar, çıktı, kaydetme
   ['notes', 'premium'], ['pdf', 'premium'], ['savedxf', 'premium'],
   // --- belge tarafı
@@ -104,6 +105,7 @@ export const FEATURE_TIER = new Map([
   // --- ölçülendirme ve açıklama (2B çizim: Premium)
   ['t:dim', 'premium'], ['t:dimh', 'premium'], ['t:dimv', 'premium'], ['t:dimr', 'premium'], ['t:dimd', 'premium'], ['t:dima', 'premium'],
   ['t:leader', 'premium'], ['t:cloud', 'premium'], ['t:balloon', 'premium'], ['t:hatch', 'premium'], ['markdim', 'premium'],
+  ['hatchpat', 'premium'],               // desen seçici: taramayla aynı basamak
   // --- 2B düzenleme eklentileri
   ['t:array', 'premium'], ['t:explode', 'premium'], ['t:textsize', 'premium'], ['t:attr', 'premium'], ['findrep', 'premium'],
   ['blocklib', 'premium'], ['copyclip', 'premium'], ['pasteclip', 'premium'],
