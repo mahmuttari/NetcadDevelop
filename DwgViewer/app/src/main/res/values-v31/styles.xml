@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ sistem açılış penceresi: zemin, marka açılış örtüsünün (SplashOverlay) laciverti.
+     Sistem önce simgeyi bu zeminde gösterir, ardından örtü aynı zeminle gelir; iki ekran arasında
+     renk sıçraması olmaz. Öteki öğeler values/styles.xml ile birebir aynıdır. -->
+<resources>
+    <style name="Theme.DwgViewer" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/status_bar</item>
+        <item name="android:statusBarColor">@color/status_bar</item>
+        <item name="android:navigationBarColor">@color/status_bar</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowSplashScreenBackground">@color/splash_bg</item>
+    </style>
+</resources>

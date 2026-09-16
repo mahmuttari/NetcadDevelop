@@ -9,4 +9,7 @@
     <string name="webview_restarted">أُعيد تشغيل العارض (نفدت الذاكرة)</string>
     <string name="webview_crashed">تعطّل العارض وأُعيد تشغيله</string>
     <string name="location_approx">موقع تقريبي (إذن الموقع التقريبي)</string>
+    <!-- marka açılış örtüsü (SplashOverlay): slogan ve telif satırının sabit parçası -->
+    <string name="splash_tagline">رسوماتك في جيبك — افتح، قِس، حرّر، شارك</string>
+    <string name="splash_rights">جميع الحقوق محفوظة.</string>
 </resources>

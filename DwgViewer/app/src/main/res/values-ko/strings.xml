@@ -9,4 +9,7 @@
     <string name="webview_restarted">메모리가 부족하여 뷰어를 다시 시작했습니다</string>
     <string name="webview_crashed">뷰어가 중단되어 다시 시작했습니다</string>
     <string name="location_approx">대략적인 위치 (대략적 위치 권한)</string>
+    <!-- marka açılış örtüsü (SplashOverlay): slogan ve telif satırının sabit parçası -->
+    <string name="splash_tagline">도면을 주머니 속에 — 열기, 측정, 편집, 공유</string>
+    <string name="splash_rights">모든 권리 보유.</string>
 </resources>

@@ -9,4 +9,7 @@
     <string name="webview_restarted">O visualizador foi reiniciado (memória insuficiente)</string>
     <string name="webview_crashed">O visualizador falhou e foi reiniciado</string>
     <string name="location_approx">Localização aproximada (permissão de localização aproximada)</string>
+    <!-- marka açılış örtüsü (SplashOverlay): slogan ve telif satırının sabit parçası -->
+    <string name="splash_tagline">Os seus desenhos no bolso — abrir, medir, editar, partilhar</string>
+    <string name="splash_rights">Todos os direitos reservados.</string>
 </resources>

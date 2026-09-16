@@ -9,4 +9,7 @@
     <string name="webview_restarted">メモリ不足のためビューアーを再起動しました</string>
     <string name="webview_crashed">ビューアーがクラッシュしたため再起動しました</string>
     <string name="location_approx">おおよその位置情報 (低精度の位置情報の許可)</string>
+    <!-- marka açılış örtüsü (SplashOverlay): slogan ve telif satırının sabit parçası -->
+    <string name="splash_tagline">図面をポケットに — 開く・測る・編集する・共有する</string>
+    <string name="splash_rights">無断転載を禁じます。</string>
 </resources>

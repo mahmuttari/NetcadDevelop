@@ -9,4 +9,7 @@
     <string name="webview_restarted">La visionneuse a été redémarrée (mémoire insuffisante)</string>
     <string name="webview_crashed">La visionneuse a planté et a été redémarrée</string>
     <string name="location_approx">Position approximative (autorisation de localisation grossière)</string>
+    <!-- marka açılış örtüsü (SplashOverlay): slogan ve telif satırının sabit parçası -->
+    <string name="splash_tagline">Vos plans dans la poche — ouvrir, mesurer, modifier, partager</string>
+    <string name="splash_rights">Tous droits réservés.</string>
 </resources>

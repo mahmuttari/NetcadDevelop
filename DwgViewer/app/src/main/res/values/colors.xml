@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="status_bar">#161C25</color>
+    <!-- marka açılış örtüsünün zemini (SplashOverlay ZEMIN_ORTA ile aynı) -->
+    <color name="splash_bg">#08111B</color>
 </resources>

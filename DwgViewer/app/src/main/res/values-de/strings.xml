@@ -9,4 +9,7 @@
     <string name="webview_restarted">Der Betrachter wurde neu gestartet (zu wenig Speicher)</string>
     <string name="webview_crashed">Der Betrachter ist abgestürzt und wurde neu gestartet</string>
     <string name="location_approx">Ungefährer Standort (grobe Standortberechtigung)</string>
+    <!-- marka açılış örtüsü (SplashOverlay): slogan ve telif satırının sabit parçası -->
+    <string name="splash_tagline">Ihre Zeichnungen in der Tasche — öffnen, messen, bearbeiten, teilen</string>
+    <string name="splash_rights">Alle Rechte vorbehalten.</string>
 </resources>

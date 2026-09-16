@@ -9,4 +9,7 @@
     <string name="webview_restarted">Просмотрщик перезапущен (не хватило памяти)</string>
     <string name="webview_crashed">Просмотрщик аварийно завершился и был перезапущен</string>
     <string name="location_approx">Приблизительное местоположение (разрешение на грубую геолокацию)</string>
+    <!-- marka açılış örtüsü (SplashOverlay): slogan ve telif satırının sabit parçası -->
+    <string name="splash_tagline">Ваши чертежи в кармане — открыть, измерить, изменить, поделиться</string>
+    <string name="splash_rights">Все права защищены.</string>
 </resources>

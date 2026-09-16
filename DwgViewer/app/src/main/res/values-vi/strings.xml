@@ -9,4 +9,7 @@
     <string name="webview_restarted">Trình xem đã khởi động lại (thiếu bộ nhớ)</string>
     <string name="webview_crashed">Trình xem đã gặp sự cố và được khởi động lại</string>
     <string name="location_approx">Vị trí gần đúng (quyền vị trí thô)</string>
+    <!-- marka açılış örtüsü (SplashOverlay): slogan ve telif satırının sabit parçası -->
+    <string name="splash_tagline">Bản vẽ trong túi bạn — mở, đo, chỉnh sửa, chia sẻ</string>
+    <string name="splash_rights">Bảo lưu mọi quyền.</string>
 </resources>

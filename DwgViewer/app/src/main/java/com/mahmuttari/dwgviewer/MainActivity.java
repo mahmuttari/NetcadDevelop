@@ -177,6 +177,8 @@ public class MainActivity extends androidx.activity.ComponentActivity {
         scheduleLicenseExpiry();
         bg.execute(() -> docs.sweep());
         createWebView();
+        // setContentView (createWebView içinde) içerik ağacını yeniler; örtü ondan SONRA eklenir
+        if (savedInstanceState == null) { splash = new SplashOverlay(this); splash.show(); }
 
         if (Build.VERSION.SDK_INT >= 33) {
             // Android 13+ tahminli geri hareketi: enableOnBackInvokedCallback açıkken onBackPressed çağrılmaz
@@ -241,6 +243,7 @@ public class MainActivity extends androidx.activity.ComponentActivity {
                 // pushCurrentFile yalnız onNewIntent / seçici / son dosyalar için
                 pageReady = true;
                 flushPendingJs();
+                if (splash != null) splash.sayfaHazir();   // JS haber vermezse kısa payla örtü kalkar
             }
 
             @Override
@@ -254,6 +257,7 @@ public class MainActivity extends androidx.activity.ComponentActivity {
                 // ComposeView'i de düşer. Alan bırakılmazsa isShowing() sonsuza dek true kalır
                 // ve geri tuşu ölü bir örtüye iptal göndermeye devam eder.
                 if (loadOverlay != null) { loadOverlay.unut(); }
+                if (splash != null) { splash.unut(); splash = null; }
                 createWebView();           // setContentView eskisini ağaçtan düşürür
                 old.destroy();
                 // Çökme kurtarması: açık dosya sayfa yeniden yüklenince BİR KEZ geri açılır. İkinci
@@ -893,6 +897,13 @@ public class MainActivity extends androidx.activity.ComponentActivity {
      * WebView'daki çözümleme ağırlaşsa bile donmaz.
      */
     private DwgLoadingOverlay loadOverlay;
+    /**
+     * Marka açılış örtüsü (SplashOverlay): yalnız SOĞUK açılışta, WebView kurulduktan hemen sonra
+     * gösterilir; JS ilk ekranı çizince (Bridge.splashDone) ya da sayfa yüklenip kısa pay geçince
+     * kalkar, emniyet kilidi 5 s. Döndürme / yeniden yaratmada (savedInstanceState != null)
+     * gösterilmez — kullanıcı zaten uygulamanın içindedir.
+     */
+    private SplashOverlay splash;
 
     // ---- geri tuşu ---------------------------------------------------------------------------
     @Override
@@ -1066,6 +1077,10 @@ public class MainActivity extends androidx.activity.ComponentActivity {
         }
         @JavascriptInterface public void loadingScreenAbort() {
             runOnUiThread(() -> { if (loadOverlay != null) loadOverlay.hideNow(); });
+        }
+        /** JS ilk ekranı çizdi: marka açılış örtüsü kalkabilir (en az süre dolmadıysa dolunca) */
+        @JavascriptInterface public void splashDone() {
+            runOnUiThread(() -> { if (splash != null) splash.hazir(); });
         }
         @JavascriptInterface public void toast(String msg) { runOnUiThread(() -> Toast.makeText(MainActivity.this, msg, Toast.LENGTH_SHORT).show()); }
         @JavascriptInterface public void finish() { runOnUiThread(MainActivity.this::finish); }

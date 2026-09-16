@@ -3551,6 +3551,12 @@ requestRender();
 Home.show();   // çizim / belge yokken ana ekran; setScene ve belge açılışı gizler
 buildRecent();
 /*
+ * Marka açılış örtüsü (Android, SplashOverlay): ilk ekran çizildi, yerli taraf örtüyü kaldırabilir.
+ * İki kare beklenir ki örtü solarken altında boş bir tuval değil, çizilmiş ana ekran dursun.
+ * Köprü yoksa (tarayıcı) ya da eski bir APK'daysa hiçbir şey yapılmaz.
+ */
+if (A() && typeof A().splashDone === 'function') requestAnimationFrame(() => requestAnimationFrame(() => { try { A().splashDone(); } catch (e) { /* köprü yok */ } }));
+/*
  * OTURUM SÜREKLİLİĞİ. Açılışta yalnız GERÇEKTEN bekleyen bir dosya açılır ve neyin beklediğine
  * Java karar verir (getPendingFile): (a) bu açılışta gelen paylaşım / "ile aç" intent'i, (b) render
  * süreci çöktükten sonraki tek seferlik kurtarma, (c) kullanıcı "son oturumu geri yükle" ayarını

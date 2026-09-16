@@ -9,4 +9,7 @@
     <string name="webview_restarted">El visor se reinició (memoria insuficiente)</string>
     <string name="webview_crashed">El visor falló y se reinició</string>
     <string name="location_approx">Ubicación aproximada (permiso de ubicación aproximada)</string>
+    <!-- marka açılış örtüsü (SplashOverlay): slogan ve telif satırının sabit parçası -->
+    <string name="splash_tagline">Sus planos en el bolsillo — abrir, medir, editar, compartir</string>
+    <string name="splash_rights">Todos los derechos reservados.</string>
 </resources>

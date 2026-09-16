@@ -10,4 +10,7 @@
     <string name="webview_restarted">Görüntüleyici yeniden başlatıldı (bellek yetmedi)</string>
     <string name="webview_crashed">Görüntüleyici çöktü ve yeniden başlatıldı</string>
     <string name="location_approx">Yaklaşık konum (kaba konum izni)</string>
+    <!-- marka açılış örtüsü (SplashOverlay): slogan ve telif satırının sabit parçası -->
+    <string name="splash_tagline">Çizimleriniz cebinizde — aç, ölç, düzenle, paylaş</string>
+    <string name="splash_rights">Tüm hakları saklıdır.</string>
 </resources>

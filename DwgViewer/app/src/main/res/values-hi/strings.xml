@@ -9,4 +9,7 @@
     <string name="webview_restarted">व्यूअर पुनः आरंभ किया गया (मेमोरी कम पड़ गई)</string>
     <string name="webview_crashed">व्यूअर क्रैश हुआ और पुनः आरंभ किया गया</string>
     <string name="location_approx">अनुमानित स्थान (मोटे स्थान की अनुमति)</string>
+    <!-- marka açılış örtüsü (SplashOverlay): slogan ve telif satırının sabit parçası -->
+    <string name="splash_tagline">आपके ड्रॉइंग आपकी जेब में — खोलें, मापें, संपादित करें, साझा करें</string>
+    <string name="splash_rights">सर्वाधिकार सुरक्षित।</string>
 </resources>

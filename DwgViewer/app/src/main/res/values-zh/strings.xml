@@ -9,4 +9,7 @@
     <string name="webview_restarted">内存不足，查看器已重新启动</string>
     <string name="webview_crashed">查看器崩溃并已重新启动</string>
     <string name="location_approx">大致位置（粗略位置权限）</string>
+    <!-- marka açılış örtüsü (SplashOverlay): slogan ve telif satırının sabit parçası -->
+    <string name="splash_tagline">图纸装进口袋 — 打开、测量、编辑、分享</string>
+    <string name="splash_rights">保留所有权利。</string>
 </resources>
