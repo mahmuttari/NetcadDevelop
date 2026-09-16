@@ -1105,8 +1105,16 @@ wide.addEventListener('change', dockLayers);
 // ---- arama -----------------------------------------------------------------------------
 $('btnSearch').addEventListener('click', () => { if (!S.hasDoc) { toast(t('openFirst')); return; } show('searchPanel'); $('searchInput').focus(); doSearch(); });
 $('searchInput').addEventListener('input', doSearch);
+/*
+ * Arama katlaması. Düz toLowerCase Türkçe'de yanlış eşleştirir: 'İ' → 'i̇' (i + birleşen nokta)
+ * olur ve 'i' ile eşleşmez, 'I' ise 'i' olur ama Türkçe'de 'ı' olmalıdır. Bu yüzden 'DEĞİŞECEK'
+ * yazan bir not "değişecek" aramasında bulunamıyordu. Türkçe kuralıyla küçültülür, birleşen
+ * nokta atılır ve 'ı' ile 'i' aynı sayılır: aramada fazla eşleşmek, kaçırmaktan iyidir.
+ * (Bul-değiştir aynı kuralı kullanmaz — orada konum kayması olmaması için dizi uzunluğu korunur.)
+ */
+const araKatla = (x) => String(x == null ? '' : x).toLocaleLowerCase('tr').replace(/\u0307/g, '').replace(/ı/g, 'i');
 function doSearch() {
-  const q = ($('searchInput').value || '').trim().toLowerCase();
+  const q = araKatla(($('searchInput').value || '').trim());
   const body = $('searchBody');
   if (!q) { body.innerHTML = ''; return; }
   const res = [];
@@ -1115,18 +1123,43 @@ function doSearch() {
     const p = prims[i], inf = p.info || {};
     if (p.k === 4 || !primVisible(p)) continue;
     let hit = null;
-    if (p.k === 1 && p.lines.join(' ').toLowerCase().includes(q)) hit = p.lines.join(' ');
-    else if (inf.h && inf.h.toLowerCase() === q) hit = 'handle ' + inf.h;
-    else if (inf.name && inf.name.toLowerCase().includes(q)) hit = t('block') + ': ' + inf.name;
-    else if (inf.attrs && inf.attrs.some(a => (a[1] || '').toLowerCase().includes(q) || (a[0] || '').toLowerCase().includes(q))) hit = inf.attrs.filter(a => (a[1] || '').toLowerCase().includes(q) || (a[0] || '').toLowerCase().includes(q)).map(a => a[0] + '=' + a[1]).join(', ');
-    else if (inf.xd && inf.xd.some(x => x[1].toLowerCase().includes(q))) hit = 'XDATA: ' + inf.xd.find(x => x[1].toLowerCase().includes(q))[1].slice(0, 80);
-    else if (p.k !== 1 && p.lay.toLowerCase().includes(q) && res.length < 60) hit = t('layer') + ': ' + p.lay;
+    if (p.k === 1 && araKatla(p.lines.join(' ')).includes(q)) hit = p.lines.join(' ');   // gösterilen metin ÖZGÜN hâlidir, katlanmış değil
+    else if (inf.h && araKatla(inf.h) === q) hit = 'handle ' + inf.h;
+    else if (inf.name && araKatla(inf.name).includes(q)) hit = t('block') + ': ' + inf.name;
+    else if (inf.attrs && inf.attrs.some(a => araKatla(a[1]).includes(q) || araKatla(a[0]).includes(q))) hit = inf.attrs.filter(a => araKatla(a[1]).includes(q) || araKatla(a[0]).includes(q)).map(a => a[0] + '=' + a[1]).join(', ');
+    else if (inf.xd && inf.xd.some(x => araKatla(x[1]).includes(q))) hit = 'XDATA: ' + inf.xd.find(x => araKatla(x[1]).includes(q))[1].slice(0, 80);
+    else if (p.k !== 1 && araKatla(p.lay).includes(q) && res.length < 60) hit = t('layer') + ': ' + p.lay;
     if (hit) res.push({ p, hit });
   }
-  body.innerHTML = res.length ? res.map((r, i) => `<div class="item" data-i="${i}">${esc(r.hit)}<small>${esc(trType(r.p.info ? r.p.info.t : r.p.et))} · ${esc(r.p.lay)}</small></div>`).join('') : `<div class="muted">${t('noResult')}</div>`;
+  /*
+   * Kırmızı kalem notları da aranır. Notlar DWG'de değil, dosya anahtarına göre ayrı saklanır
+   * (notes.js); arama yalnız S.prims'i taradığı için sahada yazılan "vana değişecek" notu
+   * bulunamıyordu — oysa kullanıcının kendi yazdığı metin, çizimdeki metinden daha çok aranır.
+   * Not sonuçları listenin BAŞINA konur ve ayrı bir etiketle işaretlenir.
+   */
+  const nres = [];
+  for (const n of notes.items) {
+    if (nres.length >= 40) break;
+    const txt = (n.text || '').trim();
+    if (!txt || !araKatla(txt).includes(q)) continue;
+    const pt = (n.pts && n.pts[0]) || null;
+    if (!pt) continue;
+    nres.push({ note: n, hit: txt.slice(0, 120), pt });
+  }
+  const tumu = [...nres.map(r => ({ ...r, not: true })), ...res];
+  body.innerHTML = tumu.length
+    ? tumu.map((r, i) => r.not
+      ? `<div class="item" data-i="${i}">${esc(r.hit)}<small>${esc(t('notes'))} · ${esc(new Date(r.note.t).toLocaleDateString())}</small></div>`
+      : `<div class="item" data-i="${i}">${esc(r.hit)}<small>${esc(trType(r.p.info ? r.p.info.t : r.p.et))} · ${esc(r.p.lay)}</small></div>`).join('')
+    : `<div class="muted">${t('noResult')}</div>`;
   body.onclick = (ev) => {
     const it = ev.target.closest('.item'); if (!it) return;
-    const r = res[Number(it.dataset.i)];
+    const r = tumu[Number(it.dataset.i)];
+    if (r.not) {
+      const sp = (S.ext ? (S.ext[2] - S.ext[0]) : 100) / 20;
+      zoomExtents([r.pt[0] - sp, r.pt[1] - sp, r.pt[0] + sp, r.pt[1] + sp]);
+      return;
+    }
     const b = r.p.bb; const m = Math.max(b[2] - b[0], b[3] - b[1]) * 0.6 || 5;
     S.selected = r.p; zoomExtents([b[0] - m, b[1] - m, b[2] + m, b[3] + m]); showInfo(r.p);
   };
@@ -3150,6 +3183,7 @@ window.dwgApp = { loadCurrent, onFilePicked, onLocation, onBack, onBackSystem, l
   __pdf: { build: (pages, wmm, hmm, title) => buildPdf(pages, wmm, hmm, title) },
   __text: { collect: (prims) => collectTexts(prims || S.prims), csvCell },
   __measure: { text: () => measureText(), csv: () => measureCsv() },
+  __notes: { add: (n) => addNote(n), clear: () => { notes.items.length = 0; saveNotes(); } },
   __count: { data: (scope) => { const p = countScope(scope || 'all'); return p ? countData(p) : null; }, csv: (scope) => { const p = countScope(scope || 'all'); return p ? countCsv(countData(p), scope || 'all') : ''; } },
   __fr: { scan: (find, rep, opts) => frScan(find, rep, opts || {}), replace: (src, f, r, cs, ww) => replaceIn(src, f, r, cs, ww) },
   action: (a) => menuAction(a) };

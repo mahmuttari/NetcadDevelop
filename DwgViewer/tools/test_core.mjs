@@ -74,6 +74,22 @@ for (const [f, raw, label] of VERSIONS) {
   ok('e arama: bir yazı için sonuç ≥ 1', r && r.n >= 1 && r.panel && r.first.toLowerCase().includes(r.word.toLowerCase()), JSON.stringify(r));
   await ev(() => { const b = document.querySelector('#searchBody .item'); if (b) b.click(); });
   ok('e2 sonuç seçilince nesne seçili ve bilgi paneli açık', await ev(() => !!window.dwgApp.state.selected && !document.getElementById('infoPanel').hidden));
+  // Kırmızı kalem notu da aranabilmeli: not DWG'de değil, ayrı saklanıyor ve arama yalnız
+  // S.prims'i tarıyordu — sahada yazılan not bulunamıyordu.
+  const rn = await ev(() => {
+    const app = window.dwgApp, S = app.state;
+    const ext = S.ext || [0, 0, 100, 100];
+    app.__notes.add({ type: 'text', pts: [[(ext[0] + ext[2]) / 2, (ext[1] + ext[3]) / 2]], color: '#e33', text: 'VANA DEĞİŞECEK Q-42' });
+    document.getElementById('btnSearch').click();
+    const inp = document.getElementById('searchInput'); inp.value = 'vana değişecek'; inp.dispatchEvent(new Event('input'));
+    const items = [...document.querySelectorAll('#searchBody .item')].map(el => el.textContent);
+    return { n: items.length, first: items[0] || '' };
+  });
+  ok('e3 kırmızı kalem notu aramada bulunuyor ve listenin başında',
+    rn.n >= 1 && /VANA DEĞİŞECEK Q-42/.test(rn.first), JSON.stringify(rn));
+  await ev(() => { const b = document.querySelector('#searchBody .item'); if (b) b.click(); });
+  ok('e4 not sonucuna dokununca çizim o noktaya gidiyor (çökme yok)', await ev(() => !!window.dwgApp.state.view));
+  await ev(() => window.dwgApp.__notes.clear());
   await ev(() => window.dwgApp.onBack()); await ev(() => window.dwgApp.onBack());
 }
 
