@@ -528,4 +528,12 @@ export default {
   cmdPrompt: 'コマンド:', cmdPh: 'コマンドを入力 (LINE, TR, F…)', cmdUnknown: '%s: 不明なコマンド',
   cmdLineOn: 'コマンド ライン (AutoCAD コマンド名)', cmdHelp: 'コマンド一覧', cmdAcad: 'AutoCAD コマンド',
   cmdExt: 'このアプリ独自', tl_cmdline: 'コマンド ライン', th_cmdline: 'AutoCAD のコマンド名を入力: LINE, TR, F…',
+  // masaüstü kipi (klavye + fare)
+  deskTitle: 'キーボードとマウス', deskOn: 'デスクトップ モード (AutoCAD のマウス / キー配置)', deskFound: 'マウスを検出しました',
+  deskLikely: 'マウスがあるかもしれません — 一度動かしてください', deskNotFound: 'マウスを検出していません', deskRight: '右ボタンの動作',
+  deskRight_enter: 'Enter', deskRight_menu: 'メニュー', deskRight_none: 'なし',
+  deskHint: '中ボタンで画面移動、ダブルクリックで図面範囲 · ホイールでズーム · 文字入力はコマンド ラインへ · F3 スナップ、F7 グリッド、F8 直交、F10 極', orthoOn: '直交モード オン', orthoOff: '直交モード オフ',
+  polarOn: '極トラッキング オン', polarOff: '極トラッキング オフ', polarStep: '極角度の増分',
+  tl_ortho: '直交', th_ortho: '点を水平または垂直に固定します (F8)', tl_polar: '極',
+  th_polar: '点を角度の増分にスナップします (F10)',
 };

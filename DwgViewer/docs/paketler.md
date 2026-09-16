@@ -321,6 +321,30 @@ açmaz, var olanlara ikinci bir kapı verir.
    öyle kalmalıdır. "86 AutoCAD komutu" demek yanlış olur; doğrusu **"61 AutoCAD komutu
    + 25 uygulamaya özgü komut"**tur.
 
+### Masaüstü kipi — YAPILDI (v7.51)
+
+Klavye-fare bağlı bir tablet ya da Samsung DeX, hedef kullanıcının sahada değil **ofiste**
+kullandığı düzenektir. Orada uygulama masaüstü CAD gibi davranır: orta tuş kaydırır, sağ tuş
+Enter'dır, harf yazmak komut satırına düşer, F8 ortho açar.
+
+**Kademe etkisi yok — masaüstü kipi ücretsizdir.** Avuç reddiyle aynı gerekçe: fare bağlı bir
+cihazda orta tuşun kaydırmaması bir özellik eksikliği değil, bozukluktur. Yetenek toplamı
+**76**'da kaldı.
+
+İki yeni çizim yeteneği geldi ve ikisi de ücretsiz kipin parçasıdır:
+
+| Yetenek | Tuş | Ne yapar |
+|---|---|---|
+| Ortho | F8 | Noktayı yatay ya da düşeye kilitler |
+| Kutupsal izleme | F10 | Noktayı açı adımına oturtur (5/10/15/30/45°), uzaklığı korur |
+
+Öncelik AutoCAD'deki gibidir: **yakalama** ortho'yu yener, **ortho** kutupsalı yener.
+
+**Mağaza metninde:** "klavye ve fare ile masaüstü gibi" cümlesi rakipte karşılığı olmayan bir
+ayırt edicidir ve DeX kullanan kurumsal alıcıya doğrudan hitap eder. Karşılığı olmayan işlev
+tuşlarının (F9, F11, F12) **bilerek boş bırakıldığı** da yazılabilir; bu, "AutoCAD'i taklit
+ediyoruz" değil "AutoCAD'i biliyoruz" mesajı verir.
+
 ### Fiyatlar değişmedi
 
 Rakibin Eylül 2026 TR fiyatlarına göre konumumuz korunuyor: Ad-Free

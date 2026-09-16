@@ -528,4 +528,12 @@ export default {
   cmdPrompt: 'कमांड:', cmdPh: 'कमांड लिखें (LINE, TR, F…)', cmdUnknown: '%s: अज्ञात कमांड',
   cmdLineOn: 'कमांड लाइन (AutoCAD कमांड नाम)', cmdHelp: 'कमांड सूची', cmdAcad: 'AutoCAD कमांड',
   cmdExt: 'ऐप-विशिष्ट', tl_cmdline: 'कमांड लाइन', th_cmdline: 'AutoCAD कमांड नाम लिखें: LINE, TR, F…',
+  // masaüstü kipi (klavye + fare)
+  deskTitle: 'कीबोर्ड और माउस', deskOn: 'डेस्कटॉप मोड (AutoCAD माउस और कीबोर्ड विन्यास)', deskFound: 'माउस मिला',
+  deskLikely: 'माउस हो सकता है — इसे एक बार हिलाएँ', deskNotFound: 'कोई माउस नहीं मिला', deskRight: 'दायाँ बटन कार्य',
+  deskRight_enter: 'एंटर', deskRight_menu: 'मेनू', deskRight_none: 'कोई नहीं',
+  deskHint: 'बीच का बटन खिसकाता है, डबल क्लिक सीमा पर लाता है · पहिया ज़ूम करता है · टाइप करने पर कमांड लाइन में जाता है · F3 स्नैप, F7 ग्रिड, F8 ऑर्थो, F10 पोलर', orthoOn: 'ऑर्थो चालू', orthoOff: 'ऑर्थो बंद',
+  polarOn: 'पोलर ट्रैकिंग चालू', polarOff: 'पोलर ट्रैकिंग बंद', polarStep: 'पोलर कोण वृद्धि',
+  tl_ortho: 'ऑर्थो', th_ortho: 'बिंदु को क्षैतिज या लंबवत पर बाँधता है (F8)', tl_polar: 'पोलर',
+  th_polar: 'बिंदु को कोण वृद्धि पर बिठाता है (F10)',
 };

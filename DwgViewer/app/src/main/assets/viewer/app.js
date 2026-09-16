@@ -23,6 +23,7 @@ import * as Ed from './edition.js';
 import * as Home from './home.js';
 import * as Cloud from './cloud.js';
 import * as Pen from './stylus.js';
+import * as Desk from './desktop.js';
 import { writeDxf } from './edit.js';
 import { dwgObjectCount } from './dwgstat.js';
 import { skelList, emptyBox } from './skel.js';
@@ -505,12 +506,13 @@ const rel = (ev) => { const r = vp.getBoundingClientRect(); return [ev.clientX -
 // eldiven toleransları (ui.glove; dwg:ui olayında yeniden okunur)
 const TOL = { pick: 12, snap: 18, drag: 6, dbl: 320, long: 500 };
 function readTolerances() { const g = glove(); TOL.pick = g ? 20 : 12; TOL.snap = g ? 28 : 18; TOL.drag = g ? 10 : 6; TOL.dbl = g ? 450 : 320; TOL.long = g ? 600 : 500; S.glove = g; }
-window.addEventListener('dwg:ui', () => { readTolerances(); S.cacheValid = false; requestRender(); });
+window.addEventListener('dwg:ui', () => { readTolerances(); syncDeskClass(); S.cacheValid = false; requestRender(); });
 readTolerances();
 const gestureStart = () => { if (!S.gestureActive) { S.gestureActive = true; } };
 const clearLong = () => { if (longTimer) { clearTimeout(longTimer); longTimer = 0; } };
 
 // ---- kalem (S Pen / Apple Pencil / genel kalemler) ----------------------------------
+let midLast = 0;   // orta tuş çift tıklama zamanı
 const palm = new Pen.PalmGuard();
 const press = new Pen.Pressure();
 let penHover = null, penHoverRaf = 0;
@@ -527,6 +529,26 @@ function penClearHover() {
   showSnapChip(null);
   drawOverlay();
 }
+// ---- masaüstü kipi (klavye + fare) --------------------------------------------------
+/*
+ * Cihaz TAHMİN EDİLMEZ, ÖLÇÜLÜR. Ortam sorgusu ilk tahmindir (bazı tabletler "ince işaretçi"
+ * bildirir ama fare yoktur); kesin bilgi gerçek bir fare olayının gelmesidir. İkisi birlikte
+ * kullanılıyor: sorgu açılışta kipi hazırlar, ilk fare olayı onu doğrular ve kalıcılaştırır.
+ */
+function deskSeen() {
+  if (S.desk.mouse) return;
+  S.desk.mouse = true;
+  syncDeskClass();
+  edCall('refreshTiles');
+  drawOverlay();
+}
+/*
+ * Gövde sınıfı "fare GÖRÜLDÜ"yü değil ETKİN KİPİ gösterir: kullanıcı masaüstü kipini
+ * kapattığında artı imlecin de kalkması gerekir, yoksa kapattığı şeyin kapandığını görmez.
+ */
+function syncDeskClass() { document.body.classList.toggle('has-mouse', deskOn()); }
+/** Masaüstü kipi açık mı: fare görüldü (ya da sorgu öyle diyor) ve kullanıcı kapatmadı */
+const deskOn = () => uiPrefs().desktop !== false && (S.desk.mouse || Desk.likelyMouse(window)) && S.hasDoc;
 /** Basılı duran DOKUNUŞ işaretçilerinin kimlikleri (avuç reddi kalem inince bunları iptal eder) */
 const touchIds = () => [...pointers.entries()].filter(([, p]) => p.pt === 'touch').map(([id]) => id);
 /** Kalem inince elin kenarıyla başlamış jest atılır: işaretçiler düşürülür, jest sıfırlanır */
@@ -548,6 +570,27 @@ vp.addEventListener('pointerdown', (ev) => {
   const pd = palm.down(ev, performance.now(), touchIds());
   if (pd.block) { S.pen.drop = palm.dropped; return; }
   if (pd.drop.length) dropTouches(pd.drop);
+  if (ev.pointerType === 'mouse') {
+    deskSeen();
+    if (deskOn()) {
+      // ORTA TUŞ = KAYDIR (AutoCAD'in en çok kullanılan fare hareketi). Çift tıklama
+      // sınırlara oturtur. Tarayıcının kendi otomatik kaydırması engellenir.
+      if (ev.button === Desk.BTN_MIDDLE) {
+        ev.preventDefault();
+        const su = performance.now();
+        if (midLast && su - midLast < TOL.dbl) { midLast = 0; zoomExtents(); viewHistory.push(); return; }
+        midLast = su;
+        try { vp.setPointerCapture(ev.pointerId); } catch (_) { /* yakalama yoksa jest yine çalışır */ }
+        pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY, pt: 'mouse', kind: 'mouse' });
+        gesture = { type: 'pan', x0: ev.clientX, y0: ev.clientY, view: { ...S.view }, moved: false, t0: performance.now(), mid: true };
+        gestureView0 = { ...S.view, li: S.layoutIndex };
+        S.gestureActive = true;
+        return;
+      }
+      // SAĞ TUŞ = Enter (son komutu yinele) ya da bağlam menüsü, ayara göre.
+      if (ev.button === Desk.BTN_RIGHT) { ev.preventDefault(); const [rx, ry] = rel(ev); deskRight(rx, ry); return; }
+    }
+  }
   if (ev.pointerType === 'pen') {
     S.pen.seen = true; S.pen.kind = penKind;
     S.pen.pressure = press.feed(ev); S.pen.real = press.real; S.pen.tilt = Pen.tiltOf(ev);
@@ -609,7 +652,7 @@ vp.addEventListener('pointermove', (ev) => {
     // işe yarayan kalem yeteneği budur — dokunmadan önce nereye düşeceği ve hangi noktaya
     // yakalanacağı görülür, böylece nokta seçimi el yordamıyla değil bakarak yapılır.
     if (ev.pointerType === 'pen') { palm.watch(ev, performance.now()); S.pen.seen = true; penHoverMove(sx, sy, ev); return; }
-    if (ev.pointerType === 'mouse') updateStatus(sx, sy);
+    if (ev.pointerType === 'mouse') { deskSeen(); updateStatus(sx, sy); if (deskOn()) { penHoverMove(sx, sy, ev); return; } }
     return;
   }
   if (ev.pointerType === 'pen') { S.pen.pressure = press.feed(ev); S.pen.real = press.real; palm.watch(ev, performance.now()); }
@@ -663,9 +706,12 @@ vp.addEventListener('pointermove', (ev) => {
  * çizim bir kare ile sınırlanır (rAF), yoksa gezinme tek başına çizimi yavaşlatırdı.
  */
 function penHoverMove(sx, sy, ev) {
-  if (!penPro() || penPrefs().penHover === false) { if (penHover) penClearHover(); return; }
-  const tilt = Pen.tiltOf(ev);
-  penHover = { sx, sy, tilt, snap: penHover ? penHover.snap : null, w: null };
+  // Kalemde havada önizleme Premium'dur; FAREDE masaüstü kipinin temelidir ve ücretsizdir —
+  // fareyle çalışan kullanıcı zaten sürekli bir imleç görür, biz onu CAD artı imleci yapıyoruz.
+  const fare = ev && ev.pointerType === 'mouse';
+  if (fare ? !deskOn() : (!penPro() || penPrefs().penHover === false)) { if (penHover) penClearHover(); return; }
+  const tilt = fare ? null : Pen.tiltOf(ev);
+  penHover = { sx, sy, tilt, snap: penHover ? penHover.snap : null, w: null, fare };
   S.pen.tilt = tilt;
   if (penHoverRaf) return;
   penHoverRaf = requestAnimationFrame(() => {
@@ -682,6 +728,19 @@ function penHoverMove(sx, sy, ev) {
     updateStatus(penHover.sx, penHover.sy);
     drawOverlay();
   });
+}
+/*
+ * SAĞ TUŞ. AutoCAD'de varsayılan davranış Enter'dır: çalışan komutu onaylar, boştayken son
+ * komutu yineler. Menü isteyen kullanıcı için ikinci seçenek vardır; üçüncüsü sağ tuşu tümden
+ * serbest bırakır (tarayıcının kendi menüsü açılsın diye değil — hiçbir şey yapmasın diye).
+ */
+function deskRight(sx, sy) {
+  const act = uiPrefs().deskRight || 'enter';
+  if (act === 'none') return;
+  if (act === 'menu') { longPressMenu(sx, sy); return; }
+  // 'enter': çalışan araç varsa bitirir, yoksa son komutu yineler
+  if (editor.tools && editor.tools.running) { editor.tools.finish(); return; }
+  edCall('cmdRepeat');
 }
 /** Yan (barrel) düğme görevi. true dönerse kalem indiği hâlde çizim yapılmaz. */
 function penBarrel(sx, sy) {
@@ -755,6 +814,7 @@ function endPointer(ev) {
   } else if (gesture && gesture.type === 'pan' && !gesture.moved && !gesture.longFired && pointers.size === 0 && ev.type === 'pointerup') {
     if (gesture.twoTap && performance.now() - gesture.twoTap.t < 250) { zoomAtScreen(gesture.twoTap.mid[0], gesture.twoTap.mid[1], 0.5); lastTap = 0; }
     else if (gesture.navOnly) { lastTap = 0; lastTapPos = null; }   // kalem kipi: parmak seçmez
+    else if (gesture.mid) { lastTap = 0; lastTapPos = null; }        // orta tuş yalnız kaydırır, seçmez
     else if (!gesture.fromPinch) { lastTap = performance.now(); lastTapPos = [sx, sy]; onTap(sx, sy); }
   }
   if (pointers.size === 0) {
@@ -771,8 +831,10 @@ function endPointer(ev) {
 vp.addEventListener('pointerup', endPointer);
 vp.addEventListener('pointercancel', endPointer);
 // Kalem menzilden çıkınca havadaki imleç kalkar; kalmasa "orada bir şey var" sanılırdı.
+// Çizim alanında tarayıcının kendi bağlam menüsü açılmaz: sağ tuş CAD'de Enter'dır.
+vp.addEventListener('contextmenu', (ev) => { if (deskOn()) ev.preventDefault(); });
 vp.addEventListener('pointerout', (ev) => { if (ev.pointerType === 'pen') penClearHover(); });
-vp.addEventListener('pointerleave', (ev) => { if (ev.pointerType === 'pen') penClearHover(); });
+vp.addEventListener('pointerleave', (ev) => { if (ev.pointerType === 'pen' || ev.pointerType === 'mouse') penClearHover(); });
 vp.addEventListener('wheel', (ev) => {
   if (!S.hasDoc) return; ev.preventDefault();
   const [x, y] = rel(ev);
@@ -3445,7 +3507,16 @@ Home.initHome({ toast, openDoc, hide, kv, newDoc: showNewDoc, resumeInfo, resume
   onHide: () => { refreshMenu(); requestRender(); } });
 // klavye (odak bir giriş alanında değilken): önce düzenleyici, sonra gezinti
 window.addEventListener('keydown', (ev) => {
-  const tg = ev.target; if (tg && (tg.tagName === 'INPUT' || tg.tagName === 'TEXTAREA' || tg.tagName === 'SELECT' || tg.isContentEditable)) return;
+  const tg = ev.target;
+  const yazi = !!(tg && (tg.tagName === 'INPUT' || tg.tagName === 'TEXTAREA' || tg.tagName === 'SELECT' || tg.isContentEditable));
+  /*
+   * Metin alanına yazarken kısayollar susar — ama İŞLEV TUŞLARI susmaz: AutoCAD'de komut
+   * satırına yazarken de F8 ortho'yu açar, F3 yakalamayı değiştirir. Ctrl birleşimleri metin
+   * alanında tarayıcıya bırakılır (Ctrl+C orada kopyalamadır, bizim komutumuz değil).
+   */
+  // Esc de her zaman geçer: komut satırına yazarken çalışan aracı iptal etmek AutoCAD'de de
+  // tek tuştur. Odak girişteyken Esc tuzağa düşerse kullanıcı aracı bırakamaz.
+  if (yazi && !(typeof ev.key === 'string' && (/^F\d{1,2}$/.test(ev.key) || ev.key === 'Escape'))) return;
   if (edCall('key', ev) === true) { ev.preventDefault(); return; }
   if (!S.hasDoc) return;
   const k = ev.key; if (typeof k !== 'string') return;

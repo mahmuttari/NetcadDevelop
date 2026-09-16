@@ -529,4 +529,12 @@ export default {
   cmdPrompt: 'Commande :', cmdPh: 'Saisissez une commande (LINE, TR, F…)', cmdUnknown: '%s : commande inconnue',
   cmdLineOn: 'Ligne de commande (noms AutoCAD)', cmdHelp: 'Liste des commandes', cmdAcad: 'Commande AutoCAD',
   cmdExt: 'Propre à l\'application', tl_cmdline: 'Ligne de commande', th_cmdline: 'Saisissez les noms de commandes AutoCAD : LINE, TR, F…',
+  // masaüstü kipi (klavye + fare)
+  deskTitle: 'Clavier et souris', deskOn: 'Mode bureau (disposition souris et clavier AutoCAD)', deskFound: 'Souris détectée',
+  deskLikely: 'Une souris est peut-être présente — bougez-la une fois', deskNotFound: 'Aucune souris détectée', deskRight: 'Action du bouton droit',
+  deskRight_enter: 'Entrée', deskRight_menu: 'Menu', deskRight_none: 'Aucune',
+  deskHint: 'Le bouton du milieu fait un panoramique, le double-clic cadre l\'étendue · la molette zoome · la frappe va dans la ligne de commande · F3 accrochage, F7 grille, F8 ortho, F10 polaire', orthoOn: 'Ortho activé', orthoOff: 'Ortho désactivé',
+  polarOn: 'Repérage polaire activé', polarOff: 'Repérage polaire désactivé', polarStep: 'Incrément angulaire polaire',
+  tl_ortho: 'Ortho', th_ortho: 'Verrouille le point en horizontal ou vertical (F8)', tl_polar: 'Polaire',
+  th_polar: 'Accroche le point à un incrément angulaire (F10)',
 };

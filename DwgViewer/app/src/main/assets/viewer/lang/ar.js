@@ -527,4 +527,12 @@ export default {
   cmdPrompt: 'الأمر:', cmdPh: 'اكتب أمرًا (LINE، TR، F…)', cmdUnknown: '%s: أمر غير معروف',
   cmdLineOn: 'سطر الأوامر (أسماء أوامر AutoCAD)', cmdHelp: 'قائمة الأوامر', cmdAcad: 'أمر AutoCAD',
   cmdExt: 'خاص بالتطبيق', tl_cmdline: 'سطر الأوامر', th_cmdline: 'اكتب أسماء أوامر AutoCAD: LINE، TR، F…',
+  // masaüstü kipi (klavye + fare)
+  deskTitle: 'لوحة المفاتيح والفأرة', deskOn: 'وضع سطح المكتب (تخطيط فأرة ولوحة مفاتيح AutoCAD)', deskFound: 'تم التعرف على الفأرة',
+  deskLikely: 'قد تكون هناك فأرة — حرّكها مرة واحدة', deskNotFound: 'لم يتم التعرف على فأرة', deskRight: 'مهمة الزر الأيمن',
+  deskRight_enter: 'إدخال', deskRight_menu: 'القائمة', deskRight_none: 'بدون',
+  deskHint: 'الزر الأوسط يحرّك العرض، والنقر المزدوج يلائم الحدود · العجلة تكبّر · الكتابة تذهب إلى سطر الأوامر · F3 التقاط، F7 شبكة، F8 تعامد، F10 قطبي', orthoOn: 'التعامد مفعّل', orthoOff: 'التعامد متوقف',
+  polarOn: 'التتبع القطبي مفعّل', polarOff: 'التتبع القطبي متوقف', polarStep: 'خطوة الزاوية القطبية',
+  tl_ortho: 'تعامد', th_ortho: 'يثبّت النقطة أفقيًا أو رأسيًا (F8)', tl_polar: 'قطبي',
+  th_polar: 'يثبّت النقطة على خطوة زاوية (F10)',
 };

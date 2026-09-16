@@ -246,6 +246,12 @@ body.homemode #topbar, body.homemode #toolbar, body.homemode #statusbar, body.ho
 /* belge kipi (PDF / Word / Excel / arşiv / resim / metin): çizime ait şerit, durum çubuğu, sayfa sekmeleri ve üst çubuk çizim düğmeleri gizli; yalnız Aç ve Diğer kalır */
 body.docmode #toolbar, body.docmode #statusbar, body.docmode #layoutTabs, body.docmode #side, body.docmode #btnSearch, body.docmode #btnExtents, body.docmode #btnLayers, body.docmode #btnMeasure, body.docmode #btnDisplay { display: none !important; }
 body.docmode #topbar .filewrap { visibility: hidden; }   /* belge kipinde bellekteki çizimin adı yanıltır; belge adı belge başlığındadır */
+/* Masaüstü kipi: çizim alanında CAD artı imleci. Ok imleci "bu bir belgedir" der; artı imleç
+   "buraya nokta konur" der ve fareyle çalışan kullanıcı ilk saniyede farkı görür. */
+body.has-mouse #viewport { cursor: crosshair; }
+body.has-mouse #viewport .fab, body.has-mouse #viewport .notesbar, body.has-mouse #viewport .cmdbar,
+body.has-mouse #viewport .hud, body.has-mouse #viewport .home, body.has-mouse #viewport .docview { cursor: default; }
+body.has-mouse.docmode #viewport { cursor: default; }
 /* Komut listesi tablosu: komut adı tek aralıklı, kısaltma soluk, açıklama sağda */
 .cmd-list { width: 100%; border-collapse: collapse; margin-block-end: calc(10px * var(--fs)); }
 .cmd-list td { padding: calc(5px * var(--fs)) 6px; border-block-end: 1px solid var(--line, #2a3340); vertical-align: baseline; font-size: calc(12px * var(--fs)); }

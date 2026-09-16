@@ -528,4 +528,12 @@ export default {
   cmdPrompt: 'Perintah:', cmdPh: 'Ketik perintah (LINE, TR, F…)', cmdUnknown: '%s: perintah tidak dikenal',
   cmdLineOn: 'Baris perintah (nama perintah AutoCAD)', cmdHelp: 'Daftar perintah', cmdAcad: 'Perintah AutoCAD',
   cmdExt: 'Khusus aplikasi', tl_cmdline: 'Baris perintah', th_cmdline: 'Ketik nama perintah AutoCAD: LINE, TR, F…',
+  // masaüstü kipi (klavye + fare)
+  deskTitle: 'Papan ketik dan tetikus', deskOn: 'Mode desktop (tata letak tetikus dan papan ketik AutoCAD)', deskFound: 'Tetikus terdeteksi',
+  deskLikely: 'Mungkin ada tetikus — gerakkan sekali', deskNotFound: 'Tidak ada tetikus terdeteksi', deskRight: 'Tugas tombol kanan',
+  deskRight_enter: 'Enter', deskRight_menu: 'Menu', deskRight_none: 'Tidak ada',
+  deskHint: 'Tombol tengah menggeser, klik ganda memuat batas · roda memperbesar · mengetik masuk ke baris perintah · F3 pengunci, F7 kisi, F8 orto, F10 polar', orthoOn: 'Orto aktif', orthoOff: 'Orto nonaktif',
+  polarOn: 'Pelacakan polar aktif', polarOff: 'Pelacakan polar nonaktif', polarStep: 'Kenaikan sudut polar',
+  tl_ortho: 'Orto', th_ortho: 'Mengunci titik ke horizontal atau vertikal (F8)', tl_polar: 'Polar',
+  th_polar: 'Mengunci titik ke kenaikan sudut (F10)',
 };

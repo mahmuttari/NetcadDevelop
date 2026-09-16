@@ -528,4 +528,12 @@ export default {
   cmdPrompt: 'Comando:', cmdPh: 'Digita un comando (LINE, TR, F…)', cmdUnknown: '%s: comando sconosciuto',
   cmdLineOn: 'Riga di comando (nomi AutoCAD)', cmdHelp: 'Elenco comandi', cmdAcad: 'Comando AutoCAD',
   cmdExt: 'Specifico dell\'app', tl_cmdline: 'Riga di comando', th_cmdline: 'Digita i nomi dei comandi AutoCAD: LINE, TR, F…',
+  // masaüstü kipi (klavye + fare)
+  deskTitle: 'Tastiera e mouse', deskOn: 'Modalità desktop (disposizione mouse e tastiera di AutoCAD)', deskFound: 'Mouse rilevato',
+  deskLikely: 'Potrebbe esserci un mouse — muovilo una volta', deskNotFound: 'Nessun mouse rilevato', deskRight: 'Azione del tasto destro',
+  deskRight_enter: 'Invio', deskRight_menu: 'Menu', deskRight_none: 'Nessuna',
+  deskHint: 'Il tasto centrale fa panoramica, il doppio clic inquadra i limiti · la rotella zooma · digitando si va alla riga di comando · F3 aggancio, F7 griglia, F8 orto, F10 polare', orthoOn: 'Orto attivo', orthoOff: 'Orto disattivato',
+  polarOn: 'Puntamento polare attivo', polarOff: 'Puntamento polare disattivato', polarStep: 'Incremento angolare polare',
+  tl_ortho: 'Orto', th_ortho: 'Blocca il punto in orizzontale o verticale (F8)', tl_polar: 'Polare',
+  th_polar: 'Aggancia il punto a un incremento angolare (F10)',
 };

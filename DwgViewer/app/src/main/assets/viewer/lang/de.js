@@ -347,4 +347,12 @@ export default {
   cmdPrompt: 'Befehl:', cmdPh: 'Befehl eingeben (LINE, TR, F…)', cmdUnknown: '%s: unbekannter Befehl',
   cmdLineOn: 'Befehlszeile (AutoCAD-Befehlsnamen)', cmdHelp: 'Befehlsliste', cmdAcad: 'AutoCAD-Befehl',
   cmdExt: 'App-spezifisch', tl_cmdline: 'Befehlszeile', th_cmdline: 'AutoCAD-Befehlsnamen eingeben: LINE, TR, F…',
+  // masaüstü kipi (klavye + fare)
+  deskTitle: 'Tastatur und Maus', deskOn: 'Desktop-Modus (AutoCAD-Maus- und Tastaturbelegung)', deskFound: 'Maus erkannt',
+  deskLikely: 'Möglicherweise eine Maus — einmal bewegen', deskNotFound: 'Keine Maus erkannt', deskRight: 'Funktion der rechten Taste',
+  deskRight_enter: 'Eingabe', deskRight_menu: 'Menü', deskRight_none: 'Keine',
+  deskHint: 'Mittlere Taste schiebt, Doppelklick zoomt auf Grenzen · Rad zoomt · Tippen landet in der Befehlszeile · F3 Fang, F7 Raster, F8 Ortho, F10 Polar', orthoOn: 'Ortho ein', orthoOff: 'Ortho aus',
+  polarOn: 'Polarverfolgung ein', polarOff: 'Polarverfolgung aus', polarStep: 'Polarer Winkelschritt',
+  tl_ortho: 'Ortho', th_ortho: 'Sperrt den Punkt auf waagerecht oder senkrecht (F8)', tl_polar: 'Polar',
+  th_polar: 'Rastet den Punkt auf einen Winkelschritt ein (F10)',
 };

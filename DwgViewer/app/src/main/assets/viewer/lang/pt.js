@@ -528,4 +528,12 @@ export default {
   cmdPrompt: 'Comando:', cmdPh: 'Escreva um comando (LINE, TR, F…)', cmdUnknown: '%s: comando desconhecido',
   cmdLineOn: 'Linha de comandos (nomes do AutoCAD)', cmdHelp: 'Lista de comandos', cmdAcad: 'Comando do AutoCAD',
   cmdExt: 'Específico da aplicação', tl_cmdline: 'Linha de comandos', th_cmdline: 'Escreva nomes de comandos do AutoCAD: LINE, TR, F…',
+  // masaüstü kipi (klavye + fare)
+  deskTitle: 'Teclado e rato', deskOn: 'Modo de secretária (disposição de rato e teclado do AutoCAD)', deskFound: 'Rato detetado',
+  deskLikely: 'Pode haver um rato — mova-o uma vez', deskNotFound: 'Nenhum rato detetado', deskRight: 'Ação do botão direito',
+  deskRight_enter: 'Enter', deskRight_menu: 'Menu', deskRight_none: 'Nenhuma',
+  deskHint: 'O botão do meio faz panorâmica, o duplo clique ajusta aos limites · a roda amplia · ao escrever vai para a linha de comandos · F3 ajuste, F7 grelha, F8 orto, F10 polar', orthoOn: 'Orto ligado', orthoOff: 'Orto desligado',
+  polarOn: 'Rastreio polar ligado', polarOff: 'Rastreio polar desligado', polarStep: 'Incremento de ângulo polar',
+  tl_ortho: 'Orto', th_ortho: 'Bloqueia o ponto na horizontal ou vertical (F8)', tl_polar: 'Polar',
+  th_polar: 'Ajusta o ponto a um incremento de ângulo (F10)',
 };

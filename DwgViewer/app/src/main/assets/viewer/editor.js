@@ -26,6 +26,7 @@ import { leaderEnts } from './annot.js';
 import * as Gz from './gizmo.js';
 import { has, gate, need, rank, tier, tierName, lockAttr, lockBadge, lockBadgeFor, openProPanel } from './edition.js';
 import { cmdOf, namesOf, resolve as acadResolve, suggest as acadSuggest, COMMANDS as ACAD } from './acad.js';
+import * as Desk from './desktop.js';
 
 const $ = (id) => document.getElementById(id);
 const tt = (k, tr) => { const v = t(k); return v === k ? tr : v; };
@@ -37,7 +38,7 @@ const ed = { is3D: () => !!(v3 && !$('cv3d').hidden), tools: null, doc: null, cu
 // ---------------------------------------------------------------------------------
 // Kullanım tercihleri (ui) — kalıcı anahtar 'ui'
 // ---------------------------------------------------------------------------------
-const UI_DEFAULTS = { favs: [], tbCollapsed: { portrait: false, landscape: false }, hints: {}, fontScale: 1, glove: false, leftHand: false, contrast: false, reduceMotion: false, haptics: true, dpad: false, compactStatus: false, showLocked: true, gizmo: true, infoTap: true, infoFull: false, pick3: 'auto', grips: false, palmReject: true, penHover: true, penPressure: true, penDraw: false, penBarrel: 'menu', cmdLine: true };
+const UI_DEFAULTS = { favs: [], tbCollapsed: { portrait: false, landscape: false }, hints: {}, fontScale: 1, glove: false, leftHand: false, contrast: false, reduceMotion: false, haptics: true, dpad: false, compactStatus: false, showLocked: true, gizmo: true, infoTap: true, infoFull: false, pick3: 'auto', grips: false, palmReject: true, penHover: true, penPressure: true, penDraw: false, penBarrel: 'menu', cmdLine: true, desktop: true, deskRight: 'enter' };
 export const ui = (() => {
   const o = JSON.parse(JSON.stringify(UI_DEFAULTS));
   const st = store.json('ui', null);
@@ -116,7 +117,7 @@ const DISPLAY_2D = [
   { cap: 'grpTheme', items: [T('theme', 'i-theme', 'Koyu / açık', 'Dark / light', 'Arka plan temasını değiştirir', 'Switch the background theme'), T('sun', 'i-sun', 'Güneş', 'Sun', 'Güneş altında okunaklı yüksek kontrast', 'High contrast for sunlight'), T('display', 'i-sliders', 'Ekran ayarları', 'Display options', 'Tema, ön ayarlar, süzgeçler, çizgiler, ızgara…', 'Theme, presets, filters, lines, grid…')] },
   { cap: 'grpVis', items: [T('text', 'i-text', 'Yazı', 'Text'), T('hatch', 'i-hatch', 'Tarama', 'Hatch'), T('dim', 'i-dim', 'Ölçüler', 'Dimensions'), T('points', 'i-point', 'Noktalar', 'Points'), T('images', 'i-image', 'Resimler', 'Images')] },
   { cap: 'grpLines', items: [T('lw', 'i-lw', 'Kalınlık', 'Lineweight', 'Çizgi kalınlıklarını gösterir', 'Show lineweights'), T('mono', 'i-mono', 'Tek renk', 'Mono', 'Tek renk / nesne rengi', 'Monochrome / entity color'), T('ltype', 'i-fade', 'Çizgi tipi', 'Linetype')] },
-  { cap: 'grpHelpers', items: [T('grid', 'i-grid', 'Izgara', 'Grid'), T('crosshair', 'i-crosshair', 'Artı imleç', 'Crosshair'), T('cmdline', 'i-cmdline', 'Komut satırı', 'Command line', 'AutoCAD komut adlarıyla çalışır: LINE, TR, F…', 'Type AutoCAD command names: LINE, TR, F…'), T('rulers', 'i-ruler', 'Cetvel', 'Rulers'), T('fade', 'i-fade', 'Soldur', 'Fade', 'Seçili olmayan katmanları soldurur', 'Fade other layers')] },
+  { cap: 'grpHelpers', items: [T('grid', 'i-grid', 'Izgara', 'Grid'), T('crosshair', 'i-crosshair', 'Artı imleç', 'Crosshair'), T('cmdline', 'i-cmdline', 'Komut satırı', 'Command line', 'AutoCAD komut adlarıyla çalışır: LINE, TR, F…', 'Type AutoCAD command names: LINE, TR, F…'), T('ortho', 'i-ortho', 'Ortho', 'Ortho', 'Noktayı yatay ya da düşeye kilitler (F8)', 'Locks the point to horizontal or vertical (F8)'), T('polar', 'i-polar', 'Kutupsal', 'Polar', 'Noktayı açı adımına oturtur (F10)', 'Snaps the point to an angle increment (F10)'), T('rulers', 'i-ruler', 'Cetvel', 'Rulers'), T('fade', 'i-fade', 'Soldur', 'Fade', 'Seçili olmayan katmanları soldurur', 'Fade other layers')] },
 ];
 const DISPLAY_3D = [
   { cap: 'grpStyle3', items: [T('vstyle', 'i-vs-wireframe', 'Görsel stil', 'Visual style'), T('edges3', 'i-edges', 'Kenarlar', 'Edges'), T('color3', 'i-palette', 'Renk', 'Color'), T('light3', 'i-light', 'Işık', 'Light', 'Gölgeli stilde aydınlatma', 'Lighting in shaded styles'), T('display', 'i-sliders', 'Ekran ayarları', 'Display options')] },
@@ -168,6 +169,8 @@ export function initEditor(a) {
     textHeight: () => Math.max(1e-6, (S.ext ? (S.ext[2] - S.ext[0]) : 100) / 200),
     units: () => S.units ? ' ' + S.units : '',
     unitToM: () => S.unitToM,
+    // Açı kısıtları (ortho / kutupsal). Araç kendi kısıtını hesaplamaz, durumu buradan okur.
+    desk: () => S.desk,
     fmt,
     copy: (t) => api.copyText(t),
     lonLat: (x, y) => S.geo.active ? S.geo.toLonLat(x, y) : null,
@@ -359,7 +362,7 @@ function refreshTiles() {
   if (S) {
     on.theme = !S.dark; on.sun = !!S.sun; on.text = S.show.text; on.hatch = S.show.hatch; on.dim = S.show.dim; on.points = S.show.point; on.images = S.show.image;
     on.lw = !!S.lw; on.mono = S.colorMode === 'mono'; on.ltype = S.show.ltype; on.grid = S.grid.on; on.crosshair = S.crosshair !== 'off'; on.rulers = !!S.rulers; on.fade = S.fade.on;
-    on.osnap = S.snapModes && S.snapModes.size > 0; on['3d'] = ed.is3D(); on.grips = !!ui.grips; on.cmdline = ui.cmdLine !== false;
+    on.osnap = S.snapModes && S.snapModes.size > 0; on['3d'] = ed.is3D(); on.grips = !!ui.grips; on.cmdline = ui.cmdLine !== false; on.ortho = !!(S.desk && S.desk.ortho); on.polar = !!(S.desk && S.desk.polar);
   }
   if (v3) { const o = v3.opts; on.grid3 = o.grid; on.axes3 = o.axes; on.cube3 = o.cube; on.hud3 = o.hud; on.light3 = o.light; on.turn3 = o.turntable; on.persp = v3.cam.persp; on.clip3 = !!o.clip; on.shadow3 = o.shadow; on.sil3 = !!v3._styleFx().silhouette; on.edges3 = !!v3._styleFx().edges; }
   document.querySelectorAll('#toolbar [data-act]').forEach(b => { const k = b.dataset.act; if (k in on) { b.classList.toggle('on', !!on[k]); b.setAttribute('aria-pressed', String(!!on[k])); } if (!FREE.has(k) && !HIST.has(k)) b.disabled = has(k) ? !(S && S.hasDoc) : false; });
@@ -508,6 +511,12 @@ function needModel() { if (!needDoc()) return false; if (!S.scene.layouts[S.layo
 function act(name, btn) {
   if (!gate(name)) return;   // Ücretsiz sürümde Pro özelliği: yükseltme kutusu
   if (!FREE.has(name) && !needDoc()) return;
+  /*
+   * "Son komut" karodan başlatılanı da sayar. AutoCAD'de sağ tuş / boş Enter, komutun nasıl
+   * başlatıldığına bakmadan sonuncusunu yineler; yalnız komut satırından yazılanlar sayılsaydı
+   * şeritten çalışan kullanıcı sağ tuşun neden bir şey yapmadığını anlayamazdı.
+   */
+  { const c = cmdOf(name); if (c) cmdLast = c; }
   if (name.startsWith('t:')) { if (!needModel()) return; if (ed.is3D()) exit3D(); const tn = name.slice(2); if (tools.active === tn) { tools.cancel(); markActive(null); } else { tools.start(tn); markActive(name); } return; }
   if (name.startsWith('v:')) { if (!v3 || !ed.is3D()) { if (!needModel()) return; enter3D(); } if (v3) { v3.preset(name.slice(2), { animate: !ui.reduceMotion }); v3.render(); overlay3D(); } return; }
   if (name.startsWith('3:')) { if (!needModel()) return; if (!ed.is3D()) enter3D(); void start3DTool(name.slice(2)); markActive(name); return; }
@@ -525,6 +534,8 @@ function act(name, btn) {
     case 'osnap': toggleOsnap(); break;
     case 'grips': toggleGrips(); break;
     case 'cmdline': toggleCmdLine(); break;
+    case 'ortho': toggleOrtho(); break;
+    case 'polar': togglePolar(); break;
     case 'cmdhelp': showCmdList(); break;
     case 'display': call(api.openDisplayOptions, { seg: ed.is3D() ? '3d' : '2d' }); break;
     case 'undo': if (doc && doc.undo()) { refreshUndo(); api.requestRender(); if (ed.is3D()) { refresh3D(); v3.render(); } api.toast(t('undone')); } break;
@@ -1429,6 +1440,7 @@ export function accessibilitySection() {
       if (inp.dataset.key === 'cmdLine') { refreshTiles(); if (!tools.running && !ed.m3) { if (ui.cmdLine) idlePrompt(); else { $('cmdBar').hidden = true; cmdIdle = false; closeSuggest(); } } }
     });
     penBind(root);
+    deskBind(root);
   } };
 }
 
@@ -1451,7 +1463,7 @@ function penSection() {
   const durum = S.pen && S.pen.seen
     ? t('penFound') + (S.pen.real ? ' · ' + t('penPressureOk') : '') + (S.pen.drop ? ' · ' + t('penPalmDropped').replace('%s', String(S.pen.drop)) : '')
     : t('penNotFound');
-  return `<div class="opt-sec pen-sec full"><div class="opt-title">${esc(t('penTitle'))}</div>` +
+  return deskSection() + `<div class="opt-sec pen-sec full"><div class="opt-title">${esc(t('penTitle'))}</div>` +
     `<div class="opt-row full muted">${esc(durum)}</div>` +
     sw('palmReject', t('palmReject'), false) +
     sw('penHover', t('penHover'), true) +
@@ -1459,6 +1471,36 @@ function penSection() {
     sw('penPressure', t('penPressure'), true) +
     `<div class="opt-row"><span class="opt-lb">${esc(t('penBarrel'))}${kilit ? ' ' + rozet : ''}</span><div class="seg" data-pen-act="1">${acts.map(v => `<button type="button" data-val="${v}" class="${String(ui.penBarrel || 'menu') === v ? 'on' : ''}">${esc(t('penAct_' + v))}</button>`).join('')}</div></div>` +
     `<div class="opt-row full muted">${esc(t('penHint'))}</div></div>`;
+}
+/*
+ * MASAÜSTÜ AYARLARI. Kalem bölümüyle aynı gerekçeyle her zaman görünür: "faremi tanımıyor"
+ * diyen kullanıcının bakacağı ilk yer burasıdır ve üstteki satır durumu dürüstçe söyler.
+ */
+function deskSection() {
+  const acts = Desk.RIGHT_ACTIONS;
+  const durum = (S.desk && S.desk.mouse) ? t('deskFound') : (Desk.likelyMouse(window) ? t('deskLikely') : t('deskNotFound'));
+  const sw = (key, label) => `<div class="opt-row"><span class="opt-lb">${esc(label)}</span><label class="switch"><input type="checkbox" data-desk="${key}" ${ui[key] !== false ? 'checked' : ''}><span class="knob"></span></label></div>`;
+  return `<div class="opt-sec desk-sec full"><div class="opt-title">${esc(t('deskTitle'))}</div>` +
+    `<div class="opt-row full muted">${esc(durum)}</div>` +
+    sw('desktop', t('deskOn')) +
+    `<div class="opt-row"><span class="opt-lb">${esc(t('deskRight'))}</span><div class="seg" data-desk-right="1">${acts.map(v => `<button type="button" data-val="${v}" class="${String(ui.deskRight || 'enter') === v ? 'on' : ''}">${esc(t('deskRight_' + v))}</button>`).join('')}</div></div>` +
+    `<div class="opt-row"><span class="opt-lb">${esc(t('polarStep'))}</span><div class="seg" data-desk-polar="1">${[5, 10, 15, 30, 45].map(v => `<button type="button" data-val="${v}" class="${Number(S.desk.polarStep) === v ? 'on' : ''}">${v}°</button>`).join('')}</div></div>` +
+    `<div class="opt-row full muted">${esc(t('deskHint'))}</div></div>`;
+}
+function deskBind(root) {
+  const sec = (root || document).querySelector('.desk-sec'); if (!sec) return;
+  sec.addEventListener('change', (ev) => {
+    const inp = ev.target; if (!(inp instanceof HTMLInputElement) || !inp.dataset.desk) return;
+    ui[inp.dataset.desk] = inp.checked; applyUi(); refreshTiles(); api.drawOverlay();
+  });
+  sec.addEventListener('click', (ev) => {
+    const b = ev.target.closest('.seg[data-desk-right] button, .seg[data-desk-polar] button');
+    if (!b || !b.dataset.val) return;
+    if (b.parentElement.dataset.deskRight) ui.deskRight = b.dataset.val;
+    else S.desk.polarStep = Number(b.dataset.val) || 15;
+    b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+    applyUi(); haptic('toggle');
+  });
 }
 function penBind(root) {
   const sec = (root || document).querySelector('.pen-sec'); if (!sec) return;
@@ -1521,6 +1563,8 @@ ed.refreshTiles = refreshTiles;
  * kaybeder. Alma ve bırakma bu iki kapıdan geçer.
  */
 ed.cmdTakeOver = () => { cmdIdle = false; closeSuggest(); };
+/** Sağ tuş / boş Enter: son komutu yineler. Yoksa sessizce hiçbir şey yapmaz. */
+ed.cmdRepeat = () => { if (cmdLast) runCommand(cmdLast); };
 ed.cmdRelease = () => { if (!tools.running && !ed.m3) showPrompt(null); };
 /*
  * Anahtarla silme (kalem silgisi buradan geçer). Silmek yalnız bir belge komutu değildir:
@@ -1546,12 +1590,65 @@ ed.act = (name) => act(String(name || ''));
 ed.key = (ev) => {
   if (!ev || typeof ev.key !== 'string') return false;
   const k = ev.key;
-  if (k === 'Escape') { return back(); }
+  if (k === 'Escape') { closeSuggest(); return back(); }
   if (!S.hasDoc) return false;
+  /*
+   * MASAÜSTÜ KİPİ. AutoCAD'de kullanıcı çizim alanındayken harf yazdığında metin doğrudan
+   * komut satırına düşer; ayrı bir alana tıklamak gerekmez. Burada aynısı yapılır: tuş komut
+   * girişine aktarılır ve odak oraya verilir, böylece yazmaya kesintisiz devam edilir.
+   */
+  if (deskKey(ev)) return true;
   if ((ev.ctrlKey || ev.metaKey) && (k === 'z' || k === 'Z')) { if (ev.shiftKey) act('redo'); else act('undo'); return true; }
   if ((ev.ctrlKey || ev.metaKey) && (k === 'y' || k === 'Y')) { act('redo'); return true; }
   if ((k === 'Delete' || k === 'Backspace') && ed.sel.size && doc && !tools.running) { if (!gate('t:del')) return true; doc.run({ op: 'delete', keys: [...ed.sel].map(p => p.key) }); ed.sel.clear(); refreshUndo(); api.requestRender(); if (ed.is3D()) { refresh3D(); render3D(); } api.toast(t('deleted')); return true; }
   if (k === 'Enter' && tools.running) { tools.finish(); return true; }
+  // Boş Enter / boşluk son komutu yineler (AutoCAD). Araç çalışırken yukarıdaki dal bitirir.
+  if ((k === 'Enter' || k === ' ') && deskAktif() && cmdLast) { ed.cmdRepeat(); return true; }
   return false;
 };
+/** Masaüstü kipi açık mı (app.js'teki deskOn ile aynı ölçü; burada ui üzerinden okunur) */
+function deskAktif() {
+  if (ui.desktop === false || !S.hasDoc) return false;
+  return !!(S.desk && S.desk.mouse) || Desk.likelyMouse(window);
+}
+/*
+ * Masaüstü tuş yönlendirmesi. İşlev tuşları ve Ctrl kısayolları AutoCAD'in kendi atamalarıdır
+ * (desktop.js); harf ve rakam tuşları komut satırına aktarılır. Komut satırı KAPALIYSA harf
+ * aktarımı yapılmaz — o zaman uygulamanın eski tek harfli kısayolları (f, z, g, d) çalışmaya
+ * devam eder ve kullanıcı ikisinin arasında kalmaz.
+ */
+function deskKey(ev) {
+  if (!deskAktif()) return false;
+  const r = Desk.resolveKey(ev, { cmdLine: cmdLineOn() });
+  if (r) {
+    if (r.special === 'ortho') { toggleOrtho(); return true; }
+    if (r.special === 'polar') { togglePolar(); return true; }
+    if (r.act) { act(r.act); return true; }
+  }
+  if (!cmdLineOn() || tools.running || ed.m3) return false;
+  if (!Desk.isCommandChar(ev)) return false;
+  const inp = $('cmdInput');
+  if (!inp || inp.hidden || document.activeElement === inp) return false;
+  if (!cmdIdle) idlePrompt();
+  inp.value = ev.key;
+  inp.focus();
+  showSuggest(inp.value);
+  return true;
+}
+/*
+ * ORTHO ve KUTUPSAL İZLEME. AutoCAD'de ikisi birden açıkken ortho kazanır; burada da öyle.
+ * Durum çubuğunda görünür olmaları şart — görünmeyen bir kısıt, çizimi "bozuk" gösterir.
+ */
+function toggleOrtho() {
+  S.desk.ortho = !S.desk.ortho;
+  if (S.desk.ortho) S.desk.polar = false;
+  haptic('toggle'); refreshTiles(); api.drawOverlay();
+  api.toast(t(S.desk.ortho ? 'orthoOn' : 'orthoOff'), 1200);
+}
+function togglePolar() {
+  S.desk.polar = !S.desk.polar;
+  if (S.desk.polar) S.desk.ortho = false;
+  haptic('toggle'); refreshTiles(); api.drawOverlay();
+  api.toast(t(S.desk.polar ? 'polarOn' : 'polarOff') + (S.desk.polar ? ' · ' + S.desk.polarStep + '°' : ''), 1400);
+}
 export const editor = ed;

@@ -528,4 +528,12 @@ export default {
   cmdPrompt: '명령:', cmdPh: '명령을 입력하세요 (LINE, TR, F…)', cmdUnknown: '%s: 알 수 없는 명령',
   cmdLineOn: '명령행 (AutoCAD 명령 이름)', cmdHelp: '명령 목록', cmdAcad: 'AutoCAD 명령',
   cmdExt: '앱 전용', tl_cmdline: '명령행', th_cmdline: 'AutoCAD 명령 이름을 입력하세요: LINE, TR, F…',
+  // masaüstü kipi (klavye + fare)
+  deskTitle: '키보드와 마우스', deskOn: '데스크톱 모드 (AutoCAD 마우스 · 키보드 배치)', deskFound: '마우스가 감지되었습니다',
+  deskLikely: '마우스가 있을 수 있습니다 — 한 번 움직이세요', deskNotFound: '마우스가 감지되지 않았습니다', deskRight: '오른쪽 버튼 동작',
+  deskRight_enter: 'Enter', deskRight_menu: '메뉴', deskRight_none: '없음',
+  deskHint: '가운데 버튼으로 화면 이동, 두 번 누르면 도면 범위 · 휠로 확대 · 문자를 입력하면 명령행으로 · F3 스냅, F7 그리드, F8 직교, F10 극좌표', orthoOn: '직교 모드 켜짐', orthoOff: '직교 모드 꺼짐',
+  polarOn: '극좌표 추적 켜짐', polarOff: '극좌표 추적 꺼짐', polarStep: '극좌표 각도 증분',
+  tl_ortho: '직교', th_ortho: '점을 수평 또는 수직으로 고정합니다 (F8)', tl_polar: '극좌표',
+  th_polar: '점을 각도 증분에 맞춥니다 (F10)',
 };

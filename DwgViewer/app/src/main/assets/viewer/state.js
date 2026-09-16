@@ -22,6 +22,9 @@ export const S = {
   // kalem (S Pen / Apple Pencil / genel kalemler): seen cihazda kalem görüldü mü, hover havada
   // gezinen ucun ekran ve dünya noktası, kind son işaretçinin türü, drop elenen avuç sayısı
   pen: { seen: false, hover: null, kind: null, pressure: 0, real: false, tilt: null, drop: 0 },
+  // masaüstü kipi: klavye-fare bağlıyken AutoCAD davranışı (orta tuş kaydırır, sağ tuş Enter,
+  // harfler komut satırına gider); ortho ve kutupsal izleme açı kısıtlarıdır
+  desk: { mouse: false, ortho: false, polar: false, polarStep: 15 },
   curLayerName: '0', glove: false,
   // araçlar
   mode: 'view', measure: [], snap: null, snapModes: new Set(['end', 'mid', 'cen', 'int', 'ins', 'node']), selected: null,

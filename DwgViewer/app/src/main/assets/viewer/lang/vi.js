@@ -370,4 +370,12 @@ export default {
   cmdPrompt: 'Lệnh:', cmdPh: 'Nhập một lệnh (LINE, TR, F…)', cmdUnknown: '%s: lệnh không xác định',
   cmdLineOn: 'Dòng lệnh (tên lệnh AutoCAD)', cmdHelp: 'Danh sách lệnh', cmdAcad: 'Lệnh AutoCAD',
   cmdExt: 'Riêng của ứng dụng', tl_cmdline: 'Dòng lệnh', th_cmdline: 'Nhập tên lệnh AutoCAD: LINE, TR, F…',
+  // masaüstü kipi (klavye + fare)
+  deskTitle: 'Bàn phím và chuột', deskOn: 'Chế độ máy tính (bố trí chuột và bàn phím AutoCAD)', deskFound: 'Đã nhận ra chuột',
+  deskLikely: 'Có thể có chuột — hãy di chuyển một lần', deskNotFound: 'Không nhận ra chuột', deskRight: 'Nhiệm vụ nút phải',
+  deskRight_enter: 'Enter', deskRight_menu: 'Menu', deskRight_none: 'Không',
+  deskHint: 'Nút giữa để trượt, nhấp đúp vừa khung · con lăn phóng to · gõ phím sẽ vào dòng lệnh · F3 bắt điểm, F7 lưới, F8 ortho, F10 polar', orthoOn: 'Đã bật Ortho', orthoOff: 'Đã tắt Ortho',
+  polarOn: 'Đã bật dò polar', polarOff: 'Đã tắt dò polar', polarStep: 'Bước góc polar',
+  tl_ortho: 'Ortho', th_ortho: 'Khóa điểm theo phương ngang hoặc dọc (F8)', tl_polar: 'Polar',
+  th_polar: 'Bắt điểm theo bước góc (F10)',
 };

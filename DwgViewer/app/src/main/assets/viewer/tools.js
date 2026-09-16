@@ -16,6 +16,7 @@ import { t, addStrings } from './i18n.js';
 import { askText, askConfirm, askForm } from './dialog.js';
 import { dimLinear, dimRadial, dimAngular, leaderEnts, cloudEnt, balloonEnts, arrayItems, hatchEnts } from './annot.js';
 import { cmdOf } from './acad.js';
+import { constrain as deskConstrain } from './desktop.js';
 
 const R2D = 180 / Math.PI, D2R = Math.PI / 180;
 
@@ -602,9 +603,23 @@ export class ToolManager {
     }
     A.render();
   }
+  /*
+   * Ortho / kutupsal kısıtı. AutoCAD'deki öncelik korunur: YAKALAMA her şeyi yener (kullanıcı
+   * belirli bir noktaya oturmak istemiştir), sonra ortho, sonra kutupsal. Taban nokta, o ana
+   * kadar toplanmış son noktadır; ilk noktada kısıt uygulanmaz çünkü kısıtlanacak bir yön yoktur.
+   */
+  kisitla(p, sn) {
+    const d = this.api.desk && this.api.desk();
+    if (!d || (!d.ortho && !d.polar)) return p;
+    const taban = this.pts.length ? this.pts[this.pts.length - 1] : null;
+    if (!taban) return p;
+    const q = deskConstrain(taban, p, { snapped: !!sn, ortho: d.ortho, polar: d.polar, polarStep: d.polarStep });
+    return [q[0], q[1], p[2]];
+  }
   /** toplanan nokta (kot / yazı / ayna onayı sorulabildiğinden async; çağıranlar beklemez) */
   async point(p, sn) {
     const A = this.api;
+    p = this.kisitla(p, sn);
     this.pts.push(p); this.last = p;
     const n = this.pts.length;
     switch (this.active) {

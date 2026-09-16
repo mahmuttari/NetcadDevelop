@@ -329,4 +329,12 @@ export default {
   cmdPrompt: '命令:', cmdPh: '输入命令 (LINE、TR、F…)', cmdUnknown: '%s: 未知命令',
   cmdLineOn: '命令行 (AutoCAD 命令名)', cmdHelp: '命令列表', cmdAcad: 'AutoCAD 命令',
   cmdExt: '本应用特有', tl_cmdline: '命令行', th_cmdline: '输入 AutoCAD 命令名: LINE、TR、F…',
+  // masaüstü kipi (klavye + fare)
+  deskTitle: '键盘和鼠标', deskOn: '桌面模式 (AutoCAD 鼠标与键盘布局)', deskFound: '已检测到鼠标',
+  deskLikely: '可能有鼠标 — 请移动一次', deskNotFound: '未检测到鼠标', deskRight: '右键功能',
+  deskRight_enter: '回车', deskRight_menu: '菜单', deskRight_none: '无',
+  deskHint: '中键平移，双击缩放到图形范围 · 滚轮缩放 · 输入文字会进入命令行 · F3 捕捉、F7 栅格、F8 正交、F10 极轴', orthoOn: '正交已开启', orthoOff: '正交已关闭',
+  polarOn: '极轴追踪已开启', polarOff: '极轴追踪已关闭', polarStep: '极轴角度增量',
+  tl_ortho: '正交', th_ortho: '将点锁定为水平或垂直 (F8)', tl_polar: '极轴',
+  th_polar: '将点捕捉到角度增量 (F10)',
 };
