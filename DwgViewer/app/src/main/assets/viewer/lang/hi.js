@@ -524,4 +524,8 @@ export default {
   penBarrel: 'साइड बटन का काम', penAct_menu: 'मेनू', penAct_erase: 'मिटाएँ',
   penAct_snap: 'स्नैप', penAct_undo: 'पूर्ववत', penAct_none: 'कोई नहीं',
   penHint: 'पेन को उलट दें: रबर सिरा वस्तुएँ मिटाता है। S Pen, Apple Pencil और सामान्य Android स्टाइलस समर्थित हैं।',
+  // AutoCAD komut satırı
+  cmdPrompt: 'कमांड:', cmdPh: 'कमांड लिखें (LINE, TR, F…)', cmdUnknown: '%s: अज्ञात कमांड',
+  cmdLineOn: 'कमांड लाइन (AutoCAD कमांड नाम)', cmdHelp: 'कमांड सूची', cmdAcad: 'AutoCAD कमांड',
+  cmdExt: 'ऐप-विशिष्ट', tl_cmdline: 'कमांड लाइन', th_cmdline: 'AutoCAD कमांड नाम लिखें: LINE, TR, F…',
 };

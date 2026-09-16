@@ -524,4 +524,8 @@ export default {
   penBarrel: 'サイドボタンの動作', penAct_menu: 'メニュー', penAct_erase: '削除',
   penAct_snap: 'スナップ', penAct_undo: '元に戻す', penAct_none: 'なし',
   penHint: 'ペンを裏返すと消しゴム側でオブジェクトを削除できます。S Pen、Apple Pencil、一般的な Android ペンに対応。',
+  // AutoCAD komut satırı
+  cmdPrompt: 'コマンド:', cmdPh: 'コマンドを入力 (LINE, TR, F…)', cmdUnknown: '%s: 不明なコマンド',
+  cmdLineOn: 'コマンド ライン (AutoCAD コマンド名)', cmdHelp: 'コマンド一覧', cmdAcad: 'AutoCAD コマンド',
+  cmdExt: 'このアプリ独自', tl_cmdline: 'コマンド ライン', th_cmdline: 'AutoCAD のコマンド名を入力: LINE, TR, F…',
 };

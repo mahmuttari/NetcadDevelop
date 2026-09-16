@@ -15,6 +15,7 @@ import { newId, offsetPoints } from './edit.js';
 import { t, addStrings } from './i18n.js';
 import { askText, askConfirm, askForm } from './dialog.js';
 import { dimLinear, dimRadial, dimAngular, leaderEnts, cloudEnt, balloonEnts, arrayItems, hatchEnts } from './annot.js';
+import { cmdOf } from './acad.js';
 
 const R2D = 180 / Math.PI, D2R = Math.PI / 180;
 
@@ -70,7 +71,18 @@ export const TOOLS = {
   fillet: { name: 'Kavis', en: 'Fillet', steps: ['Birinci doğruya dokunun', 'İkinci doğruya dokunun'], stepsEn: ['Tap the first line', 'Tap the second line'] },
   chamfer: { name: 'Pah', en: 'Chamfer', steps: ['Birinci doğruya dokunun', 'İkinci doğruya dokunun'], stepsEn: ['Tap the first line', 'Tap the second line'] },
 };
-{ const tr = {}, en = {}; for (const [k, d] of Object.entries(TOOLS)) { tr['tool_' + k] = d.name; en['tool_' + k] = d.en || d.name; d.steps.forEach((st, i) => { tr[`tstep_${k}_${i}`] = st; en[`tstep_${k}_${i}`] = (d.stepsEn && d.stepsEn[i]) || st; }); } addStrings(tr, en); }
+/*
+ * İngilizce arayüzde araç adı AutoCAD komut adıdır (LINE, TRIM, ERASE…): hedef kullanıcı
+ * AutoCAD kaslıdır ve "Delete" yazan bir düğmeyi ERASE ile bağdaştırmakta zorlanır. Ad tek
+ * kaynaktan, acad.js'ten gelir; burada yazılmaz. Türkçe ad olduğu gibi kalır.
+ */
+{ const tr = {}, en = {}; for (const [k, d] of Object.entries(TOOLS)) { tr['tool_' + k] = d.name; en['tool_' + k] = cmdOf('t:' + k) || d.en || d.name; d.steps.forEach((st, i) => { tr[`tstep_${k}_${i}`] = st; en[`tstep_${k}_${i}`] = (d.stepsEn && d.stepsEn[i]) || st; }); } addStrings(tr, en); }
+/*
+ * Araç kimliklerinin listesi. acad.js'teki AutoCAD komut tablosu bu adlara bağlanır; yanlış
+ * yazılmış bir kimlik sessizce hiçbir şey yapmaz, o yüzden sınama ikisini burada karşılaştırır
+ * (measure3d'nin ROW_KEYS'i ile aynı gerekçe: yapısal körlüğü kapatmak).
+ */
+export const TOOL_IDS = Object.keys(TOOLS);
 const toolName = (k) => t('tool_' + k);
 const toolStep = (k, i) => t(`tstep_${k}_${i}`);
 const SELECT_TOOLS = new Set(['move', 'copy', 'rotate', 'scale', 'mirror', 'offset', 'del', 'setz', 'array', 'thick', 'textsize']);

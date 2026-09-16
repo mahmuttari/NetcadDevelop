@@ -523,4 +523,8 @@ export default {
   penBarrel: 'مهمة الزر الجانبي', penAct_menu: 'القائمة', penAct_erase: 'مسح',
   penAct_snap: 'الالتقاط', penAct_undo: 'تراجع', penAct_none: 'بدون',
   penHint: 'اقلب القلم: طرف الممحاة يحذف الكائنات. مدعوم مع S Pen وApple Pencil وأقلام أندرويد الشائعة.',
+  // AutoCAD komut satırı
+  cmdPrompt: 'الأمر:', cmdPh: 'اكتب أمرًا (LINE، TR، F…)', cmdUnknown: '%s: أمر غير معروف',
+  cmdLineOn: 'سطر الأوامر (أسماء أوامر AutoCAD)', cmdHelp: 'قائمة الأوامر', cmdAcad: 'أمر AutoCAD',
+  cmdExt: 'خاص بالتطبيق', tl_cmdline: 'سطر الأوامر', th_cmdline: 'اكتب أسماء أوامر AutoCAD: LINE، TR، F…',
 };

@@ -525,4 +525,8 @@ export default {
   penBarrel: 'Action du bouton latéral', penAct_menu: 'Menu', penAct_erase: 'Effacer',
   penAct_snap: 'Accrochage', penAct_undo: 'Annuler', penAct_none: 'Aucune',
   penHint: 'Retournez le stylet : la pointe gomme supprime les objets. S Pen, Apple Pencil et les stylets Android courants sont pris en charge.',
+  // AutoCAD komut satırı
+  cmdPrompt: 'Commande :', cmdPh: 'Saisissez une commande (LINE, TR, F…)', cmdUnknown: '%s : commande inconnue',
+  cmdLineOn: 'Ligne de commande (noms AutoCAD)', cmdHelp: 'Liste des commandes', cmdAcad: 'Commande AutoCAD',
+  cmdExt: 'Propre à l\'application', tl_cmdline: 'Ligne de commande', th_cmdline: 'Saisissez les noms de commandes AutoCAD : LINE, TR, F…',
 };

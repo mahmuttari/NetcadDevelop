@@ -524,4 +524,8 @@ export default {
   penBarrel: 'Tugas tombol samping', penAct_menu: 'Menu', penAct_erase: 'Hapus',
   penAct_snap: 'Pengunci', penAct_undo: 'Urungkan', penAct_none: 'Tidak ada',
   penHint: 'Balik pena: ujung penghapus menghapus objek. Mendukung S Pen, Apple Pencil, dan pena Android umum.',
+  // AutoCAD komut satırı
+  cmdPrompt: 'Perintah:', cmdPh: 'Ketik perintah (LINE, TR, F…)', cmdUnknown: '%s: perintah tidak dikenal',
+  cmdLineOn: 'Baris perintah (nama perintah AutoCAD)', cmdHelp: 'Daftar perintah', cmdAcad: 'Perintah AutoCAD',
+  cmdExt: 'Khusus aplikasi', tl_cmdline: 'Baris perintah', th_cmdline: 'Ketik nama perintah AutoCAD: LINE, TR, F…',
 };

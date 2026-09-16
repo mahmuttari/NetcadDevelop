@@ -164,8 +164,10 @@ const fakeBridge = ({ price, prices }) => {
   {
     const n0 = (await askLog(page)).length;
     await ev(() => window.dwgApp.editor.act('t:line')); await page.waitForTimeout(150);
-    const r = await ev(() => { const d = document.getElementById('askDlg'); return { dlg: !!d && !d.hidden && d.classList.contains('confirm'), label: d ? document.getElementById('askLabel').textContent : '', okBtn: d ? document.getElementById('askOk').textContent : '', running: window.dwgApp.editor.tools.running, cmd: !document.getElementById('cmdBar').hidden }; });
-    ok('1v act("t:line") aracı başlatmaz, yükseltme kutusu açılır', r.dlg && /Premium paketinde bulunur/.test(r.label) && /Paketler açılsın mı/.test(r.label) && r.okBtn === 'Paketlere bak' && !r.running && !r.cmd, JSON.stringify(r));
+    // Komut satırı açıkken çubuk boşta "Komut:" ile durur; ölçülmesi gereken çubuğun GİZLİ olması
+    // değil, bir ARAÇ İSTEMİNİN gösterilmemesidir (araç başlamadı).
+    const r = await ev(() => { const d = document.getElementById('askDlg'); return { dlg: !!d && !d.hidden && d.classList.contains('confirm'), label: d ? document.getElementById('askLabel').textContent : '', okBtn: d ? document.getElementById('askOk').textContent : '', running: window.dwgApp.editor.tools.running, cmdText: document.getElementById('cmdBar').hidden ? '' : document.getElementById('cmdText').textContent.trim() }; });
+    ok('1v act("t:line") aracı başlatmaz, yükseltme kutusu açılır', r.dlg && /Premium paketinde bulunur/.test(r.label) && /Paketler açılsın mı/.test(r.label) && r.okBtn === 'Paketlere bak' && !r.running && !/Çizgi|Line/.test(r.cmdText), JSON.stringify(r));
     await shot('free_gate_dialog');
     await page.click('#askNo'); await page.waitForTimeout(80);
     ok('1w kutuda Vazgeç → panel açılmaz, araç yok', await ev(() => document.getElementById('askDlg').hidden && document.getElementById('proPanel').hidden && !window.dwgApp.editor.tools.running));
@@ -194,9 +196,9 @@ const fakeBridge = ({ price, prices }) => {
       const n = await ev(() => window.dwgApp.state.prims.length);
       const a0 = (await askLog(page)).length;
       await queueAnswers(page, false); await ev(() => window.dwgApp.editor.act('3:pline')); await page.waitForTimeout(80);
-      const r = await ev(() => ({ m3: window.dwgApp.editor.m3, is3D: window.dwgApp.editor.is3D(), cmdHidden: document.getElementById('cmdBar').hidden, n: window.dwgApp.state.prims.length, dirty: !!(window.dwgApp.editor.doc && window.dwgApp.editor.doc.dirty) }));
+      const r = await ev(() => ({ m3: window.dwgApp.editor.m3, is3D: window.dwgApp.editor.is3D(), cmdText: document.getElementById('cmdBar').hidden ? '' : document.getElementById('cmdText').textContent.trim(), n: window.dwgApp.state.prims.length, dirty: !!(window.dwgApp.editor.doc && window.dwgApp.editor.doc.dirty) }));
       const asked = (await askLog(page)).slice(a0);
-      ok('2d2 act("3:pline") 3B polyline başlatmaz, yükseltme kutusu istenir, belge değişmez', !r.m3 && !r.is3D && r.cmdHidden && r.n === n && !r.dirty && asked.length === 1 && asked[0].type === 'confirm' && /Super paketinde bulunur/.test(asked[0].label), JSON.stringify(r) + ' ' + JSON.stringify(asked).slice(0, 120));
+      ok('2d2 act("3:pline") 3B polyline başlatmaz, yükseltme kutusu istenir, belge değişmez', !r.m3 && !r.is3D && !/Polyline/i.test(r.cmdText) && r.n === n && !r.dirty && asked.length === 1 && asked[0].type === 'confirm' && /Super paketinde bulunur/.test(asked[0].label), JSON.stringify(r) + ' ' + JSON.stringify(asked).slice(0, 120));
     }
     await queueAnswers(page, false);
     const kz = await ev(() => window.dwgApp.editor.key({ key: 'z', ctrlKey: true }));

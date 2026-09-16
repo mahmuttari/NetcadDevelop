@@ -524,4 +524,8 @@ export default {
   penBarrel: 'Acción del botón lateral', penAct_menu: 'Menú', penAct_erase: 'Borrar',
   penAct_snap: 'Forzado', penAct_undo: 'Deshacer', penAct_none: 'Ninguna',
   penHint: 'Dé la vuelta al lápiz: la punta de goma borra objetos. Compatible con S Pen, Apple Pencil y lápices Android habituales.',
+  // AutoCAD komut satırı
+  cmdPrompt: 'Comando:', cmdPh: 'Escriba un comando (LINE, TR, F…)', cmdUnknown: '%s: comando desconocido',
+  cmdLineOn: 'Línea de comandos (nombres de AutoCAD)', cmdHelp: 'Lista de comandos', cmdAcad: 'Comando de AutoCAD',
+  cmdExt: 'Propio de la aplicación', tl_cmdline: 'Línea de comandos', th_cmdline: 'Escriba nombres de comandos de AutoCAD: LINE, TR, F…',
 };

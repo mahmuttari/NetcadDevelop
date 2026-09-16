@@ -293,6 +293,34 @@ kalemi aynı standart alanlarla bildirir, bu yüzden aynı kod yolu çalışır.
 bu ayrım korunmalı, "Apple Pencil destekli Android uygulaması" gibi yanıltıcı bir cümle
 kurulmamalıdır.
 
+### AutoCAD komut uyumu — YAPILDI (v7.50)
+
+Hedef kullanıcı AutoCAD kaslıdır. Rakip DWG FastView'de komut satırı **yoktur**; bizde
+vardır ve AutoCAD adlarıyla çalışır. Bu, mağaza metninde öne çıkarılması gereken bir
+ayırt edicidir.
+
+Kapsam: **86 komut, 144 ad ve kısaltma.** Kaynak `IPARD` değil, uygulamanın kendi
+`viewer/acad.js` dosyasıdır ve tektir — komut satırı, İngilizce arayüz etiketleri ve
+yardım listesi hepsi oradan okur.
+
+**Kademe etkisi yok.** Komut satırı ücretsizdir; komutun kendisi hangi kademedeyse kapı
+orada çalışır (LINE yazan ücretsiz kullanıcı yükseltme kutusunu görür, bugünkü karo
+davranışının aynısı). Yetenek sayacı **76'da kaldı**: komut satırı yeni bir yetenek
+açmaz, var olanlara ikinci bir kapı verir.
+
+**Mağaza metninde dikkat edilecek üç nokta:**
+
+1. "AutoCAD uyumlu komutlar" denebilir; **"AutoCAD ile uyumludur"** ya da Autodesk'in
+   onayını ima eden bir ifade kullanılamaz. AutoCAD, Autodesk'in tescilli markasıdır;
+   bizimki nominatif kullanımdır (ürünü tarif etmek için adını anmak).
+2. Autodesk'in **simge çizimleri kopyalanmamıştır.** Üç simge (ERASE, COPY, EXPLODE) CAD
+   sektörünün paylaştığı gösterim diline çevrildi — silgi, nesne+kopyası, kenarlarına
+   ayrılan nesne — ama çizim bize aittir. Bu ayrım korunmalı; mağaza görsellerine
+   Autodesk arayüzünden alınmış hiçbir parça konmamalıdır.
+3. AutoCAD'de karşılığı **olmayan** 25 yeteneğimiz komut listesinde ayrı bölümdedir ve
+   öyle kalmalıdır. "86 AutoCAD komutu" demek yanlış olur; doğrusu **"61 AutoCAD komutu
+   + 25 uygulamaya özgü komut"**tur.
+
 ### Fiyatlar değişmedi
 
 Rakibin Eylül 2026 TR fiyatlarına göre konumumuz korunuyor: Ad-Free

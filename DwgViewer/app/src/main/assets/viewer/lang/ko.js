@@ -524,4 +524,8 @@ export default {
   penBarrel: '측면 버튼 동작', penAct_menu: '메뉴', penAct_erase: '지우기',
   penAct_snap: '스냅', penAct_undo: '실행 취소', penAct_none: '없음',
   penHint: '펜을 뒤집으면 지우개 쪽으로 객체를 지웁니다. S Pen, Apple Pencil 및 일반 Android 펜을 지원합니다.',
+  // AutoCAD komut satırı
+  cmdPrompt: '명령:', cmdPh: '명령을 입력하세요 (LINE, TR, F…)', cmdUnknown: '%s: 알 수 없는 명령',
+  cmdLineOn: '명령행 (AutoCAD 명령 이름)', cmdHelp: '명령 목록', cmdAcad: 'AutoCAD 명령',
+  cmdExt: '앱 전용', tl_cmdline: '명령행', th_cmdline: 'AutoCAD 명령 이름을 입력하세요: LINE, TR, F…',
 };

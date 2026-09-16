@@ -343,4 +343,8 @@ export default {
   penBarrel: 'Funktion der Stifttaste', penAct_menu: 'Menü', penAct_erase: 'Löschen',
   penAct_snap: 'Fang', penAct_undo: 'Rückgängig', penAct_none: 'Keine',
   penHint: 'Stift umdrehen: Die Radiererspitze löscht Objekte. S Pen, Apple Pencil und gängige Android-Stifte werden unterstützt.',
+  // AutoCAD komut satırı
+  cmdPrompt: 'Befehl:', cmdPh: 'Befehl eingeben (LINE, TR, F…)', cmdUnknown: '%s: unbekannter Befehl',
+  cmdLineOn: 'Befehlszeile (AutoCAD-Befehlsnamen)', cmdHelp: 'Befehlsliste', cmdAcad: 'AutoCAD-Befehl',
+  cmdExt: 'App-spezifisch', tl_cmdline: 'Befehlszeile', th_cmdline: 'AutoCAD-Befehlsnamen eingeben: LINE, TR, F…',
 };

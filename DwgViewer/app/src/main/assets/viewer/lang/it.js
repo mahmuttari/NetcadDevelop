@@ -524,4 +524,8 @@ export default {
   penBarrel: 'Azione del pulsante laterale', penAct_menu: 'Menu', penAct_erase: 'Cancella',
   penAct_snap: 'Aggancio', penAct_undo: 'Annulla', penAct_none: 'Nessuna',
   penHint: 'Capovolgi la penna: la punta gomma elimina gli oggetti. Sono supportati S Pen, Apple Pencil e le penne Android più diffuse.',
+  // AutoCAD komut satırı
+  cmdPrompt: 'Comando:', cmdPh: 'Digita un comando (LINE, TR, F…)', cmdUnknown: '%s: comando sconosciuto',
+  cmdLineOn: 'Riga di comando (nomi AutoCAD)', cmdHelp: 'Elenco comandi', cmdAcad: 'Comando AutoCAD',
+  cmdExt: 'Specifico dell\'app', tl_cmdline: 'Riga di comando', th_cmdline: 'Digita i nomi dei comandi AutoCAD: LINE, TR, F…',
 };

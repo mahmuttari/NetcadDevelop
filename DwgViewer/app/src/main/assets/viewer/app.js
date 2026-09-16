@@ -259,6 +259,7 @@ function zoomWindow() {
   if (editor.is3D()) { toast(tt('zoomWin3d', 'Pencere yakınlaştırma 2B görünümde çalışır.')); return; }
   if (editor.tools && editor.tools.running) { toast(tt('toolBusy', 'Önce çalışan aracı bitirin.')); return; }
   zoomWin = { pending: true };
+  edCall('cmdTakeOver');
   const bar = $('cmdBar'); bar.hidden = false; $('cmdText').textContent = tt('zoomWinHint', 'Pencere: köşeleri sürükleyin'); $('cmdInput').hidden = true;
   $('cmdBtns').innerHTML = `<button data-zw="cancel">✕ ${t('cancel')}</button>`;
   $('cmdBtns').onclick = (ev) => { if (ev.target.closest('[data-zw]')) cancelZoomWindow(); };
@@ -267,7 +268,8 @@ function cancelZoomWindow() {
   if (!zoomWin) return false;
   zoomWin = null;
   const bar = $('cmdBar'); if ($('cmdBtns').onclick) { $('cmdBtns').onclick = null; }
-  if (!(editor.tools && editor.tools.running) && !editor.m3) bar.hidden = true;
+  // Çubuğu gizlemek yerine devri geri ver: komut satırı açıksa boştaki isteme döner.
+  if (!(editor.tools && editor.tools.running) && !editor.m3) { bar.hidden = true; edCall('cmdRelease'); }
   drawOverlay();
   return true;
 }

@@ -25,6 +25,7 @@ import { askText, askForm } from './dialog.js';
 import { leaderEnts } from './annot.js';
 import * as Gz from './gizmo.js';
 import { has, gate, need, rank, tier, tierName, lockAttr, lockBadge, lockBadgeFor, openProPanel } from './edition.js';
+import { cmdOf, namesOf, resolve as acadResolve, suggest as acadSuggest, COMMANDS as ACAD } from './acad.js';
 
 const $ = (id) => document.getElementById(id);
 const tt = (k, tr) => { const v = t(k); return v === k ? tr : v; };
@@ -36,7 +37,7 @@ const ed = { is3D: () => !!(v3 && !$('cv3d').hidden), tools: null, doc: null, cu
 // ---------------------------------------------------------------------------------
 // Kullanım tercihleri (ui) — kalıcı anahtar 'ui'
 // ---------------------------------------------------------------------------------
-const UI_DEFAULTS = { favs: [], tbCollapsed: { portrait: false, landscape: false }, hints: {}, fontScale: 1, glove: false, leftHand: false, contrast: false, reduceMotion: false, haptics: true, dpad: false, compactStatus: false, showLocked: true, gizmo: true, infoTap: true, infoFull: false, pick3: 'auto', grips: false, palmReject: true, penHover: true, penPressure: true, penDraw: false, penBarrel: 'menu' };
+const UI_DEFAULTS = { favs: [], tbCollapsed: { portrait: false, landscape: false }, hints: {}, fontScale: 1, glove: false, leftHand: false, contrast: false, reduceMotion: false, haptics: true, dpad: false, compactStatus: false, showLocked: true, gizmo: true, infoTap: true, infoFull: false, pick3: 'auto', grips: false, palmReject: true, penHover: true, penPressure: true, penDraw: false, penBarrel: 'menu', cmdLine: true };
 export const ui = (() => {
   const o = JSON.parse(JSON.stringify(UI_DEFAULTS));
   const st = store.json('ui', null);
@@ -101,21 +102,21 @@ const TABS = [
     { cap: 'grpHist', items: [T('undo', 'i-undo', 'Geri al', 'Undo'), T('redo', 'i-redo', 'Yinele', 'Redo')] } ] },
   { id: 'edit', i18n: 'tabEdit', icon: 'i-select', groups: [
     { cap: 'grpSel', items: [T('t:select', 'i-select', 'Seç', 'Select', 'Dokunarak seçim; Tümü düğmesiyle hepsi', 'Tap to select'), T('props', 'i-props', 'Özellikler', 'Properties', 'Seçimin katmanı ve rengi', 'Layer and color of the selection'), T('grips', 'i-grips', 'Köşe tutamakları', 'Vertex grips', 'Seçili yolun her köşesini ayrı ayrı sürükleyin', 'Drag each vertex of the selected path')] },
-    { cap: 'grpXform', items: [T('t:move', 'i-move', 'Taşı', 'Move'), T('t:copy', 'i-copy', 'Kopyala', 'Copy'), T('t:rotate', 'i-rotate', 'Döndür', 'Rotate'), T('t:scale', 'i-scale', 'Ölçekle', 'Scale'), T('t:mirror', 'i-mirror', 'Aynala', 'Mirror'), T('t:offset', 'i-offset', 'Ofset', 'Offset')] },
-    { cap: 'grpModify', items: [T('t:del', 'i-trash', 'Sil', 'Delete'), T('t:setz', 'i-z', 'Kot ata', 'Set Z', 'Seçime Z kotu atar', 'Assign elevation'), T('t:edittext', 'i-edittext', 'Yazı düzenle', 'Edit text'), T('t:array', 'i-array', 'Dizi', 'Array', 'Dikdörtgen ya da kutupsal artımlı kopya', 'Rectangular or polar incremental copy'), T('t:thick', 'i-thick', 'Kalınlık', 'Thickness', '2B nesneye yükseklik vererek 3B gövde üretir', 'Extrude 2D objects into 3D bodies'), T('t:explode', 'i-explode', 'Patlat', 'Explode', 'Blok yerleştirmesini parçalarına ayırır', 'Break a block insertion into its parts'), T('t:textsize', 'i-textsize', 'Yazı yüksekliği', 'Text height', 'Seçili yazıların yüksekliğini değiştirir', 'Change the height of selected texts'), T('t:attr', 'i-attr', 'Öznitelik', 'Attributes', 'Blok özniteliklerini düzenler', 'Edit block attributes'), T('findrep', 'i-findrep', 'Bul-değiştir', 'Find & replace', 'Çizimdeki yazılarda toplu değiştirme', 'Bulk replace across drawing texts'), T('t:trim', 'i-trim', 'Buda', 'Trim', 'Kesici kenara, sonra atılacak parçaya dokunun', 'Tap the cutting edge, then the piece to remove'), T('t:extend', 'i-extend', 'Uzat', 'Extend', 'Sınıra, sonra uzatılacak uca dokunun', 'Tap the boundary, then the end to extend'), T('t:fillet', 'i-fillet', 'Kavis', 'Fillet', 'İki doğruya dokunun, yarıçapı yazın', 'Tap two lines and type the radius'), T('t:chamfer', 'i-chamfer', 'Pah', 'Chamfer', 'İki doğruya dokunun, mesafeyi yazın', 'Tap two lines and type the distance')] },
+    { cap: 'grpXform', items: [T('t:move', 'i-move', 'Taşı', 'Move'), T('t:copy', 'i-copyobj', 'Kopyala', 'Copy'), T('t:rotate', 'i-rotate', 'Döndür', 'Rotate'), T('t:scale', 'i-scale', 'Ölçekle', 'Scale'), T('t:mirror', 'i-mirror', 'Aynala', 'Mirror'), T('t:offset', 'i-offset', 'Ofset', 'Offset')] },
+    { cap: 'grpModify', items: [T('t:del', 'i-erase', 'Sil', 'Delete'), T('t:setz', 'i-z', 'Kot ata', 'Set Z', 'Seçime Z kotu atar', 'Assign elevation'), T('t:edittext', 'i-edittext', 'Yazı düzenle', 'Edit text'), T('t:array', 'i-array', 'Dizi', 'Array', 'Dikdörtgen ya da kutupsal artımlı kopya', 'Rectangular or polar incremental copy'), T('t:thick', 'i-thick', 'Kalınlık', 'Thickness', '2B nesneye yükseklik vererek 3B gövde üretir', 'Extrude 2D objects into 3D bodies'), T('t:explode', 'i-explode', 'Patlat', 'Explode', 'Blok yerleştirmesini parçalarına ayırır', 'Break a block insertion into its parts'), T('t:textsize', 'i-textsize', 'Yazı yüksekliği', 'Text height', 'Seçili yazıların yüksekliğini değiştirir', 'Change the height of selected texts'), T('t:attr', 'i-attr', 'Öznitelik', 'Attributes', 'Blok özniteliklerini düzenler', 'Edit block attributes'), T('findrep', 'i-findrep', 'Bul-değiştir', 'Find & replace', 'Çizimdeki yazılarda toplu değiştirme', 'Bulk replace across drawing texts'), T('t:trim', 'i-trim', 'Buda', 'Trim', 'Kesici kenara, sonra atılacak parçaya dokunun', 'Tap the cutting edge, then the piece to remove'), T('t:extend', 'i-extend', 'Uzat', 'Extend', 'Sınıra, sonra uzatılacak uca dokunun', 'Tap the boundary, then the end to extend'), T('t:fillet', 'i-fillet', 'Kavis', 'Fillet', 'İki doğruya dokunun, yarıçapı yazın', 'Tap two lines and type the radius'), T('t:chamfer', 'i-chamfer', 'Pah', 'Chamfer', 'İki doğruya dokunun, mesafeyi yazın', 'Tap two lines and type the distance')] },
     { cap: 'grpBlock', items: [T('blocklib', 'i-block', 'Blok kütüphanesi', 'Block library', 'Seçimden blok oluştur, kaydet, çizime ekle', 'Create, save and insert blocks'), T('copyclip', 'i-copy', 'Panoya kopyala', 'Copy to clipboard', 'Seçimi panoya alır; başka çizimde yapıştırılır', 'Copy the selection for pasting into another drawing'), T('pasteclip', 'i-paste', 'Panodan yapıştır', 'Paste', 'Panodaki nesneleri bu çizime ekler', 'Paste clipboard objects into this drawing')] },
     { cap: 'grpHist', items: [T('undo', 'i-undo', 'Geri al', 'Undo'), T('redo', 'i-redo', 'Yinele', 'Redo')] } ] },
   { id: '3d', i18n: 'tab3d', icon: 'i-cube', groups: [
     { cap: 'grpView3', items: [T('3d', 'i-3d', '3B aç/kapat', '3D on/off', 'Tek parmak döndürür, iki parmak kaydırır / yakınlaştırır', 'One finger orbits, two fingers pan / zoom'), T('fit3', 'i-fit', 'Sığdır', 'Fit'), T('v:iso', 'i-iso', 'İzometrik', 'Isometric'), T('v:top', 'i-top', 'Üst', 'Top'), T('v:front', 'i-front', 'Ön', 'Front'), T('v:left', 'i-left', 'Sol', 'Left'), T('v:right', 'i-right', 'Sağ', 'Right'), T('v:back', 'i-back', 'Arka', 'Back'), T('v:bottom', 'i-bottom', 'Alt', 'Bottom')] },
     { cap: 'grpCam3', items: [T('persp', 'i-eye', 'Perspektif', 'Perspective', 'Perspektif / ortografik', 'Perspective / orthographic'), T('zscale', 'i-zscale', 'Z abartı', 'Z scale', 'Düşey abartı çarpanı', 'Vertical exaggeration'), T('cam3', 'i-camera', 'Yer imleri', 'Bookmarks', 'Kamera konumlarını kaydeder', 'Save camera positions'), T('turn3', 'i-turn', 'Döner tabla', 'Turntable')] },
     { cap: 'grpStyle3', items: [T('vstyle', 'i-vs-wireframe', 'Görsel stil', 'Visual style', 'Tel kafes, gizli çizgi, gölgeli, gerçekçi, kavramsal, gri, eskiz, röntgen', 'Wireframe, hidden, shaded, realistic, conceptual, gray, sketchy, x-ray'), T('edges3', 'i-edges', 'Kenarlar', 'Edges', 'Yüzey kenar çizgilerini aç/kapat (stilin varsayılanını geçersiz kılar)', 'Toggle face edge lines (overrides the style default)'), T('color3', 'i-palette', 'Renk', 'Color', 'Nesne, katman, kot, tek renk', 'Entity, layer, elevation, mono'), T('clip3', 'i-clip', 'Kesit', 'Clip', 'Z aralığı ve kesit kutusu', 'Z range and clip box')] },
-    { cap: 'grpTools3', items: [T('3:select', 'i-select', 'Seç', 'Select'), T('target3', 'i-snap', 'Hedef', 'Target', 'Köşe / yüzey / otomatik: 3B dokunuşu neye oturur', 'Vertex / surface / auto: what a 3D tap snaps to'), T('3:dist', 'i-dist', '3B mesafe', '3D distance', 'Köşeler arası eğik mesafe, ΔZ, eğim', 'Slope distance between vertices'), T('3:move', 'i-move', 'Taşı (3B)', 'Move (3D)'), T('3:pline', 'i-pline3d', '3B Polyline', '3D Polyline'), T('3:geo', 'i-geo3', '3B geometrik ölçüm', '3D geometry measure', 'Nokta-doğru, nokta-düzlem, doğru-doğru, doğru-düzlem, düzlem-düzlem uzaklığı ve açı', 'Point-line, point-plane, line-line, line-plane, plane-plane distance and angle'), T('3:note', 'i-note3', '3B açıklama', '3D note', 'Seçilen 3B noktaya açıklama etiketi koyar', 'Place an annotation at a picked 3D point'), T('3:setz', 'i-z', 'Kot ata', 'Set Z'), T('3:del', 'i-trash', 'Sil', 'Delete'), T('undo', 'i-undo', 'Geri al', 'Undo')] } ] },
+    { cap: 'grpTools3', items: [T('3:select', 'i-select', 'Seç', 'Select'), T('target3', 'i-snap', 'Hedef', 'Target', 'Köşe / yüzey / otomatik: 3B dokunuşu neye oturur', 'Vertex / surface / auto: what a 3D tap snaps to'), T('3:dist', 'i-dist', '3B mesafe', '3D distance', 'Köşeler arası eğik mesafe, ΔZ, eğim', 'Slope distance between vertices'), T('3:move', 'i-move', 'Taşı (3B)', 'Move (3D)'), T('3:pline', 'i-pline3d', '3B Polyline', '3D Polyline'), T('3:geo', 'i-geo3', '3B geometrik ölçüm', '3D geometry measure', 'Nokta-doğru, nokta-düzlem, doğru-doğru, doğru-düzlem, düzlem-düzlem uzaklığı ve açı', 'Point-line, point-plane, line-line, line-plane, plane-plane distance and angle'), T('3:note', 'i-note3', '3B açıklama', '3D note', 'Seçilen 3B noktaya açıklama etiketi koyar', 'Place an annotation at a picked 3D point'), T('3:setz', 'i-z', 'Kot ata', 'Set Z'), T('3:del', 'i-erase', 'Sil', 'Delete'), T('undo', 'i-undo', 'Geri al', 'Undo')] } ] },
 ];
 const DISPLAY_2D = [
   { cap: 'grpTheme', items: [T('theme', 'i-theme', 'Koyu / açık', 'Dark / light', 'Arka plan temasını değiştirir', 'Switch the background theme'), T('sun', 'i-sun', 'Güneş', 'Sun', 'Güneş altında okunaklı yüksek kontrast', 'High contrast for sunlight'), T('display', 'i-sliders', 'Ekran ayarları', 'Display options', 'Tema, ön ayarlar, süzgeçler, çizgiler, ızgara…', 'Theme, presets, filters, lines, grid…')] },
   { cap: 'grpVis', items: [T('text', 'i-text', 'Yazı', 'Text'), T('hatch', 'i-hatch', 'Tarama', 'Hatch'), T('dim', 'i-dim', 'Ölçüler', 'Dimensions'), T('points', 'i-point', 'Noktalar', 'Points'), T('images', 'i-image', 'Resimler', 'Images')] },
   { cap: 'grpLines', items: [T('lw', 'i-lw', 'Kalınlık', 'Lineweight', 'Çizgi kalınlıklarını gösterir', 'Show lineweights'), T('mono', 'i-mono', 'Tek renk', 'Mono', 'Tek renk / nesne rengi', 'Monochrome / entity color'), T('ltype', 'i-fade', 'Çizgi tipi', 'Linetype')] },
-  { cap: 'grpHelpers', items: [T('grid', 'i-grid', 'Izgara', 'Grid'), T('crosshair', 'i-crosshair', 'Artı imleç', 'Crosshair'), T('rulers', 'i-ruler', 'Cetvel', 'Rulers'), T('fade', 'i-fade', 'Soldur', 'Fade', 'Seçili olmayan katmanları soldurur', 'Fade other layers')] },
+  { cap: 'grpHelpers', items: [T('grid', 'i-grid', 'Izgara', 'Grid'), T('crosshair', 'i-crosshair', 'Artı imleç', 'Crosshair'), T('cmdline', 'i-cmdline', 'Komut satırı', 'Command line', 'AutoCAD komut adlarıyla çalışır: LINE, TR, F…', 'Type AutoCAD command names: LINE, TR, F…'), T('rulers', 'i-ruler', 'Cetvel', 'Rulers'), T('fade', 'i-fade', 'Soldur', 'Fade', 'Seçili olmayan katmanları soldurur', 'Fade other layers')] },
 ];
 const DISPLAY_3D = [
   { cap: 'grpStyle3', items: [T('vstyle', 'i-vs-wireframe', 'Görsel stil', 'Visual style'), T('edges3', 'i-edges', 'Kenarlar', 'Edges'), T('color3', 'i-palette', 'Renk', 'Color'), T('light3', 'i-light', 'Işık', 'Light', 'Gölgeli stilde aydınlatma', 'Lighting in shaded styles'), T('display', 'i-sliders', 'Ekran ayarları', 'Display options')] },
@@ -125,7 +126,17 @@ const DISPLAY_3D = [
 const TILE = {};
 function registerTiles() {
   const tr = {}, en = {};
-  const reg = (it) => { TILE[it.act] = it; tr['tl_' + it.act] = it.tr; en['tl_' + it.act] = it.en; tr['th_' + it.act] = it.htr; en['th_' + it.act] = it.hen; };
+  /*
+   * İngilizce karo etiketi AutoCAD komut adıdır; ipucuna da komutun bütün adları eklenir
+   * ("TRIM (TR) · Tap the cutting edge…"), böylece kullanıcı komut satırını şeritten öğrenir.
+   * Türkçe etiket ve ipucu değişmez.
+   */
+  const reg = (it) => {
+    TILE[it.act] = it;
+    const cmd = cmdOf(it.act);
+    tr['tl_' + it.act] = it.tr; en['tl_' + it.act] = cmd || it.en;
+    tr['th_' + it.act] = it.htr; en['th_' + it.act] = cmd ? (namesOf(it.act) + (it.hen ? ' · ' + it.hen : '')) : it.hen;
+  };
   for (const tab of TABS) for (const g of tab.groups) for (const it of g.items) reg(it);
   for (const g of DISPLAY_2D) for (const it of g.items) reg(it);
   for (const g of DISPLAY_3D) for (const it of g.items) reg(it);
@@ -348,7 +359,7 @@ function refreshTiles() {
   if (S) {
     on.theme = !S.dark; on.sun = !!S.sun; on.text = S.show.text; on.hatch = S.show.hatch; on.dim = S.show.dim; on.points = S.show.point; on.images = S.show.image;
     on.lw = !!S.lw; on.mono = S.colorMode === 'mono'; on.ltype = S.show.ltype; on.grid = S.grid.on; on.crosshair = S.crosshair !== 'off'; on.rulers = !!S.rulers; on.fade = S.fade.on;
-    on.osnap = S.snapModes && S.snapModes.size > 0; on['3d'] = ed.is3D(); on.grips = !!ui.grips;
+    on.osnap = S.snapModes && S.snapModes.size > 0; on['3d'] = ed.is3D(); on.grips = !!ui.grips; on.cmdline = ui.cmdLine !== false;
   }
   if (v3) { const o = v3.opts; on.grid3 = o.grid; on.axes3 = o.axes; on.cube3 = o.cube; on.hud3 = o.hud; on.light3 = o.light; on.turn3 = o.turntable; on.persp = v3.cam.persp; on.clip3 = !!o.clip; on.shadow3 = o.shadow; on.sil3 = !!v3._styleFx().silhouette; on.edges3 = !!v3._styleFx().edges; }
   document.querySelectorAll('#toolbar [data-act]').forEach(b => { const k = b.dataset.act; if (k in on) { b.classList.toggle('on', !!on[k]); b.setAttribute('aria-pressed', String(!!on[k])); } if (!FREE.has(k) && !HIST.has(k)) b.disabled = has(k) ? !(S && S.hasDoc) : false; });
@@ -513,6 +524,8 @@ function act(name, btn) {
     case 'markdim': case 'findrep': case 'blocklib': case 'copyclip': case 'pasteclip': case 'mesh3d': case 'tableout': case 'batch': case 'pdfcad': api.action(name); break;
     case 'osnap': toggleOsnap(); break;
     case 'grips': toggleGrips(); break;
+    case 'cmdline': toggleCmdLine(); break;
+    case 'cmdhelp': showCmdList(); break;
     case 'display': call(api.openDisplayOptions, { seg: ed.is3D() ? '3d' : '2d' }); break;
     case 'undo': if (doc && doc.undo()) { refreshUndo(); api.requestRender(); if (ed.is3D()) { refresh3D(); v3.render(); } api.toast(t('undone')); } break;
     case 'redo': if (doc && doc.redo()) { refreshUndo(); api.requestRender(); if (ed.is3D()) { refresh3D(); v3.render(); } api.toast(t('redone')); } break;
@@ -604,8 +617,11 @@ function renderMode() {
 const BTN = { finish: ['finishBtn', () => tools.finish()], close: ['close', () => tools.close()], back: ['backBtn', () => tools.back()], selall: ['layersAll', () => tools.selectAll()], cancel: ['cancelBtn', () => { tools.cancel(); markActive(null); ed.sel.clear(); api.drawOverlay(); }] };
 function showPrompt(text, opts = {}) {
   const bar = $('cmdBar');
-  if (!text) { bar.hidden = true; markActive(null); return; }
+  // Araç bitince çubuk KAPANMAZ, AutoCAD'deki gibi boşta "Command:" istemine döner. Komut
+  // satırı kapalıysa eski davranış sürer ve çubuk gizlenir.
+  if (!text) { markActive(null); if (cmdLineOn()) { idlePrompt(); return; } bar.hidden = true; closeSuggest(); return; }
   bar.hidden = false;
+  cmdIdle = false; closeSuggest();
   $('cmdText').textContent = text;
   const inp = $('cmdInput');
   inp.hidden = !opts.input;
@@ -613,15 +629,136 @@ function showPrompt(text, opts = {}) {
   inp.type = 'text'; inp.value = '';
   $('cmdBtns').innerHTML = (opts.buttons || []).map(k => `<button type="button" data-cmd="${k}">${esc(t(BTN[k][0]))}</button>`).join('');
 }
+/* ---- AutoCAD tarzı komut satırı ---------------------------------------------------
+ * Boştayken çubuk "Command:" der ve komut adı bekler; bir araç çalışırken o aracın istemini
+ * gösterir. İkisi TEK çubuktur — AutoCAD'de de öyledir ve iki ayrı alan olsaydı kullanıcı
+ * hangisine yazacağını bilemezdi.
+ *
+ * AutoCAD'den birebir alınan üç davranış:
+ *   · boş Enter son komutu YİNELER
+ *   · yukarı / aşağı ok komut geçmişinde gezer
+ *   · yazarken ada uyan komutlar listelenir (tam adlar önce, kısaltmalar sonra)
+ */
+let cmdIdle = false, cmdHist = [], cmdHistI = -1, cmdLast = '';
+/*
+ * Komut satırı yalnız ÇİZİM üstünde anlamlıdır. Belge kipinde (PDF, Word, Excel görüntüleyici)
+ * çizim komutu çalıştırılamaz; çubuk orada durursa hem yer kaplar hem de yazılan komut sessizce
+ * hiçbir şey yapmış gibi görünür. Bu yüzden docmode dışlanır.
+ */
+const cmdLineOn = () => ui.cmdLine !== false && !!(S && S.hasDoc) && !document.body.classList.contains('docmode');
+function idlePrompt() {
+  const bar = $('cmdBar'); if (!bar) return;
+  cmdIdle = true;
+  bar.hidden = false;
+  $('cmdText').textContent = t('cmdPrompt');
+  const inp = $('cmdInput');
+  inp.hidden = false; inp.type = 'text'; inp.value = ''; inp.placeholder = t('cmdPh');
+  // Komut listesine tek kapı: boştaki çubuğun "?" düğmesi. Menüye gömülseydi komut satırını
+  // yeni gören kullanıcı hangi adları yazabileceğini hiç öğrenemezdi.
+  $('cmdBtns').innerHTML = `<button type="button" data-cmd-help="1" aria-label="${esc(t('cmdHelp'))}" title="${esc(t('cmdHelp'))}">?</button>`;
+  closeSuggest();
+}
+function closeSuggest() { const el = $('cmdSug'); if (el) { el.hidden = true; el.innerHTML = ''; } }
+/*
+ * Dil değişince boştaki istem yeniden yazılır. applyI18n yalnız data-i18n taşıyan düğümleri
+ * çevirir; komut çubuğunun metni duruma göre değiştiği için (boşta "Komut:", araç çalışırken
+ * aracın istemi) o düğüme sabit bir anahtar konamaz — bu yüzden burada elle tazeleniyor.
+ * Ayrıca giriş alanının yer tutucusu applyI18n tarafından koordinat metnine döndürülür;
+ * boştayken doğru olan komut yer tutucusudur.
+ */
+window.addEventListener('dwg:lang', () => { if (cmdIdle && !$('cmdBar').hidden) idlePrompt(); });
+function showSuggest(text) {
+  const el = $('cmdSug'); if (!el) return;
+  const list = text ? acadSuggest(text, 8) : [];
+  if (!list.length) { closeSuggest(); return; }
+  el.innerHTML = list.map(c => `<button type="button" data-cmd-run="${esc(c.cmd)}"><b>${esc(c.cmd)}</b>${c.alias && c.alias.length ? `<i>${esc(c.alias.join(', '))}</i>` : ''}<span>${esc(c.label || '')}${c.ext ? ' ·' : ''}</span></button>`).join('');
+  el.hidden = false;
+}
+/** Komut satırına yazılanı çalıştırır. → true işlendi, false tanınmadı */
+function runCommand(text) {
+  const raw = String(text || '').trim();
+  if (!raw) return false;
+  const c = acadResolve(raw);
+  if (!c) { api.toast(t('cmdUnknown').replace('%s', raw.toUpperCase()), 2200); return false; }
+  cmdLast = c.cmd;
+  cmdHist = [c.cmd, ...cmdHist.filter(x => x !== c.cmd)].slice(0, 30);
+  cmdHistI = -1;
+  closeSuggest();
+  act(c.id);
+  return true;
+}
 function bindCmdBar() {
   const bar = $('cmdBar'), vp = $('viewport');
   const syncCmd = () => { document.body.classList.toggle('cmd-open', !bar.hidden); if (!bar.hidden && vp) vp.style.setProperty('--cmd-h', bar.offsetHeight + 'px'); };
   new MutationObserver(syncCmd).observe(bar, { attributes: true, attributeFilter: ['hidden'] });
+  /*
+   * Belge kipine (PDF / Word / Excel görüntüleyici) girilip çıkıldığında çubuk kendiliğinden
+   * gizlenir ve geri gelir. Sınıfı docs.js koyar; sıralama garanti edilemediği için tek yönlü
+   * bir denetim yetmiyor — gövde sınıfı izleniyor. Böylece docs.js'in editor.js'i tanıması da
+   * gerekmiyor, bağ tek yönlü kalıyor.
+   */
+  new MutationObserver(() => {
+    const belge = document.body.classList.contains('docmode');
+    if (belge) { if (!bar.hidden) { bar.hidden = true; cmdIdle = false; closeSuggest(); } }
+    else if (bar.hidden && cmdLineOn() && !tools.running && !ed.m3) idlePrompt();
+  }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
   if (typeof ResizeObserver === 'function') new ResizeObserver(syncCmd).observe(bar);
-  $('cmdBtns').addEventListener('click', (ev) => { const b = ev.target.closest('[data-cmd]'); if (b && BTN[b.dataset.cmd]) BTN[b.dataset.cmd][1](); });
-  const submit = () => { const v = $('cmdInput').value; if (!v) return; $('cmdInput').value = ''; if (ed.m3) { if (!gate('3:' + ed.m3.name)) return; typed3D(v); } else { if (tools.active && !gate('t:' + tools.active)) return; tools.typed(v); } };
+  $('cmdBtns').addEventListener('click', (ev) => {
+    if (ev.target.closest('[data-cmd-help]')) { showCmdList(); return; }
+    const b = ev.target.closest('[data-cmd]'); if (b && BTN[b.dataset.cmd]) BTN[b.dataset.cmd][1]();
+  });
+  const submit = () => {
+    const inp = $('cmdInput'), v = inp.value;
+    // BOŞTA: yazılan bir komut adıdır. Boş Enter son komutu yineler (AutoCAD'deki gibi).
+    if (cmdIdle) { inp.value = ''; const metin = v.trim() || cmdLast; if (metin) runCommand(metin); return; }
+    if (!v) return;
+    inp.value = '';
+    if (ed.m3) { if (!gate('3:' + ed.m3.name)) return; typed3D(v); }
+    else { if (tools.active && !gate('t:' + tools.active)) return; tools.typed(v); }
+  };
   $('cmdEnter').addEventListener('click', submit);
-  $('cmdInput').addEventListener('keydown', (ev) => { if (ev.key === 'Enter') submit(); });
+  $('cmdInput').addEventListener('input', () => { if (cmdIdle) showSuggest($('cmdInput').value); });
+  $('cmdInput').addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') { submit(); return; }
+    if (!cmdIdle) return;
+    if (ev.key === 'Escape') { $('cmdInput').value = ''; closeSuggest(); return; }
+    // Geçmişte gezinme: yukarı geri, aşağı ileri. Liste sonuna gelince alan boşalır.
+    if (ev.key === 'ArrowUp' || ev.key === 'ArrowDown') {
+      if (!cmdHist.length) return;
+      ev.preventDefault();
+      cmdHistI = ev.key === 'ArrowUp' ? Math.min(cmdHist.length - 1, cmdHistI + 1) : cmdHistI - 1;
+      if (cmdHistI < 0) { cmdHistI = -1; $('cmdInput').value = ''; closeSuggest(); return; }
+      $('cmdInput').value = cmdHist[cmdHistI];
+      closeSuggest();
+    }
+  });
+  const sug = $('cmdSug');
+  if (sug) sug.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-cmd-run]'); if (!b) return;
+    $('cmdInput').value = '';
+    runCommand(b.dataset.cmdRun);
+  });
+}
+/*
+ * Komut listesi. Uzun basışla açılır ve iki bölüme ayrılır: AutoCAD karşılığı OLAN komutlar ve
+ * uygulamaya özgü olanlar. Ayrım gizlenmez — kullanıcı "bu AutoCAD'de de var mı" sorusunun
+ * cevabını burada görür; davranış farkı olan komutlarda o fark da yazar.
+ */
+function showCmdList() {
+  const sat = (c) => `<tr><td><code>${esc(c.cmd)}</code></td><td>${esc((c.alias || []).join(', '))}</td><td>${esc(c.label || '')}${c.note ? ` <i>(${esc(c.note)})</i>` : ''}</td></tr>`;
+  const tablo = (list) => `<table class="cmd-list"><tbody>${list.map(sat).join('')}</tbody></table>`;
+  const acad = ACAD.filter(c => !c.ext).slice().sort((a, b) => a.cmd.localeCompare(b.cmd));
+  const ext = ACAD.filter(c => c.ext).slice().sort((a, b) => a.cmd.localeCompare(b.cmd));
+  api.openDoc(t('cmdHelp'),
+    `<div class="full"><div class="opt-title">${esc(t('cmdAcad'))} · ${acad.length}</div>${tablo(acad)}` +
+    `<div class="opt-title">${esc(t('cmdExt'))} · ${ext.length}</div>${tablo(ext)}</div>`);
+}
+/** Komut satırını açar / kapar; kapanınca çubuk da gider (araç çalışmıyorsa) */
+function toggleCmdLine() {
+  ui.cmdLine = ui.cmdLine === false;
+  applyUi(); haptic('toggle'); refreshTiles();
+  if (ui.cmdLine) { if (!tools.running && !ed.m3) idlePrompt(); }
+  else if (!tools.running && !ed.m3) { $('cmdBar').hidden = true; cmdIdle = false; closeSuggest(); }
 }
 function showResult(rows, onCopy) {
   const html = api.kv(rows);
@@ -1137,6 +1274,9 @@ function prompt3D() {
       : `${t('geo3Pick')} [${m.pts.length}/${m.need}]`)
     : m.name === 'note' ? t('p3Note')
       : { select: `${t('p3Select')} [${ed.sel.size} ${t('selCount')}]`, dist: m.pts.length ? t('p3Dist2') : t('p3Dist1'), move: m.pts.length ? t('p3Move2') : t('p3Move1'), pline: `${t('p3Pline')} [${m.pts.length} ${t('pointsN')}] · ${t('finish')}` }[m.name];
+  // 3B istemi çubuğu showPrompt'tan GEÇMEDEN kurar; "boşta" bayrağı elle kapatılmazsa burada
+  // yazılan koordinat komut adı sanılır ve 3B polyline'a nokta eklenemez.
+  cmdIdle = false; closeSuggest();
   $('cmdBar').hidden = false; $('cmdText').textContent = txt + (m.name === 'geo' || m.name === 'dist' ? hedef : '');
   $('cmdInput').hidden = m.name !== 'pline'; $('cmdInput').placeholder = 'x,y,z';
   $('cmdBtns').innerHTML = (m.name === 'pline' ? `<button type="button" data-cmd3="finish">${esc(t('finishBtn'))}</button>` : '') + (m.pts.length ? `<button type="button" data-cmd3="back">${esc(t('backBtn'))}</button>` : '') + `<button type="button" data-cmd3="cancel">${esc(t('cancelBtn'))}</button>`;
@@ -1269,7 +1409,7 @@ export function accessibilitySection() {
   const html = `<div class="opt-sec a11y-sec full"><div class="opt-title">${esc(t('a11yTitle'))}</div>` +
     `<div class="opt-row"><span class="opt-lb">${esc(t('fontScale'))}</span><div class="seg" data-key="fontScale">${[[0.9, 'A−'], [1, 'A'], [1.15, 'A+'], [1.3, 'A++']].map(([v, l]) => `<button type="button" data-val="${v}" class="${Math.abs(ui.fontScale - v) < 0.01 ? 'on' : ''}">${l}</button>`).join('')}</div></div>` +
     sw('glove', t('glove')) + sw('leftHand', t('leftHand')) + sw('contrast', t('contrast')) + sw('reduceMotion', t('reduceMotion')) + sw('haptics', t('haptics')) + sw('dpad', t('dpad')) + sw('compactStatus', t('compactStatus')) +
-    sw('gizmo', t('gizmoOn')) + sw('grips', t('gripsOn')) + sw('infoTap', t('infoTap')) +
+    sw('gizmo', t('gizmoOn')) + sw('grips', t('gripsOn')) + sw('cmdLine', t('cmdLineOn')) + sw('infoTap', t('infoTap')) +
     (rank(tier()) < rank('super') ? sw('showLocked', t('showLocked')) : '') +
     `<div class="opt-row"><button type="button" class="btn small" data-do="hints">${esc(t('hintsReset'))}</button></div></div>` + penSection();
   return { html, bind(root) {
@@ -1286,6 +1426,7 @@ export function accessibilitySection() {
       if (inp.dataset.key === 'dpad') D.refreshNav();
       if (inp.dataset.key === 'showLocked') ed.rebuild();   // şerit yeniden kurulur (sekme + karo + çağrı karosu)
       if (inp.dataset.key === 'gizmo' || inp.dataset.key === 'grips') { refreshTiles(); api.drawOverlay(); }   // tutamak anında görünür / kaybolur
+      if (inp.dataset.key === 'cmdLine') { refreshTiles(); if (!tools.running && !ed.m3) { if (ui.cmdLine) idlePrompt(); else { $('cmdBar').hidden = true; cmdIdle = false; closeSuggest(); } } }
     });
     penBind(root);
   } };
@@ -1373,6 +1514,14 @@ ed.setCurLayer = (name) => { if (!name || !S.layers.has(name)) return false; ed.
 ed.openTab = (id) => { if ($('toolbar').classList.contains('collapsed')) collapse(false); setTab(id); };
 ed.collapse = (on) => collapse(!!on);
 ed.refreshTiles = refreshTiles;
+/*
+ * Komut çubuğunun DEVRİ. Pencere yakınlaştırma gibi app.js'e ait akışlar çubuğu kendileri
+ * kurar; bittiğinde çubuğu gizlemek yanlıştır — komut satırı açıksa boştaki "Komut:" istemine
+ * dönmesi gerekir, yoksa kullanıcı bir kez pencere yakınlaştırdıktan sonra komut satırını
+ * kaybeder. Alma ve bırakma bu iki kapıdan geçer.
+ */
+ed.cmdTakeOver = () => { cmdIdle = false; closeSuggest(); };
+ed.cmdRelease = () => { if (!tools.running && !ed.m3) showPrompt(null); };
 /*
  * Anahtarla silme (kalem silgisi buradan geçer). Silmek yalnız bir belge komutu değildir:
  * seçim temizlenmeli, geri-al düğmesi tazelenmeli, 3B'deyse sahne yeniden kurulmalıdır. Bu

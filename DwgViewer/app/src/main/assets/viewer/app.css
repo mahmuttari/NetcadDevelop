@@ -246,6 +246,25 @@ body.homemode #topbar, body.homemode #toolbar, body.homemode #statusbar, body.ho
 /* belge kipi (PDF / Word / Excel / arşiv / resim / metin): çizime ait şerit, durum çubuğu, sayfa sekmeleri ve üst çubuk çizim düğmeleri gizli; yalnız Aç ve Diğer kalır */
 body.docmode #toolbar, body.docmode #statusbar, body.docmode #layoutTabs, body.docmode #side, body.docmode #btnSearch, body.docmode #btnExtents, body.docmode #btnLayers, body.docmode #btnMeasure, body.docmode #btnDisplay { display: none !important; }
 body.docmode #topbar .filewrap { visibility: hidden; }   /* belge kipinde bellekteki çizimin adı yanıltır; belge adı belge başlığındadır */
+/* Komut listesi tablosu: komut adı tek aralıklı, kısaltma soluk, açıklama sağda */
+.cmd-list { width: 100%; border-collapse: collapse; margin-block-end: calc(10px * var(--fs)); }
+.cmd-list td { padding: calc(5px * var(--fs)) 6px; border-block-end: 1px solid var(--line, #2a3340); vertical-align: baseline; font-size: calc(12px * var(--fs)); }
+.cmd-list td:first-child { width: 1%; white-space: nowrap; }
+.cmd-list td:nth-child(2) { width: 1%; white-space: nowrap; opacity: .6; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: calc(11px * var(--fs)); }
+.cmd-list code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-weight: 600; letter-spacing: .02em; }
+.cmd-list i { opacity: .6; font-style: normal; }
+/* Komut önerisi: komut çubuğunun HEMEN ÜSTÜNDE durur, çubuğu yukarı itmez (mutlak konum),
+   yoksa yazarken çizim alanı zıplardı. Yükseklik sınırlıdır; taşarsa kendi içinde kayar. */
+.cmd-sug { position: absolute; inset-inline: 0; bottom: var(--cmd-h, 44px); z-index: 6; max-height: 40vh; overflow-y: auto;
+  background: var(--panel, #141a22); border-block-start: 1px solid var(--line, #2a3340); display: flex; flex-direction: column; }
+.cmd-sug[hidden] { display: none; }
+.cmd-sug button { display: flex; gap: 8px; align-items: baseline; width: 100%; padding: calc(9px * var(--fs)) 12px; background: none; border: 0;
+  border-block-end: 1px solid var(--line, #2a3340); color: var(--fg, #e6edf3); font: inherit; text-align: start; cursor: pointer; }
+.cmd-sug button:last-child { border-block-end: 0; }
+.cmd-sug button:hover, .cmd-sug button:focus-visible { background: var(--hover, #1d2632); }
+.cmd-sug b { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: calc(13px * var(--fs)); letter-spacing: .02em; }
+.cmd-sug i { font-style: normal; opacity: .6; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: calc(11px * var(--fs)); }
+.cmd-sug span { margin-inline-start: auto; opacity: .65; font-size: calc(11px * var(--fs)); }
 /* belge görünümü #viewport içindedir; çizim tuvalinin touch-action:none kuralı belge kipinde kaldırılır, yoksa bazı WebView sürümlerinde belge içinde parmakla kaydırma çalışmaz */
 body.docmode #viewport { touch-action: auto; }
 .open-mount { min-height: 120px; }

@@ -180,9 +180,12 @@ await shot('d_loaded');
   const wc = await ev(() => window.dwgApp.toWorld(window.dwgApp.state.W / 2, window.dwgApp.state.H / 2));
   // dikdörtgen merkezi (200,200) ekran → dünya; şimdi görünüm merkezi olmalı
   const expected = await ev(() => null);
-  ok('14b pencere yakınlaştırdı', rr.scale > s0 && await ev(() => document.getElementById('cmdBar').hidden), 'scale ' + s0.toFixed(4) + ' → ' + rr.scale.toFixed(4));
+  // Komut satırı açıkken çubuk gizlenmez, boştaki "Komut:" istemine döner; ölçülmesi gereken
+  // pencere İPUCUNUN kalkmış olmasıdır (v7.50).
+  const ipucuKalkti = await ev(() => { const b = document.getElementById('cmdBar'); return b.hidden || !/Pencere|Window/.test(document.getElementById('cmdText').textContent); });
+  ok('14b pencere yakınlaştırdı, pencere ipucu kalktı', rr.scale > s0 && ipucuKalkti, 'scale ' + s0.toFixed(4) + ' → ' + rr.scale.toFixed(4));
   await ev(() => window.dwgApp.zoomWindow());
-  ok('14c onBack iptal', await ev(() => window.dwgApp.onBack() === true && document.getElementById('cmdBar').hidden));
+  ok('14c onBack iptal', await ev(() => { const iptal = window.dwgApp.onBack() === true; const b = document.getElementById('cmdBar'); return iptal && (b.hidden || !/Pencere|Window/.test(document.getElementById('cmdText').textContent)); }));
   // pencere merkezi denetimi: bilinen dünya dikdörtgeni
   await ev(() => window.dwgApp.zoomExtents());
   const a = await ev(() => window.dwgApp.toWorld(100, 100)), b = await ev(() => window.dwgApp.toWorld(300, 300));
