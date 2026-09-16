@@ -196,16 +196,24 @@ export function primVisible(p) {
   return passFilters(p);
 }
 export const layerPalette = _layerPalette;
+/*
+ * Görünürlük TÜRETİLİR: katman kapalı (off) ya da donuk (frozen) değilse ve izolasyon onu
+ * gizlemiyorsa görünür. Kapalı/donuk kalıcı katman durumudur (geri alınır, DXF'e yazılır);
+ * izolasyon geçicidir (isoHidden) ve kaydedilmez. İkisi ayrı bayrak olduğu için LAYUNISO,
+ * izolasyon sırasında kapatılmış bir katmanı yanlışlıkla açmaz.
+ */
+export function syncLayerVisible(l) { l.visible = !l.off && !l.frozen && !l.isoHidden; return l.visible; }
 export function isolateLayers(names) {
   const set = new Set(Array.isArray(names) ? names : [names]);
-  if (!S.isoBackup) { S.isoBackup = new Map(); for (const l of S.layers.values()) S.isoBackup.set(l.name, l.visible); }
-  for (const l of S.layers.values()) l.visible = set.has(l.name);
+  if (!S.isoBackup) { S.isoBackup = new Map(); for (const l of S.layers.values()) S.isoBackup.set(l.name, !!l.isoHidden); }
+  for (const l of S.layers.values()) { l.isoHidden = !set.has(l.name); syncLayerVisible(l); }
   afterLayerChange();
   call(ctx.toast, tt('isolated', 'Katman izole edildi') + ': ' + [...set].join(', '), { action: { label: tt('undoAction', 'Geri al'), fn: unisolate } });
 }
 export function unisolate() {
   if (!S.isoBackup) return;
-  for (const [name, vis] of S.isoBackup) { const l = S.layers.get(name); if (l) l.visible = vis; }
+  for (const [name, gizli] of S.isoBackup) { const l = S.layers.get(name); if (l) { l.isoHidden = gizli; syncLayerVisible(l); } }
+  for (const l of S.layers.values()) if (!S.isoBackup.has(l.name)) { l.isoHidden = false; syncLayerVisible(l); }   // izolasyon sırasında eklenen katman
   S.isoBackup = null;
   afterLayerChange();
 }
@@ -224,7 +232,7 @@ function afterLayerChange() {
 export const widgets = {
   seg(key, opts, cur, labels) { return `<div class="seg" data-key="${esc(key)}">${opts.map((v, i) => `<button type="button" data-val="${esc(v)}" class="${String(v) === String(cur) ? 'on' : ''}">${esc(labels ? labels[i] : v)}</button>`).join('')}</div>`; },
   sw(key, cur, label) { return `<div class="opt-row"><span class="opt-lb">${esc(label)}</span><label class="switch"><input type="checkbox" data-key="${esc(key)}" ${cur ? 'checked' : ''}><span class="knob"></span></label></div>`; },
-  slider(key, min, max, step, cur, unit) { return `<div class="slider" data-key="${esc(key)}" data-unit="${esc(unit || '')}"><button type="button" class="dec" aria-label="${tt('decrease', 'Azalt')}">−</button><input type="range" min="${min}" max="${max}" step="${step}" value="${cur}"><output>${fmtVal(cur, unit)}</output><button type="button" class="inc" aria-label="${tt('increase', 'Artır')}">+</button></div>`; },
+  slider(key, min, max, step, cur, unit) { return `<div class="slider" data-key="${esc(key)}" data-unit="${esc(unit || '')}"><button type="button" class="dec" aria-label="${tt('decrease', 'Azalt')}"><svg class="ic" aria-hidden="true"><use href="#i-minus"/></svg></button><input type="range" min="${min}" max="${max}" step="${step}" value="${cur}"><output>${fmtVal(cur, unit)}</output><button type="button" class="inc" aria-label="${tt('increase', 'Artır')}"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg></button></div>`; },
   chips(items) { return `<div class="chips">${items.map(it => `<button type="button" class="chip ${it.on ? 'on' : ''}" data-key="${esc(it.key)}" ${it.val != null ? `data-val="${esc(it.val)}"` : ''} aria-pressed="${it.on ? 'true' : 'false'}">${esc(it.label)}${it.count ? ` <b class="ct">${it.count}</b>` : ''}</button>`).join('')}</div>`; },
   swatches(key, colors, cur) { return `<div class="swatches" data-key="${esc(key)}">${colors.map(c => `<button type="button" data-val="${esc(c.val == null ? '' : c.val)}" class="${(c.val || '') === (cur || '') ? 'active' : ''}" title="${esc(c.name || c.val || '')}" style="background:${c.val || 'transparent'}">${c.val ? '' : esc(c.name || '')}</button>`).join('')}</div>`; },
   select(key, opts, cur) { return `<select class="opt-sel" data-key="${esc(key)}">${opts.map(o => `<option value="${esc(o[0])}" ${String(o[0]) === String(cur) ? 'selected' : ''}>${esc(o[1])}</option>`).join('')}</select>`; },
@@ -616,9 +624,6 @@ function injectFallbackCss() {
 .toast .act{margin-left:12px;border:0;border-radius:6px;background:var(--accent);color:#1a1a1a;padding:6px 10px;font-weight:600;font-size:13px}
 .toast.error{border-left:4px solid #ff453a}.toast.warn{border-left:4px solid #f5b342}.toast.ok{border-left:4px solid #30d158}
 .st-chip{padding:2px 8px;border-radius:10px;border:1px solid var(--line);color:var(--muted);background:transparent;font:inherit;flex:0 0 auto}
-.layer .lbtn{width:40px;height:40px;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:16px;flex:0 0 auto}
-.layer .lbtn.on{color:var(--accent)}
-.layer.faded .nm{opacity:.5}
 .info-actions,.meas-actions{display:flex;gap:6px;flex-wrap:wrap;padding:6px 12px;border-bottom:1px solid var(--line)}
 .meas-big{font-size:20px;font-weight:700;padding:8px 12px;font-variant-numeric:tabular-nums;border-bottom:1px solid var(--line)}
 .ctx-list .item{min-height:44px;display:flex;align-items:center}

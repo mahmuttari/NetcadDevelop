@@ -240,7 +240,7 @@ tarama:
 | Kavis | `t:fillet` | premium | İki doğruya dokunulup yarıçap yazılır; aynı polyline'da yay yolun İÇİNE girer |
 | Pah | `t:chamfer` | premium | İki doğruya dokunulup mesafe yazılır |
 | Köşe tutamakları | `grips` | premium | Seçili yolun her düğümü tek tek sürüklenir; bırakış yakalamaya oturur |
-| Katman düzenleme | `layeredit` | premium | Ad, renk, donuk ve kilitli; silme nesneleriyle birlikte tek geri-al adımı |
+| Katman düzenleme | `layeredit` | premium | Katman yöneticisi (AutoCAD Layer Properties Manager düzeni): ad, renk (ACI ızgarası), çizgi tipi, kalınlık, açık / donuk / kilitli hücre içinde; silme nesneleriyle birlikte tek geri-al adımı; `-LAYER` komut satırı |
 | Tarama deseni | `hatchpat` | premium | ANSI31/32/33/37, NET, LINE, DOTS, CROSS, EARTH, GRAVEL |
 
 Dördü de **düz segmentler** üzerinde çalışır; yay, daire ve elips

@@ -248,6 +248,17 @@ export function offsetPoints(pts, d, closed) {
 // ---------------------------------------------------------------------------------------
 // Komut günlüğü
 // ---------------------------------------------------------------------------------------
+/*
+ * Katman görünürlüğü TÜRETİLİR: kapalı ya da donuk değilse ve izolasyon gizlemiyorsa görünür
+ * (display.syncLayerVisible ile aynı kural; edit.js ekran modülünü içe almaz). Geri almada da
+ * bu kural uygulanır — anlık görüntüdeki eski "visible" değeri geri YÜKLENMEZ: izolasyon
+ * sırasında kapatılan katman, izolasyon kalktıktan sonra geri alınınca görünür olmalıdır.
+ * isoHidden (izolasyon), faded (soldurma) ve count geçici / türetilmiş alanlardır; geri alma
+ * onlara dokunmaz.
+ */
+const katmanGorunur = (l) => { l.visible = !l.off && !l.frozen && !l.isoHidden; return l.visible; };
+const GECICI = (l) => ({ isoHidden: l.isoHidden, faded: l.faded, count: l.count });
+
 export class EditDoc {
   /**
    * @param ctx { prims:()=>array, layers:Map, keyOf:(p)=>string, insert:(prim, at)=>void, remove:(prim)=>index, rebuild:()=>void, store:{get,set}, key:string }
@@ -271,7 +282,14 @@ export class EditDoc {
     this.undoStack.push({ cmd, restore });
     this.redoStack = [];
     if (!opts.silent) this.save();
+    this._katmanSonrasi(cmd);
     return true;
+  }
+  /** Katman işlemleri (layer*, layerbulk) sahne önbelleğini ve katman listesini etkiler: çağırana haber verir */
+  _katmanSonrasi(cmd) {
+    if (cmd && typeof cmd.op === 'string' && cmd.op.startsWith('layer') && typeof this.ctx.layersChanged === 'function') {
+      try { this.ctx.layersChanged(cmd); } catch (_) { /* arayüz yoksa geç */ }
+    }
   }
   apply(cmd) {
     const C = this.ctx;
@@ -332,8 +350,30 @@ export class EditDoc {
       }
       case 'layer': {
         if (C.layers.has(cmd.name)) return null;
-        C.layers.set(cmd.name, { name: cmd.name, color: cmd.color === -1 || cmd.color == null ? FG : ACI[cmd.color], lt: 'Continuous', lw: 25, frozen: false, off: false, visible: true, count: 0, added: true });
+        C.layers.set(cmd.name, { name: cmd.name, color: cmd.color === -1 || cmd.color == null ? FG : ACI[cmd.color], lt: cmd.lt || 'Continuous', lw: cmd.lw == null ? 25 : cmd.lw, frozen: false, off: false, locked: false, visible: true, count: 0, added: true });
         return () => { C.layers.delete(cmd.name); };
+      }
+      /*
+       * TOPLU KATMAN DURUMU. AutoCAD'in Layer Properties Manager'ındaki ampul / kar tanesi / kilit
+       * sütunları ve LAYON, LAYOFF, LAYFRZ, LAYTHW, LAYLCK, LAYULK komutları buradan geçer: birden
+       * çok katmanın açık/kapalı, donuk/çözük, kilitli/açık durumu TEK geri alma adımında değişir.
+       * Görünürlük TÜRETİLİR (kapalı ya da donuk değilse ve izolasyon gizlemiyorsa görünür); doğrudan
+       * yazılmaz, böylece izolasyon (geçici) ile katman durumu (kalıcı, DXF'e yazılan) karışmaz.
+       */
+      case 'layerbulk': {
+        const items = Array.isArray(cmd.items) ? cmd.items : [];
+        const onceki = [];
+        for (const it of items) {
+          const l = it && C.layers.get(it.name); if (!l) continue;
+          onceki.push({ l, off: !!l.off, frozen: !!l.frozen, locked: !!l.locked, edited: l.edited });
+          if (it.off != null) l.off = !!it.off;
+          if (it.frozen != null) l.frozen = !!it.frozen;
+          if (it.locked != null) l.locked = !!it.locked;
+          katmanGorunur(l);
+          l.edited = true;
+        }
+        if (!onceki.length) return null;
+        return () => { for (const o of onceki) { o.l.off = o.off; o.l.frozen = o.frozen; o.l.locked = o.locked; o.l.edited = o.edited; katmanGorunur(o.l); } };
       }
       /*
        * KATMAN ÖZELLİKLERİ. Yeniden adlandırma, renk, çizgi tipi, kalınlık, dondur/çöz ve kilit
@@ -355,8 +395,8 @@ export class EditDoc {
         if (cmd.color != null) l.color = cmd.color === -1 ? FG : (cmd.color >= 1 && cmd.color <= 255 ? ACI[cmd.color] : FG);
         if (cmd.lt != null) l.lt = cmd.lt;
         if (cmd.lw != null) l.lw = cmd.lw;
-        if (cmd.frozen != null) { l.frozen = !!cmd.frozen; l.visible = !l.frozen && !l.off; }
-        if (cmd.off != null) { l.off = !!cmd.off; l.visible = !l.frozen && !l.off; }
+        if (cmd.frozen != null) { l.frozen = !!cmd.frozen; katmanGorunur(l); }
+        if (cmd.off != null) { l.off = !!cmd.off; katmanGorunur(l); }
         if (cmd.locked != null) l.locked = !!cmd.locked;
         l.edited = true;
         // Katman rengiyle çizilen nesneler (colorIndex 256) yeni rengi almalı
@@ -369,7 +409,7 @@ export class EditDoc {
         }
         return () => {
           if (yeniAd) { C.layers.delete(yeniAd); for (const p of etkilenen) { p.lay = cmd.name; if (p.info) p.info = { ...p.info, lay: cmd.name }; if (p.ent) p.ent = { ...p.ent, layer: cmd.name }; } }
-          C.layers.set(cmd.name, Object.assign(l, onceki));
+          C.layers.set(cmd.name, Object.assign(l, onceki, GECICI(l))); katmanGorunur(l);
           for (const [p, c] of eskiRenkler) p.col = c;
         };
       }
@@ -396,7 +436,7 @@ export class EditDoc {
         }
         C.layers.delete(cmd.name);
         return () => {
-          C.layers.set(cmd.name, Object.assign(l, onceki));
+          C.layers.set(cmd.name, Object.assign(l, onceki, { faded: l.faded, isoHidden: false })); katmanGorunur(l);   // silinmişken izolasyon değişmiş olabilir: bayat isoHidden taşınmaz
           if (kip === 'ents' && silinen) { const arr = this.ctx.prims(); for (const { p, i } of silinen) arr.splice(Math.min(i, arr.length), 0, p); }
           else for (const p of icerik) { p.lay = cmd.name; if (p.info) p.info = { ...p.info, lay: cmd.name }; if (p.ent) p.ent = { ...p.ent, layer: cmd.name }; if (p.info && p.info.ci === 256) p.col = l.color; }
         };
@@ -555,6 +595,7 @@ export class EditDoc {
     this.log.pop();
     this.redoStack.push(u.cmd);
     this.save();
+    this._katmanSonrasi(u.cmd);
     return true;
   }
   redo() {
@@ -563,6 +604,7 @@ export class EditDoc {
     const restore = this.apply(cmd);
     if (restore) { this.log.push(cmd); this.undoStack.push({ cmd, restore }); }
     this.save();
+    this._katmanSonrasi(cmd);
     return true;
   }
   save() { if (this.ctx.key) this.ctx.store.set('edits:' + this.ctx.key, JSON.stringify(this.log)); }
@@ -581,7 +623,7 @@ export class EditDoc {
 // DXF yazıcı
 // ---------------------------------------------------------------------------------------
 const f6 = (v) => (Math.round((v || 0) * 1e6) / 1e6).toString();
-function aciOf(col, layerCol) {
+export function aciOf(col, layerCol) {
   if (col === FG) return 7;
   if (col === layerCol) return 256;
   let best = 7, bd = Infinity;

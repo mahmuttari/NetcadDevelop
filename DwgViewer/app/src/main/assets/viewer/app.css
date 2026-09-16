@@ -324,16 +324,66 @@ body.glove .ask-field .opt-text { min-height: 52px; }
 #layerSort { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font-size: calc(13px * var(--fs)); min-height: 40px; }
 #layerOnlyVis { display: inline-flex; align-items: center; gap: 6px; font-size: calc(12px * var(--fs)); color: var(--muted); min-height: 40px; }
 #layerOnlyVis input { width: 20px; height: 20px; accent-color: var(--accent); }
-.layer { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid rgba(128,128,128,.12); min-height: 44px; }
-.layer label { display: flex; align-items: center; min-width: 40px; min-height: 40px; justify-content: center; }
-.layer input { width: 22px; height: 22px; accent-color: var(--accent); }
-.layer .sw { width: 16px; height: 16px; border-radius: 4px; border: 1px solid rgba(128,128,128,.4); flex: 0 0 auto; }
-.layer .nm { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.layer .ct { color: var(--muted); font-size: calc(12px * var(--fs)); }
-.layer.frozen .nm { text-decoration: line-through; color: var(--muted); }
-.layer.faded .nm { opacity: .5; }
-.layer .lbtn { width: 40px; height: 40px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: 16px; flex: 0 0 auto; }
-.layer .lbtn.on { color: var(--accent); background: var(--btn); }
+/* ---- Katman yöneticisi: AutoCAD Layer Properties Manager düzeni ----------------------------
+   Sütunlar: Durum (geçerli ✓) · Ad · Açık (ampul) · Dondur (güneş / kar tanesi) · Kilit · Renk ·
+   Çizgi tipi · Kalınlık · Sayı. Dar panelde (telefon) her katman iki satırdır: üstte durum + ad +
+   sayı, altta altı denetim; panel 600 px'ten genişse (aşağıdaki kap sorgusu) tek satır ve başlık
+   satırı görünür — masaüstü tablosu. Renk kuralı AutoCAD'deki gibi: "olağan" durum soluk (açık,
+   çözük, kilitsiz), "olağan dışı" durum renkli (kapalı ampul koyu, donuk kar tanesi mavi, kilit vurgu). */
+.lhead, .lrow { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; grid-template-areas: "cur name ct" "ctl ctl ctl"; align-items: center; column-gap: 6px; padding: 4px 0; border-bottom: 1px solid rgba(128,128,128,.14); }
+.lhead { display: none; color: var(--muted); font-size: calc(11px * var(--fs)); text-transform: uppercase; letter-spacing: .3px; }
+.lrow.sel { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.lrow.cur .lc-name { font-weight: 700; }
+.lrow.hid .lc-name { color: var(--muted); }
+.lrow.frozen .lc-name { text-decoration: line-through; }
+.lrow.faded .lc-name { opacity: .55; }
+.lc-cur { grid-area: cur; width: 40px; height: 40px; border: 0; background: transparent; color: var(--accent); display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+.lc-cur svg.ic { width: 20px; height: 20px; }
+.lc-name { grid-area: name; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(14px * var(--fs)); padding: 6px 0; cursor: pointer; }
+.lc-ct { grid-area: ct; color: var(--muted); font-size: calc(12px * var(--fs)); font-variant-numeric: tabular-nums; padding-right: 8px; }
+.lctl { grid-area: ctl; display: flex; align-items: center; gap: 4px; padding: 0 0 2px 8px; min-width: 0; }
+.lctl .lc { width: 40px; height: 40px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--muted); display: inline-flex; align-items: center; justify-content: center; padding: 0; flex: 0 0 auto; }
+.lctl .lc svg.ic { width: 22px; height: 22px; }
+.lctl .lc.st-on { color: var(--accent); }                 /* ampul yanıyor */
+.lctl .lc.st-off { color: var(--muted); opacity: .55; }    /* ampul sönük */
+.lctl .lc.st-frozen { color: #7fc4ff; }                   /* kar tanesi */
+.lctl .lc.st-locked { color: var(--accent); }
+.lctl .lc-sw .sw { width: 22px; height: 22px; border-radius: 5px; border: 1px solid rgba(128,128,128,.5); display: block; }
+.lctl .lc-lt, .lctl .lc-lw { width: auto; padding: 0 8px; font-size: calc(12px * var(--fs)); color: var(--fg); background: var(--btn); border-color: var(--line); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.lctl .lc-lt { flex: 1 1 auto; min-width: 56px; max-width: 120px; }   /* 340 px panelde daralır, ad kesilirse üç nokta */
+.lctl .lc-lw { flex: 0 0 auto; min-width: 48px; }
+.lctl .lc:active { filter: brightness(1.2); }
+/* Tek satırlı (AutoCAD cetveli) düzen görüntü alanına değil PANELİN genişliğine bakar: 340 px'lik
+   panelde tek satır sığmaz ve ad sütunu sıfıra iner; kap sorgusu desteklenmeyen eski WebView'da iki
+   katlı düzen kalır (zarif düşüş). */
+#layerList { container-type: inline-size; container-name: layerlist; }
+@container layerlist (min-width: 600px) {
+  .lhead, .lrow { grid-template-columns: 40px minmax(120px, 1fr) auto auto; grid-template-areas: "cur name ctl ct"; }
+  .lhead { display: grid; }
+  .lhead .lctl > span { width: 40px; display: inline-flex; align-items: center; justify-content: center; }
+  .lhead .lctl > span svg.ic { width: 18px; height: 18px; }
+  .lhead .lctl > span.hl-lt, .lhead .lctl > span.hl-lw { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; }
+  .lhead .lctl > span.hl-lt { width: 120px; } .lhead .lctl > span.hl-lw { width: 64px; }
+  .lctl { padding-left: 0; }
+  .lctl .lc-lt { flex: 0 0 120px; } .lctl .lc-lw { flex: 0 0 64px; }
+  .lc-ct { width: 44px; text-align: right; }   /* sabit genişlik: sayı 1 ya da 3 haneli olsun sütunlar satırdan satıra kaymaz */
+}
+.layer-actions { display: flex; gap: 6px; align-items: center; padding: 8px 12px 0; flex-wrap: wrap; }
+.layer-actions .btn { min-height: 44px; }
+.layer-actions .btn.icon { width: 44px; height: 44px; }
+/* seçili ad HER ZAMAN kendi satırında ve sabit yükseklikte: seçim değişince şerit yeniden akmaz, liste sıçramaz (çift dokunuşun ikinci dokunuşu aynı öğeye iner) */
+.layer-actions #layerSelName { flex: 1 0 100%; min-height: 18px; line-height: 18px; font-size: calc(12px * var(--fs)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+/* Renk seçici: 255 ACI rengi AutoCAD "Select Color › Index Color" ızgarası gibi; 1-9 standart, 250-255 griler ayrı satır */
+.aci-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(26px, 1fr)); gap: 3px; }
+.aci-grid button { aspect-ratio: 1; min-width: 26px; min-height: 26px; border: 1px solid rgba(128,128,128,.35); border-radius: 4px; padding: 0; }
+.aci-grid button.active { outline: 3px solid var(--accent); outline-offset: 1px; z-index: 1; }
+.aci-std { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.aci-std button { width: 44px; height: 44px; border: 1px solid rgba(128,128,128,.45); border-radius: 8px; color: #fff; text-shadow: 0 0 3px #000; font-weight: 700; }
+.aci-std button.active { outline: 3px solid var(--accent); outline-offset: 1px; }
+.pick-list .item { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+.pick-list .item.active { color: var(--accent); font-weight: 700; }
+.pick-list .item .lw-bar { display: inline-block; width: 90px; background: currentColor; border-radius: 2px; }
+.pick-list .item .lt-prev { display: inline-block; width: 90px; height: 0; border-top: 2px solid currentColor; }
 .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; font-size: calc(13px * var(--fs)); align-content: start; }
 .kv .k { color: var(--muted); }
 .kv .v { word-break: break-word; font-variant-numeric: tabular-nums; white-space: pre-wrap; }
@@ -386,9 +436,23 @@ body.glove .ask-field .opt-text { min-height: 52px; }
 #ov { z-index: 4; }
 .cmdbar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 7; display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--bar); opacity: .97; border-top: 1px solid var(--line); font-size: calc(13px * var(--fs)); flex-wrap: wrap; }
 .cmdbar #cmdText { flex: 1 1 100%; color: var(--accent); font-weight: 600; }
-.cmd-in { display: flex; gap: 4px; flex: 1 1 auto; }
-.cmd-in input { flex: 1 1 auto; min-width: 120px; padding: 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font-size: calc(14px * var(--fs)); min-height: 40px; }
-.cmd-in button, #cmdBtns button { border: 0; border-radius: 8px; background: var(--btn); color: var(--fg); padding: 8px 12px; font-size: calc(13px * var(--fs)); min-height: 40px; min-width: 40px; }
+/* Komut çubuğu düğmeleri. Eskiden ↵ ve ? yazı tipinin ince karakterleriyle çizilen 40 px'lik yassı
+   kutulardı ve telefonda güç okunuyordu. Şimdi: 44 px, 10 px köşe, 1 px kenarlık, 22 px SVG simge;
+   Enter vurgu renginde BİRİNCİL düğmedir (çubuğun tek onay eylemi), ötekiler nötr. Simgeli metin
+   düğmeleri (Bitir, Geri, İptal…) aynı yükseklik ve kenarlıkla dizilir; Bitir de birincildir. */
+/* Giriş 84 px'e kadar daralabilir: yazılan koordinat kısadır ("1000,1000", "@500<45"); böylece Bitir · Geri ·
+   İptal 412 px telefonda girişle AYNI satıra sığar ve çubuk iki satırda kalır (üçüncü satır çizim alanının
+   %20'sini örter ve alt köşelere yapılan dokunuşları yutar). */
+.cmd-in { display: flex; gap: 6px; flex: 1 1 0; min-width: 134px; }   /* taban 0: satır kırma kararı en küçük genişliğe (84 + 6 + 44) bakar, sonra artan yeri giriş alır */
+.cmd-in input { flex: 1 1 0; min-width: 84px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font-size: calc(15px * var(--fs)); min-height: 44px; }
+.cmd-in input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); }
+.cmd-in button, #cmdBtns button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; border: 1px solid var(--line); border-radius: 10px; background: var(--btn); color: var(--fg); padding: 0 10px; font-size: calc(13px * var(--fs)); font-weight: 600; line-height: 1; min-height: 44px; min-width: 44px; cursor: pointer; white-space: nowrap; }
+.cmd-in button svg.ic, #cmdBtns button svg.ic { width: 22px; height: 22px; }
+.cmd-in button.icon, #cmdBtns button.icon { padding: 0; width: 44px; }
+.cmd-in button.primary, #cmdBtns button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.cmd-in button:active, #cmdBtns button:active { filter: brightness(1.2); }
+body.glove .cmd-in input, body.glove .cmd-in button, body.glove #cmdBtns button { min-height: 52px; }
+body.glove .cmd-in button.icon, body.glove #cmdBtns button.icon { width: 52px; }
 #cmdBtns { display: flex; gap: 4px; flex-wrap: wrap; }
 
 /* --- şerit (araç çubuğu): sekmeler + gruplu karolar --- */
@@ -464,7 +528,9 @@ body.glove .st-quick button { width: 48px; height: 48px; }
 .slider input[type=range]::-moz-range-track { height: 6px; border-radius: 3px; background: var(--line); }
 .slider input[type=range]::-moz-range-thumb { width: 24px; height: 24px; border-radius: 50%; background: var(--accent); border: 0; }
 .slider output { min-width: 56px; text-align: right; font-variant-numeric: tabular-nums; font-size: calc(13px * var(--fs)); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; }
-.slider .dec, .slider .inc { width: 40px; height: 40px; border: 0; border-radius: 8px; background: var(--btn); color: var(--fg); font-size: 18px; flex: 0 0 auto; }
+.slider .dec, .slider .inc { width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 10px; background: var(--btn); color: var(--fg); flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+.slider .dec svg.ic, .slider .inc svg.ic { width: 22px; height: 22px; }
+.slider .dec:active, .slider .inc:active { filter: brightness(1.2); }
 .range2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; padding: 4px 0; }
 .range2 input[type=range] { grid-column: 1 / -1; accent-color: var(--accent); height: 40px; margin: 0; }
 .range2 output { font-size: calc(12px * var(--fs)); color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -572,6 +638,11 @@ body.homemode #tour { display: none; }
   #side .panel.bottom { position: static; max-height: none; flex: 1 1 auto; min-height: 0; border: 0; border-radius: 0; box-shadow: none; }
   #side .sheet-handle { display: none; }
   .side.docked { display: flex; }
+}
+/* --- çok geniş ekran (büyük tablet yatay, DeX, masaüstü): yan sütun 640 px — katman yöneticisi tek satırlı
+   AutoCAD cetveline geçer (kap sorgusu 600 px), çizim alanına yine en az 640 px kalır --- */
+@media (min-width: 1280px) {
+  .side { flex-basis: 640px; }
 }
 
 /* --- belge görünümü (PDF / Word / Excel / arşiv / resim / metin) --- */

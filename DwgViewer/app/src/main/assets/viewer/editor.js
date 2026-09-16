@@ -214,6 +214,17 @@ export function onScene() {
     rebuild,
     store: api.store,
     key: S.fileKey,
+    // katman işlemi (çalıştırma, geri alma, yineleme) → sahne önbelleği düşer, katman listesi tazelenir;
+    // geçerli katman adı değiştiyse (yeniden adlandırma ya da onun geri alınması) onu izler, silindiyse '0'a düşer
+    layersChanged: (cmd) => {
+      S.cacheValid = false;
+      if (!S.layers.has(ed.curLayer)) {
+        const c = cmd || {};
+        ed.curLayer = c.op === 'layerprops' && c.newName && S.layers.has(c.newName) ? c.newName : (c.op === 'layerprops' && S.layers.has(c.name) ? c.name : '0');
+        updateLayerButton();
+      }
+      call(api.buildLayerList);
+    },
   });
   ed.doc = doc;
   const n = doc.load();
@@ -538,10 +549,10 @@ function act(name, btn) {
     case 'list': { const p = ed.sel.size ? [...ed.sel][0] : null; if (!p) { api.toast(t('noSel')); break; } api.showInfo(p); break; }
     case 'layiso': { const lays = selLayers(); if (!lays) break; call(api.isolateLayers, lays); break; }
     case 'layuniso': call(api.unisolate); break;
-    case 'layoff': layerSet(selLayers(), (l) => { l.off = true; l.visible = false; }); break;
-    case 'layon': layerSet([...S.layers.keys()], (l) => { l.off = false; l.frozen = false; l.visible = true; }); break;
-    case 'laylck': layerSet(selLayers(), (l) => { l.locked = true; }); break;
-    case 'layulk': layerSet(selLayers(), (l) => { l.locked = false; }); break;
+    case 'layoff': layerSet(selLayers(), { off: true }); break;
+    case 'layon': layerSet([...S.layers.keys()], { off: false, frozen: false }); break;
+    case 'laylck': layerSet(selLayers(), { locked: true }); break;
+    case 'layulk': layerSet(selLayers(), { locked: false }); break;
     case 'xrefs': case 'about': case 'settings': case 'open': case 'new': api.action(name); break;
     case 'closefile': api.action('home'); break;
     case 'grips': toggleGrips(); break;
@@ -586,14 +597,17 @@ function selLayers() {
   if (!lays.length) { api.toast(t('noSel')); return null; }
   return lays;
 }
-/** Verilen katmanlara fn uygular, listeyi ve çizimi tazeler (görünürlük önbelleği düşer) */
-function layerSet(names, fn) {
-  if (!names) return;
-  let n = 0;
-  for (const nm of names) { const l = S.layers.get(nm); if (l) { fn(l); n++; } }
-  if (!n) return;
-  S.cacheValid = false; call(api.buildLayerList); api.requestRender(); haptic('toggle');
+/** Verilen katmanların durumunu (off / frozen / locked) TEK geri alma adımıyla değiştirir */
+function layerSet(names, durum) {
+  if (!names || !names.length || !doc) return false;
+  const items = names.filter(nm => S.layers.has(nm)).map(nm => ({ name: nm, ...durum }));
+  if (!items.length) return false;
+  const ok = doc.run({ op: 'layerbulk', items });
+  if (ok) { refreshUndo(); api.requestRender(); haptic('toggle'); }
+  return ok;
 }
+/** app.js için: aynı toplu işlem (katman panelindeki ampul / kar tanesi / kilit sütunları) */
+ed.layerSet = (names, durum) => layerSet(names, durum);
 let osnapBackup = null;
 /*
  * Köşe tutamaklarını açar / kapar. Açıldığında tek bir yol seçiliyse düğümler belirir; düğüm
@@ -652,6 +666,17 @@ function renderMode() {
 // Komut satırı
 // ---------------------------------------------------------------------------------
 const BTN = { finish: ['finishBtn', () => tools.finish()], close: ['close', () => tools.close()], back: ['backBtn', () => tools.back()], selall: ['layersAll', () => tools.selectAll()], cancel: ['cancelBtn', () => { tools.cancel(); markActive(null); ed.sel.clear(); api.drawOverlay(); }] };
+/*
+ * Komut çubuğu düğmesi: SVG simge + etiket. Çeviri metinlerinin başındaki ince Unicode imleri
+ * (✓ ↶ ✕) atılır; simgeyi yazı tipi değil SVG çizer, böylece her dilde aynı dolgunlukta görünür.
+ * Bitir birincil (vurgu renkli) düğmedir: çubuğun onay eylemi odur.
+ */
+const CMD_ICON = { finish: 'i-check', close: 'i-closepath', back: 'i-undo', selall: 'i-selectall', cancel: 'i-close' };
+function cmdBtnHtml(attr, k, label) {
+  const lbl = String(label == null ? '' : label).replace(/^[✓↶✕⟲←]+\s*/, '');
+  const ic = CMD_ICON[k];
+  return `<button type="button" ${attr}="${k}"${k === 'finish' ? ' class="primary"' : ''}>${ic ? `<svg class="ic" aria-hidden="true"><use href="#${ic}"/></svg>` : ''}${esc(lbl)}</button>`;
+}
 function showPrompt(text, opts = {}) {
   const bar = $('cmdBar');
   // Araç bitince çubuk KAPANMAZ, AutoCAD'deki gibi boşta "Command:" istemine döner. Komut
@@ -664,7 +689,7 @@ function showPrompt(text, opts = {}) {
   inp.hidden = !opts.input;
   inp.placeholder = opts.input === 'number' ? t('numberPh') : t('coordPh');
   inp.type = 'text'; inp.value = '';
-  $('cmdBtns').innerHTML = (opts.buttons || []).map(k => `<button type="button" data-cmd="${k}">${esc(t(BTN[k][0]))}</button>`).join('');
+  $('cmdBtns').innerHTML = (opts.buttons || []).map(k => cmdBtnHtml('data-cmd', k, t(BTN[k][0]))).join('');
 }
 /* ---- AutoCAD tarzı komut satırı ---------------------------------------------------
  * Boştayken çubuk "Command:" der ve komut adı bekler; bir araç çalışırken o aracın istemini
@@ -692,7 +717,7 @@ function idlePrompt() {
   inp.hidden = false; inp.type = 'text'; inp.value = ''; inp.placeholder = t('cmdPh');
   // Komut listesine tek kapı: boştaki çubuğun "?" düğmesi. Menüye gömülseydi komut satırını
   // yeni gören kullanıcı hangi adları yazabileceğini hiç öğrenemezdi.
-  $('cmdBtns').innerHTML = `<button type="button" data-cmd-help="1" aria-label="${esc(t('cmdHelp'))}" title="${esc(t('cmdHelp'))}">?</button>`;
+  $('cmdBtns').innerHTML = `<button type="button" class="icon" data-cmd-help="1" aria-label="${esc(t('cmdHelp'))}" title="${esc(t('cmdHelp'))}"><svg class="ic" aria-hidden="true"><use href="#i-help"/></svg></button>`;
   closeSuggest();
 }
 function closeSuggest() { const el = $('cmdSug'); if (el) { el.hidden = true; el.innerHTML = ''; } }
@@ -728,6 +753,9 @@ function runCommand(text) {
   cmdHist = [c.cmd, ...cmdHist.filter(x => x !== c.cmd)].slice(0, 30);
   cmdHistI = -1;
   closeSuggest();
+  // AutoCAD'deki gibi '-' öneki komut satırı sürümünü ister: -LAYER (ve -LA) pencere açmaz,
+  // seçenekleri sorar. Öteki komutlarda '-' yalnız öneki düşürülmüş ad olarak kabul edilir.
+  if (c.id === 'layers' && /^-/.test(raw.replace(/^['_]+/, ''))) { layerCli(); return true; }
   act(c.id);
   return true;
 }
@@ -749,12 +777,14 @@ function bindCmdBar() {
   if (typeof ResizeObserver === 'function') new ResizeObserver(syncCmd).observe(bar);
   $('cmdBtns').addEventListener('click', (ev) => {
     if (ev.target.closest('[data-cmd-help]')) { showCmdList(); return; }
+    if (ev.target.closest('[data-cmdseq]')) { cmdSeqCancel(); return; }
     const b = ev.target.closest('[data-cmd]'); if (b && BTN[b.dataset.cmd]) BTN[b.dataset.cmd][1]();
   });
   const submit = () => {
     const inp = $('cmdInput'), v = inp.value;
     // BOŞTA: yazılan bir komut adıdır. Boş Enter son komutu yineler (AutoCAD'deki gibi).
     if (cmdIdle) { inp.value = ''; const metin = v.trim() || cmdLast; if (metin) runCommand(metin); return; }
+    if (cmdSeq) { inp.value = ''; cmdSeqInput(v); return; }   // komut satırı sırası (-LAYER): boş Enter da bir cevaptır
     if (!v) return;
     inp.value = '';
     if (ed.m3) { if (!gate('3:' + ed.m3.name)) return; typed3D(v); }
@@ -822,8 +852,9 @@ function layerSelectHtml(id, cur) { return `<select id="${id}">${[...S.layers.ke
 function pickLayer() {
   if (!needDoc()) return;
   api.openDoc(t('curLayerSet'), api.kv([[t('layer'), layerSelectHtml('eLayer', ed.curLayer), 1], [t('newLayer'), `<input id="eNewLayer" placeholder="${esc(t('layerNamePh'))}"> <input id="eNewColor" type="number" min="1" max="255" placeholder="${esc(t('colorPh'))}" style="width:110px">`, 1],
-    [`<div class="full btns"><button class="btn primary small" id="eLayerOk">${esc(t('ok'))}</button><button class="btn small" id="eLayerNew">${esc(t('createLayer'))}</button></div>`]]));
+    [`<div class="full btns"><button class="btn primary small" id="eLayerOk">${esc(t('ok'))}</button><button class="btn small" id="eLayerNew">${esc(t('createLayer'))}</button><button class="btn small" id="eLayerMgr"><svg class="ic" aria-hidden="true"><use href="#i-layers"/></svg> ${esc(t('layerManager'))}</button></div>`]]));
   $('eLayerOk').onclick = () => { ed.curLayer = $('eLayer').value; updateLayerButton(); api.hide('docPanel'); };
+  $('eLayerMgr').onclick = () => { api.hide('docPanel'); api.action('layers'); };
   $('eLayerNew').onclick = () => {
     const name = $('eNewLayer').value.trim(); if (!name) return;
     const c = parseInt($('eNewColor').value, 10);
@@ -893,6 +924,7 @@ export function tap(w, sx, sy) {
   return tools.tap(w, [sx, sy]);
 }
 export function back() {
+  if (cmdSeq) { cmdSeqCancel(); return true; }
   const pop = $('tbPop'); if (pop && !pop.hidden) { closePop(); return true; }
   const tour = $('tour'); if (tour && !tour.hidden) { endTour(); return true; }
   if (ed.m3) { ed.m3 = null; showPrompt(null); markActive(null); overlay3D(); return true; }
@@ -1327,7 +1359,7 @@ function prompt3D() {
   cmdIdle = false; closeSuggest();
   $('cmdBar').hidden = false; $('cmdText').textContent = txt + (m.name === 'geo' || m.name === 'dist' ? hedef : '');
   $('cmdInput').hidden = m.name !== 'pline'; $('cmdInput').placeholder = 'x,y,z';
-  $('cmdBtns').innerHTML = (m.name === 'pline' ? `<button type="button" data-cmd3="finish">${esc(t('finishBtn'))}</button>` : '') + (m.pts.length ? `<button type="button" data-cmd3="back">${esc(t('backBtn'))}</button>` : '') + `<button type="button" data-cmd3="cancel">${esc(t('cancelBtn'))}</button>`;
+  $('cmdBtns').innerHTML = (m.name === 'pline' ? cmdBtnHtml('data-cmd3', 'finish', t('finishBtn')) : '') + (m.pts.length ? cmdBtnHtml('data-cmd3', 'back', t('backBtn')) : '') + cmdBtnHtml('data-cmd3', 'cancel', t('cancelBtn'));
   $('cmdBtns').onclick = (ev) => {
     const b = ev.target.closest('[data-cmd3]'); if (!b) return;
     const k = b.dataset.cmd3;
@@ -1602,6 +1634,88 @@ ed.refreshTiles = refreshTiles;
 ed.cmdTakeOver = () => { cmdIdle = false; closeSuggest(); };
 /** Sağ tuş / boş Enter: son komutu yineler. Yoksa sessizce hiçbir şey yapmaz. */
 ed.cmdRepeat = () => { if (cmdLast) runCommand(cmdLast); };
+
+/* ---- Komut satırı sırası: art arda sorulan istemler ---------------------------------------
+ * AutoCAD'in -LAYER gibi "pencere açmayan" komutları seçenekleri komut satırından sorar. Sıra,
+ * çubuğu araçlardan bağımsız devralır: her adım bir istem gösterir, Enter cevabı verir, Esc
+ * (back) sırayı iptal eder. Adımlar { istem, cevap(v) → sonraki adım | null (bitti) } nesneleridir.
+ */
+let cmdSeq = null;
+function cmdSeqStart(adim) {
+  if (!adim) return;
+  cmdSeq = adim;
+  const bar = $('cmdBar'); bar.hidden = false; cmdIdle = false; closeSuggest();
+  $('cmdText').textContent = adim.istem;
+  const inp = $('cmdInput'); inp.hidden = false; inp.type = 'text'; inp.placeholder = adim.ph || ''; inp.value = '';
+  $('cmdBtns').innerHTML = cmdBtnHtml('data-cmdseq', 'cancel', t('cancelBtn'));
+  try { inp.focus(); } catch (_) { /* odak yoksa geç */ }
+}
+function cmdSeqInput(v) {
+  const a = cmdSeq; if (!a) return;
+  let sonraki = null;
+  try { sonraki = a.cevap(String(v == null ? '' : v).trim()); } catch (e) { console.warn(e); sonraki = null; }
+  if (sonraki) cmdSeqStart(sonraki); else cmdSeqEnd();
+}
+function cmdSeqCancel() { if (!cmdSeq) return; cmdSeq = null; api.toast(t('cancelled'), 1000); showPrompt(null); }
+function cmdSeqEnd() { cmdSeq = null; showPrompt(null); }
+ed.cmdSeqActive = () => !!cmdSeq;
+
+/*
+ * -LAYER: AutoCAD'in komut satırı katman komutu. Seçenek harfleri AutoCAD'in kendi büyük harfli
+ * kısaltmalarıdır (?, M, S, N, R, ON, OFF, C, L, LW, F, T, LO, U); karşılığı olmayanlar (TR
+ * saydamlık, MAT malzeme, P çizim, A durum, D açıklama, E uzlaştırma) istemde yazmaz ve
+ * "geçersiz seçenek" alır. Katman adı sorularında '*' bütün katmanlar, virgül birden çok ad.
+ * Her seçenek tek geri alma adımı üretir; pencere açılmaz.
+ */
+function layerCli() {
+  if (!needDoc() || !doc) return;
+  const adlar = (v) => {
+    const s = v.trim(); if (!s) return [];
+    if (s === '*') return [...S.layers.keys()];
+    const out = [], yok = [];
+    for (const a of s.split(',').map(x => x.trim()).filter(Boolean)) { if (S.layers.has(a)) out.push(a); else yok.push(a); }
+    if (yok.length) api.toast(t('laCliNoLayer').replace('%s', yok.join(', ')), 2500);
+    return out;
+  };
+  const bitti = (msg) => { if (msg) api.toast(msg, 1600); return null; };
+  const durumAdimi = (durum, ileti) => ({ istem: t('laCliNames'), ph: '*', cevap: (v) => { const n = adlar(v); if (n.length && layerSet(n, durum)) return bitti(ileti + ': ' + n.join(', ')); return null; } });
+  const secenek = {
+    istem: t('laCliOpts'), ph: 'N',
+    cevap: (v) => {
+      const o = v.toUpperCase();
+      if (o === '?') { showCmdLayers(); return null; }
+      if (o === 'N') return { istem: t('laCliName'), ph: t('layerDefaultName') + '1', cevap: (ad) => { const nm = ad || sonrakiKatmanAdi(); if (!gate('layer')) return null; if (doc.run({ op: 'layer', name: nm, color: -1 })) { refreshUndo(); return bitti(t('layerCreated') + ': ' + nm); } return bitti(t('layerExists')); } };
+      if (o === 'M') return { istem: t('laCliName'), cevap: (ad) => { if (!ad) return null; if (!S.layers.has(ad)) { if (!gate('layer')) return null; if (!doc.run({ op: 'layer', name: ad, color: -1 })) return bitti(t('error')); refreshUndo(); } ed.setCurLayer(ad); return bitti(t('curLayerSet') + ': ' + ad); } };
+      if (o === 'S') return { istem: t('laCliName'), ph: ed.curLayer, cevap: (ad) => { const nm = ad || ed.curLayer; return ed.setCurLayer(nm) ? bitti(t('curLayerSet') + ': ' + nm) : bitti(t('laCliNoLayer').replace('%s', nm)); } };   // boş Enter = öneri (geçerli katman), AutoCAD'deki <varsayılan> gibi
+      if (o === 'R') return { istem: t('laCliName'), cevap: (eski) => (!S.layers.has(eski) ? bitti(t('laCliNoLayer').replace('%s', eski)) : { istem: t('laCliNewName'), cevap: (yeni) => { if (!yeni || !gate('layeredit')) return null; if (doc.run({ op: 'layerprops', name: eski, newName: yeni })) { refreshUndo(); return bitti(t('layerUpdated') + ': ' + yeni); } return bitti(t('layerExists')); } }) };
+      if (o === 'ON') return durumAdimi({ off: false }, t('layerOn'));
+      if (o === 'OFF') return durumAdimi({ off: true }, t('layerOff'));
+      if (o === 'F') return durumAdimi({ frozen: true }, t('layerFreeze'));
+      if (o === 'T') return durumAdimi({ frozen: false }, t('layerThaw'));
+      if (o === 'LO') return durumAdimi({ locked: true }, t('lock'));
+      if (o === 'U') return durumAdimi({ locked: false }, t('unlock'));
+      if (o === 'C') return { istem: t('laCliColor'), ph: '1-255', cevap: (c) => { const ci = parseInt(c, 10); if (!(ci >= 1 && ci <= 255)) return bitti(t('laCliBad')); return { istem: t('laCliNames'), ph: ed.curLayer, cevap: (v2) => { const n = adlar(v2 || ed.curLayer); if (!n.length || !gate('layeredit')) return null; for (const nm of n) doc.run({ op: 'layerprops', name: nm, color: ci }); refreshUndo(); return bitti(t('layerUpdated') + ': ' + n.join(', ')); } }; } };
+      if (o === 'L') return { istem: t('laCliLt'), ph: 'Continuous', cevap: (lt) => { const ad = lt || 'Continuous'; return { istem: t('laCliNames'), ph: ed.curLayer, cevap: (v2) => { const n = adlar(v2 || ed.curLayer); if (!n.length || !gate('layeredit')) return null; for (const nm of n) doc.run({ op: 'layerprops', name: nm, lt: ad }); refreshUndo(); return bitti(t('layerUpdated') + ': ' + n.join(', ')); } }; } };
+      if (o === 'LW') return { istem: t('laCliLw'), ph: '0.25', cevap: (w) => { const mm = parseFloat(String(w).replace(',', '.')); if (!(mm >= 0 && mm <= 2.11)) return bitti(t('laCliBad')); return { istem: t('laCliNames'), ph: ed.curLayer, cevap: (v2) => { const n = adlar(v2 || ed.curLayer); if (!n.length || !gate('layeredit')) return null; for (const nm of n) doc.run({ op: 'layerprops', name: nm, lw: Math.round(mm * 100) }); refreshUndo(); return bitti(t('layerUpdated') + ': ' + n.join(', ')); } }; } };
+      api.toast(t('laCliBad') + ': ' + (v || '—'), 1800);
+      return secenek;   // aynı istem yeniden
+    },
+  };
+  cmdSeqStart(secenek);
+}
+/** '?' seçeneği: katmanlar ve durumları metin olarak (AutoCAD'in -LAYER ? listesi gibi) */
+function showCmdLayers() {
+  const rows = [...S.layers.values()].sort((a, b) => a.name.localeCompare(b.name, 'tr')).map(l =>
+    `<tr><td><code>${esc(l.name)}</code>${l.name === ed.curLayer ? ' ✓' : ''}</td><td>${l.off ? esc(t('layerOff')) : esc(t('layerOn'))}${l.frozen ? ' · ' + esc(t('layerFreeze')) : ''}${l.locked ? ' · ' + esc(t('lock')) : ''}</td><td>${esc(l.lt || 'Continuous')} · ${((l.lw == null ? 25 : l.lw) / 100).toFixed(2)}</td></tr>`).join('');
+  api.openDoc(t('layers'), `<div class="full"><table class="cmd-list"><tbody>${rows}</tbody></table></div>`);
+}
+/** AutoCAD'deki gibi boş ad: Katman1, Katman2… (ilk boş numara) */
+function sonrakiKatmanAdi() {
+  const kok = t('layerDefaultName');
+  for (let i = 1; i < 10000; i++) if (!S.layers.has(kok + i)) return kok + i;
+  return kok + Date.now();
+}
+ed.nextLayerName = sonrakiKatmanAdi;
 ed.cmdRelease = () => { if (!tools.running && !ed.m3) showPrompt(null); };
 /*
  * Anahtarla silme (kalem silgisi buradan geçer). Silmek yalnız bir belge komutu değildir:

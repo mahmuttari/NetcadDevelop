@@ -61,8 +61,9 @@ await setLang('en');
   ok('1i tarama toast EN', toast === 'Hatches hidden', toast);
   await page.click('#toolbar .tb-row[data-for="display"] [data-act="hatch"]');
   await page.click('#btnLayers'); await page.waitForTimeout(200);
-  const lb = await ev(() => [...document.querySelectorAll('#layerList .lbtn')].slice(0, 2).map(b => b.title).join(','));
-  ok('1j katman düğmeleri EN', lb === 'Fade,Only this', lb);
+  // v7.54: katman yöneticisi satırları — ampul / dondur / kilit hücre başlıkları İngilizce olmalı
+  const lb = await ev(() => { const r = document.querySelector('#layerList .lrow'); return ['[data-lon]', '[data-lfrz]', '[data-llock]'].map(s => r.querySelector(s).title).join(','); });
+  ok('1j katman düğmeleri EN', lb === 'On,Freeze,Lock', lb);
   await ev(() => window.dwgApp.onBack());
   // düzenleme panelleri
   await tab('draw'); await page.click('#toolbar [data-act="layer"]'); await page.waitForTimeout(150);

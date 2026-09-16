@@ -4,7 +4,7 @@
  */
 import { S, toWorld, toScreen, fitView, zoomAtScreen, visibleRect, UNITS, UNIT_TO_M, fmt, fmtUnit, store, clampPrec, PREC_MIN, PREC_MAX } from './state.js';
 import { RTree, snapPoint, primDist, flatten, pathLength, pathLength3, polyArea, meshMetrics, TAU } from './geom.js';
-import { FG, primSignature } from './scene.js';
+import { FG, ACI, primSignature } from './scene.js';
 import { drawFrame, rgbCss, bgColor, fgColor, tracePath, renderRegion, gridState, niceStep, worldTransform as renderWorldTransform, worldOrigin } from './render.js';
 import * as D from './display.js';
 import { DISPLAY_DEFAULTS, setDisplay, getDisplay, toggleDisplay, primVisible, isolateLayers, unisolate, isIsolated, setLayerFaded, openDisplayOptions, closeDisplayOptions, mountNavFabs, gridLabel, refreshNav } from './display.js';
@@ -24,7 +24,7 @@ import * as Home from './home.js';
 import * as Cloud from './cloud.js';
 import * as Pen from './stylus.js';
 import * as Desk from './desktop.js';
-import { writeDxf } from './edit.js';
+import { writeDxf, aciOf } from './edit.js';
 import { dwgObjectCount } from './dwgstat.js';
 import { skelList, emptyBox } from './skel.js';
 
@@ -863,7 +863,7 @@ function longPressMenu(sx, sy) {
       case 'zoom': S.selected = hit; fitPrims([hit]); break;
       case 'select': if (edCall('select', hit) === undefined) { S.selected = hit; drawOverlay(); } break;
       case 'iso': isolateLayers([hit.lay]); break;
-      case 'hide': { const L = S.layers.get(hit.lay); if (L) { L.visible = false; S.cacheValid = false; buildLayerList(); requestRender(); toast(t('layer') + ' ' + hit.lay + ': ' + tt('hidden', 'gizlendi'), { action: { label: tt('undoAction', 'Geri al'), fn: () => { L.visible = true; S.cacheValid = false; buildLayerList(); requestRender(); } } }); } break; }
+      case 'hide': { if (layerState([hit.lay], { off: true })) toast(t('layer') + ' ' + hit.lay + ': ' + tt('hidden', 'gizlendi'), { action: { label: tt('undoAction', 'Geri al'), fn: () => layerState([hit.lay], { off: false }) } }); break; }
       case 'copy': copyText(coordTxt); break;
       case 'measure': setMode('measure'); S.measure.push([w[0], w[1], undefined]); updateMeasure(); drawOverlay(); break;
       case 'note': toggleNotes(true); S.noteTool = 'text'; document.querySelectorAll('#notesBar [data-tool]').forEach(x => x.classList.toggle('active', x.dataset.tool === 'text')); void noteTap(sx, sy, w); break;
@@ -1267,28 +1267,181 @@ document.querySelectorAll('[data-snap]').forEach(cb => cb.addEventListener('chan
 }));
 
 // ---- katmanlar -----------------------------------------------------------------------
-const layerUi = { sort: 'name', onlyVis: false };
+const layerUi = { sort: 'name', onlyVis: false, sel: null };   // sel: yöneticide seçili satır (Sil / Geçerli yap / İzole et hedefi)
+/*
+ * KATMAN YÖNETİCİSİ — AutoCAD Layer Properties Manager düzeni.
+ * Her satır: Durum (geçerli katman ✓) · Ad · Açık (ampul) · Dondur (güneş/kar tanesi) · Kilit ·
+ * Renk · Çizgi tipi · Kalınlık · Sayı. Her hücre doğrudan düzenlenir: ampul, kar tanesi ve kilit
+ * dokununca değişir; renk, çizgi tipi ve kalınlık kendi seçicisini açar; ada dokunmak satırı
+ * SEÇER (Sil / Geçerli yap / İzole et bu seçime uygulanır), uzun basış menüyü, çift dokunuş
+ * yeniden adlandırmayı açar. Bütün değişiklikler düzenleme günlüğünden geçer: geri alınır,
+ * DXF'e yazılır. Görünürlük türetilir (bkz. display.syncLayerVisible); satır "hid" sınıfıyla
+ * soluk görünür ama hangi bayrağın gizlediği (kapalı / donuk / izolasyon) simgelerden okunur.
+ */
+const LW_LIST = [0, 5, 9, 13, 15, 18, 20, 25, 30, 35, 40, 50, 53, 60, 70, 80, 90, 100, 106, 120, 140, 158, 200, 211];   // AutoCAD standart kalınlıkları (0,01 mm)
+const lwText = (lw) => ((lw == null ? 25 : lw) / 100).toFixed(2);
 function buildLayerList() {
   const q = ($('layerFilter').value || '').toLowerCase();
   const sortSel = $('layerSort'); if (sortSel) layerUi.sort = sortSel.value === 'count' ? 'count' : 'name';
   const ov = $('layerOnlyVis'); const ovIn = ov && ov.querySelector('input'); if (ovIn) layerUi.onlyVis = ovIn.checked;
   const list = [...S.layers.values()].sort((a, b) => layerUi.sort === 'count' ? (b.count - a.count) || a.name.localeCompare(b.name, 'tr') : a.name.localeCompare(b.name, 'tr'));
   $('layerCount').textContent = list.length + ' ' + t('layerCount');
-  const fg = fgColor(), pal = S.colorMode === 'layer';
-  $('layerList').innerHTML = list.filter(l => (!q || l.name.toLowerCase().includes(q)) && (!layerUi.onlyVis || l.visible)).map(l =>
-    `<div class="layer${l.frozen ? ' frozen' : ''}${l.faded ? ' faded' : ''}${l.locked ? ' locked' : ''}" data-layer-row="${esc(l.name)}"><label><input type="checkbox" data-layer="${esc(l.name)}" ${l.visible ? 'checked' : ''}></label>
-     <span class="sw" style="background:${pal ? D.layerPalette(l.name) : rgbCss(l.color, fg)}"></span><span class="nm">${esc(l.name)}</span><span class="ct">${l.count}</span><button type="button" class="lbtn${l.faded ? ' on' : ''}" data-lfade="${esc(l.name)}" title="${tt('fadeLayer', 'Soldur')}" aria-label="${tt('fadeLayer', 'Soldur')}">◐</button><button type="button" class="lbtn${S.isoBackup && l.visible ? ' on' : ''}" data-liso="${esc(l.name)}" title="${tt('onlyThis', 'Yalnız bu')}" aria-label="${tt('onlyThis', 'Yalnız bu')}">⦿</button></div>`).join('') || `<div class="muted">${t('noResult')}</div>`;
+  if (layerUi.sel && !S.layers.has(layerUi.sel)) layerUi.sel = null;
+  const fg = fgColor(), pal = S.colorMode === 'layer', cur = (editor && editor.curLayer) || '0';
+  const ic = (id) => `<svg class="ic" aria-hidden="true"><use href="#${id}"/></svg>`;
+  // sütun başlığı (yalnız geniş panelde görünür): 40 px'lik hücrelere metin sığmaz, dört durum sütunu simgeyle başlıklanır
+  const hl = (id, key) => `<span title="${esc(t(key))}">${ic(id)}</span>`;
+  const head = `<div class="lhead" aria-hidden="true"><span class="lc-cur">${esc(t('status'))}</span><span class="lc-name">${esc(t('layer'))}</span><span class="lctl">${hl('i-bulb', 'layerOn')}${hl('i-snow', 'layerFreeze')}${hl('i-lock', 'lock')}${hl('i-palette', 'color')}<span class="hl-lt">${esc(t('ltype'))}</span><span class="hl-lw">${esc(t('lweight'))}</span></span><span class="lc-ct">${esc(t('count'))}</span></div>`;
+  const rows = list.filter(l => (!q || l.name.toLowerCase().includes(q)) && (!layerUi.onlyVis || l.visible)).map(l => {
+    const n = esc(l.name), isCur = l.name === cur;
+    return `<div class="lrow${isCur ? ' cur' : ''}${l.name === layerUi.sel ? ' sel' : ''}${l.visible ? '' : ' hid'}${l.frozen ? ' frozen' : ''}${l.locked ? ' locked' : ''}${l.faded ? ' faded' : ''}" data-layer-row="${n}" role="row">`
+      + `<button type="button" class="lc-cur" data-lcur="${n}" title="${esc(t('makeCurrent'))}" aria-label="${esc(t('makeCurrent'))}${isCur ? ' ✓' : ''}" aria-pressed="${isCur}">${isCur ? ic('i-check') : ''}</button>`
+      + `<span class="lc-name" data-lname="${n}" tabindex="0">${n}</span><span class="lc-ct">${l.count}</span>`
+      + `<span class="lctl">`
+      + `<button type="button" class="lc ${l.off ? 'st-off' : 'st-on'}" data-lon="${n}" title="${esc(l.off ? t('layerOff') : t('layerOn'))}" aria-label="${esc(t('layerOn'))}" aria-pressed="${!l.off}">${ic(l.off ? 'i-bulb-off' : 'i-bulb')}</button>`
+      + `<button type="button" class="lc ${l.frozen ? 'st-frozen' : ''}" data-lfrz="${n}" title="${esc(l.frozen ? t('layerThaw') : t('layerFreeze'))}" aria-label="${esc(t('layerFreeze'))}" aria-pressed="${!!l.frozen}">${ic(l.frozen ? 'i-snow' : 'i-sunny')}</button>`
+      + `<button type="button" class="lc ${l.locked ? 'st-locked' : ''}" data-llock="${n}" title="${esc(l.locked ? t('unlock') : t('lock'))}" aria-label="${esc(t('lock'))}" aria-pressed="${!!l.locked}">${ic(l.locked ? 'i-lock' : 'i-unlock')}</button>`
+      + `<button type="button" class="lc lc-sw" data-lcolor="${n}" title="${esc(t('color'))}" aria-label="${esc(t('color'))}"><i class="sw" style="background:${pal ? D.layerPalette(l.name) : rgbCss(l.color, fg)}"></i></button>`
+      + `<button type="button" class="lc lc-lt" data-llt="${n}" title="${esc(t('ltype'))}: ${esc(l.lt || 'Continuous')}">${esc(l.lt || 'Continuous')}</button>`
+      + `<button type="button" class="lc lc-lw" data-llw="${n}" title="${esc(t('lweight'))} (mm)">${lwText(l.lw)}</button>`
+      + `</span></div>`;
+  }).join('');
+  $('layerList').innerHTML = head + (rows || `<div class="muted">${t('noResult')}</div>`);
   const un = $('btnLayersUniso'); if (un) un.hidden = !isIsolated();
+  syncLayerActions();
 }
-$('layerList').addEventListener('change', (ev) => {
-  const cb = ev.target; if (!cb.dataset.layer) return;
-  const l = S.layers.get(cb.dataset.layer); if (l) { l.visible = cb.checked; S.cacheValid = false; requestRender(); }
-});
+/** Seçime bağlı düğmeler (Sil / Geçerli yap / İzole et) ve seçili ad etiketi */
+function syncLayerActions() {
+  const sn = $('layerSelName'); if (sn) sn.textContent = layerUi.sel ? layerUi.sel : '';
+  const del = $('btnLayerDel'), curB = $('btnLayerCur'), isoB = $('btnLayerIso');
+  if (del) del.disabled = !layerUi.sel; if (curB) curB.disabled = !layerUi.sel; if (isoB) isoB.disabled = !layerUi.sel;
+}
+/** Katman durumunu toplu işlemle değiştirir (geri alınabilir); düzenleme belgesi yoksa uyarır */
+function layerState(names, durum) {
+  const ok = edCall('layerSet', names, durum);
+  if (!ok) { toast(t('error'), { type: 'error' }); return false; }
+  S.cacheValid = false; buildLayerList(); requestRender();
+  return true;
+}
+/** Satır seçimi listeyi YENİDEN KURMAZ: çift dokunuşun ikinci dokunuşu ve F2 aynı öğede kalır, kaydırma sıçramaz */
+function layerSelect(name) {
+  layerUi.sel = name;
+  for (const r of document.querySelectorAll('#layerList .lrow')) r.classList.toggle('sel', r.dataset.layerRow === name);
+  syncLayerActions();
+}
+function layerSetCurrent(name) {
+  if (!S.layers.has(name)) return;
+  if (edCall('setCurLayer', name) === undefined) editor.curLayer = name;
+  toast(tt('curLayerSet', 'Geçerli katman') + ': ' + name, 1400);
+  S.cacheValid = false; buildLayerList(); requestRender();
+}
+/** Yeni katman: AutoCAD'deki gibi Katman1, Katman2… önerilir; seçili satır varsa rengi, çizgi tipi ve kalınlığı ondan alınır */
+async function layerNew() {
+  if (!S.hasDoc) { toast(t('openFirst')); return; }
+  if (!Ed.gate('layer')) return;
+  const def = edCall('nextLayerName') || (t('layerDefaultName') + '1');
+  const ad = await askText(t('newLayer'), def, { ph: t('layerNamePh') });
+  const name = String(ad == null ? '' : ad).trim();
+  if (!name) return;
+  if (S.layers.has(name)) { toast(t('layerExists'), { type: 'warn' }); return; }
+  const kaynak = layerUi.sel ? S.layers.get(layerUi.sel) : null;
+  const cmd = { op: 'layer', name, color: kaynak ? aciOf(kaynak.color, null) : -1 };
+  if (kaynak) { cmd.lt = kaynak.lt || 'Continuous'; cmd.lw = kaynak.lw == null ? 25 : kaynak.lw; }
+  if (!edCall('runCmd', cmd)) { toast(t('error'), { type: 'error' }); return; }
+  layerUi.sel = name;
+  S.cacheValid = false; buildLayerList(); requestRender();
+  toast(t('layerCreated') + ': ' + name, { type: 'ok' });
+}
+/** Seçili katmanı siler: '0' ve geçerli katman korunur (AutoCAD kuralı); boş katman sorulmadan silinir */
+async function layerDeleteSel() {
+  const name = layerUi.sel; if (!name) { toast(t('layerSelectFirst')); return; }
+  const cur = (editor && editor.curLayer) || '0';
+  if (name === cur) { toast(t('layerCurrentNoDel'), { type: 'warn' }); return; }
+  if (name === '0') { toast(t('layer0Protected'), { type: 'warn' }); return; }
+  const n = S.prims.filter(p => p.lay === name && p.k !== 4 && !p.inf).length;
+  if (n > 0) { await layerDelete(name); return; }
+  if (!Ed.gate('layeredit')) return;
+  if (!edCall('runCmd', { op: 'layerdel', name, mode: 'move' })) { toast(t('error'), { type: 'error' }); return; }
+  layerUi.sel = null;
+  S.cacheValid = false; buildLayerList(); requestRender();
+  toast(t('layerDeleted') + ': ' + name, { type: 'ok' });
+}
+async function layerRename(name) {
+  if (name === '0') { toast(t('layer0Protected'), { type: 'warn' }); return; }
+  if (!Ed.gate('layeredit')) return;
+  const ad = await askText(t('layerRename') + ': ' + name, name);
+  const yeni = String(ad == null ? '' : ad).trim();
+  if (!yeni || yeni === name) return;
+  if (S.layers.has(yeni)) { toast(t('layerExists'), { type: 'warn' }); return; }
+  const seciliydi = layerUi.sel === name;   // komut çalışırken layersChanged kancası listeyi kurar ve eski adı bulamayınca seçimi düşürür; önce ölçülür
+  if (!edCall('runCmd', { op: 'layerprops', name, newName: yeni })) { toast(t('error'), { type: 'error' }); return; }
+  if (seciliydi) layerUi.sel = yeni;
+  S.cacheValid = false; buildLayerList(); requestRender();
+  toast(t('layerUpdated') + ': ' + yeni, { type: 'ok' });
+}
+/** Renk seçici: AutoCAD "Select Color › Index Color" gibi 255 ACI rengi; üstte 1-9 standart renkler büyük */
+function layerPickColor(name) {
+  const l = S.layers.get(name); if (!l) return;
+  if (!Ed.gate('layeredit')) return;
+  const cur = aciOf(l.color, null);
+  const hex = (i) => (i === 7 ? '#ffffff' : '#' + (ACI[i] & 0xffffff).toString(16).padStart(6, '0'));
+  const std = ACI_SECIM.slice(0, 9).map(([i, ad]) => `<button type="button" data-ci="${i}" class="${+i === cur ? 'active' : ''}" style="background:${hex(+i)}" title="${esc(ad)}">${i}</button>`).join('');
+  let grid = '';
+  for (let i = 10; i <= 255; i++) grid += `<button type="button" data-ci="${i}" class="${i === cur ? 'active' : ''}" style="background:${hex(i)}" title="${i}"></button>`;
+  openDoc(t('colorSelect') + ': ' + name, `<div class="full aci-std">${std}</div><div class="full aci-grid">${grid}</div>`
+    + `<div class="full muted" style="margin-top:8px">${esc(t('colorHint'))} <input id="lcCi" type="number" min="1" max="255" style="width:90px" value="${cur >= 1 && cur <= 255 ? cur : ''}"> <button class="btn small" id="lcCiOk">${esc(t('ok'))}</button></div>`);
+  const uygula = (ci) => {
+    if (!(ci >= 1 && ci <= 255)) return;
+    hide('docPanel');
+    if (!edCall('runCmd', { op: 'layerprops', name, color: ci })) { toast(t('error'), { type: 'error' }); return; }
+    S.cacheValid = false; buildLayerList(); requestRender();
+  };
+  $('docBody').onclick = (ev) => { const b = ev.target.closest('[data-ci]'); if (b) uygula(Number(b.dataset.ci)); };
+  $('lcCiOk').onclick = () => uygula(parseInt($('lcCi').value, 10));
+}
+/** Çizgi tipi seçici: dosyanın LTYPE tablosundaki adlar (DXF'e ancak tanımlı tip yazılabilir) */
+function layerPickLt(name) {
+  const l = S.layers.get(name); if (!l) return;
+  if (!Ed.gate('layeredit')) return;
+  const adlar = ['Continuous', ...Object.values(S.ltypes || {}).map(x => x.name).filter(Boolean)].filter((v, i, a) => a.indexOf(v) === i);
+  const cur = l.lt || 'Continuous';
+  openDoc(t('ltSelect') + ': ' + name, `<div class="full list ctx-list pick-list">${adlar.map(a => `<div class="item${a === cur ? ' active' : ''}" data-lt="${esc(a)}"><span class="lt-prev" style="border-top-style:${a === 'Continuous' ? 'solid' : 'dashed'}"></span>${esc(a)}</div>`).join('')}</div>`);
+  $('docBody').onclick = (ev) => {
+    const it = ev.target.closest('[data-lt]'); if (!it) return;
+    hide('docPanel');
+    if (it.dataset.lt === cur) return;
+    if (!edCall('runCmd', { op: 'layerprops', name, lt: it.dataset.lt })) { toast(t('error'), { type: 'error' }); return; }
+    S.cacheValid = false; buildLayerList(); requestRender();
+  };
+}
+/** Kalınlık seçici: AutoCAD'in standart kalınlık listesi (mm), çizgi kalınlığı örneğiyle */
+function layerPickLw(name) {
+  const l = S.layers.get(name); if (!l) return;
+  if (!Ed.gate('layeredit')) return;
+  const cur = l.lw == null ? 25 : l.lw;
+  openDoc(t('lwSelect') + ': ' + name, `<div class="full list ctx-list pick-list">${LW_LIST.map(w => `<div class="item${w === cur ? ' active' : ''}" data-lw="${w}"><span class="lw-bar" style="height:${Math.max(1, Math.round(w / 20))}px"></span>${lwText(w)} mm${w === 25 ? ' · ' + esc(t('lwDefault')) : ''}</div>`).join('')}</div>`);
+  $('docBody').onclick = (ev) => {
+    const it = ev.target.closest('[data-lw]'); if (!it) return;
+    hide('docPanel');
+    const w = Number(it.dataset.lw); if (w === cur) return;
+    if (!edCall('runCmd', { op: 'layerprops', name, lw: w })) { toast(t('error'), { type: 'error' }); return; }
+    S.cacheValid = false; buildLayerList(); requestRender();
+  };
+}
 $('layerList').addEventListener('click', (ev) => {
-  const b = ev.target.closest('button'); if (!b) return;
-  if (b.dataset.lfade != null) { const l = S.layers.get(b.dataset.lfade); if (l) setLayerFaded(l.name, !l.faded); }
-  else if (b.dataset.liso != null) { if (isIsolated() && S.isoBackup && [...S.layers.values()].every(l => l.visible === (l.name === b.dataset.liso))) unisolate(); else isolateLayers([b.dataset.liso]); }
+  const b = ev.target.closest('button, [data-lname]'); if (!b) return;
+  const d = b.dataset;
+  if (d.lname != null) { layerSelect(d.lname); return; }
+  if (d.lcur != null) { layerSetCurrent(d.lcur); return; }
+  if (d.lon != null) { const l = S.layers.get(d.lon); if (l) layerState([d.lon], { off: !l.off }); return; }
+  if (d.lfrz != null) { const l = S.layers.get(d.lfrz); if (l) layerState([d.lfrz], { frozen: !l.frozen }); return; }
+  if (d.llock != null) { const l = S.layers.get(d.llock); if (l) layerState([d.llock], { locked: !l.locked }); return; }
+  if (d.lcolor != null) { layerPickColor(d.lcolor); return; }
+  if (d.llt != null) { layerPickLt(d.llt); return; }
+  if (d.llw != null) { layerPickLw(d.llw); return; }
 });
+$('layerList').addEventListener('dblclick', (ev) => { const n = ev.target.closest('[data-lname]'); if (n) void layerRename(n.dataset.lname); });
+$('layerList').addEventListener('keydown', (ev) => { const n = ev.target.closest('[data-lname]'); if (!n) return; if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); layerSelect(n.dataset.lname); } else if (ev.key === 'F2') { ev.preventDefault(); void layerRename(n.dataset.lname); } });
 // katman satırına uzun basış: küçük menü
 let layerLongTimer = 0, layerLongRow = null;
 $('layerList').addEventListener('pointerdown', (ev) => {
@@ -1302,18 +1455,20 @@ $('layerList').addEventListener('pointerdown', (ev) => {
 $('layerList').addEventListener('contextmenu', (ev) => { const row = ev.target.closest('[data-layer-row]'); if (row) { ev.preventDefault(); layerMenu(row.dataset.layerRow); } });
 function layerMenu(name) {
   const l = S.layers.get(name); if (!l) return;
+  layerUi.sel = name;
   const items = [['fit', tt('fitLayer', 'Katmana sığdır')], ['cur', tt('makeCurrent', 'Geçerli katman yap')], ['iso', tt('onlyThis', 'Yalnız bu')], ['fade', l.faded ? tt('unfade', 'Soldurmayı kaldır') : tt('fadeLayer', 'Soldur')], ['lock', l.locked ? tt('unlock', 'Kilidi aç') : tt('lock', 'Kilitle')],
-    ['props', t('layerEdit')], ['del', t('layerDelete')]];
+    ['rename', t('layerRename')], ['props', t('layerEdit')], ['del', t('layerDelete')]];
   openDoc(t('layer') + ': ' + name, `<div class="full list ctx-list">${items.map(i => `<div class="item" data-lm="${i[0]}">${esc(i[1])}</div>`).join('')}</div>`);
   $('docBody').onclick = (ev) => {
     const it = ev.target.closest('[data-lm]'); if (!it) return;
     hide('docPanel');
     switch (it.dataset.lm) {
       case 'fit': { const bb = [Infinity, Infinity, -Infinity, -Infinity]; for (const p of S.prims) { if (p.lay !== name || p.k === 4 || p.inf) continue; const b = p.bb; if (b[0] < bb[0]) bb[0] = b[0]; if (b[1] < bb[1]) bb[1] = b[1]; if (b[2] > bb[2]) bb[2] = b[2]; if (b[3] > bb[3]) bb[3] = b[3]; } if (isFinite(bb[0])) { const m = Math.max(bb[2] - bb[0], bb[3] - bb[1]) * 0.1 || 1; zoomExtents([bb[0] - m, bb[1] - m, bb[2] + m, bb[3] + m]); } else toast(tt('layerEmpty', 'Katmanda nesne yok')); break; }
-      case 'cur': if (edCall('setCurLayer', name) === undefined) { editor.curLayer = name; } toast(tt('curLayerSet', 'Geçerli katman') + ': ' + name); S.cacheValid = false; requestRender(); break;
+      case 'cur': layerSetCurrent(name); break;
       case 'iso': isolateLayers([name]); break;
       case 'fade': setLayerFaded(name, !l.faded); break;
-      case 'lock': l.locked = !l.locked; S.cacheValid = false; buildLayerList(); requestRender(); break;
+      case 'lock': layerState([name], { locked: !l.locked }); break;
+      case 'rename': void layerRename(name); break;
       case 'props': void layerProps(name); break;
       case 'del': void layerDelete(name); break;
       default: break;
@@ -1375,11 +1530,19 @@ async function layerDelete(name) {
   S.cacheValid = false; buildLayerList(); requestRender();
   toast(t('layerDeleted') + ': ' + name, { type: 'ok' });
 }
-for (const [id, fn] of [['btnLayersUniso', () => unisolate()], ['btnLayersInvert', () => { for (const l of S.layers.values()) l.visible = !l.visible; S.cacheValid = false; buildLayerList(); requestRender(); }]]) { const b = $(id); if (b) b.addEventListener('click', fn); }
+for (const [id, fn] of [['btnLayersUniso', () => unisolate()], ['btnLayersInvert', () => { const on = [], off = []; for (const l of S.layers.values()) (l.off ? on : off).push(l.name); layerInvert(on, off); }],
+  ['btnLayerNew', () => void layerNew()], ['btnLayerDel', () => void layerDeleteSel()], ['btnLayerCur', () => { if (layerUi.sel) layerSetCurrent(layerUi.sel); else toast(t('layerSelectFirst')); }], ['btnLayerIso', () => { if (layerUi.sel) isolateLayers([layerUi.sel]); else toast(t('layerSelectFirst')); }]]) { const b = $(id); if (b) b.addEventListener('click', fn); }
+/** Ters çevir: açıkları kapatır, kapalıları açar — tek geri alma adımı */
+function layerInvert(acilacak, kapanacak) {
+  const items = [...acilacak.map(name => ({ name, off: false })), ...kapanacak.map(name => ({ name, off: true }))];
+  if (!items.length) return;
+  if (!edCall('runCmd', { op: 'layerbulk', items })) { toast(t('error'), { type: 'error' }); return; }
+  S.cacheValid = false; buildLayerList(); requestRender();
+}
 { const ss = $('layerSort'); if (ss) ss.addEventListener('change', buildLayerList); const ov = $('layerOnlyVis'); if (ov) ov.addEventListener('change', buildLayerList); }
 $('layerFilter').addEventListener('input', buildLayerList);
-$('btnLayersAll').addEventListener('click', () => { for (const l of S.layers.values()) l.visible = true; buildLayerList(); requestRender(); });
-$('btnLayersNone').addEventListener('click', () => { for (const l of S.layers.values()) l.visible = false; buildLayerList(); requestRender(); });
+$('btnLayersAll').addEventListener('click', () => { if (isIsolated()) unisolate(); layerState([...S.layers.keys()], { off: false, frozen: false }); });
+$('btnLayersNone').addEventListener('click', () => layerState([...S.layers.keys()], { off: true }));
 const wide = window.matchMedia('(min-width: 900px)');
 function dockLayers() {
   const panel = $('layerPanel'), side = $('side');
