@@ -100,6 +100,7 @@ export const FEATURE_TIER = new Map([
    */
   ['profile', 'super'], ['savedelta', 'super'],
   ['compare', 'premium'], ['driveUpload', 'premium'], ['area3d', 'premium'],
+  ['driveShare', 'premium'], ['webdavWrite', 'premium'],
   // --- ölçülendirme ve açıklama (2B çizim: Premium)
   ['t:dim', 'premium'], ['t:dimh', 'premium'], ['t:dimv', 'premium'], ['t:dimr', 'premium'], ['t:dimd', 'premium'], ['t:dima', 'premium'],
   ['t:leader', 'premium'], ['t:cloud', 'premium'], ['t:balloon', 'premium'], ['t:hatch', 'premium'], ['markdim', 'premium'],

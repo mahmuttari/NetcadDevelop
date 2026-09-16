@@ -11,10 +11,11 @@
  *  - Dropbox / OneDrive / Box listelenmez: geliştirici uygulaması kaydı gerektirir (README).
  */
 import { t } from './i18n.js';
-import { fmt } from './state.js';
+import { S, fmt } from './state.js';
 import { kindOf, iconFor } from './docs.js';
 import * as Drive from './drive.js';
-import { askConfirm } from './dialog.js';
+import { askConfirm, askText, askForm } from './dialog.js';
+import { gate, lockAttr } from './edition.js';
 import { skelList, emptyBox } from './skel.js';
 
 const $ = (id) => document.getElementById(id);
@@ -38,13 +39,18 @@ export function wdAccounts() {
   try { const r = JSON.parse(A().wdAccounts() || '[]'); return Array.isArray(r) ? r : []; } catch (_) { return []; }
 }
 /** WebDAV işlemi (Promise) */
-export function wd(op, args = {}) {
+export function wd(op, args = {}, onProgress) {
   return new Promise((resolve, reject) => {
     if (!wdAvailable()) { reject(new Error(tt('webdavAndroidOnly', 'WebDAV yalnız Android uygulamasında kullanılabilir.'))); return; }
     const id = 'w' + (++reqSeq);
-    pending.set(id, { resolve, reject });
+    pending.set(id, { resolve, reject, onProgress });
     try { A().wd(id, op, JSON.stringify(args)); } catch (e) { pending.delete(id); reject(e); }
   });
+}
+/** Android → ilerleme (indirme ve yükleme; Java tarafı reqId ile çağırır) */
+export function onProgress(reqId, done, total) {
+  const p = pending.get(reqId);
+  if (p && p.onProgress) { try { p.onProgress(done, total); } catch (_) { /* geç */ } }
 }
 /** Android → sonuç */
 export function onWebDav(reqId, ok, json) {
@@ -162,7 +168,7 @@ export function renderExplorer(host) {
 function bindExplorer(el) { if (!el.dataset.cloudBound) { el.dataset.cloudBound = '1'; el.addEventListener('click', onExplorerClick); } }
 function explorerHtml() {
   const parts = nav.path.split('/').filter(Boolean);
-  let h = `<div class="cloud-explorer"><div class="doc-crumbs"><button type="button" class="chip" data-cloud="crumb" data-path="/">${ICON('i-link')} ${esc(nav.acc.name || nav.acc.url)}</button>` + parts.map((c, i) => `<span>›</span><button type="button" class="chip" data-cloud="crumb" data-path="${esc('/' + parts.slice(0, i + 1).join('/') + '/')}">${esc(c)}</button>`).join('') + `<span class="sp"></span><button type="button" class="lbtn" data-cloud="refresh" aria-label="${esc(t('refresh'))}">${ICON('i-turn')}</button></div>`;
+  let h = `<div class="cloud-explorer"><div class="doc-crumbs"><button type="button" class="chip" data-cloud="crumb" data-path="/">${ICON('i-link')} ${esc(nav.acc.name || nav.acc.url)}</button>` + parts.map((c, i) => `<span>›</span><button type="button" class="chip" data-cloud="crumb" data-path="${esc('/' + parts.slice(0, i + 1).join('/') + '/')}">${esc(c)}</button>`).join('') + `<span class="sp"></span><button type="button" class="lbtn" data-cloud="wd-upload" aria-label="${esc(t('webdavUpload'))}"${lockAttr('webdavWrite')}>${ICON('i-export')}</button><button type="button" class="lbtn" data-cloud="wd-mkdir" aria-label="${esc(t('webdavNewFolder'))}"${lockAttr('webdavWrite')}>${ICON('i-plus')}</button><button type="button" class="lbtn" data-cloud="refresh" aria-label="${esc(t('refresh'))}">${ICON('i-turn')}</button></div>`;
   if (nav.error) h += `<div class="doc-card"><strong>${esc(tt('webdavError', 'WebDAV hatası'))}</strong><p>${esc(nav.error)}</p><div class="row"><button type="button" class="btn small" data-cloud="refresh">${esc(t('refresh'))}</button></div></div>`;
   if (nav.loading) return h + skelList(5) + '</div>';
   const items = nav.items.slice().sort((a, b) => (b.dir ? 1 : 0) - (a.dir ? 1 : 0) || String(a.name).localeCompare(String(b.name), 'tr'));
@@ -170,7 +176,7 @@ function explorerHtml() {
   h += '<div class="list arc-list">';
   for (const it of items) {
     const meta = it.dir ? '' : [fmtSize(+it.size), it.time > 0 ? new Date(it.time).toLocaleDateString('tr-TR') : ''].filter(Boolean).join(' · ');
-    h += `<div class="item arc-item open-item wd-item" data-cloud="entry" data-path="${esc(it.path)}" data-name="${esc(it.name)}" data-dir="${it.dir ? 1 : 0}" data-size="${Number(it.size) || 0}">${it.dir ? ICON('i-open') : iconFor(it.name)}<span class="nm">${esc(it.name)}</span>${meta ? `<small>${esc(meta)}</small>` : ''}${it.dir ? '<svg class="ic open-chev" aria-hidden="true"><use href="#i-chevron"/></svg>' : ''}</div>`;
+    h += `<div class="item arc-item open-item wd-item" data-cloud="entry" data-path="${esc(it.path)}" data-name="${esc(it.name)}" data-dir="${it.dir ? 1 : 0}" data-size="${Number(it.size) || 0}">${it.dir ? ICON('i-open') : iconFor(it.name)}<span class="nm">${esc(it.name)}</span>${meta ? `<small>${esc(meta)}</small>` : ''}${it.dir ? '<svg class="ic open-chev" aria-hidden="true"><use href="#i-chevron"/></svg>' : ''}<button type="button" class="lbtn" data-cloud="menu" aria-label="${esc(t('more'))}">${ICON('i-more')}</button></div>`;
   }
   return h + '</div></div>';
 }
@@ -193,11 +199,92 @@ async function onExplorerClick(ev) {
   if (k === 'wd-sel') { const a = wdAccounts().find(x => x.id === b.dataset.id); if (a) openAccount(a); return; }
   if (k === 'crumb') { nav.path = b.dataset.path || '/'; list(); return; }
   if (k === 'refresh') { list(); return; }
+  if (k === 'wd-upload') { await uploadMenu(); return; }
+  if (k === 'wd-mkdir') { await newFolder(); return; }
+  if (k === 'menu') { const it = b.closest('.wd-item'); if (it) itemMenu(it); return; }
   if (k === 'entry') {
     if (b.dataset.dir === '1') { nav.path = b.dataset.path.endsWith('/') ? b.dataset.path : b.dataset.path + '/'; list(); return; }
     await download(b.dataset.path, b.dataset.name);
   }
 }
+/*
+ * YAZMA. WebDAV'ın atomik yazma garantisi yoktur; Java tarafı önce geçici ada yazıp MOVE ile
+ * gerçek adına alır (WebDav.upload açıklamasına bakınız). Çakışma HATA DEĞİL SORUDUR: sunucuda
+ * aynı adlı dosya varsa Java {exists:true} döner, burada kullanıcıya üç seçenek sunulur.
+ */
+async function uploadDo(args, ad) {
+  if (!nav.acc) return;
+  const bar = (done, total) => api.toast(t('webdavUpload') + ': ' + ad + (total > 0 ? '  %' + Math.round(100 * done / total) : ''), 60000);
+  bar(0, 0);
+  try {
+    let r = await wd('upload', { id: nav.acc.id, path: nav.path, name: ad, ...args }, bar);
+    if (r && r.exists) {
+      const sec = await askChoice(t('webdavExists') + ': ' + ad, [
+        ['over', t('webdavOverwrite')], ['rename', t('webdavRename')], ['cancel', t('cancel')]]);
+      if (!sec || sec === 'cancel') { api.toast(''); return; }
+      if (sec === 'rename') {
+        const yeni = await askText(t('webdavRename'), ad);
+        if (!yeni) { api.toast(''); return; }
+        return uploadDo(args, String(yeni).trim());
+      }
+      bar(0, 0);
+      r = await wd('upload', { id: nav.acc.id, path: nav.path, name: ad, overwrite: true, ...args }, bar);
+    }
+    api.toast(t('webdavUploaded') + ': ' + (r && r.name ? r.name : ad), { type: 'ok' });
+    list();
+  } catch (e) { api.toast(t('webdavNoWrite') + ': ' + (e.message || e), { type: 'error', ms: 7000 }); }
+}
+/** Üç seçenekli kutu; askForm'un select alanıyla kurulur (ayrı bir bileşen yazılmaz) */
+async function askChoice(label, opts) {
+  const v = await askForm(label, [{ id: 'k', label: '', type: 'select', value: opts[0][0], options: opts }], { ok: t('ok') });
+  return v ? v.k : null;
+}
+async function uploadMenu() {
+  if (!gate('webdavWrite')) return;
+  if (!nav.acc) return;
+  const has = !!(S && S.hasDoc);
+  const html = `<div class="full btns">${has ? `<button type="button" class="btn small primary" id="wuCur">${esc(tt('uploadCurrent', 'Geçerli dosyayı yükle'))} (${esc(S.fileName)})</button>` : ''}`
+    + `<button type="button" class="btn small" id="wuPick">${esc(tt('uploadPick', 'Cihazdan dosya seç ve yükle'))}</button></div>`
+    + `<div class="full muted">${esc(tt('uploadTarget', 'Hedef'))}: ${esc(nav.acc.name || nav.acc.url)}${esc(nav.path)}</div>`;
+  api.openDoc(t('webdavUpload'), html);
+  if ($('wuCur')) $('wuCur').onclick = () => { api.hide('docPanel'); uploadDo({ src: 'current' }, S.fileName); };
+  $('wuPick').onclick = () => { api.hide('docPanel'); if (api.pickForCloud) api.pickForCloud('webdav'); else api.toast(tt('uploadPick', 'Cihazdan dosya seç ve yükle')); };
+}
+async function newFolder() {
+  if (!gate('webdavWrite')) return;
+  if (!nav.acc) return;
+  const ad = await askText(t('webdavNewFolder'), '');
+  if (!ad || !String(ad).trim()) return;
+  try { await wd('mkdir', { id: nav.acc.id, path: nav.path, name: String(ad).trim() }); api.toast(tt('folderCreated', 'Klasör oluşturuldu'), { type: 'ok' }); list(); }
+  catch (e) { api.toast(t('webdavNoWrite') + ': ' + (e.message || e), { type: 'error', ms: 7000 }); }
+}
+function itemMenu(it) {
+  const d = it.dataset;
+  const html = `<div class="full"><strong>${esc(d.name)}</strong></div><div class="full btns">`
+    + (d.dir === '1' ? '' : `<button type="button" class="btn small primary" id="wmOpen">${esc(t('open'))}</button>`)
+    + `<button type="button" class="btn small" id="wmRen"${lockAttr('webdavWrite')}>${esc(t('webdavRename'))}</button>`
+    + `<button type="button" class="btn small" id="wmDel"${lockAttr('webdavWrite')}>${esc(t('delete'))}</button></div>`;
+  api.openDoc(d.dir === '1' ? tt('folder', 'Klasör') : tt('driveFile', 'Dosya'), html);
+  if ($('wmOpen')) $('wmOpen').onclick = () => { api.hide('docPanel'); download(d.path, d.name); };
+  $('wmRen').onclick = async () => {
+    api.hide('docPanel');
+    if (!gate('webdavWrite')) return;
+    const yeni = await askText(t('webdavRename'), d.name);
+    if (!yeni || String(yeni).trim() === d.name) return;
+    const ust = d.path.slice(0, d.path.replace(/\/$/, '').lastIndexOf('/') + 1);
+    try { await wd('move', { id: nav.acc.id, from: d.path, to: ust + String(yeni).trim(), overwrite: false }); api.toast(tt('renamed', 'Yeniden adlandırıldı'), { type: 'ok' }); list(); }
+    catch (e) { api.toast(t('webdavNoWrite') + ': ' + (e.message || e), { type: 'error', ms: 7000 }); }
+  };
+  $('wmDel').onclick = async () => {
+    api.hide('docPanel');
+    if (!gate('webdavWrite')) return;
+    if (!(await askConfirm(tt('confirmDelete', 'Silinsin mi?') + ' ' + d.name))) return;
+    try { await wd('delete', { id: nav.acc.id, path: d.path }); api.toast(t('webdavDeleted'), { type: 'ok' }); list(); }
+    catch (e) { api.toast(t('webdavNoWrite') + ': ' + (e.message || e), { type: 'error', ms: 7000 }); }
+  };
+}
+/** Dışarıdan çağrılır (app.js dosya seçici sonucu): seçilen içeriği geçerli klasöre yükler */
+export function uploadBytes(b64, name) { return uploadDo({ b64 }, name); }
 async function download(path, name) {
   if (!nav.acc) return;
   api.toast(tt('downloading', 'İndiriliyor') + ': ' + name, 60000);

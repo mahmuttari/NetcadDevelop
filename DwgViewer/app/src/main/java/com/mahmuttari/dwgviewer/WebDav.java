@@ -132,6 +132,83 @@ public class WebDav {
         } finally { conn.disconnect(); }
     }
 
+    /*
+     * YÜKLEME. Çakışma ve kısmi yükleme sözleşmesi:
+     *
+     * ÇAKIŞMA hata değil SORUDUR. Hedefte aynı adlı dosya varsa ve overwrite=false ise
+     * {"exists":true, path, size, time} döner; JS bunu görüp kullanıcıya "üzerine yaz / yeniden
+     * adlandır / vazgeç" kutusu açar. IOException atmak yanlış olurdu: kullanıcı bir karar
+     * vermelidir, bir hatayla karşılaşmamalıdır.
+     *
+     * KISMİ YÜKLEME. WebDAV'ın atomik yazma garantisi YOKTUR: bağlantı ortasında koparsa sunucuda
+     * yarım dosya kalabilir. Bu yüzden önce geçici ada (.<ad>.yukleniyor) yazılır, başarıyla
+     * bittikten sonra MOVE ile gerçek adına alınır. MOVE aynı sunucu içinde olduğu için çoğu
+     * sunucuda atomiktir. Yükleme yarıda kalırsa geçici ad silinmeye çalışılır; silinemezse
+     * kullanıcının gerçek dosyası yine de bozulmamıştır — sözleşmenin asıl amacı budur.
+     */
+    public String upload(String id, String dirPath, String name, java.io.File src, boolean overwrite, Progress pr) throws Exception {
+        WebDavClient c = client(id);
+        String dir = dirPath == null || dirPath.isEmpty() ? "/" : dirPath;
+        if (!dir.endsWith("/")) dir += "/";
+        String nm = safeName(name);
+        String hedef = dir + nm;
+        if (!overwrite && c.statOrNull(hedef) != null) {
+            return new JSONObject().put("exists", true).put("path", hedef).put("name", nm).toString();
+        }
+        String gecici = dir + "." + nm + ".yukleniyor";
+        long len = src.length();
+        boolean tasindi = false;
+        try {
+            try (InputStream in = new java.io.FileInputStream(src)) { c.put(gecici, in, len, mimeOf(nm), false, pr); }
+            c.move(gecici, hedef, true);
+            tasindi = true;
+        } finally {
+            if (!tasindi) { try { c.del(gecici); } catch (Exception ignored) { } }
+        }
+        return new JSONObject().put("ok", true).put("path", hedef).put("name", nm).put("size", len).toString();
+    }
+    /** Klasör oluşturur; zaten varsa sessizce başarılı sayılır (MKCOL 405). */
+    public String mkdir(String id, String path, String name) throws Exception {
+        WebDavClient c = client(id);
+        String dir = path == null || path.isEmpty() ? "/" : path;
+        if (!dir.endsWith("/")) dir += "/";
+        String p = dir + safeName(name);
+        c.mkcol(p);
+        return new JSONObject().put("ok", true).put("path", p + "/").toString();
+    }
+    /** Dosya ya da klasör siler. */
+    public String delete(String id, String path) throws Exception {
+        client(id).del(path);
+        return new JSONObject().put("ok", true).put("path", path).toString();
+    }
+    /** Taşır / yeniden adlandırır. */
+    public String move(String id, String from, String to, boolean overwrite) throws Exception {
+        client(id).move(from, to, overwrite);
+        return new JSONObject().put("ok", true).put("path", to).toString();
+    }
+    /** Yol var mı: {"exists":true|false} */
+    public String stat(String id, String path) throws Exception {
+        return new JSONObject().put("exists", client(id).statOrNull(path) != null).put("path", path).toString();
+    }
+    /** Dosya adından yol ayracı ve sunucuyu şaşırtan karakterleri atar */
+    static String safeName(String name) {
+        String n = name == null ? "" : name.trim().replace("\\", "/");
+        int i = n.lastIndexOf('/');
+        if (i >= 0) n = n.substring(i + 1);
+        n = n.replaceAll("[\\u0000-\\u001f]", "").trim();
+        if (n.isEmpty() || n.equals(".") || n.equals("..")) n = "dosya";
+        return n.length() > 180 ? n.substring(0, 180) : n;
+    }
+    static String mimeOf(String name) {
+        String l = name.toLowerCase(java.util.Locale.ROOT);
+        if (l.endsWith(".dwg")) return "image/vnd.dwg";
+        if (l.endsWith(".dxf")) return "image/vnd.dxf";
+        if (l.endsWith(".pdf")) return "application/pdf";
+        if (l.endsWith(".png")) return "image/png";
+        if (l.endsWith(".csv")) return "text/csv";
+        return "application/octet-stream";
+    }
+
     /** Bağlantı sınaması (PROPFIND Depth:0); {ok:true} ya da IOException */
     public String test(String url, String user, String pass) throws Exception {
         WebDavClient c = new WebDavClient(url, user, pass);

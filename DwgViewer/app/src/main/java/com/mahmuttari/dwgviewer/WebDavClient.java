@@ -273,7 +273,86 @@ final class WebDavClient {
         return c;
     }
 
+    // ---- yazma (PUT · MKCOL · MOVE · DELETE) ----------------------------------------------
+    /*
+     * PUT standart bir yöntemdir ve HttpURLConnection onu kabul eder — PROPFIND'i engelleyen
+     * ProtocolException duvarı burada YOKTUR. Bu yüzden raw() kullanılmaz: raw() gövdeyi byte[]
+     * ister ve 30 MB'lık bir DWG'yi yığına alırdı; burada akış doğrudan sokete yazılır.
+     * onlyIfAbsent=true iken "If-None-Match: *" gönderilir; sunucu destekliyorsa var olan dosya
+     * 412 ile korunur. Destek garantisi olmadığı için üst katman ayrıca stat() ile de bakar.
+     */
+    void put(String relPath, java.io.InputStream in, long len, String contentType, boolean onlyIfAbsent, WebDav.Progress pr) throws IOException {
+        HttpURLConnection c = (HttpURLConnection) new URL(resolve(relPath)).openConnection();
+        c.setRequestMethod("PUT");
+        c.setInstanceFollowRedirects(false);
+        c.setConnectTimeout(TIMEOUT); c.setReadTimeout(120000);      // yükleme okumadan uzun sürebilir
+        c.setRequestProperty("Authorization", authHeader());
+        c.setRequestProperty("User-Agent", UA);
+        c.setRequestProperty("Content-Type", contentType == null || contentType.isEmpty() ? "application/octet-stream" : contentType);
+        if (onlyIfAbsent) c.setRequestProperty("If-None-Match", "*");
+        c.setDoOutput(true);
+        if (len >= 0) c.setFixedLengthStreamingMode(len); else c.setChunkedStreamingMode(0);
+        long done = 0;
+        try (OutputStream out = c.getOutputStream()) {
+            byte[] buf = new byte[64 * 1024];
+            int n;
+            while ((n = in.read(buf)) > 0) {
+                out.write(buf, 0, n);
+                done += n;
+                if (pr != null) pr.at(done, len);
+            }
+            out.flush();
+        }
+        int code = c.getResponseCode();
+        if (code >= 300) {
+            byte[] body = new byte[0];
+            try (InputStream es = c.getErrorStream()) { if (es != null) { ByteArrayOutputStream bo = new ByteArrayOutputStream(); copyAll(es, bo); body = bo.toByteArray(); } } catch (IOException ignored) { }
+            c.disconnect();
+            throw writeError(code, c.getHeaderField("Location"), body);
+        }
+        c.disconnect();
+    }
+    /** Klasör oluşturur. 405 = klasör ZATEN VAR; bu bir hata değildir, sessizce döner. */
+    void mkcol(String relPath) throws IOException {
+        String p = relPath.endsWith("/") ? relPath : relPath + "/";
+        Response r = raw("MKCOL", resolve(p), new LinkedHashMap<>(), null);
+        if (r.code == 405) return;
+        if (r.code >= 300) throw writeError(r.code, r.header("location"), r.body);
+    }
+    /** Taşıma / yeniden adlandırma. Destination MUTLAK adrestir (RFC 4918). */
+    void move(String fromRel, String toRel, boolean overwrite) throws IOException {
+        Map<String, String> h = new LinkedHashMap<>();
+        h.put("Destination", resolve(toRel));
+        h.put("Overwrite", overwrite ? "T" : "F");
+        Response r = raw("MOVE", resolve(fromRel), h, null);
+        if (r.code >= 300) throw writeError(r.code, r.header("location"), r.body);
+    }
+    /** Siler. 404 = zaten yok; bu bir hata değildir. */
+    void del(String relPath) throws IOException {
+        Response r = raw("DELETE", resolve(relPath), new LinkedHashMap<>(), null);
+        if (r.code == 404) return;
+        if (r.code >= 300) throw writeError(r.code, r.header("location"), r.body);
+    }
+    /** Yol var mı: PROPFIND Depth:0. Yoksa null, varsa yanıtın kendisi. */
+    Response statOrNull(String relPath) {
+        try { return propfind(relPath, 0); } catch (IOException e) { return null; }
+    }
+
     // ---- hata ----------------------------------------------------------------------------
+    /*
+     * Yazma yolunun hata metinleri okuma yolundan AYRIDIR. 404/405 okumada "WebDAV adresi
+     * bulunamadı" demek doğrudur; yazmada yanlış yönlendirir — 405 orada "sunucu bu işlemi
+     * desteklemiyor", 409 ise "üst klasör yok" demektir.
+     */
+    static IOException writeError(int code, String location, byte[] body) {
+        if (code == 403) return new IOException("Sunucu yazmaya izin vermiyor; hesabın bu klasörde yazma yetkisi yok (HTTP 403)");
+        if (code == 405) return new IOException("Sunucu bu işlemi desteklemiyor (HTTP 405)");
+        if (code == 409) return new IOException("Üst klasör yok (HTTP 409); önce klasörü oluşturun");
+        if (code == 412) return new IOException("Aynı adlı dosya zaten var (HTTP 412)");
+        if (code == 423) return new IOException("Dosya kilitli (HTTP 423)");
+        if (code == 507) return new IOException("Sunucuda yer yok (HTTP 507)");
+        return error(code, location, body);
+    }
     static IOException error(int code, String location, byte[] body) {
         if (code == 401) return new IOException("Kullanıcı adı ya da parola hatalı");
         if (code == 403) return new IOException("Erişim reddedildi (HTTP 403); hesabın bu klasöre yetkisi yok");

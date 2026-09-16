@@ -11,7 +11,7 @@
 import { S, store, fmt } from './state.js';
 import { t } from './i18n.js';
 import { kindOf, iconFor } from './docs.js';
-import { askText, askConfirm } from './dialog.js';
+import { askText, askConfirm, askForm } from './dialog.js';
 import { gate } from './edition.js';
 import { skelList, emptyBox } from './skel.js';
 
@@ -60,6 +60,15 @@ export function call(op, args = {}, onProgress) {
 }
 export function onDrive(reqId, ok, json) {
   const p = pending.get(reqId); if (!p) return; pending.delete(reqId);
+  /*
+   * Yanıt DİZE gelirse ayrıştırılır. Java köprüsü JSON'u JS çağrısının içine ham olarak
+   * yazdığı için üretimde nesne gelir; ama dize geldiğinde alan okuması sessizce yanlış
+   * sonuç verir — 's'.link JavaScript'in eski String.prototype.link metodudur ve
+   * undefined yerine bir İŞLEV döndürür, yani "if (link)" doğru çıkar ve ekrana
+   * "function link() { [native code] }" basılır. cloud.js onWebDav bunu zaten yapıyordu;
+   * iki köprü aynı davranmalıdır.
+   */
+  if (ok && typeof json === 'string') { try { json = JSON.parse(json); } catch (_) { /* ham dize */ } }
   if (ok) p.resolve(json); else p.reject(new Error(typeof json === 'string' ? json : JSON.stringify(json)));
 }
 export function onProgress(reqId, done, total) { const p = pending.get(reqId); if (p && p.onProgress) p.onProgress(done, total); }
@@ -191,12 +200,69 @@ async function openFile(d) {
 function fileMenu(it) {
   if (!it) return;
   const d = it.dataset;
-  const html = `<div class="full"><strong>${esc(d.name)}</strong></div><div class="full btns"><button type="button" class="btn small primary" id="dmOpen">${esc(t('open'))}</button><button type="button" class="btn small" id="dmKeep">${esc(tt('docKeep', 'Çevrimdışı sakla'))}</button>${d.link ? `<button type="button" class="btn small" id="dmLink">${esc(tt('openInDrive', "Drive'da aç"))}</button>` : ''}<button type="button" class="btn small" id="dmDel">${esc(t('delete'))}</button></div>`;
+  const html = `<div class="full"><strong>${esc(d.name)}</strong></div><div class="full btns"><button type="button" class="btn small primary" id="dmOpen">${esc(t('open'))}</button><button type="button" class="btn small" id="dmKeep">${esc(tt('docKeep', 'Çevrimdışı sakla'))}</button>${d.link ? `<button type="button" class="btn small" id="dmLink">${esc(tt('openInDrive', "Drive'da aç"))}</button>` : ''}<button type="button" class="btn small" id="dmShare">${esc(t('driveShare'))}</button><button type="button" class="btn small" id="dmDel">${esc(t('delete'))}</button></div>`;
   api.openDoc(tt('driveFile', 'Drive dosyası'), html);
   $('dmOpen').onclick = () => { api.hide('docPanel'); openFile(d); };
   $('dmKeep').onclick = async () => { api.hide('docPanel'); try { const info = await call('download', { id: d.id, name: d.name, mime: d.mime, size: +d.size || 0 }); if (A() && A().docKeep) A().docKeep(info.id); api.toast(tt('docKept', 'Çevrimdışı kopya alındı (Dosya Aç › Çevrimdışı)'), { type: 'ok' }); } catch (e) { api.toast(friendly(e.message), { type: 'error' }); } };
   if ($('dmLink')) $('dmLink').onclick = () => { api.hide('docPanel'); if (A() && A().openUrl) A().openUrl(d.link); else window.open(d.link, '_blank'); };
+  $('dmShare').onclick = () => { api.hide('docPanel'); shareDialog({ id: d.id, name: d.name, link: d.link || '' }); };
   $('dmDel').onclick = async () => { api.hide('docPanel'); if (!(await askConfirm(tt('confirmDelete', 'Silinsin mi?') + ' ' + d.name))) return; try { await call('delete', { id: d.id }); api.toast(tt('deleted', 'Silindi')); load(); } catch (e) { api.toast(friendly(e.message), { type: 'error' }); } };
+}
+/*
+ * PAYLAŞIM. Drive'da bir dosyaya izin oluşturur ve bağlantısını verir. İki seçenek vardır:
+ * "bağlantısı olan herkes" (type=anyone) ve "belirli bir kişi" (type=user + e-posta).
+ * E-posta YALNIZ Google'a gider; uygulamada saklanmaz, hiçbir yere kaydedilmez.
+ * Uygulama kendiliğinden hiçbir dosyayı paylaşmaz — bu kutu ancak kullanıcı "Paylaş" dediğinde açılır.
+ * Var olan izinler listelenir ve tek tek kaldırılabilir; uygulamanın oluşturmadığı izinler de görünür
+ * ama silme kararı her zaman kullanıcınındır.
+ */
+export async function shareDialog(f) {
+  if (!f || !f.id) return;
+  if (!gate('driveShare')) return;
+  const v = await askForm(t('driveShare') + ' — ' + f.name, [
+    { id: 'who', label: t('driveShareWho'), type: 'select', value: 'anyone',
+      options: [['anyone', t('driveShareAnyone')], ['user', t('driveSharePerson')]] },
+    { id: 'email', label: t('driveShareEmail'), value: '' },
+    { id: 'role', label: t('driveShareRole'), type: 'select', value: 'reader',
+      options: [['reader', t('driveShareReader')], ['writer', t('driveShareWriter')]] },
+  ], { ok: t('driveShare') });
+  if (!v) return;
+  const who = v.who === 'user' ? 'user' : 'anyone';
+  const email = String(v.email || '').trim();
+  if (who === 'user' && !email) { api.toast(t('driveShareEmailNeed'), { type: 'warn' }); return; }
+  if (who === 'anyone' && !(await askConfirm(t('driveShareWarn')))) return;
+  try {
+    const r = await call('share', { id: f.id, type: who, role: v.role === 'writer' ? 'writer' : 'reader', email, notify: who === 'user' });
+    const link = r.link || f.link || '';
+    api.openDoc(t('driveShare'), `<div class="full"><strong>${esc(f.name)}</strong></div>`
+      + `<div class="full">${esc(who === 'anyone' ? t('driveShareAnyone') : t('driveSharePerson') + ': ' + email)} · ${esc(v.role === 'writer' ? t('driveShareWriter') : t('driveShareReader'))}</div>`
+      + (link ? `<div class="full" style="word-break:break-all">${esc(link)}</div>` : '')
+      + `<div class="full btns">${link ? `<button type="button" class="btn small primary" id="shCopy">${esc(tt('copyClip', 'Panoya kopyala'))}</button>` : ''}`
+      + `<button type="button" class="btn small" id="shList">${esc(t('driveShareList'))}</button></div>`);
+    if ($('shCopy')) $('shCopy').onclick = () => { if (A() && A().copy) A().copy(link); api.toast(tt('copied', 'Kopyalandı')); };
+    $('shList').onclick = () => { api.hide('docPanel'); shareList(f); };
+    api.toast(t('driveShareDone'), { type: 'ok' });
+  } catch (e) { api.toast(t('driveShareFail') + ': ' + friendly(e.message), { type: 'error', ms: 6000 }); }
+}
+/** Dosyanın izin listesi; her satırın yanında kaldırma düğmesi (sahip izni kaldırılamaz) */
+export async function shareList(f) {
+  if (!gate('driveShare')) return;
+  try {
+    const r = await call('permissions', { id: f.id });
+    const ps = (r && r.permissions) || [];
+    const kim = (p) => p.displayName || p.emailAddress || (p.type === 'anyone' ? t('driveShareAnyone') : p.type);
+    const html = `<div class="full"><strong>${esc(f.name)}</strong></div>`
+      + (ps.length ? ps.map(p => `<div class="item" data-pid="${esc(p.id)}">${esc(kim(p))}<small>${esc(p.role)} · ${esc(p.type)}</small>`
+        + (p.role === 'owner' ? '' : `<a href="#" data-off="${esc(p.id)}">${esc(t('driveShareOff'))}</a>`) + '</div>').join('')
+        : `<div class="muted">${esc(t('noResult'))}</div>`);
+    api.openDoc(t('driveShareList'), html);
+    $('docBody').onclick = async (ev) => {
+      const a2 = ev.target.closest('[data-off]'); if (!a2) return;
+      ev.preventDefault();
+      try { await call('unshare', { id: f.id, permissionId: a2.dataset.off }); api.toast(t('driveShareOffDone'), { type: 'ok' }); api.hide('docPanel'); }
+      catch (e) { api.toast(friendly(e.message), { type: 'error' }); }
+    };
+  } catch (e) { api.toast(friendly(e.message), { type: 'error', ms: 6000 }); }
 }
 // ---- yükleme -------------------------------------------------------------------------
 function uploadMenu() {

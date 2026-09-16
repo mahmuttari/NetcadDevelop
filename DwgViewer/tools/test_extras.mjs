@@ -283,12 +283,14 @@ ok('7f çip metni kutuya eklendi', chips.v1 === chips.word, `${chips.v1} / ${chi
 ok('7g ikinci dokunuş boşlukla ekliyor', chips.v2 === chips.word + ' ' + chips.word, chips.v2);
 ok('7h onaylanan değer geri döndü', chips.res === chips.v2, String(chips.res));
 
-// ---- 8. Yetki: yüzey ölçüsü Super, metin çıkarma Premium ----------------------------------------
+// ---- 8. Yetki: yüzey ölçüsü ve metin çıkarma Premium --------------------------------------------
+// area3d v7.48'de Super'den Premium'a indi: rakip (DWG FastView) "Lateral Area"yı mobil
+// Premium listesinde veriyor; aynı parayı ödeyen kullanıcının bizde daha azını alması doğru değil.
 const tiers = await page.evaluate(async () => {
   const Ed = await import('./edition.js');
   return { area: Ed.need('area3d'), text: Ed.need('textout') };
 });
-ok('8a yüzey ölçüsü Super', tiers.area === 'super', tiers.area);
+ok('8a yüzey ölçüsü Premium (rakiple hizalandı)', tiers.area === 'premium', tiers.area);
 ok('8b metin çıkarma Premium', tiers.text === 'premium', tiers.text);
 
 await page.screenshot({ path: `${out}/extras.png` });

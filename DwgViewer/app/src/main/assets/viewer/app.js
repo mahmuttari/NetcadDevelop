@@ -3178,6 +3178,7 @@ window.dwgApp = { loadCurrent, onFilePicked, onLocation, onBack, onBackSystem, l
   docs: Docs, drive: Drive, onGoogle: (ok, json) => Drive.onGoogle(ok, json), onDrive: (id, ok, json) => Drive.onDrive(id, ok, json), onDriveProgress: (id, d, tot) => Drive.onProgress(id, d, tot), openDrive: () => Drive.open(),
   open: Open, openCenter: (tab) => Open.open(tab), onFsRoot: (obj) => Open.onFsRoot(obj), onFs: (id, ok, json) => Open.onFs(id, ok, json),
   home: Home, cloud: Cloud, openSample, refreshResume: () => Home.renderResume(), onWebDav: (id, ok, json) => Cloud.onWebDav(id, ok, json), goHome, refreshMenu,
+  onWebDavProgress: (id, d, tot) => Cloud.onProgress(id, d, tot),
   edition: () => Ed.tier(), tier: () => Ed.tier(), has: (id) => Ed.has(id), isPro: () => Ed.isPro(), openProPanel: (x) => Ed.openProPanel(x), proInfo: () => Ed.proInfo(), onEdition: (ed, reason) => Ed.onEdition(String(ed || ''), String(reason || '')), onAd: (reason, shown) => Ed.onAd(String(reason || ''), !!shown), __ads: Ed.__ads,
   // sınama kancaları: çok sayfalı PDF kurucusu, metin toplayıcı ve ölçüm dökümü
   __pdf: { build: (pages, wmm, hmm, title) => buildPdf(pages, wmm, hmm, title) },

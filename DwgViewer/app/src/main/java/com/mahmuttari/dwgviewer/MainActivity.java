@@ -1543,6 +1543,10 @@ public class MainActivity extends androidx.activity.ComponentActivity {
                         case "about": out = google.about(); break;
                         case "mkdir": out = google.createFolder(a.getString("name"), a.optString("parent", "root")); break;
                         case "delete": google.delete(a.getString("id")); out = "{}"; break;
+                        // Paylaşım: izin oluşturma, izin listesi ve izni kaldırma (kapsam değişmedi, drive kapsamı yeter)
+                        case "share": out = google.share(a.getString("id"), a.optString("type", "anyone"), a.optString("role", "reader"), a.optString("email", ""), a.optBoolean("notify", false)); break;
+                        case "permissions": out = google.permissions(a.getString("id")); break;
+                        case "unshare": google.unshare(a.getString("id"), a.getString("permissionId")); out = "{}"; break;
                         case "download": {
                             File f = google.download(a.getString("id"), a.optString("name", "dosya"), a.optString("mime", ""), docs.cacheDir("drive"),
                                     (done, total) -> js("window.dwgApp && window.dwgApp.onDriveProgress(" + JSONObject.quote(reqId) + "," + done + "," + total + ")"));
@@ -1600,6 +1604,33 @@ public class MainActivity extends androidx.activity.ComponentActivity {
          * "download" {id,path,name} → docs.info {id,name,size,ext} (ilerleme: dwgApp.onWebDavProgress(reqId, done, total));
          * "test" {url,user,pass} → {ok:true,url}. Hatada ok=false, json = ileti (JSON dizesi).
          */
+        /*
+         * Yüklenecek dosyanın kaynağı üç biçimde gelebilir:
+         *   {docId}  → çevrimdışı belge deposundaki dosya (Docs)
+         *   {b64}    → JS'in ürettiği içerik (PDF, PNG, DXF, CSV) — geçici dosyaya yazılır
+         *   başka    → o an açık olan dosya (currentFile ya da currentUri'nin önbellek kopyası)
+         * JS'in 30 MB'lık bir DWG'yi base64'e çevirmesi gerekmez; açık dosya doğrudan kullanılır.
+         */
+        private File uploadSource(JSONObject a) throws IOException {
+            String fileId = a.optString("fileId", "");
+            if (!fileId.isEmpty()) { File f = docs.file(fileId); if (f != null && f.exists()) return f; }
+            String b64 = a.optString("b64", "");
+            if (!b64.isEmpty()) {
+                byte[] bytes = Base64.decode(b64, Base64.DEFAULT);
+                File tmp = new File(docs.cacheDir("webdav"), "yukleme_" + System.currentTimeMillis());
+                try (FileOutputStream o = new FileOutputStream(tmp)) { o.write(bytes); }
+                return tmp;
+            }
+            if (currentFile != null && currentFile.exists()) return currentFile;
+            // Sağlayıcıdan gelen içerik: uzunluk PUT için gerektiğinden önce önbelleğe alınır
+            if (currentUri != null) {
+                try (InputStream in = getContentResolver().openInputStream(currentUri)) {
+                    if (in == null) return null;
+                    return docs.file(docs.importStream(in, currentName).getString("id"));
+                } catch (Exception e) { throw new IOException("dosya açılamadı"); }
+            }
+            return null;
+        }
         @JavascriptInterface
         public void wd(String reqId, String op, String argsJson) {
             bg.execute(() -> {
@@ -1613,6 +1644,19 @@ public class MainActivity extends androidx.activity.ComponentActivity {
                                     (done, total) -> js("window.dwgApp && window.dwgApp.onWebDavProgress && window.dwgApp.onWebDavProgress(" + JSONObject.quote(reqId) + "," + done + "," + total + ")")).toString();
                             break;
                         case "test": out = webdav.test(a.optString("url"), a.optString("user"), a.optString("pass")); break;
+                        // Yazma: yükleme, klasör, silme, taşıma ve varlık denetimi
+                        case "upload": {
+                            java.io.File src = uploadSource(a);
+                            if (src == null) throw new IOException("yüklenecek dosya bulunamadı");
+                            out = webdav.upload(a.optString("id"), a.optString("path", "/"), a.optString("name", src.getName()), src,
+                                    a.optBoolean("overwrite", false),
+                                    (done, total) -> js("window.dwgApp && window.dwgApp.onWebDavProgress && window.dwgApp.onWebDavProgress(" + JSONObject.quote(reqId) + "," + done + "," + total + ")"));
+                            break;
+                        }
+                        case "mkdir": out = webdav.mkdir(a.optString("id"), a.optString("path", "/"), a.getString("name")); break;
+                        case "delete": out = webdav.delete(a.optString("id"), a.getString("path")); break;
+                        case "move": out = webdav.move(a.optString("id"), a.getString("from"), a.getString("to"), a.optBoolean("overwrite", false)); break;
+                        case "stat": out = webdav.stat(a.optString("id"), a.getString("path")); break;
                         default: throw new IOException("bilinmeyen işlem: " + op);
                     }
                 } catch (Throwable e) {

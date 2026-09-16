@@ -258,6 +258,52 @@ public class GoogleDrive {
         if (code >= 400) throw new IOException(errorOf(c, code));
         c.disconnect();
     }
+    /*
+     * PAYLAŞIM. Drive v3 permissions.create. Kapsam sorusu: GoogleDrive.java'nın istediği
+     * https://www.googleapis.com/auth/drive kapsamı permissions.create'i ZATEN içerir; yeni
+     * kapsam gerekmez, dolayısıyla Google onay ekranı değişmez ve yeniden doğrulama gerekmez.
+     * (drive.file olsaydı yalnız uygulamanın oluşturduğu dosya paylaşılabilirdi; gezginde
+     * görülen eski bir pafta paylaşılamazdı.)
+     *
+     * type: "anyone" (bağlantısı olan herkes) ya da "user" (belirli e-posta).
+     * role: "reader" ya da "writer".
+     * sendNotificationEmail yalnız "user" türünde anlamlıdır; "anyone" ile gönderilirse Drive
+     * 400 döndürür, o yüzden koşullu yazılır.
+     */
+    public String share(String fileId, String type, String role, String email, boolean notify) throws IOException {
+        String ty = "user".equals(type) ? "user" : "anyone";
+        String rl = "writer".equals(role) ? "writer" : "reader";
+        JSONObject body = new JSONObject();
+        try {
+            body.put("type", ty); body.put("role", rl);
+            if ("user".equals(ty)) body.put("emailAddress", email == null ? "" : email.trim());
+        } catch (Exception ignored) { }
+        if ("user".equals(ty) && (email == null || email.trim().isEmpty())) throw new IOException("e-posta adresi gerekiyor");
+        String url = API + "files/" + enc(fileId) + "/permissions?supportsAllDrives=true&fields=" + enc("id,type,role")
+                + ("user".equals(ty) ? "&sendNotificationEmail=" + notify : "&sendNotificationEmail=false");
+        String perm = post(url, body.toString(), "application/json; charset=UTF-8", accessToken());
+        // İzin kimliğinin yanında paylaşılabilir bağlantıyı da döndür: JS tarafı ikinci istek atmasın
+        String meta = get(API + "files/" + enc(fileId) + "?supportsAllDrives=true&fields=" + enc("id,name,webViewLink"), accessToken());
+        JSONObject out = new JSONObject();
+        try {
+            JSONObject p = new JSONObject(perm), m = new JSONObject(meta);
+            out.put("permissionId", p.optString("id", "")); out.put("type", p.optString("type", ty)); out.put("role", p.optString("role", rl));
+            out.put("id", m.optString("id", fileId)); out.put("name", m.optString("name", "")); out.put("link", m.optString("webViewLink", ""));
+        } catch (Exception e) { throw new IOException("paylaşım yanıtı okunamadı: " + perm); }
+        return out.toString();
+    }
+    /** Dosyanın izin listesi: {"permissions":[{id,type,role,emailAddress,displayName}…]} */
+    public String permissions(String fileId) throws IOException {
+        return get(API + "files/" + enc(fileId) + "/permissions?supportsAllDrives=true&fields="
+                + enc("permissions(id,type,role,emailAddress,displayName)"), accessToken());
+    }
+    /** Tek bir izni kaldırır (paylaşımı geri alma). delete() ile birebir aynı kalıp. */
+    public void unshare(String fileId, String permissionId) throws IOException {
+        HttpURLConnection c = open(API + "files/" + enc(fileId) + "/permissions/" + enc(permissionId) + "?supportsAllDrives=true", "DELETE", accessToken());
+        int code = c.getResponseCode();
+        if (code >= 400) throw new IOException(errorOf(c, code));
+        c.disconnect();
+    }
     /** Ofis belgesini Google biçimine çevirip PDF olarak indirir (geçici dosya silinir) */
     public File convertToPdf(File src, String name, String mime, File dir, Progress pr) throws IOException {
         String gtype = "application/vnd.google-apps.document";
