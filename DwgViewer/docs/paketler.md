@@ -133,6 +133,7 @@ Bu yedisi v7.28 ile kapandı; **birinci öbekte açık madde kalmadı**. Ayrınt
 | Özellik | Nerede | Kademe |
 |---|---|---|
 | Ölçülendirme: doğrusal, yatay, düşey, yarıçap, çap, açı | Açıklama sekmesi ▸ Ölçülendirme | premium |
+| Ölçü özelliklerini düzenleme (yazı, yükseklik, ok, ondalık, ön / son ek, çarpan, uzatma) — dosyadan gelen ölçüler dâhil (v7.56) | Açıklama ▸ Ölçüyü düzenle · seçim menüsü ▸ Ölçü özellikleri · `DIMEDIT` | premium |
 | Ölçümü çizime işaretleme | Açıklama ▸ Ölçümü işle | premium |
 | Revizyon bulutu | Açıklama ▸ Revizyon bulutu | premium |
 | Numaralandırma (balon, artan) | Açıklama ▸ Numaralandır | premium |
@@ -153,6 +154,16 @@ sorunsuz yazılır. Bedeli açıktır: **ilişkisel değildir** — ölçülen n
 değeri kendiliğinden güncellenmez, ve AutoCAD'de ölçü nesnesi olarak düzenlenemez.
 Parçalar `gid` ile gruplanır (biri seçilince hepsi seçilir) ve `itype: DIMENSION` damgası
 taşır, böylece "Ölçüleri gizle" süzgeci ok başlarını da gizler.
+
+**v7.56'dan itibaren uygulama içinde düzenlenebilir.** Her ölçü, DIMENSION parçasının
+`ent.def` alanında tanımını taşır (tür, tanım noktaları, yazı / ok / uzatma ölçüleri,
+ondalık, ön / son ek, çarpan, yazı geçersiz kılması); "Ölçüyü düzenle" kutusu tanımı
+değiştirip ölçüyü yeniden kurar (`replace` işlemi, tek geri alma). Taşıma, döndürme,
+ölçekleme, ayna, kopya, pano ve blok kütüphanesi tanımı da taşır. Dosyadan gelen
+`DIMENSION` varlıkları (hizalı, dönük, yarıçap, çap, açısal) ilk düzenlemede tanım
+noktalarından ve etkin ölçü stilinden çevrilir; ordinat, yay ve blok içindeki ölçü
+düzenlenemez ve bu açıkça söylenir. DXF'e yazılan yine geometridir: AutoCAD'de ölçü
+nesnesi olarak açılmaz.
 
 ### 3. Ağır — yeni altyapı ister · **v7.29'da tamamlandı**
 
@@ -299,8 +310,8 @@ Hedef kullanıcı AutoCAD kaslıdır. Rakip DWG FastView'de komut satırı **yok
 vardır ve AutoCAD adlarıyla çalışır. Bu, mağaza metninde öne çıkarılması gereken bir
 ayırt edicidir.
 
-Kapsam (v7.55): **458 kayıt, 663 ad ve kısaltma** — 157 çalışan AutoCAD adı, 31
-uygulamaya özgü ad, 270 tanınan ama bulunmayan AutoCAD komutu. Kaynak `IPARD` değil,
+Kapsam (v7.56): **458 kayıt, 663 ad ve kısaltma** — 158 çalışan AutoCAD adı, 31
+uygulamaya özgü ad, 269 tanınan ama bulunmayan AutoCAD komutu (DIMEDIT v7.56'da çalışır oldu). Kaynak `IPARD` değil,
 uygulamanın kendi `viewer/acad.js` dosyasıdır ve tektir — komut satırı, İngilizce arayüz
 etiketleri ve yardım listesi hepsi oradan okur. (v7.50'de 86 komut / 144 addı.)
 
@@ -309,14 +320,15 @@ sık kullandığı komutları yazar; POLYGON, STRETCH, PEDIT, EXTRUDE, MATCHPROP
 karşılığı olmayanlar `avail:false` ile tablodadır. Yazıldığında "bilinmeyen komut" denmez,
 bulunmadığı ve varsa en yakın karşılığı söylenir; öneri listesinde soluk durur, komut
 listesinde üçüncü bölümdedir. Bu sınıf **satılmaz**: mağaza metninde "300 AutoCAD komutu"
-denemez, doğrusu "157 çalışan AutoCAD komutu; 270 komut daha tanınır ve en yakın karşılığı
+denemez, doğrusu "158 çalışan AutoCAD komutu; 269 komut daha tanınır ve en yakın karşılığı
 söylenir"dir. "En sık kullanılan 300" sıralamasının yetkili bir kaynağı yoktur; liste
 acad.pgp kısaltma tablosu + şerit panelleri + eğitim müfredatlarından derlendi, `acad.js`
 başlığında yazar.
 
 **Kademe etkisi yok.** Komut satırı ücretsizdir; komutun kendisi hangi kademedeyse kapı
 orada çalışır (LINE yazan ücretsiz kullanıcı yükseltme kutusunu görür, bugünkü karo
-davranışının aynısı). Yetenek sayacı **76'da kaldı**: komut satırı yeni bir yetenek
+davranışının aynısı). Yetenek sayacı komut satırıyla **76'da kaldı** (v7.56'da ölçü
+özelliklerini düzenlemeyle 77): komut satırı yeni bir yetenek
 açmaz, var olanlara ikinci bir kapı verir.
 
 **Mağaza metninde dikkat edilecek üç nokta:**
@@ -329,8 +341,8 @@ açmaz, var olanlara ikinci bir kapı verir.
    ayrılan nesne — ama çizim bize aittir. Bu ayrım korunmalı; mağaza görsellerine
    Autodesk arayüzünden alınmış hiçbir parça konmamalıdır.
 3. AutoCAD'de karşılığı **olmayan** 30 yeteneğimiz komut listesinde ayrı bölümdedir ve
-   öyle kalmalıdır. "458 AutoCAD komutu" demek yanlış olur; doğrusu **"157 çalışan
-   AutoCAD komutu + 31 uygulamaya özgü komut + 270 tanınan ama bulunmayan komut"**tur.
+   öyle kalmalıdır. "458 AutoCAD komutu" demek yanlış olur; doğrusu **"158 çalışan
+   AutoCAD komutu + 31 uygulamaya özgü komut + 269 tanınan ama bulunmayan komut"**tur.
 
 ### Masaüstü kipi — YAPILDI (v7.51)
 

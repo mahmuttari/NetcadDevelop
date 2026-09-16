@@ -97,7 +97,7 @@ const TABS = [
     { cap: 'grpCur', items: [T('layer', 'i-layers', 'Katman', 'Layer', 'Geçerli katman ve yeni katman', 'Current layer'), T('color', 'i-palette', 'Renk', 'Color', 'Geçerli renk (ACI)', 'Current color')] },
     { cap: 'grpHist', items: [T('undo', 'i-undo', 'Geri al', 'Undo'), T('redo', 'i-redo', 'Yinele', 'Redo')] } ] },
   { id: 'annot', i18n: 'tabAnnot', icon: 'i-dim', groups: [
-    { cap: 'grpDim', items: [T('t:dim', 'i-dim', 'Doğrusal ölçü', 'Linear', 'İki nokta + ölçü çizgisi; eğik ölçü', 'Two points + dimension line; aligned'), T('t:dimh', 'i-dim-h', 'Yatay ölçü', 'Horizontal', 'Yatay mesafeyi ölçülendirir', 'Dimension the horizontal distance'), T('t:dimv', 'i-dim-v', 'Düşey ölçü', 'Vertical', 'Düşey mesafeyi ölçülendirir', 'Dimension the vertical distance'), T('t:dimr', 'i-radius', 'Yarıçap', 'Radius', 'Daire ya da yaya dokunun', 'Tap a circle or arc'), T('t:dimd', 'i-diameter', 'Çap', 'Diameter', 'Daire ya da yaya dokunun', 'Tap a circle or arc'), T('t:dima', 'i-angle', 'Açı ölçüsü', 'Angular', 'Tepe + iki kol', 'Vertex + two arms')] },
+    { cap: 'grpDim', items: [T('t:dim', 'i-dim', 'Doğrusal ölçü', 'Linear', 'İki nokta + ölçü çizgisi; eğik ölçü', 'Two points + dimension line; aligned'), T('t:dimh', 'i-dim-h', 'Yatay ölçü', 'Horizontal', 'Yatay mesafeyi ölçülendirir', 'Dimension the horizontal distance'), T('t:dimv', 'i-dim-v', 'Düşey ölçü', 'Vertical', 'Düşey mesafeyi ölçülendirir', 'Dimension the vertical distance'), T('t:dimr', 'i-radius', 'Yarıçap', 'Radius', 'Daire ya da yaya dokunun', 'Tap a circle or arc'), T('t:dimd', 'i-diameter', 'Çap', 'Diameter', 'Daire ya da yaya dokunun', 'Tap a circle or arc'), T('t:dima', 'i-angle', 'Açı ölçüsü', 'Angular', 'Tepe + iki kol', 'Vertex + two arms'), T('t:dimedit', 'i-dimedit', 'Ölçüyü düzenle', 'Edit dimension', 'Ölçü yazısı, yükseklik, ok boyu, ondalık, ön / son ek, çarpan; dosyadan gelen ölçüler de', 'Dimension text, height, arrow, decimals, prefix / suffix, scale factor; file dimensions too')] },
     { cap: 'grpMark', items: [T('t:leader', 'i-leader', 'Açıklama', 'Leader', 'Ok başlı kılavuz çizgi ve yazı', 'Leader line with an arrow and text'), T('t:cloud', 'i-cloud', 'Revizyon bulutu', 'Revision cloud', 'Değişen bölgeyi bulutla çevreler', 'Cloud around a revised area'), T('t:balloon', 'i-balloon', 'Numaralandır', 'Numbering', 'Artan numaralı balon; her dokunuşta bir sonraki', 'Balloon with an auto-incrementing number'), T('t:hatch', 'i-hatch', 'Tarama', 'Hatch', 'Kapalı alanın içine dokunun, dolgu ekler', 'Tap inside a closed area to fill it'), T('hatchpat', 'i-hatch', 'Desen', 'Pattern', 'Çizilecek taramanın deseni, ölçeği ve açısı', 'Pattern, scale and angle for new hatches'), T('markdim', 'i-dim', 'Ölçümü işle', 'Mark measurement', 'Son ölçüm sonucunu açıklama olarak çizime yazar', 'Write the last measurement onto the drawing')] },
     { cap: 'grpCur', items: [T('layer', 'i-layers', 'Katman', 'Layer'), T('color', 'i-palette', 'Renk', 'Color')] },
     { cap: 'grpHist', items: [T('undo', 'i-undo', 'Geri al', 'Undo'), T('redo', 'i-redo', 'Yinele', 'Redo')] } ] },
@@ -621,6 +621,7 @@ ed.layerSet = (names, durum) => layerSet(names, durum);
 function toggleGrips() {
   ui.grips = !ui.grips;
   applyUi(); haptic('toggle'); refreshTiles(); api.drawOverlay();
+  if (ui.grips && ed.sel.size && [...ed.sel].every(p => p.info && p.info.t === 'DIMENSION')) { api.toast(t('gripsDim'), 2600); return; }
   if (ui.grips && ed.sel.size === 1) {
     const p = [...ed.sel][0];
     if (p && p.k === 0 && !Gz.vertsOf(p).length) api.toast(t('gripsTooMany'), 2200);
@@ -929,11 +930,14 @@ function showProps() {
  * tek dokunuşla uygulanır ve tek geri alma adımı üretir.
  */
 const SEL_MENU = [['del', 'i-erase'], ['copy', 'i-copyobj'], ['move', 'i-move'], ['block', 'i-block'], ['rotate', 'i-rotate'], ['mirror', 'i-mirror'], ['scale', 'i-scale'], ['color', 'i-palette'], ['ltype', 'i-ltype'], ['layer', 'i-layers'], ['props', 'i-props'], ['clear', 'i-close']];
-const selMenuLabel = (id) => ({ block: t('selMakeBlock'), color: t('color'), ltype: t('ltype'), layer: t('selChangeLayer'), clear: t('selClear'), props: tileLabel('props') }[id] || tileLabel('t:' + id));
+const selMenuLabel = (id) => ({ block: t('selMakeBlock'), color: t('color'), ltype: t('ltype'), layer: t('selChangeLayer'), clear: t('selClear'), props: tileLabel('props'), dimedit: t('dimSelMenu') }[id] || tileLabel('t:' + id));
+const selDimPrim = () => [...ed.sel].find(p => p.info && p.info.t === 'DIMENSION' && (p.info.gid || p.info.dim));
 function selMenu() {
   if (!ed.sel.size) { api.toast(t('selEmpty')); return; }
+  // seçimde ölçülendirme varsa "Ölçü özellikleri" kartı da gelir (Özellikler'in önünde)
+  const items = selDimPrim() ? [...SEL_MENU.slice(0, 10), ['dimedit', 'i-dimedit'], ...SEL_MENU.slice(10)] : SEL_MENU;
   api.openDoc(`${t('selMenuTitle')} · ${ed.sel.size} ${t('objectsN')}`,
-    `<div class="full os-grid sel-grid">${SEL_MENU.map(([id, ic]) => `<button type="button" class="os-card" data-sm="${id}"><svg class="ic" aria-hidden="true"><use href="#${ic}"/></svg><span>${esc(selMenuLabel(id))}</span></button>`).join('')}</div>`);
+    `<div class="full os-grid sel-grid">${items.map(([id, ic]) => `<button type="button" class="os-card" data-sm="${id}"><svg class="ic" aria-hidden="true"><use href="#${ic}"/></svg><span>${esc(selMenuLabel(id))}</span></button>`).join('')}</div>`);
   $('docBody').onclick = (ev) => { const b = ev.target.closest('[data-sm]'); if (!b) return; api.hide('docPanel'); selAction(b.dataset.sm); };
 }
 function selProps(o) {
@@ -978,6 +982,7 @@ function selAction(id) {
       break;
     }
     case 'props': showProps(); break;
+    case 'dimedit': { const p = selDimPrim(); if (!p) { api.toast(t('notDim')); return; } if (!gate('t:dimedit')) return; void tools.editDim(p); break; }
     case 'clear': if (tools.running && tools.active === 'select') { tools.cancel(); markActive(null); } ed.sel.clear(); api.drawOverlay(); break;
     default: break;
   }
@@ -1057,6 +1062,7 @@ function gizmoVertLayout() {
   if (!ui.grips || !gizmoOn() || ed.sel.size !== 1) return null;
   const p = [...ed.sel][0];
   if (!p || p.k !== 0) return null;
+  if (p.info && p.info.t === 'DIMENSION') return null;   // ölçü parçası tutamakla bükülmez: tanımı bozulur, "Ölçüyü düzenle" ile değişir
   const vs = Gz.vertsOf(p);
   if (!vs.length) return null;
   const VL = Gz.layoutVerts(vs, toScreen, { fs: ui.fontScale, glove: ui.glove });
@@ -1399,7 +1405,11 @@ const textH = () => Math.max(1e-6, (S.ext ? (S.ext[2] - S.ext[0]) : 100) / 200);
  */
 ed.addEnts = (ents) => {
   if (!doc || !ents || !ents.length) return false;
-  const list = ents.filter(Boolean).map(e => ({ ...e, id: newId(), layer: e.layer || ed.curLayer, color: e.color == null ? ed.curColor : e.color }));
+  // Gelen grup kimlikleri YENİLENİR (aynı gid aynı yeni gid'e): panodan iki kez yapıştırılan ölçü iki ayrı
+  // grup olsun — aynı kimliği paylaşsalar biri düzenlenince ikisi birden tek ölçüye yeniden kurulurdu
+  const gmap = new Map();
+  const gidOf = (g) => { if (!g) return undefined; if (!gmap.has(g)) gmap.set(g, newId()); return gmap.get(g); };
+  const list = ents.filter(Boolean).map(e => ({ ...e, id: newId(), ...(e.gid ? { gid: gidOf(e.gid) } : {}), layer: e.layer || ed.curLayer, color: e.color == null ? ed.curColor : e.color }));
   if (!list.length) return false;
   const ok = doc.run({ op: 'add', ents: list });
   refreshUndo(); api.requestRender();

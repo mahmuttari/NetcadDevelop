@@ -426,7 +426,10 @@ export function parseDxf(bytes, opts = {}) {
             db.tables.STYLE.entries.push({ name, handle: r.e.handle, font: s(P, 3), bigFont: s(P, 4), widthFactor: f(P, 41, 0, 1), obliqueAngle: f(P, 50) * D2R, fixedTextHeight: f(P, 40), lastHeight: f(P, 42) });
           } else if (table === 'DIMSTYLE') {
             db.tables.DIMSTYLE.entries.push({ name, handle: r.e.handle, DIMTXT: f(P, 140, 0, 2.5), DIMSCALE: f(P, 40, 0, 1), DIMASZ: f(P, 41, 0, 2.5),
-              DIMEXO: f(P, 42, 0, 0.625), DIMEXE: f(P, 44, 0, 1.25), DIMTSZ: f(P, 142), DIMGAP: f(P, 147, 0, 0.625), DIMTAD: f(P, 77), DIMSE1: f(P, 75), DIMSE2: f(P, 76), DIMSD1: f(P, 281), DIMSD2: f(P, 282) });
+              DIMEXO: f(P, 42, 0, 0.625), DIMEXE: f(P, 44, 0, 1.25), DIMTSZ: f(P, 142), DIMGAP: f(P, 147, 0, 0.625), DIMTAD: f(P, 77), DIMSE1: f(P, 75), DIMSE2: f(P, 76), DIMSD1: f(P, 281), DIMSD2: f(P, 282),
+              // yazı biçimi: ondalık (271), açısal ondalık (179; -1 = DIMDEC), uzunluk çarpanı (144), ön / son ek "<>" kalıbı (3), ondalık ayracı (278),
+              // sıfır bastırma (78) — YALNIZ kayıtta yazılıysa: varsayılan konmaz ki düzenleyici dosyanın değerini kestirimden ayırabilsin
+              ...(P[271] ? { DIMDEC: f(P, 271) } : {}), ...(P[179] ? { DIMADEC: f(P, 179) } : {}), ...(P[144] ? { DIMLFAC: f(P, 144) } : {}), ...(P[3] ? { DIMPOST: s(P, 3) } : {}), ...(P[278] ? { DIMDSEP: f(P, 278) } : {}), ...(P[78] ? { DIMZIN: f(P, 78) } : {}) });
           } else if (table === 'BLOCK_RECORD') {
             brHandles.set(name.toUpperCase(), r.e.handle);
           }

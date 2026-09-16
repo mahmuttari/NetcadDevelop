@@ -14,6 +14,7 @@
  */
 import { TAU, mul, apply, isSim, simScale, simRot, det, arcPts, ellipsePts, opsBBox, flatten, cloudOps, extrudeMesh } from './geom.js';
 import { FG, ACI } from './scene.js';
+import { transformDef } from './annot.js';
 
 const R2D = 180 / Math.PI;
 let seq = 0;
@@ -191,6 +192,14 @@ export function transformPrim(p, m, dz = 0) {
     if (p.ent.r) p.ent.r *= Math.sqrt(Math.abs(det(m)));
     if (p.ent.type === 'ARC') { const r = Math.atan2(m[1], m[0]); p.ent.a0 += r; p.ent.a1 += r; }
     if (p.ent.type === 'TEXT') p.ent.rot = (p.ent.rot || 0) + Math.atan2(m[1], m[0]);
+    if (p.ent.def) {
+      // Ölçü tanımı da taşınır / döner / ölçeklenir ki özellikler sonradan düzenlenince yeniden kurulan
+      // ölçü geometrinin yeni yerine otursun (annot.transformDef: yatay / düşey / dönük doğrultu da döner).
+      const s = Math.sqrt(Math.abs(det(m)));
+      p.ent = { ...p.ent, def: transformDef(p.ent.def, q => { const w = apply(m, q[0], q[1]); return [w[0], w[1], (q[2] || 0) + dz]; }, s, [m[0], m[1], m[2], m[3]]) };
+      // ölçülen değer de ölçeklenir (açı ölçüsü derecedir, ölçekten etkilenmez) — bilgi paneli bayat kalmasın
+      if (typeof p.ent.measure === 'number' && !(Array.isArray(p.ent.arcs) && p.ent.arcs.length)) p.ent.measure *= s;
+    }
   }
   return p;
 }
@@ -319,6 +328,19 @@ export class EditDoc {
         C.rebuild();
         return () => { for (const r of removed.reverse()) C.insert(r.p, r.at); C.rebuild(); };
       }
+      /*
+       * YENİDEN KURMA: bir grubun (ölçülendirme) eski parçaları silinir, yenileri eklenir — TEK geri
+       * alma adımı. Ölçü özellikleri düzenlenince tanımdan yeniden üretilen parçalar buradan geçer.
+       */
+      case 'replace': {
+        const ps = this.find(cmd.keys || []);
+        const removed = ps.map(p => ({ p, at: C.remove(p) }));
+        const created = [];
+        for (const ent of cmd.ents || []) { const p = entToPrim(ent, C.layers); if (p) { C.insert(p); created.push(p); } }
+        if (!removed.length && !created.length) return null;
+        C.rebuild();
+        return () => { for (const p of created) C.remove(p); for (const r of removed.slice().reverse()) C.insert(r.p, r.at); C.rebuild(); };
+      }
       case 'xform': {
         const ps = this.find(cmd.keys);
         if (!ps.length) return null;
@@ -330,7 +352,9 @@ export class EditDoc {
       case 'copy': {
         const ps = this.find(cmd.keys);
         if (!ps.length) return null;
-        const created = ps.map((p, i) => { const c = clonePrim(p); c.key = cmd.newKeys[i]; c.info = { ...p.info, h: c.key, edited: true }; if (c.ent) { c.ent = { ...c.ent, id: c.key }; } transformPrim(c, cmd.m, cmd.dz || 0); C.insert(c); return c; });
+        // Kopyalanan grup (ölçülendirme, balon) YENİ bir grup kimliği alır: kopya ile aslı birlikte seçilmesin
+        const gmap = new Map();
+        const created = ps.map((p, i) => { const c = clonePrim(p); c.key = cmd.newKeys[i]; c.info = { ...p.info, h: c.key, edited: true }; if (c.info.gid) { if (!gmap.has(c.info.gid)) gmap.set(c.info.gid, newId()); c.info.gid = gmap.get(c.info.gid); } if (c.ent) { c.ent = { ...c.ent, id: c.key, ...(c.ent.gid ? { gid: c.info.gid } : {}) }; } transformPrim(c, cmd.m, cmd.dz || 0); C.insert(c); return c; });
         C.rebuild();
         return () => { for (const p of created) C.remove(p); C.rebuild(); };
       }

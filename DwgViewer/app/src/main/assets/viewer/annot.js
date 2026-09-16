@@ -38,8 +38,11 @@ export function arrowEnt(tip, dir, a, o) {
 
 /**
  * Doğrusal ölçülendirme.
- *   kind 'aligned' ölçü çizgisi p1→p2 ile paralel · 'horizontal' yatay · 'vertical' düşey
+ *   kind 'aligned' ölçü çizgisi p1→p2 ile paralel · 'horizontal' yatay · 'vertical' düşey ·
+ *        'rotated' o.rot açısında (DXF tip 0, kod 50): ölçülen değer noktaların bu doğrultudaki izdüşümüdür
  *   q    ölçü çizgisinin geçtiği nokta (kullanıcının seçtiği üçüncü nokta)
+ *   o.gap uzatma çizgisinin ölçü noktasından boşluğu (DIMEXO) · o.ext ölçü çizgisini aşan taşma (DIMEXE);
+ *        verilmezse h × 0,25 ve h × 0,5
  * Dönüş: [DIMENSION (çizgiler), SOLID ok, SOLID ok, TEXT] — hepsi aynı gid.
  * measure alanı ölçülen uzunluğu (çizim birimi) taşır; çağıran metni buna göre biçimler.
  */
@@ -48,6 +51,7 @@ export function dimLinear(kind, p1, p2, q, o) {
   let dir;
   if (kind === 'horizontal') dir = [1, 0];
   else if (kind === 'vertical') dir = [0, 1];
+  else if (kind === 'rotated') { const r = o.rot || 0; dir = [Math.cos(r), Math.sin(r)]; }
   else { const v = sub(p2, p1); if (len(v) < 1e-12) return null; dir = unit(v); }
   const n = perp(dir);
   const off = (q[0] - p1[0]) * n[0] + (q[1] - p1[1]) * n[1];      // ölçü çizgisinin öteleme miktarı
@@ -58,13 +62,13 @@ export function dimLinear(kind, p1, p2, q, o) {
   const base = [p1[0] + n[0] * off, p1[1] + n[1] * off];
   const d1 = [base[0] + dir[0] * t1, base[1] + dir[1] * t1, p1[2] || 0];
   const d2 = [base[0] + dir[0] * t2, base[1] + dir[1] * t2, p1[2] || 0];
-  const gap = h * 0.25, ext = h * 0.5;                             // ölçü noktasıyla uzatma çizgisi arası boşluk ve taşma
+  const gap = o.gap >= 0 ? o.gap : h * 0.25, ext = o.ext >= 0 ? o.ext : h * 0.5;   // ölçü noktasıyla uzatma çizgisi arası boşluk ve taşma (DIMEXO / DIMEXE)
   const e1a = add(p1, n, Math.sign(off || 1) * gap), e1b = add(d1, n, Math.sign(off || 1) * ext);
   const e2a = add(p2, n, Math.sign(off || 1) * gap), e2b = add(d2, n, Math.sign(off || 1) * ext);
   const segs = [[e1a, e1b], [e2a, e2b], [d1, d2]];
   const inward = t2 > t1 ? dir : [-dir[0], -dir[1]];
   const ents = [
-    stamp({ type: 'DIMENSION', segs, measure }, o),
+    stamp({ type: 'DIMENSION', segs, measure, ...(o.def ? { def: o.def } : {}) }, o),   // def: tanım (kind, noktalar, yazı seçenekleri) — düzenlemede yeniden kurulur
     arrowEnt(d1, inward, a, o),
     arrowEnt(d2, [-inward[0], -inward[1]], a, o),
   ];
@@ -74,6 +78,32 @@ export function dimLinear(kind, p1, p2, q, o) {
   const tp = add(mid, perp([Math.cos(rot), Math.sin(rot)]), h * 0.35);
   ents.push(stamp({ type: 'TEXT', pts: [[tp[0], tp[1], mid[2]]], text: o.label == null ? '' : String(o.label), h, rot, ha: 1, va: 0 }, o));
   return { ents, measure };
+}
+
+/*
+ * Ölçü TANIMININ (tools.dimDefaults biçimi) dönüşmüş kopyası. Taşıma, döndürme, ölçekleme, ayna ve
+ * blok / pano yerleştirmesi tanımı da taşır ki sonradan düzenlenen ölçü geometrinin yeni yerine otursun.
+ *   pt(p)  tek noktanın dönüşümü ([x,y,z] → [x,y,z])
+ *   s      uzunluk çarpanı (yarıçap, yazı, ok, uzatma boşluğu ve taşması)
+ *   lin    doğrusal kısım [a, b, c, d] (x' = a x + c y, y' = b x + d y): yatay / düşey / dönük ölçünün
+ *          doğrultusu bununla döndürülür. Doğrultu eksenlerden birine denk gelirse yatay ya da düşey,
+ *          gelmezse 'rotated' olur — 'aligned'e düşürülmez, çünkü o ölçülen DEĞERİ değiştirirdi
+ *          (izdüşüm yerine noktalar arası uzaklık).
+ */
+export function transformDef(d, pt, s, lin) {
+  if (!d || typeof d !== 'object') return d;
+  const nd = { ...d, pts: (d.pts || []).map(pt) };
+  for (const k of ['r', 'h', 'arrow', 'exo', 'exe']) if (typeof d[k] === 'number' && d[k] > 0) nd[k] = d[k] * s;
+  if (d.kind === 'linear' && (d.sub === 'horizontal' || d.sub === 'vertical' || d.sub === 'rotated') && Array.isArray(lin)) {
+    const a0 = d.sub === 'horizontal' ? 0 : d.sub === 'vertical' ? Math.PI / 2 : (d.rot || 0);
+    const vx = Math.cos(a0), vy = Math.sin(a0);
+    const wx = lin[0] * vx + lin[2] * vy, wy = lin[1] * vx + lin[3] * vy;
+    let ang = Math.atan2(wy, wx); ang = ((ang % Math.PI) + Math.PI) % Math.PI;   // doğrultunun işareti önemsiz: [0, π)
+    if (Math.abs(Math.sin(ang)) < 1e-9) { nd.sub = 'horizontal'; nd.rot = 0; }
+    else if (Math.abs(Math.cos(ang)) < 1e-9) { nd.sub = 'vertical'; nd.rot = Math.PI / 2; }
+    else { nd.sub = 'rotated'; nd.rot = ang; }
+  }
+  return nd;
 }
 
 /** Yarıçap ya da çap ölçülendirmesi: merkezden çember üzerindeki noktaya lider + yazı */
@@ -88,7 +118,7 @@ export function dimRadial(kind, center, r, at, o) {
     : [center[0], center[1], center[2] || 0];
   const tail = [on[0] + dir[0] * h * 2, on[1] + dir[1] * h * 2, on[2]];
   const ents = [
-    stamp({ type: 'DIMENSION', segs: [[from, on], [on, tail]], measure }, o),
+    stamp({ type: 'DIMENSION', segs: [[from, on], [on, tail]], measure, ...(o.def ? { def: o.def } : {}) }, o),
     arrowEnt(on, [-dir[0], -dir[1]], a, o),
   ];
   if (kind === 'diameter') ents.push(arrowEnt(from, dir, a, o));
@@ -117,18 +147,19 @@ export function dimAngular(v, a, b, o) {
   // yay, ops biçiminde tek parça olarak DIMENSION varlığına verilir
   const ccw = sweep > 0;
   const arcOp = [ccw ? 2 : -2, v[0], v[1], r, ccw ? a0 : a1, ccw ? a1 : a0, z];
-  const arm = (d) => [[v[0], v[1], z], [v[0] + d[0] * (r + h * 0.5), v[1] + d[1] * (r + h * 0.5), z]];
+  const ext = o.ext >= 0 ? o.ext : h * 0.5;                        // kolların yayı aşan taşması (DIMEXE)
+  const arm = (d) => [[v[0], v[1], z], [v[0] + d[0] * (r + ext), v[1] + d[1] * (r + ext), z]];
   const segs = [arm(d1), arm(d2)];
   const tang1 = perp(d1), tang2 = perp(d2);
   const ents = [
-    stamp({ type: 'DIMENSION', segs, arcs: [arcOp], measure }, o),
+    stamp({ type: 'DIMENSION', segs, arcs: [arcOp], measure, ...(o.def ? { def: o.def } : {}) }, o),
     arrowEnt(p0, ccw ? [-tang1[0], -tang1[1]] : tang1, ar, o),
     arrowEnt(p1, ccw ? tang2 : [-tang2[0], -tang2[1]], ar, o),
   ];
   const am = a0 + sweep / 2;
   const tp = [v[0] + Math.cos(am) * (r + h * 0.8), v[1] + Math.sin(am) * (r + h * 0.8), z];
   ents.push(stamp({ type: 'TEXT', pts: [tp], text: o.label == null ? '' : String(o.label), h, rot: 0, ha: 1, va: 0 }, o));
-  return { ents, measure };
+  return { ents, measure, r };   // r: kullanılan yay yarıçapı (verilmemişse kısa kolun %70'i) — tanım bunu saklar
 }
 
 /** Lider (kılavuz çizgili açıklama): pts yol, son noktadan sonra yazı; ilk noktada ok */

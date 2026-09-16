@@ -276,7 +276,22 @@ export class SceneBuilder {
       inf.rot = e.rotation || 0; inf.sx = e.xScale; inf.sy = e.yScale;
       if (e.attribs && e.attribs.length) inf.attrs = e.attribs.map(a => [a.tag || '', textPlain(a.text ? a.text.text : '')]);
     }
-    if (e.type === 'DIMENSION') { inf.meas = e.measurement; inf.text = e.text; inf.style = e.styleName; }
+    if (e.type === 'DIMENSION') {
+      inf.meas = e.measurement; inf.text = e.text; inf.style = e.styleName;
+      // tanım noktaları: ölçü özellikleri düzenlenirken ölçü bunlardan yeniden kurulur (10/13/14/15, 11 yazı, 50 dönüş, 2 çizgili açısal uçlar)
+      const P = (q) => (q && typeof q.x === 'number' ? [q.x, q.y, q.z || 0] : null);
+      const ds = this.dimStyleOf(e), k = ds.DIMSCALE > 0 ? ds.DIMSCALE : 1;
+      // Yazı biçimi değişkenleri yalnız dosyada GERÇEKTEN yazılıysa verilir; yoksa düzenleyici görünen yazıdan
+      // (ondalık, ön / son ek) ve ölçümden (çarpan) çıkarır — varsayılan 2 ondalığı dosyanın değeri sanmasın
+      const hdr = this.db.header || {}, known = (key, ty) => typeof (ds.src && ds.src[key]) === ty || typeof hdr[key] === ty;
+      inf.dim = { type: (e.dimensionType | 0) & 15, meas: e.measurement, p1: P(e.subDefinitionPoint1), p2: P(e.subDefinitionPoint2), d: P(e.definitionPoint), cp: P(e.centerPoint), tp: P(e.textPoint), rot: e.rotationAngle || 0, x1s: P(e.xline1Start), x1e: P(e.xline1End), x2s: P(e.xline2Start),
+        // yazı geçersiz kılması biçim kodlarından arındırılır (\\A1; gibi), "<>" ölçülen değer yer tutucusu kalır
+        ov: e.text && e.text !== '<>' ? textPlain(e.text) : '',
+        // etkin stil: yazı yüksekliği, ok boyu, uzatma boşluğu / taşması (DIMSCALE uygulanmış), ondalıklar, çarpan, ön / son ek
+        sty: { txt: ds.DIMTXT * k, asz: (ds.DIMTSZ > 0 ? 0 : ds.DIMASZ) * k, exo: ds.DIMEXO * k, exe: ds.DIMEXE * k,
+          dec: known('DIMDEC', 'number') ? ds.DIMDEC : undefined, adec: known('DIMADEC', 'number') ? ds.DIMADEC : -1,
+          lfac: known('DIMLFAC', 'number') ? ds.DIMLFAC : undefined, post: known('DIMPOST', 'string') ? ds.DIMPOST : '', dsep: ds.DIMDSEP } };
+    }
     if (e.type === 'TEXT' || e.type === 'MTEXT') { inf.text = textPlain(e.text); inf.style = e.styleName; }
     if (e.type === 'ATTRIB') { inf.text = textPlain(e.text ? e.text.text : ''); inf.tag = e.tag; }
     if (e.type === 'HATCH') { inf.pattern = e.patternName; inf.solid = e.solidFill === 1; }
@@ -808,9 +823,12 @@ export class SceneBuilder {
     const want = (e.styleName || '').toUpperCase();
     const src = (tbl && (tbl.find(d => (d.name || '').toUpperCase() === want) || (want === '' ? tbl.find(d => /^(STANDARD|ISO-25)$/i.test(d.name || '')) : null))) || h;
     const num = (k, d) => (typeof src[k] === 'number' && isFinite(src[k])) ? src[k] : (typeof h[k] === 'number' && isFinite(h[k]) ? h[k] : d);
+    const str = (k, d) => (typeof src[k] === 'string' ? src[k] : (typeof h[k] === 'string' ? h[k] : d));
     const ds = { DIMSCALE: num('DIMSCALE', 1), DIMASZ: num('DIMASZ', 2.5), DIMEXO: num('DIMEXO', 0.625), DIMEXE: num('DIMEXE', 1.25), DIMTXT: num('DIMTXT', 2.5),
-      DIMGAP: num('DIMGAP', 0.625), DIMTSZ: num('DIMTSZ', 0), DIMTAD: num('DIMTAD', 0), DIMSE1: !!num('DIMSE1', 0), DIMSE2: !!num('DIMSE2', 0), DIMSD1: !!num('DIMSD1', 0), DIMSD2: !!num('DIMSD2', 0) };
-    const CODES = { 40: 'DIMSCALE', 41: 'DIMASZ', 42: 'DIMEXO', 44: 'DIMEXE', 140: 'DIMTXT', 147: 'DIMGAP', 142: 'DIMTSZ', 77: 'DIMTAD', 75: 'DIMSE1', 76: 'DIMSE2', 281: 'DIMSD1', 282: 'DIMSD2' };
+      DIMGAP: num('DIMGAP', 0.625), DIMTSZ: num('DIMTSZ', 0), DIMTAD: num('DIMTAD', 0), DIMSE1: !!num('DIMSE1', 0), DIMSE2: !!num('DIMSE2', 0), DIMSD1: !!num('DIMSD1', 0), DIMSD2: !!num('DIMSD2', 0),
+      // yazı biçimi (ölçü özellikleri düzenlenirken kutuya bunlar gelir): ondalık, açısal ondalık, uzunluk çarpanı, "<>" kalıplı ön / son ek
+      DIMDEC: num('DIMDEC', 2), DIMADEC: num('DIMADEC', 0), DIMLFAC: num('DIMLFAC', 1), DIMPOST: str('DIMPOST', ''), DIMDSEP: num('DIMDSEP', 46), DIMZIN: num('DIMZIN', 8) };
+    const CODES = { 40: 'DIMSCALE', 41: 'DIMASZ', 42: 'DIMEXO', 44: 'DIMEXE', 140: 'DIMTXT', 147: 'DIMGAP', 142: 'DIMTSZ', 77: 'DIMTAD', 75: 'DIMSE1', 76: 'DIMSE2', 281: 'DIMSD1', 282: 'DIMSD2', 271: 'DIMDEC', 179: 'DIMADEC', 144: 'DIMLFAC', 278: 'DIMDSEP', 78: 'DIMZIN' };
     for (const x of e.xdata || []) {
       if (String(x.appName || x.app_name || '').toUpperCase() !== 'ACAD') continue;
       const vals = (x.value || x.values || []).map(v => (v && typeof v === 'object') ? v : { code: 0, value: v });
@@ -827,6 +845,7 @@ export class SceneBuilder {
       }
     }
     if (!(ds.DIMSCALE > 0)) ds.DIMSCALE = 1;
+    ds.src = src;   // hangi kayıttan okundu (tablo kaydı ya da başlık): bir değişkenin gerçekten yazılı olup olmadığı buradan anlaşılır
     return ds;
   }
 

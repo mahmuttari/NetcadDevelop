@@ -395,7 +395,7 @@ export const COMMANDS = [
   NA('DIMJOGGED', ['DJO'], 'Jogged dimension'),
   NA('DIMJOGLINE', ['DJL'], 'Jog line'),
   NA('DIMCENTER', ['DCE'], 'Center mark dimension'),
-  NA('DIMEDIT', ['DED'], 'Edit dimension', 'the dimension text is edited with TEXTEDIT'),
+  T('DIMEDIT', 't:dimedit', ['DED'], 'Edit dimension', { note: 'opens the dimension properties: text, height, arrow, decimals, prefix / suffix, factor' }),
   NA('DIMTEDIT', [], 'Edit dimension text position'),
   NA('DIMSPACE', [], 'Adjust dimension spacing'),
   NA('DIMBREAK', [], 'Dimension break'),

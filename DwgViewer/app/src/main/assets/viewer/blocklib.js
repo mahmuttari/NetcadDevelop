@@ -31,6 +31,7 @@
  *  - Hiçbir işlev istisna fırlatmaz: bozuk girdide null, boş dizi ya da false döner.
  *  - Kullanıcıya gösterilecek metin üretilmez; yalnız veri ve sayı döner (i18n çağıranın işi).
  */
+import { transformDef } from './annot.js';
 
 const LIB_KEY = 'blocklib';
 const CLIP_KEY = 'clipboard';
@@ -69,6 +70,11 @@ export function primToEnt(p) {
   };
   if (inf.gid) ort.gid = inf.gid;                       // grup kimliği: parçalar birlikte seçilir
   if (typeof p.et === 'string') ort.itype = p.et;       // bilgi türü üstüne yazımı (ok başı, ölçü parçası)
+  if (p.ent && p.ent.def && typeof p.ent.def === 'object') {
+    // ölçü tanımı: bloğa alınan / panoya kopyalanan ölçü hedefte de düzenlenebilir kalsın
+    ort.def = JSON.parse(JSON.stringify(p.ent.def));
+    if (typeof p.ent.measure === 'number') ort.measure = p.ent.measure;
+  }
   switch (p.k) {
     case 0: {
       if (!Array.isArray(p.ops)) return null;
@@ -241,6 +247,7 @@ function entDonustur(t, e) {
     // açı ölçüsü (yay taşıyan DIMENSION) derecedir, ölçekten etkilenmez; doğrusal ölçü uzunluktur
     c.measure = (Array.isArray(e.arcs) && e.arcs.length) ? e.measure : Math.abs(e.measure) * t.ss;
   }
+  if (e.def && typeof e.def === 'object') c.def = transformDef(e.def, p => T_P(t, p), t.ss, [t.a, t.b, t.c, t.d]);   // ölçü tanımı da dönüşür
   return c;
 }
 
