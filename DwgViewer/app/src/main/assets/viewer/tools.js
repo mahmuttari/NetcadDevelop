@@ -10,7 +10,7 @@
  *   fmt(v)   units()     unitToM()
  * Nokta girişi: dokunma (yakalamalı) ya da yazılı: "x,y" | "x,y,z" | "@dx,dy" | "@L<açı"
  */
-import { TAU, flatten, polyArea, pathLength, pathLength3, segDist, opsBBox, enclosingPrim, segmentsOf, segAt, trimPath, extendPath, filletCorner, chamferCorner, cornerAt } from './geom.js';
+import { TAU, flatten, polyArea, pathLength, pathLength3, segDist, opsBBox, enclosingPrim, segmentsOf, segAt, trimPath, extendPath, filletCorner, chamferCorner, cornerAt, segIntersect, pointInPoly } from './geom.js';
 import { newId, offsetPoints } from './edit.js';
 import { t, addStrings } from './i18n.js';
 import { askText, askConfirm, askForm } from './dialog.js';
@@ -102,10 +102,50 @@ function nextLabel(sN) {
   return c + '2';
 }
 
+/*
+ * BÖLGE SEÇİMİ (AutoCAD pencere / kesen kuralı). Pencere: nesne bölgenin TAMAMEN içinde olmalı;
+ * kesen: bölgeye dokunan her nesne girer. Dikdörtgende pencere sınaması kutu kutusu ile kesindir;
+ * çokgende kutu köşeleri çokgenin içinde ve hiçbir kenar çokgen kenarını kesmiyorsa içeridedir.
+ * Kesen sınaması yolun kendi parçalarına bakar (kutu değil): çapraz bir çizgi, kutusu bölgeye
+ * değdiği hâlde kendisi değmiyorsa seçilmez.
+ */
+const bboxInRect = (bb, r) => bb[0] >= r[0] && bb[1] >= r[1] && bb[2] <= r[2] && bb[3] <= r[3];
+const bboxHitsRect = (bb, r) => !(bb[2] < r[0] || bb[0] > r[2] || bb[3] < r[1] || bb[1] > r[3]);
+const inRect = (q, r) => q[0] >= r[0] && q[0] <= r[2] && q[1] >= r[1] && q[1] <= r[3];
+function primPts(p) { const pts = p.k === 0 ? flatten(p.ops) : [[p.bb[0], p.bb[1]], [p.bb[2], p.bb[1]], [p.bb[2], p.bb[3]], [p.bb[0], p.bb[3]]]; if (pts.length && (p.k !== 0 || p.closed)) pts.push(pts[0]); return pts; }
+function primCrossesRect(p, r) {
+  if (!bboxHitsRect(p.bb, r)) return false;
+  if (p.k !== 0) return true;
+  const pts = primPts(p), edges = [[r[0], r[1], r[2], r[1]], [r[2], r[1], r[2], r[3]], [r[2], r[3], r[0], r[3]], [r[0], r[3], r[0], r[1]]];
+  for (let i = 0; i < pts.length; i++) {
+    if (inRect(pts[i], r)) return true;
+    if (i) { const s = [pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1]]; for (const e of edges) if (segIntersect(s, e)) return true; }
+  }
+  return !!(p.closed && pts.length > 2 && pointInPoly(pts, r[0], r[1]));   // bölge kapalı yolun içinde kalıyor
+}
+function polyEdges(poly) { const e = []; for (let i = 0; i < poly.length; i++) { const a = poly[i], b = poly[(i + 1) % poly.length]; e.push([a[0], a[1], b[0], b[1]]); } return e; }
+function primCrossesPoly(p, poly) {
+  const pts = primPts(p), edges = polyEdges(poly);
+  for (let i = 0; i < pts.length; i++) {
+    if (pointInPoly(poly, pts[i][0], pts[i][1])) return true;
+    if (i) { const s = [pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1]]; for (const e of edges) if (segIntersect(s, e)) return true; }
+  }
+  return !!(p.k === 0 && p.closed && pts.length > 2 && pointInPoly(pts, poly[0][0], poly[0][1]));
+}
+function primInPoly(p, poly) {
+  const bb = p.bb;
+  if (![[bb[0], bb[1]], [bb[2], bb[1]], [bb[2], bb[3]], [bb[0], bb[3]]].every(c => pointInPoly(poly, c[0], c[1]))) return false;
+  if (p.k !== 0) return true;
+  const pts = primPts(p), edges = polyEdges(poly);
+  for (let i = 1; i < pts.length; i++) { const s = [pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1]]; for (const e of edges) if (segIntersect(s, e)) return false; }
+  return true;
+}
+
 export class ToolManager {
   constructor(api) {
     this.api = api;
     this.active = null;
+    this.selMode = 'tap';   // seç aracı: 'tap' dokunarak · 'box' pencere / kesen kutu · 'lasso' çokgen
     this.pts = [];       // toplanan noktalar [x,y,z]
     this.step = 0;
     this.selecting = false;
@@ -121,7 +161,7 @@ export class ToolManager {
     if (!def) return;
     this.cancel(true);
     this.active = name; this.pts = []; this.step = 0; this.draft = null; this.results = []; this.balloonNext = null;
-    this.cut = null; this.c1 = null;
+    this.cut = null; this.c1 = null; this.selMode = 'tap';
     if (SELECT_TOOLS.has(name)) {
       this.selecting = this.api.sel.size === 0;
       if (!this.selecting) { this.step = 1; }
@@ -131,21 +171,21 @@ export class ToolManager {
   }
   cancel(silent) {
     if (this.active && this.active !== 'select' && this.pts.length && ['pline', 'pline3d', 'face3d', 'area', 'cloud'].includes(this.active)) this.finish();
-    this.active = null; this.pts = []; this.step = 0; this.draft = null; this.selecting = false; this.cut = null; this.c1 = null;
+    this.active = null; this.pts = []; this.step = 0; this.draft = null; this.selecting = false; this.cut = null; this.c1 = null; this.selMode = 'tap';
     if (!silent) { this.api.prompt(null); this.api.overlay(); }
   }
   say() {
     const def = TOOLS[this.active];
     if (!def) return;
     let text = toolName(this.active) + ': ';
-    if (this.selecting) text += toolStep(this.active, 0) + `  [${this.api.sel.size} ${t('selCount')}]`;
+    if (this.selecting) text += (this.selMode === 'box' ? t('selBoxHint') : this.selMode === 'lasso' ? t('selLassoHint') : toolStep(this.active, 0)) + `  [${this.api.sel.size} ${t('selCount')}]`;
     else text += toolStep(this.active, Math.min(this.step, def.steps.length - 1));
     const wantsNumber = NUMBER_STEP[this.active] != null && this.step === NUMBER_STEP[this.active] && !this.selecting;
     const buttons = [];
     if (this.selecting || ['pline', 'pline3d', 'face3d', 'area', 'copy', 'line', 'dist', 'leader', 'cloud'].includes(this.active)) buttons.push('finish');
     if (['pline', 'area', 'cloud'].includes(this.active) && this.pts.length > 2) buttons.push('close');
     if (this.pts.length) buttons.push('back');
-    if (this.selecting) buttons.push('selall');
+    if (this.selecting) buttons.push('selbox', 'sellasso', 'selall');
     buttons.push('cancel');
     this.api.prompt(text, { input: wantsNumber ? 'number' : (this.selecting ? null : 'point'), buttons });
   }
@@ -175,7 +215,7 @@ export class ToolManager {
       const [L, A] = body.split('<');
       const l = norm(L), a = norm(A) * D2R;
       if (!isFinite(l) || !isFinite(a)) return null;
-      const base = this.last || [0, 0, 0];
+      const base = (this.api.fromBase && this.api.fromBase()) || this.last || [0, 0, 0];   // FROM tabanı bir kez, sonra son nokta
       return [base[0] + l * Math.cos(a), base[1] + l * Math.sin(a), base[2] || 0];
     }
     // "x;y" ya da "x y" ya da "x,y" — ondalık ayırıcı nokta kabul edilir
@@ -183,7 +223,7 @@ export class ToolManager {
     if (parts.length < 2) return null;
     const v = parts.map(norm);
     if (v.some(x => !isFinite(x))) return null;
-    if (rel) { const b = this.last || [0, 0, 0]; return [b[0] + v[0], b[1] + v[1], (b[2] || 0) + (v[2] || 0)]; }
+    if (rel) { const b = (this.api.fromBase && this.api.fromBase()) || this.last || [0, 0, 0]; return [b[0] + v[0], b[1] + v[1], (b[2] || 0) + (v[2] || 0)]; }
     return [v[0], v[1], v[2] || 0];
   }
   /** dokunma: w = dünya [x,y]; prim = dokunulan nesne (seçim için) */
@@ -202,7 +242,10 @@ export class ToolManager {
       return true;
     }
     if (OBJECT_TOOLS.has(this.active)) { void this.objectTap(w); return true; }
-    const sn = this.api.snap(w);
+    // Önceki nokta dik / teğet / paralel / uzantı kipleri içindir; iki dokunuşlu geçersiz kılmalar
+    // (M2P, FROM, TK) ilk dokunuşta { pending } döner ve o dokunuş nokta sayılmaz.
+    const sn = this.api.snap(w, { prev: this.pts.length ? this.pts[this.pts.length - 1] : (this.last || null) });
+    if (sn && sn.pending) { this.api.overlay(); return true; }
     const p = sn ? [sn.p[0], sn.p[1], sn.p[2] != null ? sn.p[2] : 0] : [w[0], w[1], 0];
     if (NUMBER_STEP[this.active] === this.step) {
       const need = { scale: 'typeFactor', setz: 'typeZ', offset: 'typeDist', thick: 'typeHeight', textsize: 'typeHeight' }[this.active];
@@ -757,6 +800,20 @@ export class ToolManager {
   }
   back() { this.pts.pop(); this.step = Math.max(0, this.step - 1); this.updateDraft(); this.say(); this.api.overlay(); }
   selectAll() { for (const p of this.api.visiblePrims()) if (p.k !== 4) this.api.sel.add(p); this.say(); this.api.overlay(); }
+  /** Seç aracının kipi: aynı kip yeniden seçilirse dokunma kipine döner */
+  setSelMode(m) { if (!this.selecting) return; this.selMode = this.selMode === m ? 'tap' : m; this.say(); this.api.overlay(); }
+  /** Bölge seçimi: { rect:[x0,y0,x1,y1] } ya da { poly:[[x,y]…] }; crossing → dokunanlar da girer. Eklenen sayı döner. */
+  selectRegion(shape, crossing) {
+    const A = this.api, list = A.selectable ? A.selectable() : A.visiblePrims();
+    let n = 0;
+    for (const p of list) {
+      if (p.k === 4 || p.inf || A.sel.has(p) || !p.bb || !isFinite(p.bb[0])) continue;
+      const hit = shape.rect ? (crossing ? primCrossesRect(p, shape.rect) : bboxInRect(p.bb, shape.rect)) : (crossing ? primCrossesPoly(p, shape.poly) : primInPoly(p, shape.poly));
+      if (hit) { A.sel.add(p); n++; }
+    }
+    this.say(); A.overlay();
+    return n;
+  }
 
   updateDraft() {
     const pts = this.pts;

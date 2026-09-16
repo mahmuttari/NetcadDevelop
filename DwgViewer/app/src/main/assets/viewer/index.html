@@ -36,6 +36,10 @@
     <symbol id="i-sunny" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v3.2M12 18.8V22M2 12h3.2M18.8 12H22M4.9 4.9l2.3 2.3M16.8 16.8l2.3 2.3M4.9 19.1l2.3-2.3M16.8 7.2l2.3-2.3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
     <symbol id="i-snow" viewBox="0 0 24 24"><path d="M12 2v20M3.3 7l17.4 10M3.3 17 20.7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M9.2 4.5 12 6.4l2.8-1.9M9.2 19.5 12 17.6l2.8 1.9M4.2 10.6l3.3-.4 1.3-3.2M19.8 13.4l-3.3.4-1.3 3.2M4.2 13.4l3.3.4 1.3 3.2M19.8 10.6l-3.3-.4-1.3-3.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="i-unlock" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2a5 5 0 0 1 5 5h-2.4A2.6 2.6 0 0 0 9.4 7v3h8c.9 0 1.6.7 1.6 1.6v8.8c0 .9-.7 1.6-1.6 1.6H5.6A1.6 1.6 0 0 1 4 20.4v-8.8c0-.9.7-1.6 1.6-1.6H7V7a5 5 0 0 1 5-5zm0 11.4a1.9 1.9 0 0 0-.9 3.6V19h1.8v-2a1.9 1.9 0 0 0-.9-3.6z"/></symbol>
+    <!-- Seç aracı: pencere / kesen kutu, çokgen (lasso); seçim menüsü: çizgi tipi -->
+    <symbol id="i-selbox" viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="14" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="3.2 2.2"/><path d="M14 13.5l6.5 2.4-2.8 1.1-1.1 2.8z"/></symbol>
+    <symbol id="i-lasso" viewBox="0 0 24 24"><path d="M4 8.5 9 4l7 2.5 3 5-3.5 6-7 1.5L4 14z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-dasharray="2.6 2.2"/><circle cx="9" cy="4" r="1.6"/><circle cx="16" cy="6.5" r="1.6"/><circle cx="4" cy="14" r="1.6"/><circle cx="8.5" cy="19" r="1.6"/></symbol>
+    <symbol id="i-ltype" viewBox="0 0 24 24"><path d="M2 7h6M11 7h3M17 7h5M2 12h9M14 12h8M2 17h4M9 17h2M14 17h2M19 17h3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="M9.6 16.2L4.8 11.4l-1.4 1.4 6.2 6.2L21 7.6l-1.4-1.4z"/></symbol>
     <symbol id="i-noads" viewBox="0 0 24 24"><path d="M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-6l-2 3-2-3H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2m0 2v9h7l1 1.5L13 15h7V6z"/><path d="M7.4 8h2.2l2.2 5.4h-1.9l-.35-1h-2.1l-.35 1H5.2zm1.1 1.9l-.5 1.4h1zM14 8h1.8v5.4H14z"/><path d="M3.1 2.3l18.6 18.6-1.5 1.5L1.6 3.8z"/></symbol>
     <symbol id="i-textout" viewBox="0 0 24 24"><path d="M4 4h11v2h-4.5v9h-2V6H4zm12.5 6H22v2h-1.8v7h-2v-7H16.5zM3 19h6v2H3z"/></symbol>
@@ -246,6 +250,8 @@
       <canvas id="cv"></canvas>
       <canvas id="cv3d" hidden></canvas>
       <canvas id="ov"></canvas>
+      <!-- Seçim rozeti: seçimin köşesinde nesne sayısı + kalem; dokununca seçim menüsü. .hud: dokunuşu görüntü alanı almaz -->
+      <button id="selBadge" class="sel-badge hud" type="button" hidden data-i18n-title="selBadge" data-i18n-aria="selBadge" title="Seçim menüsü" aria-label="Seçim menüsü"><b class="n">0</b><svg class="ic" aria-hidden="true"><use href="#i-pen"/></svg></button>
       <div id="gpsBtn" class="fab" hidden title="GPS" role="button" aria-label="GPS"><svg class="ic" aria-hidden="true"><use href="#i-gps"/></svg></div>
       <div id="cube3d" class="hud cube" hidden></div>
       <div id="cmdSug" class="cmd-sug" hidden></div>
@@ -369,6 +375,9 @@
   <nav id="toolbar" data-i18n-aria="toolbar" aria-label="Araç çubuğu"></nav>
   <footer id="statusbar">
     <div id="stQuick" class="st-quick">
+      <!-- Geri al / yinele her sekmede el altında: 10 geri · 10 ileri hafıza, rozet kalan adım sayısını yazar -->
+      <button type="button" data-quick="undo" data-i18n-title="stQuickUndo" data-i18n-aria="stQuickUndo" aria-label="Geri al" disabled><svg class="ic" aria-hidden="true"><use href="#i-undo"/></svg><b class="st-ct" hidden></b></button>
+      <button type="button" data-quick="redo" data-i18n-title="stQuickRedo" data-i18n-aria="stQuickRedo" aria-label="Yinele" disabled><svg class="ic" aria-hidden="true"><use href="#i-redo"/></svg><b class="st-ct" hidden></b></button>
       <button type="button" data-quick="grid" data-i18n-title="stQuickGrid" data-i18n-aria="stQuickGrid" aria-label="Izgara" aria-pressed="false"><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg></button>
       <button type="button" data-quick="lw" data-i18n-title="stQuickLw" data-i18n-aria="stQuickLw" aria-label="Çizgi kalınlığı" aria-pressed="false"><svg class="ic" aria-hidden="true"><use href="#i-lw"/></svg></button>
       <button type="button" data-quick="text" data-i18n-title="stQuickText" data-i18n-aria="stQuickText" aria-label="Yazı" aria-pressed="true"><svg class="ic" aria-hidden="true"><use href="#i-text"/></svg></button>
@@ -571,16 +580,8 @@
       <button class="btn small" id="btnMeasureClear" data-i18n="clear" type="button">Temizle</button>
       <button class="btn icon close" id="btnMeasureClose" type="button" data-i18n-aria="close" aria-label="Kapat"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
-    <div id="snapBar" class="snapbar">
-      <label><input type="checkbox" data-snap="end" checked>END</label>
-      <label><input type="checkbox" data-snap="mid" checked>MID</label>
-      <label><input type="checkbox" data-snap="cen" checked>CEN</label>
-      <label><input type="checkbox" data-snap="int" checked>INT</label>
-      <label><input type="checkbox" data-snap="per">PER</label>
-      <label><input type="checkbox" data-snap="nea">NEA</label>
-      <label><input type="checkbox" data-snap="ins" checked>INS</label>
-      <label><input type="checkbox" data-snap="node" checked>NOD</label>
-    </div>
+    <!-- Nesne yakalama çip şeridi: osnap.renderBar doldurur (dişli = ayar kutusu, 14 AutoCAD kipi) -->
+    <div id="snapBar" class="snapbar" data-i18n-aria="osTitle" aria-label="Nesne yakalama" role="toolbar"></div>
     <div id="measureBody" class="panel-body kv"></div>
   </aside>
 

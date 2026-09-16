@@ -90,7 +90,7 @@ const TABS = [
   { id: 'display', i18n: 'tabDisplay', icon: 'i-sliders', groups: [] },   // satır içeriği 2B/3B'ye göre üretilir
   { id: 'measure', i18n: 'tabMeasure', icon: 'i-dist', groups: [
     { cap: 'grpMeasure', items: [T('t:dist', 'i-dist', 'Mesafe', 'Distance', 'Noktalar arası mesafe, ΔX/ΔY, açı', 'Distance between points'), T('t:area', 'i-area', 'Alan', 'Area', 'Kapalı alan ve çevre', 'Closed area and perimeter'), T('t:angle', 'i-angle', 'Açı', 'Angle', 'Üç noktayla açı', 'Angle by three points'), T('t:radius', 'i-radius', 'Yarıçap', 'Radius', 'Daire / yay yarıçapı', 'Circle / arc radius'), T('t:coord', 'i-coord', 'Koordinat', 'Coordinate', 'Noktanın koordinatını okur', 'Read point coordinates'), T('t:fillarea', 'i-fill', 'Dolgu alanı', 'Fill area', 'Kapalı alanın içine dokunun; alan, çevre ve dönüşümler', 'Tap inside a closed area for its area and perimeter'), T('t:ident', 'i-ident', 'Akıllı ölçüm', 'Smart measure', 'Nesneye dokunun: türüne göre boy, alan, yarıçap ya da hacim', 'Tap an object: length, area, radius or volume by its type'), T('profile', 'i-profile', 'Profil', 'Profile', 'Kot / eğim profili', 'Elevation / slope profile')] },
-    { cap: 'grpHelpers', items: [T('osnap', 'i-snap', 'Yakalama', 'Osnap', 'Nesne yakalamayı açar / kapatır', 'Toggle object snap'), T('grid', 'i-grid', 'Izgara', 'Grid'), T('crosshair', 'i-crosshair', 'Artı imleç', 'Crosshair')] } ] },
+    { cap: 'grpHelpers', items: [T('osnap', 'i-snap', 'Yakalama', 'Osnap', 'Nesne yakalamayı açar / kapatır', 'Toggle object snap'), T('osnapset', 'i-sliders', 'Yakalama ayarları', 'Osnap settings', 'Yakalama kipleri (14 AutoCAD kipi), bir kerelik yakalama, açıklık', 'Object snap modes (all 14 AutoCAD modes), one-shot overrides, aperture'), T('grid', 'i-grid', 'Izgara', 'Grid'), T('crosshair', 'i-crosshair', 'Artı imleç', 'Crosshair')] } ] },
   { id: 'draw', i18n: 'tabDraw', icon: 'i-pen', groups: [
     { cap: 'grpDraw2', items: [T('t:line', 'i-line', 'Çizgi', 'Line', 'İki nokta ya da @uzunluk<açı', 'Two points or @length<angle'), T('t:pline', 'i-pline', 'Polyline', 'Polyline', 'Çok köşeli çizgi; Bitir / Kapat', 'Multi-vertex line'), T('t:rect', 'i-rect', 'Dikdörtgen', 'Rectangle'), T('t:circle', 'i-circle', 'Daire', 'Circle', 'Merkez + yarıçap', 'Center + radius'), T('t:arc3', 'i-arc', 'Yay', 'Arc', 'Üç noktadan yay', 'Three-point arc'), T('t:point', 'i-point', 'Nokta', 'Point'), T('t:text', 'i-text', 'Yazı', 'Text', 'Konum, metin ve yükseklik', 'Position, text and height')] },
     { cap: 'grpDraw3', items: [T('t:pline3d', 'i-pline3d', '3B Polyline', '3D Polyline', 'x,y,z köşeli çizgi', 'Vertices with z'), T('t:face3d', 'i-face', '3B Yüzey', '3D Face', 'Üç / dört köşeli yüzey', 'Three / four vertex face')] },
@@ -155,7 +155,8 @@ const ICON = (id) => `<svg class="ic" aria-hidden="true"><use href="#${id}"/></s
 export function initEditor(a) {
   api = a; S = a.S;
   tools = new ToolManager({
-    snap: (w) => api.snap(w),
+    snap: (w, o) => api.snap(w, o),
+    fromBase: () => (api.fromBase ? api.fromBase() : null),
     pick: (w) => api.pick(w),
     sel: ed.sel,
     prompt: showPrompt,
@@ -175,6 +176,7 @@ export function initEditor(a) {
     copy: (t) => api.copyText(t),
     lonLat: (x, y) => S.geo.active ? S.geo.toLonLat(x, y) : null,
     visiblePrims: () => S.prims.filter(p => !(S.layers.get(p.lay) && !S.layers.get(p.lay).visible)),
+    selectable: () => S.prims.filter(p => { const l = S.layers.get(p.lay); return !(l && (!l.visible || l.locked)); }),   // bölge seçimi: görünür ve kilitsiz katmanlar
     allPrims: () => (S.scene ? S.scene.layouts[0].prims : []),
     trType: (x) => tt('ety_' + x, x),               // DXF tür adının yerelleşmiş karşılığı (yoksa adın kendisi)
     hatchPattern: () => ed.curPattern,              // çizilecek taramanın deseni (SOLID varsayılan)
@@ -254,6 +256,7 @@ function refreshUndo() {
   document.querySelectorAll('#toolbar [data-act="undo"]').forEach(b => { b.disabled = has('undo') && cu; });
   document.querySelectorAll('#toolbar [data-act="redo"]').forEach(b => { b.disabled = has('redo') && cr; });
   document.querySelectorAll('#toolbar [data-act="savedxf"], #toolbar [data-act="savedelta"]').forEach(b => b.classList.toggle('dirty', !!(doc && doc.dirty)));
+  syncQuick();   // durum çubuğundaki geri al / yinele rozetleri
 }
 
 // ---------------------------------------------------------------------------------
@@ -516,7 +519,7 @@ function optionPop(btn, renderFn, title) {
 }
 function needDoc() { if (!S.hasDoc) { api.toast(t('openFirst')); return false; } return true; }
 /** belge açık olmadan da çalışan karolar; HIST kendi kapalılığını yönetir (refreshUndo / görünüm geçmişi) */
-const FREE = new Set(['more', 'display', 'drive', 'undo', 'redo', 'gps', 'basemap', 'theme', 'sun', 'open', 'new', 'about', 'settings', 'cmdhelp', 'closefile']);
+const FREE = new Set(['more', 'display', 'drive', 'undo', 'redo', 'gps', 'basemap', 'theme', 'sun', 'open', 'new', 'about', 'settings', 'cmdhelp', 'closefile', 'osnapset']);
 const HIST = new Set(['undo', 'redo', 'prevview', 'nextview']);
 function needModel() { if (!needDoc()) return false; if (!S.scene.layouts[S.layoutIndex].isModel) { api.toast(t('modelOnly')); return false; } return true; }
 function act(name, btn) {
@@ -543,6 +546,8 @@ function act(name, btn) {
     case 'layers': case 'search': case 'notes': case 'gps': case 'pdf': case 'png': case 'more': case 'profile': case 'info': case 'views': case 'layouts': case 'basemap': case 'compare': case 'drive': case 'count': case 'textout':
     case 'markdim': case 'findrep': case 'blocklib': case 'copyclip': case 'pasteclip': case 'mesh3d': case 'tableout': case 'batch': case 'pdfcad': api.action(name); break;
     case 'osnap': toggleOsnap(); break;
+    case 'osnapset': api.osnap.openDialog(); break;
+    case 'otrack': api.osnap.toggleTrack(); syncQuick(); refreshTiles(); break;
     // --- komut satırından gelen AutoCAD karşılıkları (karosu yok)
     case 'regen': S.cacheValid = false; api.requestRender(); if (ed.is3D() && v3) v3.render(); break;
     case 'selectall': if (!needModel()) return; if (ed.is3D()) exit3D(); if (tools.active !== 'select') { tools.start('select'); markActive('t:select'); } tools.selectAll(); break;
@@ -608,7 +613,6 @@ function layerSet(names, durum) {
 }
 /** app.js için: aynı toplu işlem (katman panelindeki ampul / kar tanesi / kilit sütunları) */
 ed.layerSet = (names, durum) => layerSet(names, durum);
-let osnapBackup = null;
 /*
  * Köşe tutamaklarını açar / kapar. Açıldığında tek bir yol seçiliyse düğümler belirir; düğüm
  * sayısı sınırı aşıyorsa tutamak çizilmez ve kullanıcıya nedeni söylenir — sessizce hiçbir şey
@@ -623,31 +627,48 @@ function toggleGrips() {
   }
   api.toast(ui.grips ? t('gripsOnMsg') : t('gripsOffMsg'), 1200);
 }
-function toggleOsnap() {
-  if (S.snapModes.size) { osnapBackup = [...S.snapModes]; S.snapModes.clear(); api.toast(t('osnapOff'), 1200); }
-  else { for (const m of (osnapBackup && osnapBackup.length ? osnapBackup : ['end', 'mid', 'cen', 'int', 'ins', 'node'])) S.snapModes.add(m); api.toast(t('osnapOn'), 1200); }
-  document.querySelectorAll('[data-snap]').forEach(cb => { cb.checked = S.snapModes.has(cb.dataset.snap); });
-  if (api.settings) { api.settings.snap = [...S.snapModes]; call(api.saveSettings); }
-  haptic('toggle'); syncQuick(); refreshTiles();
-}
+/** F3 / durum çubuğu / şerit karosu: tek kaynak osnap.toggle (liste saklanır, açılınca geri gelir) */
+function toggleOsnap() { api.osnap.toggle(); syncQuick(); refreshTiles(); }
+/** app.js kipleri değiştirdiğinde (ayar kutusu, çip şeridi, -OSNAP) durum çubuğu ve karolar tazelenir */
+ed.snapChanged = () => { syncQuick(); refreshTiles(); };
+/** Gezinme yakalaması için: çalışan aracın son noktası (dik / teğet / paralel bunu ister) */
+ed.lastToolPoint = () => (tools && tools.running && tools.pts && tools.pts.length ? tools.pts[tools.pts.length - 1] : null);
 
 // ---------------------------------------------------------------------------------
 // Durum çubuğu: hızlı düğmeler, kip çipi
 // ---------------------------------------------------------------------------------
 function bindStatusBar() {
   const q = $('stQuick'); if (!q) return;
+  let uzunBasis = 0, uzunOldu = false;
   q.addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-quick]'); if (!b) return;
+    if (uzunOldu) { uzunOldu = false; return; }   // uzun basış kutuyu açtı; ardından gelen click kipi değiştirmesin
     const k = b.dataset.quick;
+    if (k === 'undo' || k === 'redo') { act(k); syncQuick(); return; }   // titreşim ve ileti act içinde
     if (k === 'grid') D.toggleDisplay('grid'); else if (k === 'lw') D.toggleDisplay('lw'); else if (k === 'text') D.toggleDisplay('showText'); else if (k === 'osnap') toggleOsnap();
     haptic('toggle'); syncQuick(); refreshTiles();
   });
+  // OSNAP düğmesi: dokunuş açar / kapar (F3), uzun basış ya da sağ tık ayar kutusunu açar (AutoCAD durum çubuğu gibi)
+  q.addEventListener('pointerdown', (ev) => {
+    const b = ev.target.closest('[data-quick="osnap"]'); if (!b) return;
+    clearTimeout(uzunBasis); uzunOldu = false;
+    uzunBasis = setTimeout(() => { uzunOldu = true; haptic('long'); api.osnap.openDialog(); }, 500);
+    const iptal = () => { clearTimeout(uzunBasis); b.removeEventListener('pointerup', iptal); b.removeEventListener('pointercancel', iptal); b.removeEventListener('pointerleave', iptal); };
+    b.addEventListener('pointerup', iptal); b.addEventListener('pointercancel', iptal); b.addEventListener('pointerleave', iptal);
+  });
+  q.addEventListener('contextmenu', (ev) => { const b = ev.target.closest('[data-quick="osnap"]'); if (!b) return; ev.preventDefault(); clearTimeout(uzunBasis); uzunOldu = true; api.osnap.openDialog(); });
   syncQuick();
 }
 function syncQuick() {
   if (!S) return;
   const on = { grid: S.grid.on, lw: !!S.lw, text: S.show.text, osnap: S.snapModes.size > 0 };
-  document.querySelectorAll('#stQuick [data-quick]').forEach(b => { const v = !!on[b.dataset.quick]; b.classList.toggle('on', v); b.setAttribute('aria-pressed', String(v)); });
+  document.querySelectorAll('#stQuick [data-quick]').forEach(b => { const k = b.dataset.quick; if (k === 'undo' || k === 'redo') return; const v = !!on[k]; b.classList.toggle('on', v); b.setAttribute('aria-pressed', String(v)); });
+  // geri al / yinele: kalan adım rozeti (10 geri · 10 ileri), adım yoksa devre dışı
+  const nU = doc ? doc.undoStack.length : 0, nR = doc ? doc.redoStack.length : 0;
+  for (const [k, n] of [['undo', nU], ['redo', nR]]) {
+    const b = document.querySelector(`#stQuick [data-quick="${k}"]`); if (!b) continue;
+    b.disabled = !n; const ct = b.querySelector('.st-ct'); if (ct) { ct.textContent = String(n); ct.hidden = !n; }
+  }
 }
 let mode3Text = null, modeText = null;
 function statusMode(text) { modeText = text || null; renderMode(); }
@@ -665,17 +686,22 @@ function renderMode() {
 // ---------------------------------------------------------------------------------
 // Komut satırı
 // ---------------------------------------------------------------------------------
-const BTN = { finish: ['finishBtn', () => tools.finish()], close: ['close', () => tools.close()], back: ['backBtn', () => tools.back()], selall: ['layersAll', () => tools.selectAll()], cancel: ['cancelBtn', () => { tools.cancel(); markActive(null); ed.sel.clear(); api.drawOverlay(); }] };
+const BTN = { finish: ['finishBtn', () => tools.finish()], close: ['close', () => tools.close()], back: ['backBtn', () => tools.back()], selall: ['layersAll', () => tools.selectAll()], selbox: ['selBoxBtn', () => tools.setSelMode('box')], sellasso: ['selLassoBtn', () => tools.setSelMode('lasso')], cancel: ['cancelBtn', () => { tools.cancel(); markActive(null); ed.sel.clear(); api.drawOverlay(); }] };
 /*
  * Komut çubuğu düğmesi: SVG simge + etiket. Çeviri metinlerinin başındaki ince Unicode imleri
  * (✓ ↶ ✕) atılır; simgeyi yazı tipi değil SVG çizer, böylece her dilde aynı dolgunlukta görünür.
  * Bitir birincil (vurgu renkli) düğmedir: çubuğun onay eylemi odur.
  */
-const CMD_ICON = { finish: 'i-check', close: 'i-closepath', back: 'i-undo', selall: 'i-selectall', cancel: 'i-close' };
+const CMD_ICON = { finish: 'i-check', close: 'i-closepath', back: 'i-undo', selall: 'i-selectall', cancel: 'i-close', selbox: 'i-selbox', sellasso: 'i-lasso' };
+const CMD_ICON_ONLY = new Set(['selbox', 'sellasso']);   // yalnız simge: beş düğme 412 px'te tek satıra sığsın; ad başlık / aria-label'da
 function cmdBtnHtml(attr, k, label) {
   const lbl = String(label == null ? '' : label).replace(/^[✓↶✕⟲←]+\s*/, '');
   const ic = CMD_ICON[k];
-  return `<button type="button" ${attr}="${k}"${k === 'finish' ? ' class="primary"' : ''}>${ic ? `<svg class="ic" aria-hidden="true"><use href="#${ic}"/></svg>` : ''}${esc(lbl)}</button>`;
+  const on = !!tools && ((k === 'selbox' && tools.selMode === 'box') || (k === 'sellasso' && tools.selMode === 'lasso'));
+  const cls = k === 'finish' ? 'primary' : (CMD_ICON_ONLY.has(k) ? 'icon' + (on ? ' on' : '') : (on ? 'on' : ''));
+  const svg = ic ? `<svg class="ic" aria-hidden="true"><use href="#${ic}"/></svg>` : '';
+  if (CMD_ICON_ONLY.has(k)) return `<button type="button" ${attr}="${k}" class="${cls}" title="${esc(lbl)}" aria-label="${esc(lbl)}" aria-pressed="${on}">${svg}</button>`;
+  return `<button type="button" ${attr}="${k}"${cls ? ` class="${cls}"` : ''}>${svg}${esc(lbl)}</button>`;
 }
 function showPrompt(text, opts = {}) {
   const bar = $('cmdBar');
@@ -687,6 +713,7 @@ function showPrompt(text, opts = {}) {
   $('cmdText').textContent = text;
   const inp = $('cmdInput');
   inp.hidden = !opts.input;
+  { const en = $('cmdEnter'); if (en) en.hidden = !opts.input; }   // giriş yokken Enter da yok: seçim kipinde işlevsizdi, yer kaplıyordu
   inp.placeholder = opts.input === 'number' ? t('numberPh') : t('coordPh');
   inp.type = 'text'; inp.value = '';
   $('cmdBtns').innerHTML = (opts.buttons || []).map(k => cmdBtnHtml('data-cmd', k, t(BTN[k][0]))).join('');
@@ -715,6 +742,7 @@ function idlePrompt() {
   $('cmdText').textContent = t('cmdPrompt');
   const inp = $('cmdInput');
   inp.hidden = false; inp.type = 'text'; inp.value = ''; inp.placeholder = t('cmdPh');
+  { const en = $('cmdEnter'); if (en) en.hidden = false; }
   // Komut listesine tek kapı: boştaki çubuğun "?" düğmesi. Menüye gömülseydi komut satırını
   // yeni gören kullanıcı hangi adları yazabileceğini hiç öğrenemezdi.
   $('cmdBtns').innerHTML = `<button type="button" class="icon" data-cmd-help="1" aria-label="${esc(t('cmdHelp'))}" title="${esc(t('cmdHelp'))}"><svg class="ic" aria-hidden="true"><use href="#i-help"/></svg></button>`;
@@ -756,6 +784,7 @@ function runCommand(text) {
   // AutoCAD'deki gibi '-' öneki komut satırı sürümünü ister: -LAYER (ve -LA) pencere açmaz,
   // seçenekleri sorar. Öteki komutlarda '-' yalnız öneki düşürülmüş ad olarak kabul edilir.
   if (c.id === 'layers' && /^-/.test(raw.replace(/^['_]+/, ''))) { layerCli(); return true; }
+  if (c.id === 'osnapset' && /^-/.test(raw.replace(/^['_]+/, ''))) { osnapCli(); return true; }
   act(c.id);
   return true;
 }
@@ -788,7 +817,13 @@ function bindCmdBar() {
     if (!v) return;
     inp.value = '';
     if (ed.m3) { if (!gate('3:' + ed.m3.name)) return; typed3D(v); }
-    else { if (tools.active && !gate('t:' + tools.active)) return; tools.typed(v); }
+    else {
+      if (tools.active && !gate('t:' + tools.active)) return;
+      // AutoCAD'deki gibi nokta istemine yakalama adı yazılabilir: sonraki nokta o kiple alınır
+      const ov = tools.active && api.osnap ? api.osnap.overrideOf(v) : null;
+      if (ov) { api.osnap.once(ov); return; }
+      tools.typed(v);
+    }
   };
   $('cmdEnter').addEventListener('click', submit);
   $('cmdInput').addEventListener('input', () => { if (cmdIdle) showSuggest($('cmdInput').value); });
@@ -887,6 +922,69 @@ function showProps() {
   };
 }
 
+/*
+ * SEÇİM MENÜSÜ — rozete dokununca açılır: seçime uygulanan işlemler tek yerde (Sil, Kopyala, Taşı,
+ * Blok yap, Döndür, Ayna, Ölçek, Renk, Çizgi tipi, Katman, Özellikler, Seçimi bırak). Dönüşüm
+ * araçları seçimi koruyarak başlar ve doğrudan taban noktasını sorar; renk / çizgi tipi / katman
+ * tek dokunuşla uygulanır ve tek geri alma adımı üretir.
+ */
+const SEL_MENU = [['del', 'i-erase'], ['copy', 'i-copyobj'], ['move', 'i-move'], ['block', 'i-block'], ['rotate', 'i-rotate'], ['mirror', 'i-mirror'], ['scale', 'i-scale'], ['color', 'i-palette'], ['ltype', 'i-ltype'], ['layer', 'i-layers'], ['props', 'i-props'], ['clear', 'i-close']];
+const selMenuLabel = (id) => ({ block: t('selMakeBlock'), color: t('color'), ltype: t('ltype'), layer: t('selChangeLayer'), clear: t('selClear'), props: tileLabel('props') }[id] || tileLabel('t:' + id));
+function selMenu() {
+  if (!ed.sel.size) { api.toast(t('selEmpty')); return; }
+  api.openDoc(`${t('selMenuTitle')} · ${ed.sel.size} ${t('objectsN')}`,
+    `<div class="full os-grid sel-grid">${SEL_MENU.map(([id, ic]) => `<button type="button" class="os-card" data-sm="${id}"><svg class="ic" aria-hidden="true"><use href="#${ic}"/></svg><span>${esc(selMenuLabel(id))}</span></button>`).join('')}</div>`);
+  $('docBody').onclick = (ev) => { const b = ev.target.closest('[data-sm]'); if (!b) return; api.hide('docPanel'); selAction(b.dataset.sm); };
+}
+function selProps(o) {
+  if (!doc || !ed.sel.size || !gate('props')) return false;
+  doc.run({ op: 'props', keys: [...ed.sel].map(p => p.key), ...o });
+  refreshUndo(); api.requestRender(); api.drawOverlay(); api.toast(t('propsApplied'), 1200); haptic('toggle');
+  return true;
+}
+function selAction(id) {
+  if (!ed.sel.size) { api.toast(t('selEmpty')); return; }
+  switch (id) {
+    case 'del': {
+      if (!gate('t:del') || !doc) return;
+      const keys = [...ed.sel].map(p => p.key);
+      if (tools.running) { tools.cancel(); markActive(null); }
+      doc.run({ op: 'delete', keys }); ed.sel.clear();
+      refreshUndo(); api.requestRender(); api.drawOverlay(); api.toast(t('deleted')); haptic('toggle');
+      break;
+    }
+    case 'copy': case 'move': case 'rotate': case 'mirror': case 'scale': act('t:' + id); break;   // seçim korunur, araç taban noktasını sorar
+    case 'block': api.action('blocklib'); break;
+    case 'color': {
+      if (!gate('props')) return;
+      const first = [...ed.sel][0];
+      api.openDoc(t('colorSelect'), `<div class="full">${colorSwatches(first.info ? first.info.ci : 256)}</div><div class="full muted">${esc(t('colorHint'))}</div>`);
+      $('docBody').onclick = (ev) => { const b = ev.target.closest('[data-ci]'); if (!b) return; api.hide('docPanel'); selProps({ color: Number(b.dataset.ci) }); };
+      break;
+    }
+    case 'ltype': {
+      if (!gate('props')) return;
+      const keys = ['', ...Object.keys(S.ltypes || {})];
+      const cur = [...ed.sel][0].lt || '';
+      api.openDoc(t('ltSelect'), `<div class="full list ctx-list pick-list">${keys.map(k => `<div class="item${k === cur ? ' active' : ''}" data-lt="${esc(k)}"><span class="lt-prev" style="border-top-style:${k ? 'dashed' : 'solid'}"></span>${esc(k ? ((S.ltypes[k] && S.ltypes[k].name) || k) : t('selByLayer'))}</div>`).join('')}</div>`);
+      $('docBody').onclick = (ev) => { const it = ev.target.closest('[data-lt]'); if (!it) return; api.hide('docPanel'); selProps({ lt: it.dataset.lt }); };
+      break;
+    }
+    case 'layer': {
+      if (!gate('props')) return;
+      const cur = [...ed.sel][0].lay;
+      api.openDoc(t('selChangeLayer'), `<div class="full list ctx-list pick-list">${[...S.layers.keys()].sort((a, b) => a.localeCompare(b, 'tr')).map(n => `<div class="item${n === cur ? ' active' : ''}" data-lay="${esc(n)}">${esc(n)}</div>`).join('')}</div>`);
+      $('docBody').onclick = (ev) => { const it = ev.target.closest('[data-lay]'); if (!it) return; api.hide('docPanel'); selProps({ layer: it.dataset.lay }); };
+      break;
+    }
+    case 'props': showProps(); break;
+    case 'clear': if (tools.running && tools.active === 'select') { tools.cancel(); markActive(null); } ed.sel.clear(); api.drawOverlay(); break;
+    default: break;
+  }
+}
+ed.selMenu = selMenu; ed.selAction = selAction;
+{ const b = $('selBadge'); if (b) b.addEventListener('click', () => selMenu()); }
+
 // ---------------------------------------------------------------------------------
 // DXF kaydetme
 // ---------------------------------------------------------------------------------
@@ -964,8 +1062,56 @@ function gizmoVertLayout() {
   const VL = Gz.layoutVerts(vs, toScreen, { fs: ui.fontScale, glove: ui.glove });
   return VL ? { p, vs, VL } : null;
 }
+/*
+ * BÖLGE SEÇİMİ SÜRÜKLEMESİ. Seç aracı pencere ya da çokgen kipindeyken tek parmak kaydırmaz,
+ * bölge çizer; app.js bunu tutamak jestiyle aynı kapıdan (gizmoDown / Move / Up) alır. Yön AutoCAD
+ * kuralıdır: soldan sağa başlayan sürükleme PENCERE (tamamen içindekiler), sağdan sola başlayan
+ * KESEN (dokunanlar); çokgende de ilk yatay hareket karar verir. Renk de AutoCAD'deki gibi: pencere
+ * mavi dolu, kesen yeşil kesikli.
+ */
+let selDrag = null;
+const selDragArmed = () => !!tools && tools.running && tools.selecting && tools.selMode !== 'tap';   // Seç aracı ve seçim aşamasındaki her araç (Taşı, Sil…): Pencere / Çokgen düğmeleri hepsinde var
+function finishSelDrag(d) {
+  const crossing = d.crossing === true;
+  let n = 0;
+  if (d.mode === 'box') {
+    if (Math.abs(d.x1 - d.x0) < 6 || Math.abs(d.y1 - d.y0) < 6) return;   // yalnız dokunuş: kutu yok
+    const a = toWorld(Math.min(d.x0, d.x1), Math.max(d.y0, d.y1)), b = toWorld(Math.max(d.x0, d.x1), Math.min(d.y0, d.y1));
+    n = tools.selectRegion({ rect: [a[0], a[1], b[0], b[1]] }, crossing);
+  } else {
+    if (d.pts.length < 3) return;
+    n = tools.selectRegion({ poly: d.pts.map(p => toWorld(p[0], p[1])) }, crossing);
+  }
+  api.toast(n ? `${n} ${t('selectedN')}` : t('selRegionNone'), 1400);
+  if (n) haptic('snap');
+}
+function drawSelDrag(c) {
+  const d = selDrag; if (!d) return;
+  const crossing = d.crossing === true, col = crossing ? '#3ddc84' : '#4da3ff';
+  c.save(); c.lineWidth = 1.5; c.strokeStyle = col; c.fillStyle = col; c.globalAlpha = 1;
+  if (crossing) c.setLineDash([6, 4]); else c.setLineDash([]);
+  c.beginPath();
+  if (d.mode === 'box') c.rect(Math.min(d.x0, d.x1), Math.min(d.y0, d.y1), Math.abs(d.x1 - d.x0), Math.abs(d.y1 - d.y0));
+  else { d.pts.forEach((p, i) => (i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]))); c.closePath(); }
+  c.globalAlpha = 0.14; c.fill(); c.globalAlpha = 1; c.stroke();
+  c.restore();
+}
+/** Seçim rozeti: seçimin sol üst köşesinde sayı + kalem; dokununca seçim menüsü (Sil, Taşı, Renk…) */
+function updateSelBadge() {
+  const el = $('selBadge'); if (!el) return;
+  const show = ed.sel.size > 0 && !ed.is3D() && !giz && !selDrag && !S.gestureActive && !(tools.running && !tools.selecting && tools.active !== 'select');
+  if (!show) { el.hidden = true; return; }
+  const bb = Gz.boxOf(ed.sel);
+  if (!bb || !isFinite(bb[0])) { el.hidden = true; return; }
+  const s = toScreen(bb[0], bb[3]);
+  const x = Math.max(6, Math.min(S.W - 70, s[0] - 20)), y = Math.max(6, Math.min(S.H - 54, s[1] - 58));
+  el.style.left = x + 'px'; el.style.top = y + 'px';
+  const n = el.querySelector('.n'); if (n) n.textContent = String(ed.sel.size);
+  el.hidden = false;
+}
 /** İşaretçi bir tutamağa indi mi? true dönerse app.js kaydırma/dokunma yapmaz. */
 ed.gizmoDown = (sx, sy) => {
+  if (selDragArmed()) { selDrag = { mode: tools.selMode, pts: [[sx, sy]], x0: sx, y0: sy, x1: sx, y1: sy, crossing: null }; return true; }
   const L = gizmoLayout(); if (!L) return false;
   const G = gizmoVertLayout();
   const kind = Gz.hit(sx, sy, L, G && G.VL); if (!kind) return false;
@@ -981,10 +1127,16 @@ ed.gizmoDown = (sx, sy) => {
   return true;
 };
 ed.gizmoMove = (sx, sy) => {
+  if (selDrag) {
+    const d = selDrag; d.x1 = sx; d.y1 = sy;
+    if (d.mode === 'lasso') { const l = d.pts[d.pts.length - 1]; if (Math.hypot(sx - l[0], sy - l[1]) > 3) d.pts.push([sx, sy]); }
+    if (d.crossing == null && Math.abs(sx - d.x0) > 6) d.crossing = sx < d.x0;   // ilk yatay hareket: sola = kesen
+    api.drawOverlay(); return true;
+  }
   if (!giz) return false;
   if (giz.vi != null) {
     // Bırakma noktası yakalamaya oturur: düğüm bir başka çizginin ucuna TAM denk gelsin diye.
-    const w = toWorld(sx, sy), sn = api.snap(w), q = sn ? sn.p : w;
+    const w = toWorld(sx, sy), sn = api.snapPeek ? api.snapPeek(w) : api.snap(w), q = sn ? sn.p : w;
     giz.p = [q[0], q[1]];
     giz.info = { tip: 'vertex', dx: q[0] - giz.ops0[giz.vi][1], dy: q[1] - giz.ops0[giz.vi][2] };
     api.drawOverlay();
@@ -997,6 +1149,7 @@ ed.gizmoMove = (sx, sy) => {
 };
 /** commit=false ise (pointercancel) değişiklik atılır */
 ed.gizmoUp = (commit) => {
+  if (selDrag) { const d = selDrag; selDrag = null; if (commit) finishSelDrag(d); api.drawOverlay(); return true; }
   const g = giz; giz = null;
   if (!g) return false;
   if (g.vi != null) {
@@ -1015,7 +1168,7 @@ ed.gizmoUp = (commit) => {
   api.drawOverlay();
   return true;
 };
-ed.gizmoBusy = () => !!giz;
+ed.gizmoBusy = () => !!giz || !!selDrag;
 /** Sürükleme okuması: ölçek yüzdesi / açı / öteleme — durum çubuğu yerine kutunun yanında */
 function gizmoText() {
   const i = giz && giz.info; if (!i) return '';
@@ -1061,6 +1214,7 @@ export function overlay(c) {
       }
     }
   }
+  drawSelDrag(c); updateSelBadge();
   const d = tools.draft;
   if (!d || !tools.running && !d.keep) return;
   c.strokeStyle = acc; c.fillStyle = acc; c.lineWidth = Math.max(1.5, sw - 1); c.setLineDash([]);
@@ -1702,6 +1856,21 @@ function layerCli() {
     },
   };
   cmdSeqStart(secenek);
+}
+/*
+ * -OSNAP: AutoCAD'in komut satırı sürümü. "Enter list of object snap modes:" — virgülle ayrılmış
+ * kip adları (END,MID,CEN…), NONE / OFF hepsini kapatır. Tanınmayan ad uyarı alır, tanınanlar kurulur.
+ */
+function osnapCli() {
+  const O = api.osnap;
+  cmdSeqStart({ istem: t('osCliPrompt'), ph: [...S.snapModes].map(m => O.abbrOf(m)).join(',') || 'END,MID,CEN', cevap: (v) => {
+    if (!v) return null;
+    const r = O.parseList(v);
+    if (r.bad.length) api.toast(t('osCliBad').replace('%s', r.bad.join(', ')), 2200);
+    if (r.off && !r.modes.length) { O.setModes([]); api.toast(t('osnapOff'), 1200); }
+    else if (r.modes.length) { O.setModes(r.modes); api.toast(t('osnapOn') + ': ' + r.modes.map(m => O.abbrOf(m)).join(', '), 1800); }
+    return null;
+  } });
 }
 /** '?' seçeneği: katmanlar ve durumları metin olarak (AutoCAD'in -LAYER ? listesi gibi) */
 function showCmdLayers() {

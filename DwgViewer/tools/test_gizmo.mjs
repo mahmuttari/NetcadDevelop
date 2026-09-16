@@ -58,7 +58,7 @@ const layout = () => ev(async () => {
   return { pts: L.pts, box: L.box, tiny: L.tiny, hitR: L.hitR };
 });
 const bbOf = (key) => ev((k) => { const p = window.dwgApp.state.prims.find(x => x.key === k); return p ? p.bb.slice() : null; }, key);
-const undoLen = () => ev(() => { const d = window.dwgApp.editor.doc; return d ? d.undoStack.length : -1; });
+const undoLen = () => ev(() => { const d = window.dwgApp.editor.doc; return d ? d.log.length : -1; });   // günlük: geri alma yığını 10 adımla sınırlı (v7.55), sayım günlükten
 /** Tutamağı sürükler: basar, iki adımda taşır, bırakır */
 async function drag(from, to) {
   const a = pg(from), b = pg(to);

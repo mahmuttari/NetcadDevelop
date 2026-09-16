@@ -724,58 +724,207 @@ export function cornerAt(opsA, closedA, wA, opsB, closedB, wB) {
   return { kind: 'two', i: sA.i, j: sB.i, c, p0: uzak(sA), p1: uzak(sB) };
 }
 
-/**
- * Yakalama. modes: Set('end','mid','cen','per','int','nea','node')
- * prims: aday ilkeller; w: dünya noktası; tol: dünya birimi; prev: önceki nokta (dik için)
+/*
+ * YAKALAMA (nesne yakalama, OSNAP). AutoCAD'in çalışan kiplerinin TAMAMI:
+ *   end uç · mid orta · cen merkez · gcen geometrik merkez · node düğüm · qua çeyrek · int kesişim ·
+ *   ext uzantı · ins ekleme · per dik · tan teğet · nea en yakın · app görünür kesişim · par paralel
+ *
+ * prims: aday ilkeller (açıklık penceresi) · w: dünya noktası · tol: açıklık (dünya birimi) ·
+ * modes: Set · prev: önceki nokta (dik, teğet ve paralel bunu ister; yoksa o kipler ertelenir) ·
+ * opt.wide: paralel için geniş aday kümesi — referans doğru imlecin altında olmak zorunda değildir.
+ *
+ * Öncelik AutoCAD'deki gibidir: aynı açıklıkta birden çok aday varsa uç / düğüm > kesişim > merkez /
+ * ekleme > çeyrek > orta > teğet > dik > uzantı / paralel > en yakın; ağırlık (PRI) uzaklığa eklenir.
+ * Kesişim (int) ile görünür kesişim (app) farkı: int iki parçanın Z'si de biliniyorsa aynı kotta
+ * olmasını ister; app yalnız ekrandaki (XY) çakışmaya bakar — 3B ağ kenarlarında ikisi ayrışır.
+ * Yaylar CCW'ye normalize edilir; saat yönlü yayın (op −2) orta ve çeyrek noktaları da doğru çıkar.
  * → { p:[x,y,z], kind } ya da null
  */
-export function snapPoint(prims, w, tol, modes, prev) {
+const PRI = { end: 0, node: 0, int: 0.1, app: 0.15, cen: 0.2, ins: 0.2, gcen: 0.25, qua: 0.25, mid: 0.3, tan: 0.4, per: 0.5, ext: 0.6, par: 0.6, nea: 0.9 };
+export const SNAP_MODES = Object.keys(PRI);
+/** Yolun parçaları: düz segmentler, CCW yaylar, elipsler ve elips örnek segmentleri (yalnız en yakın / kesişim için) */
+function pathParts(p) {
+  const segs = [], arcs = [], ells = [], esegs = [];
+  let lx = 0, ly = 0, lz, sx = 0, sy = 0, sz;
+  for (const o of p.ops) {
+    if (o[0] === 0) { lx = sx = o[1]; ly = sy = o[2]; lz = sz = o[3]; continue; }
+    if (o[0] === 1) { segs.push([lx, ly, o[1], o[2], lz, o[3]]); lx = o[1]; ly = o[2]; lz = o[3]; continue; }
+    if (o[0] === 2 || o[0] === -2) {
+      arcs.push(o[0] === 2 ? { cx: o[1], cy: o[2], r: o[3], a0: o[4], a1: o[5], z: o[6] } : { cx: o[1], cy: o[2], r: o[3], a0: o[5], a1: o[4], z: o[6] });
+      lx = o[1] + o[3] * Math.cos(o[5]); ly = o[2] + o[3] * Math.sin(o[5]); lz = undefined; continue;
+    }
+    if (o[0] === 3) {
+      ells.push({ cx: o[1], cy: o[2], rx: o[3], ry: o[4], rot: o[5], a0: o[6], a1: o[7] });
+      const pts = []; ellipsePts(o[1], o[2], o[3], o[4], o[5], o[6], o[7], pts);
+      for (let i = 1; i < pts.length; i++) esegs.push([pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1]]);
+      lx = pts[pts.length - 1][0]; ly = pts[pts.length - 1][1]; lz = undefined;
+    }
+  }
+  if (p.closed && (lx !== sx || ly !== sy)) segs.push([lx, ly, sx, sy, lz, sz]);
+  return { segs, arcs, ells, esegs };
+}
+/** Elips parametresindeki nokta (ellipsePts ile aynı kurgu) */
+function ellAt(e, a) {
+  const x = e.rx * Math.cos(a), y = e.ry * Math.sin(a), cs = Math.cos(e.rot), sn = Math.sin(e.rot);
+  return [e.cx + x * cs - y * sn, e.cy + x * sn + y * cs];
+}
+/** Doğru parçası – çember kesişimleri (parça içinde, yay aralığında) */
+function segArcHits(s, a) {
+  const dx = s[2] - s[0], dy = s[3] - s[1], fx = s[0] - a.cx, fy = s[1] - a.cy;
+  const A = dx * dx + dy * dy, B = 2 * (fx * dx + fy * dy), C = fx * fx + fy * fy - a.r * a.r;
+  if (A < 1e-18) return [];
+  const disc = B * B - 4 * A * C;
+  if (disc < 0) return [];
+  const sq = Math.sqrt(disc), out = [];
+  for (const t of [(-B - sq) / (2 * A), (-B + sq) / (2 * A)]) {
+    if (t < -1e-9 || t > 1 + 1e-9) continue;
+    const x = s[0] + t * dx, y = s[1] + t * dy;
+    if (angIn(Math.atan2(y - a.cy, x - a.cx), a.a0, a.a1)) out.push([x, y]);
+  }
+  return out;
+}
+/** Çember – çember kesişimleri (iki yayın da aralığında) */
+function arcArcHits(a, b) {
+  const dx = b.cx - a.cx, dy = b.cy - a.cy, d = Math.hypot(dx, dy);
+  if (d < 1e-12 || d > a.r + b.r + 1e-9 || d < Math.abs(a.r - b.r) - 1e-9) return [];
+  const x = (d * d - b.r * b.r + a.r * a.r) / (2 * d), h2 = a.r * a.r - x * x, h = h2 > 0 ? Math.sqrt(h2) : 0;
+  const mx = a.cx + x * dx / d, my = a.cy + x * dy / d, out = [];
+  for (const sg of (h > 0 ? [1, -1] : [1])) {
+    const px = mx + sg * h * (-dy / d), py = my + sg * h * (dx / d);
+    if (angIn(Math.atan2(py - a.cy, px - a.cx), a.a0, a.a1) && angIn(Math.atan2(py - b.cy, px - b.cx), b.a0, b.a1)) out.push([px, py]);
+  }
+  return out;
+}
+/** Kesişim noktasındaki kot: parça üzerindeki oran ile doğrusal; bilinmiyorsa undefined */
+function zOn(s, x, y) {
+  if (s[4] == null || s[5] == null) return undefined;
+  const dx = s[2] - s[0], dy = s[3] - s[1], l2 = dx * dx + dy * dy;
+  const t = l2 ? ((x - s[0]) * dx + (y - s[1]) * dy) / l2 : 0;
+  return s[4] + t * (s[5] - s[4]);
+}
+export function snapPoint(prims, w, tol, modes, prev, opt = {}) {
   let best = null, bd = tol;
-  const PRI = { end: 0, node: 0, int: 0.1, cen: 0.2, mid: 0.3, per: 0.5, nea: 0.9 };
+  const has = (m) => modes.has(m);
   const test = (x, y, kind, z) => {
+    if (!(isFinite(x) && isFinite(y))) return;
     const d = Math.hypot(x - w[0], y - w[1]) + PRI[kind] * tol * 0.5;
     if (d < bd) { bd = d; best = { p: [x, y, z], kind }; }
   };
-  const allSegs = [];
+  const allSegs = [], allArcs = [];
+  const wantX = has('int') || has('app');
+  const straight = (s) => {
+    if (has('end')) { test(s[0], s[1], 'end', s[4]); test(s[2], s[3], 'end', s[5]); }
+    if (has('mid')) test((s[0] + s[2]) / 2, (s[1] + s[3]) / 2, 'mid', s[4] != null && s[5] != null ? (s[4] + s[5]) / 2 : undefined);
+    if (has('per') && prev) { const f = segFoot(prev[0], prev[1], s[0], s[1], s[2], s[3]); if (f) test(f[0], f[1], 'per', zOn(s, f[0], f[1])); }
+    if (has('nea')) { const f = segFoot(w[0], w[1], s[0], s[1], s[2], s[3]); if (f) test(f[0], f[1], 'nea', zOn(s, f[0], f[1])); }
+    if (has('ext')) {
+      // parçanın SONSUZ doğrusu üzerindeki dik ayak; yalnız parçanın DIŞINDA kalıyorsa uzantıdır
+      const dx = s[2] - s[0], dy = s[3] - s[1], l2 = dx * dx + dy * dy;
+      if (l2 > 0) { const t = ((w[0] - s[0]) * dx + (w[1] - s[1]) * dy) / l2; if (t < 0 || t > 1) test(s[0] + t * dx, s[1] + t * dy, 'ext', s[4] != null && s[5] != null ? s[4] + t * (s[5] - s[4]) : undefined); }
+    }
+    if (wantX && allSegs.length < 400) allSegs.push(s);
+  };
+  const curved = (a) => {
+    if (has('cen')) test(a.cx, a.cy, 'cen', a.z);
+    const at = (ang) => [a.cx + a.r * Math.cos(ang), a.cy + a.r * Math.sin(ang)];
+    let span = a.a1 - a.a0; while (span <= 0) span += TAU;
+    const full = span >= TAU - 1e-9;
+    if (has('end') && !full) { const p0 = at(a.a0), p1 = at(a.a1); test(p0[0], p0[1], 'end', a.z); test(p1[0], p1[1], 'end', a.z); }
+    if (has('mid') && !full) { const m = at(a.a0 + span / 2); test(m[0], m[1], 'mid', a.z); }
+    if (has('qua')) for (let k = 0; k < 4; k++) { const q = k * Math.PI / 2; if (angIn(q, a.a0, a.a1)) { const pq = at(q); test(pq[0], pq[1], 'qua', a.z); } }
+    const aw = Math.atan2(w[1] - a.cy, w[0] - a.cx), inW = angIn(aw, a.a0, a.a1);
+    if (has('nea') && inW) { const n = at(aw); test(n[0], n[1], 'nea', a.z); }
+    if (has('ext') && !full && !inW) { const n = at(aw); test(n[0], n[1], 'ext', a.z); }   // yayın çember üzerindeki devamı
+    if (has('per') && prev) {
+      const ap = Math.atan2(prev[1] - a.cy, prev[0] - a.cx);
+      for (const ang of [ap, ap + Math.PI]) if (angIn(ang, a.a0, a.a1)) { const f = at(ang); test(f[0], f[1], 'per', a.z); }
+    }
+    if (has('tan') && prev) {
+      // prev'den çembere iki teğet: merkez–prev doğrultusundan ±acos(r/d)
+      const d = Math.hypot(prev[0] - a.cx, prev[1] - a.cy);
+      if (d > a.r + 1e-9) {
+        const th = Math.acos(a.r / d), ap = Math.atan2(prev[1] - a.cy, prev[0] - a.cx);
+        for (const ang of [ap + th, ap - th]) if (angIn(ang, a.a0, a.a1)) { const q = at(ang); test(q[0], q[1], 'tan', a.z); }
+      }
+    }
+    if (wantX && allArcs.length < 200) allArcs.push(a);
+  };
   for (const p of prims) {
-    if (p.k === 2) { if (modes.has('node') || modes.has('end')) test(p.x, p.y, 'node', p.z); continue; }
-    if (p.k === 4) { if (modes.has('ins')) test(p.x, p.y, 'ins', p.z); continue; }
-    if (p.k === 5) {                                 // ağ ilkeli: kenar dizisi doğrudan taranır (segmentsOf'a kopyalanmaz)
+    if (p.k === 2) { if (has('node') || has('end')) test(p.x, p.y, 'node', p.z); continue; }
+    if (p.k === 4 || p.k === 1) { if (has('ins') && typeof p.x === 'number') test(p.x, p.y, 'ins', p.z); continue; }
+    if (p.k === 5) {                                 // ağ ilkeli: kenar dizisi doğrudan taranır (kopyalanmaz)
       const g = p.seg;
       if (!g || !g.length || g.length > 1200000) continue;
       for (let i = 0; i + 5 < g.length; i += 6) {
         const x1 = g[i], y1 = g[i + 1], z1 = g[i + 2], x2 = g[i + 3], y2 = g[i + 4], z2 = g[i + 5];
         if ((x1 < x2 ? x1 : x2) - tol > w[0] || (x1 > x2 ? x1 : x2) + tol < w[0]) continue;   // tolerans penceresi (kayıpsız eleme)
         if ((y1 < y2 ? y1 : y2) - tol > w[1] || (y1 > y2 ? y1 : y2) + tol < w[1]) continue;
-        if (modes.has('end')) { test(x1, y1, 'end', z1); test(x2, y2, 'end', z2); }
-        if (modes.has('mid')) test((x1 + x2) / 2, (y1 + y2) / 2, 'mid', (z1 + z2) / 2);
-        if (modes.has('per') && prev) { const f = segFoot(prev[0], prev[1], x1, y1, x2, y2); if (f) test(f[0], f[1], 'per'); }
-        if (modes.has('nea')) { const f = segFoot(w[0], w[1], x1, y1, x2, y2); if (f) test(f[0], f[1], 'nea'); }
-        if (modes.has('int') && allSegs.length < 400) allSegs.push([x1, y1, x2, y2, z1, z2]);
+        straight([x1, y1, x2, y2, z1, z2]);
       }
       continue;
     }
     if (p.k !== 0) continue;
-    const { segs, arcs } = segmentsOf(p);
-    for (const s of segs) {
-      if (modes.has('end')) { test(s[0], s[1], 'end', s[4]); test(s[2], s[3], 'end', s[5]); }
-      if (modes.has('mid')) test((s[0] + s[2]) / 2, (s[1] + s[3]) / 2, 'mid', s[4] != null && s[5] != null ? (s[4] + s[5]) / 2 : undefined);
-      if (modes.has('per') && prev) { const f = segFoot(prev[0], prev[1], s[0], s[1], s[2], s[3]); if (f) test(f[0], f[1], 'per'); }
-      if (modes.has('nea')) { const f = segFoot(w[0], w[1], s[0], s[1], s[2], s[3]); if (f) test(f[0], f[1], 'nea'); }
-      if (modes.has('int')) allSegs.push(s);
+    const { segs, arcs, ells, esegs } = pathParts(p);
+    for (const s of segs) straight(s);
+    for (const a of arcs) curved(a);
+    for (const e of ells) {
+      if (has('cen')) test(e.cx, e.cy, 'cen');
+      let span = e.a1 - e.a0; while (span <= 0) span += TAU;
+      const full = span >= TAU - 1e-9;
+      if (has('end') && !full) { const p0 = ellAt(e, e.a0), p1 = ellAt(e, e.a1); test(p0[0], p0[1], 'end'); test(p1[0], p1[1], 'end'); }
+      if (has('mid') && !full) { const m = ellAt(e, e.a0 + span / 2); test(m[0], m[1], 'mid'); }
+      if (has('qua')) for (let k = 0; k < 4; k++) { const q = k * Math.PI / 2; if (angIn(q, e.a0, e.a1)) { const pq = ellAt(e, q); test(pq[0], pq[1], 'qua'); } }
     }
-    for (const o of arcs) {
-      if (modes.has('cen')) test(o[1], o[2], 'cen');
-      if (modes.has('end')) { test(o[1] + o[3] * Math.cos(o[4]), o[2] + o[3] * Math.sin(o[4]), 'end'); test(o[1] + o[3] * Math.cos(o[5]), o[2] + o[3] * Math.sin(o[5]), 'end'); }
-      if (modes.has('mid')) { let d = o[5] - o[4]; while (d <= 0) d += TAU; const a = o[4] + d / 2; test(o[1] + o[3] * Math.cos(a), o[2] + o[3] * Math.sin(a), 'mid'); }
-      if (modes.has('nea')) { const a = Math.atan2(w[1] - o[2], w[0] - o[1]); if (angIn(a, o[0] === 2 ? o[4] : o[5], o[0] === 2 ? o[5] : o[4])) test(o[1] + o[3] * Math.cos(a), o[2] + o[3] * Math.sin(a), 'nea'); }
+    for (const s of esegs) {   // elips örnekleri: yalnız en yakın ve kesişim (uç / orta / uzantı sahte olurdu)
+      if (has('nea')) { const f = segFoot(w[0], w[1], s[0], s[1], s[2], s[3]); if (f) test(f[0], f[1], 'nea'); }
+      if (wantX && allSegs.length < 400) allSegs.push(s);
+    }
+    if (has('gcen') && p.closed) {
+      // kapalı yolun alan ağırlık merkezi (yaylar ve elipsler örneklenir)
+      const poly = [];
+      for (const o of p.ops) {
+        if (o[0] === 0 || o[0] === 1) poly.push([o[1], o[2]]);
+        else if (o[0] === 2 || o[0] === -2) { const pts = []; ellipsePts(o[1], o[2], o[3], o[3], 0, o[0] === 2 ? o[4] : o[5], o[0] === 2 ? o[5] : o[4], pts); for (const q of pts) poly.push(q); }
+        else if (o[0] === 3) { const pts = []; ellipsePts(o[1], o[2], o[3], o[4], o[5], o[6], o[7], pts); for (const q of pts) poly.push(q); }
+      }
+      let A = 0, cx = 0, cy = 0;
+      for (let i = 0, n = poly.length; i < n; i++) { const a = poly[i], b = poly[(i + 1) % n], f = a[0] * b[1] - b[0] * a[1]; A += f; cx += (a[0] + b[0]) * f; cy += (a[1] + b[1]) * f; }
+      if (Math.abs(A) > 1e-12) test(cx / (3 * A), cy / (3 * A), 'gcen');
     }
   }
-  if (modes.has('int') && allSegs.length < 400) {
+  if (wantX) {
+    const both = has('int'), app = has('app');
+    const hit = (x, y, s1, s2) => {
+      const z1 = s1 ? zOn(s1, x, y) : undefined, z2 = s2 ? zOn(s2, x, y) : undefined;
+      const ayniKot = z1 == null || z2 == null || Math.abs(z1 - z2) <= tol;
+      if (both && ayniKot) test(x, y, 'int', z1 != null ? z1 : z2);
+      else if (app) test(x, y, 'app', z1 != null ? z1 : z2);
+    };
     for (let i = 0; i < allSegs.length; i++) for (let j = i + 1; j < allSegs.length; j++) {
       const x = segIntersect(allSegs[i], allSegs[j]);
-      if (x) test(x[0], x[1], 'int');
+      if (x) hit(x[0], x[1], allSegs[i], allSegs[j]);
     }
+    for (const s of allSegs) for (const a of allArcs) for (const q of segArcHits(s, a)) hit(q[0], q[1], s, null);
+    for (let i = 0; i < allArcs.length; i++) for (let j = i + 1; j < allArcs.length; j++) for (const q of arcArcHits(allArcs[i], allArcs[j])) hit(q[0], q[1], null, null);
+  }
+  if (has('par') && prev) {
+    // Paralel: prev'den geçen, referans doğruya paralel yol üzerinde imlece en yakın nokta.
+    // Referans, dokunuşa en yakın DÜZ parçadır; geniş aday kümesi verilirse oradan seçilir.
+    let ref = null, rd = Infinity;
+    for (const p of (opt.wide || prims)) {
+      if (p.k !== 0) continue;
+      for (const s of pathParts(p).segs) {
+        const dx = s[2] - s[0], dy = s[3] - s[1], l = Math.hypot(dx, dy);
+        if (l < 1e-12) continue;
+        const ux = dx / l, uy = dy / l, tt = (w[0] - prev[0]) * ux + (w[1] - prev[1]) * uy;
+        const qx = prev[0] + ux * tt, qy = prev[1] + uy * tt;
+        const off = Math.hypot(w[0] - qx, w[1] - qy);
+        if (off > tol) continue;
+        const dRef = segDist(w[0], w[1], s[0], s[1], s[2], s[3]);   // dokunuşa yakın referans yeğlenir
+        if (dRef < rd) { rd = dRef; ref = [qx, qy]; }
+      }
+    }
+    if (ref) test(ref[0], ref[1], 'par');
   }
   return best;
 }

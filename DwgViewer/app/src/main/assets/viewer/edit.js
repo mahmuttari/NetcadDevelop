@@ -259,6 +259,12 @@ export function offsetPoints(pts, d, closed) {
 const katmanGorunur = (l) => { l.visible = !l.off && !l.frozen && !l.isoHidden; return l.visible; };
 const GECICI = (l) => ({ isoHidden: l.isoHidden, faded: l.faded, count: l.count });
 
+/*
+ * GERİ ALMA HAFIZASI: 10 geri, 10 ileri (kullanıcı kararı). Onbirinci komutta en eski geri alma
+ * adımı düşer — komut günlükte kalır (dosya yeniden açılınca yine uygulanır, DXF'e yazılır), yalnız
+ * geri alınamaz olur. Yinele yığını da aynı derinliktedir: on birinci geri alınan adım yinelenemez.
+ */
+export const UNDO_DEPTH = 10;
 export class EditDoc {
   /**
    * @param ctx { prims:()=>array, layers:Map, keyOf:(p)=>string, insert:(prim, at)=>void, remove:(prim)=>index, rebuild:()=>void, store:{get,set}, key:string }
@@ -280,6 +286,7 @@ export class EditDoc {
     if (!restore) return false;
     this.log.push(cmd);
     this.undoStack.push({ cmd, restore });
+    if (this.undoStack.length > UNDO_DEPTH) this.undoStack.shift();
     this.redoStack = [];
     if (!opts.silent) this.save();
     this._katmanSonrasi(cmd);
@@ -337,14 +344,15 @@ export class EditDoc {
       case 'props': {
         const ps = this.find(cmd.keys);
         if (!ps.length) return null;
-        const snaps = ps.map(p => ({ lay: p.lay, col: p.col, info: p.info, ent: p.ent }));
+        const snaps = ps.map(p => ({ lay: p.lay, col: p.col, lt: p.lt, info: p.info, ent: p.ent }));
         for (const p of ps) {
           const lay = cmd.layer ? C.layers.get(cmd.layer) : null;
           if (cmd.layer) p.lay = cmd.layer;
+          if (cmd.lt !== undefined) p.lt = cmd.lt || null;   // '' / null = katmandan (ByLayer); anahtar LTYPE tablosunun büyük harfli adı
           if (cmd.color != null) p.col = cmd.color === 256 ? (C.layers.get(p.lay) ? C.layers.get(p.lay).color : FG) : (cmd.color === -1 ? FG : ACI[cmd.color]);
           else if (lay && (p.info && p.info.ci === 256)) p.col = lay.color;
-          p.info = { ...p.info, lay: p.lay, ci: cmd.color != null ? cmd.color : (p.info ? p.info.ci : 256), col: p.col, edited: true };
-          if (p.ent) p.ent = { ...p.ent, layer: p.lay, color: cmd.color != null ? cmd.color : p.ent.color };
+          p.info = { ...p.info, lay: p.lay, ci: cmd.color != null ? cmd.color : (p.info ? p.info.ci : 256), col: p.col, lt: cmd.lt !== undefined ? (cmd.lt || '') : (p.info ? p.info.lt : ''), edited: true };
+          if (p.ent) p.ent = { ...p.ent, layer: p.lay, color: cmd.color != null ? cmd.color : p.ent.color, ...(cmd.lt !== undefined ? { linetype: cmd.lt || 'BYLAYER' } : {}) };
         }
         return () => { ps.forEach((p, i) => Object.assign(p, snaps[i])); };
       }
@@ -594,6 +602,7 @@ export class EditDoc {
     u.restore();
     this.log.pop();
     this.redoStack.push(u.cmd);
+    if (this.redoStack.length > UNDO_DEPTH) this.redoStack.shift();
     this.save();
     this._katmanSonrasi(u.cmd);
     return true;
@@ -602,7 +611,7 @@ export class EditDoc {
     const cmd = this.redoStack.pop();
     if (!cmd) return false;
     const restore = this.apply(cmd);
-    if (restore) { this.log.push(cmd); this.undoStack.push({ cmd, restore }); }
+    if (restore) { this.log.push(cmd); this.undoStack.push({ cmd, restore }); if (this.undoStack.length > UNDO_DEPTH) this.undoStack.shift(); }
     this.save();
     this._katmanSonrasi(cmd);
     return true;
@@ -614,6 +623,7 @@ export class EditDoc {
     const log = this.ctx.store.json('edits:' + this.ctx.key, []);
     let n = 0;
     for (const cmd of log) { const r = this.apply(cmd); if (r) { this.log.push(cmd); this.undoStack.push({ cmd, restore: r }); n++; } }
+    while (this.undoStack.length > UNDO_DEPTH) this.undoStack.shift();   // yeniden açılışta da yalnız son 10 adım geri alınabilir
     return n;
   }
   clear() { this.log = []; this.undoStack = []; this.redoStack = []; this.save(); }

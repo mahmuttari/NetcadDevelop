@@ -30,7 +30,7 @@ await ev(() => { document.getElementById('toast').hidden = true; localStorage.re
 
 const shot = (n) => page.screenshot({ path: `${out}/${n}.png` });
 const count = () => ev(() => window.dwgApp.state.prims.length);
-const undoLen = () => ev(() => { const d = window.dwgApp.editor.doc; return d ? d.undoStack.length : -1; });
+const undoLen = () => ev(() => { const d = window.dwgApp.editor.doc; return d ? d.log.length : -1; });   // günlük: geri alma yığını 10 adımla sınırlı (v7.55), sayım günlükten
 const sonOp = () => ev(() => { const d = window.dwgApp.editor.doc; const l = d && d.log ? d.log : []; return l.length ? l[l.length - 1].op : null; });
 const zoom = async (bb) => { await ev((b) => window.dwgApp.zoomExtents(b), bb); await page.waitForTimeout(150); };
 const tapWorld = async (x, y) => { await page.waitForTimeout(110); const s = await ev(([a, b]) => window.dwgApp.toScreen(a, b), [x, y]); const r = await page.locator('#viewport').boundingBox(); await page.touchscreen.tap(r.x + s[0], r.y + s[1]); await page.waitForTimeout(160); };

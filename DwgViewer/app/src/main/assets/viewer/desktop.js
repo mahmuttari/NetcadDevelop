@@ -36,7 +36,7 @@ export const RIGHT_ACTIONS = ['enter', 'menu', 'none'];
 /*
  * İŞLEV TUŞLARI — AutoCAD'in kendi atamaları.
  * Karşılığı OLMAYANLAR bilerek yoktur: F4 (3B yakalama), F5 (izometrik düzlem), F6 (dinamik
- * UCS), F9 (ızgara adımı), F11 (yakalama izleme), F12 (dinamik giriş) bu uygulamada karşılıksız.
+ * UCS), F9 (ızgara adımı), F12 (dinamik giriş) bu uygulamada karşılıksız.
  */
 export const FKEYS = {
   F1: { act: 'cmdhelp' },     // yardım → komut listesi
@@ -44,6 +44,7 @@ export const FKEYS = {
   F7: { act: 'grid' },        // ızgara
   F8: { special: 'ortho' },   // ortho kipi
   F10: { special: 'polar' },  // kutupsal izleme
+  F11: { act: 'otrack' },     // nesne yakalama izi (son yakalanan noktayla yatay / düşey hiza)
 };
 
 /*

@@ -299,7 +299,7 @@ Hedef kullanıcı AutoCAD kaslıdır. Rakip DWG FastView'de komut satırı **yok
 vardır ve AutoCAD adlarıyla çalışır. Bu, mağaza metninde öne çıkarılması gereken bir
 ayırt edicidir.
 
-Kapsam (v7.52): **457 kayıt, 661 ad ve kısaltma** — 157 çalışan AutoCAD adı, 30
+Kapsam (v7.55): **458 kayıt, 663 ad ve kısaltma** — 157 çalışan AutoCAD adı, 31
 uygulamaya özgü ad, 270 tanınan ama bulunmayan AutoCAD komutu. Kaynak `IPARD` değil,
 uygulamanın kendi `viewer/acad.js` dosyasıdır ve tektir — komut satırı, İngilizce arayüz
 etiketleri ve yardım listesi hepsi oradan okur. (v7.50'de 86 komut / 144 addı.)
@@ -329,8 +329,8 @@ açmaz, var olanlara ikinci bir kapı verir.
    ayrılan nesne — ama çizim bize aittir. Bu ayrım korunmalı; mağaza görsellerine
    Autodesk arayüzünden alınmış hiçbir parça konmamalıdır.
 3. AutoCAD'de karşılığı **olmayan** 30 yeteneğimiz komut listesinde ayrı bölümdedir ve
-   öyle kalmalıdır. "457 AutoCAD komutu" demek yanlış olur; doğrusu **"157 çalışan
-   AutoCAD komutu + 30 uygulamaya özgü komut + 270 tanınan ama bulunmayan komut"**tur.
+   öyle kalmalıdır. "458 AutoCAD komutu" demek yanlış olur; doğrusu **"157 çalışan
+   AutoCAD komutu + 31 uygulamaya özgü komut + 270 tanınan ama bulunmayan komut"**tur.
 
 ### Masaüstü kipi — YAPILDI (v7.51)
 

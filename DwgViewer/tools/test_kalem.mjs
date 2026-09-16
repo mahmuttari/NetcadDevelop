@@ -30,7 +30,7 @@ await ev(() => { document.getElementById('toast').hidden = true; localStorage.re
 
 const shot = (n) => page.screenshot({ path: `${out}/${n}.png` });
 const count = () => ev(() => window.dwgApp.state.prims.length);
-const undoLen = () => ev(() => { const d = window.dwgApp.editor.doc; return d ? d.undoStack.length : -1; });
+const undoLen = () => ev(() => { const d = window.dwgApp.editor.doc; return d ? d.log.length : -1; });   // günlük: geri alma yığını 10 adımla sınırlı (v7.55), sayım günlükten
 const penState = () => ev(() => JSON.parse(JSON.stringify(window.dwgApp.state.pen)));
 const zoom = async (bb) => { await ev((b) => window.dwgApp.zoomExtents(b), bb); await page.waitForTimeout(150); };
 const toast = () => ev(() => { const el = document.getElementById('toast'); return el && !el.hidden ? el.textContent.trim() : ''; });

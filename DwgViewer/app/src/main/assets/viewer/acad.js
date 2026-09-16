@@ -173,7 +173,8 @@ export const COMMANDS = [
   T('GEOGRAPHICLOCATION', 'basemap', ['GEO'], 'Geographic location', { syn: true, noRepeat: true, note: 'the coordinate system is set in Settings' }),
 
   // --- ortam ve ayarlar
-  T('OSNAP', 'osnap', ['OS'], 'Object snap', { noRepeat: true }),
+  T('OSNAP', 'osnapset', ['OS', 'DDOSNAP'], 'Object snap settings', { noRepeat: true, note: '-OSNAP asks for the mode list on the command line' }),
+  T('OTRACK', 'otrack', [], 'Object snap tracking', { ext: true, noRepeat: true, note: 'F11 · aligns with the last snapped point' }),
   T('GRID', 'grid', [], 'Grid', { noRepeat: true }),
   T('ORTHO', 'ortho', [], 'Ortho', { noRepeat: true }),
   T('LINETYPE', 'ltype', ['LT', 'LTYPE'], 'Linetype', { noRepeat: true, note: 'toggles linetype display' }),

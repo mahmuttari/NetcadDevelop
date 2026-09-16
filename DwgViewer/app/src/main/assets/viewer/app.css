@@ -72,6 +72,9 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
 .st-quick button { width: 40px; height: 40px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); padding: 0; display: inline-flex; align-items: center; justify-content: center; }
 .st-quick button svg.ic { width: 20px; height: 20px; }
 .st-quick button.on { color: var(--accent); background: var(--btn); }
+.st-quick button { position: relative; }
+.st-quick button:disabled { opacity: .38; }
+.st-quick button .st-ct { position: absolute; top: 3px; right: 3px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px; background: var(--accent); color: var(--accent-fg); font-size: 9px; line-height: 14px; font-weight: 700; text-align: center; font-style: normal; }
 body.compact-status .st-quick { display: none; }
 #stCoord { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; min-width: 40px; }
 .st-chip { padding: 0 10px; border-radius: 12px; border: 1px solid var(--line); color: var(--muted); background: transparent; font: inherit; flex: 0 0 auto; min-height: 40px; display: inline-flex; align-items: center; }
@@ -402,9 +405,34 @@ body.glove .ask-field .opt-text { min-height: 52px; }
 .cam-add input { flex: 1 1 auto; min-width: 0; }
 .opt-text, .opt-num { padding: 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font-size: calc(14px * var(--fs)); min-height: 40px; }
 .opt-num { width: 110px; }
-.snapbar { display: flex; gap: 4px; padding: 6px 10px; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
-.snapbar label { font-size: calc(11px * var(--fs)); display: flex; align-items: center; gap: 3px; padding: 3px 8px; border: 1px solid var(--line); border-radius: 12px; min-height: 32px; }
-.snapbar input { accent-color: var(--accent); width: 18px; height: 18px; }
+/* ---- Nesne yakalama (OSNAP) ---------------------------------------------------------------
+   Ölçü panelindeki çip şeridi tek satırdır ve yana kayar (14 kip + dişli, üç satıra yayılsaydı ölçü
+   sonuçlarına yer kalmazdı). Ayar kutusundaki kartlar AutoCAD Drafting Settings düzeninde: glif +
+   kısaltma + ad; açık kip vurgu renkli. Glifler osnap.js'ten gelir, tuvaldeki işaretle aynıdır. */
+.snapbar { display: flex; gap: 4px; padding: 6px 10px; flex-wrap: nowrap; overflow-x: auto; border-bottom: 1px solid var(--line); scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.snapbar::-webkit-scrollbar { display: none; }
+.os-chip { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px; min-height: 40px; padding: 0 9px; border: 1px solid var(--line); border-radius: 12px; background: transparent; color: var(--muted); font: inherit; font-size: calc(11px * var(--fs)); font-weight: 700; letter-spacing: .2px; }
+.os-chip.on { color: var(--accent); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.os-chip.os-gear { width: 40px; padding: 0; justify-content: center; color: var(--fg); }
+.os-chip .os-ic { width: 18px; height: 18px; }
+.os-ic { width: 22px; height: 22px; display: block; }
+.os-head .opt-note { padding: 0 0 6px; }
+.os-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
+.os-card { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 76px; padding: 6px 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--btn); color: var(--fg); font: inherit; }
+.os-card .os-ic { width: 26px; height: 26px; color: var(--muted); }
+.os-card b { font-size: calc(12px * var(--fs)); letter-spacing: .3px; }
+.os-card span { font-size: calc(10.5px * var(--fs)); color: var(--muted); text-align: center; line-height: 1.15; }
+.os-card.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--btn)); }
+.os-card.on .os-ic, .os-card.on b { color: var(--accent); }
+.os-once .os-card { min-height: 68px; }
+.os-btns { margin: 6px 0 2px; }
+/* ---- Seçim: rozet (sayı + kalem), seçim menüsü kartları, komut çubuğunda açık kip düğmesi ---- */
+.sel-badge { position: absolute; z-index: 6; min-width: 44px; height: 44px; border: 0; border-radius: 22px; background: var(--accent); color: var(--accent-fg); display: inline-flex; align-items: center; gap: 5px; padding: 0 12px 0 14px; font: inherit; font-weight: 800; font-size: calc(15px * var(--fs)); box-shadow: var(--shadow); cursor: pointer; }
+.sel-badge svg.ic { width: 18px; height: 18px; }
+.sel-grid .os-card { min-height: 72px; }
+.sel-grid .os-card svg.ic { width: 26px; height: 26px; color: var(--fg); }
+.sel-grid .os-card span { color: var(--fg); }
+.cmd-in button.on, #cmdBtns button.on { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--btn)); }
 .info-actions, .meas-actions { display: flex; gap: 6px; flex-wrap: wrap; padding: 6px 12px; border-bottom: 1px solid var(--line); }
 .meas-big { font-size: calc(20px * var(--fs)); font-weight: 700; padding: 8px 12px; font-variant-numeric: tabular-nums; border-bottom: 1px solid var(--line); }
 .ctx-list .item { min-height: 44px; display: flex; align-items: center; }

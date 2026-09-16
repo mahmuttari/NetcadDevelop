@@ -27,6 +27,7 @@ import * as Desk from './desktop.js';
 import { writeDxf, aciOf } from './edit.js';
 import { dwgObjectCount } from './dwgstat.js';
 import { skelList, emptyBox } from './skel.js';
+import * as Osnap from './osnap.js';
 
 const $ = (id) => document.getElementById(id);
 const A = () => window.Android || null;
@@ -43,7 +44,7 @@ const VERSION_URL = (A() && A().updateUrl) ? A().updateUrl() : 'https://raw.gith
 // ---------------------------------------------------------------------------
 // Ayarlar
 // ---------------------------------------------------------------------------
-const settings = Object.assign({ lang: 'auto', dark: true, lwScale: 3, crs: 'NONE', unit: 'auto', swap: false, dx: 0, dy: 0, basemap: 'none', basemapUrl: '', wms: '', opacity: 0.8, prec: 3, precPad: false, snap: ['end', 'mid', 'cen', 'int', 'ins', 'node'] }, store.json('settings', {}));
+const settings = Object.assign({ lang: 'auto', dark: true, lwScale: 3, crs: 'NONE', unit: 'auto', swap: false, dx: 0, dy: 0, basemap: 'none', basemapUrl: '', wms: '', opacity: 0.8, prec: 3, precPad: false, snap: Osnap.DEFAULT_MODES.slice(), snapOpt: { ...Osnap.OPT_DEFAULTS } }, store.json('settings', {}));
 /** 3B görünümde hiç yüzey yoksa: dosyadaki varlık türleri ve katı tanılaması bir kartta gösterilir (bir dosya için bir kez) */
 function showNoFaces() {
   const c = S.counts || {}, cen = (S.scene && S.scene.census) || {}, d = S.scene && S.scene.solidDiag;
@@ -96,8 +97,8 @@ function applySettings() {
   }
   settings.dark = S.dark; settings.lwScale = S.lwScale; settings.opacity = S.basemap.opacity; settings.display = { ...(settings.display || {}), ...D.snapshot() };
   S.prec = clampPrec(settings.prec); S.precPad = !!settings.precPad;
-  S.snapModes = new Set(settings.snap || []);
-  document.querySelectorAll('[data-snap]').forEach(cb => { cb.checked = S.snapModes.has(cb.dataset.snap); });
+  S.snapModes = new Set((settings.snap || []).filter(m => Osnap.MODES.some(x => x.id === m)));
+  Osnap.renderBar($('snapBar'));
 }
 function applyGeo() {
   const g = S.fileKey ? store.json('geo:' + S.fileKey, null) : null;
@@ -314,16 +315,11 @@ function drawOverlay() {
         label(c, fmtUnit(d), mx, my);
       }
     }
-    if (S.snap) {
-      const s = toScreen(S.snap.p[0], S.snap.p[1]), k = S.snap.kind;
-      c.strokeStyle = '#3ddc84'; c.lineWidth = 2;
-      if (k === 'end' || k === 'node') c.strokeRect(s[0] - 7, s[1] - 7, 14, 14);
-      else if (k === 'mid') { c.beginPath(); c.moveTo(s[0], s[1] - 8); c.lineTo(s[0] + 8, s[1] + 6); c.lineTo(s[0] - 8, s[1] + 6); c.closePath(); c.stroke(); }
-      else if (k === 'cen' || k === 'ins') { c.beginPath(); c.arc(s[0], s[1], 7, 0, TAU); c.stroke(); }
-      else { c.beginPath(); c.moveTo(s[0] - 7, s[1] - 7); c.lineTo(s[0] + 7, s[1] + 7); c.moveTo(s[0] + 7, s[1] - 7); c.lineTo(s[0] - 7, s[1] + 7); c.stroke(); }
-      c.font = '10px sans-serif'; c.fillStyle = '#3ddc84'; c.fillText(k.toUpperCase(), s[0] + 10, s[1] - 10);
-    }
+    if (S.snap) drawSnapMark(c, S.snap, '#3ddc84');
   }
+  // Dokunuşla yakalanan nokta kısa süre işaretli kalır (AutoCAD'in AutoSnap işareti): parmak kalkınca
+  // kullanıcı neyin yakalandığını görsün. Her kipte (çizim, ölçü, düzenleme) aynı işaret.
+  if (S.snapFlash && S.snapFlash.until > performance.now() && !(S.mode === 'measure' && S.snap)) drawSnapMark(c, S.snapFlash, '#3ddc84');
   if (S.gps.on && S.gps.lat != null && S.geo.active && S.scene.layouts[S.layoutIndex].isModel) {
     const d = S.geo.toDrawing(S.gps.lon, S.gps.lat);
     if (d) {
@@ -419,6 +415,15 @@ function drawCrosshair(c, fg) {
  * yakalanacağı (yakalama işareti) ve o noktanın koordinatı. Kesikli çizilir — bu bir SEÇİM
  * ya da ölçüm değil, henüz yapılmamış bir dokunuşun önizlemesidir; dolu çizgi "oldu" derdi.
  */
+/** Yakalama işareti + kısaltma etiketi (glif osnap.js'ten: menüdekiyle aynı çizim) */
+function drawSnapMark(c, sn, col) {
+  const s = toScreen(sn.p[0], sn.p[1]);
+  c.save(); c.strokeStyle = col; c.fillStyle = col; c.lineWidth = 2; c.setLineDash([]);
+  Osnap.drawMarker(c, s[0], s[1], sn.kind, 8);
+  c.font = 'bold 10px sans-serif'; c.textBaseline = 'bottom'; c.textAlign = 'left';
+  c.fillText(Osnap.abbrOf(sn.kind), s[0] + 11, s[1] - 10);
+  c.restore();
+}
 function drawPenHover(c, fg) {
   if (!penHover || !penHover.w) return;
   const sn = penHover.snap;
@@ -432,9 +437,10 @@ function drawPenHover(c, fg) {
   c.stroke();
   c.setLineDash([]); c.globalAlpha = 1;
   if (sn) {
-    // Yakalanan nokta dolu kare ile: dokunulduğunda tam oraya oturacağı belli olsun.
+    // Yakalanan nokta kipin kendi glifiyle (kare uç, üçgen orta, daire merkez…): dokunulduğunda
+    // tam oraya oturacağı ve HANGİ noktaya oturacağı belli olsun.
     c.strokeStyle = acc; c.fillStyle = acc; c.lineWidth = 2;
-    c.beginPath(); c.rect(s[0] - 5, s[1] - 5, 10, 10); c.stroke();
+    Osnap.drawMarker(c, s[0], s[1], sn.kind, 7);
   }
   const p = sn ? sn.p : penHover.w;
   const txt = fmt(p[0]) + ' ; ' + fmt(p[1]) + (sn ? '  ' + String(sn.kind || '').toUpperCase() : '');
@@ -722,8 +728,7 @@ function penHoverMove(sx, sy, ev) {
     penHover.w = w;
     // Yakalama, dokunuştaki ile AYNI yolu kullanır (doSnap değil: o S.lastPoint'i ve titreşimi
     // değiştirir; gezinme belgeye ve duruma hiç dokunmamalıdır).
-    const tol = TOL.snap / S.view.scale;
-    penHover.snap = S.snapModes.size ? snapPoint(candidates(w, tol), w, tol, S.snapModes, null) : null;
+    penHover.snap = findSnap(w, { prev: edCall('lastToolPoint'), hover: true });
     S.pen.hover = penHover.snap ? penHover.snap.p.slice(0, 2) : [w[0], w[1]];
     showSnapChip(penHover.snap ? penHover.snap.kind : null);
     updateStatus(penHover.sx, penHover.sy);
@@ -888,13 +893,88 @@ function pick(w, tol) {
   }
   return best;
 }
-function doSnap(w) {
-  const tol = TOL.snap / S.view.scale;
-  const prev = S.measure.length ? S.measure[S.measure.length - 1] : null;
-  const sn = snapPoint(candidates(w, tol), w, tol, S.snapModes, prev);
-  if (sn) { S.lastPoint = [sn.p[0], sn.p[1]]; showSnapChip(sn.kind); haptic('snap'); }
-  else S.lastPoint = [w[0], w[1]];
+/*
+ * YAKALAMA ARAMASI (duruma dokunmaz). o.prev: önceki nokta (dik / teğet / paralel / uzantı için;
+ * araçlar kendi son noktasını verir, ölçü kipi ölçü listesinden alır) · o.once: bir kerelik kip ·
+ * o.hover: gezinme (izleme noktası güncellenmez). Seçenekler settings.snapOpt'tan: açıklık (px),
+ * taramaları yoksayma, Z yerine geçerli kot, yakalama izi.
+ */
+function findSnap(w, o = {}) {
+  const opt = Osnap.opt();
+  const tol = (opt.aperture > 0 ? opt.aperture : TOL.snap) / S.view.scale;
+  const modes = o.once ? new Set([o.once]) : S.snapModes;
+  if (!modes.size && !opt.otrack) return null;
+  const prev = o.prev || (S.mode === 'measure' || S.mode === 'profile' ? (S.measure.length ? S.measure[S.measure.length - 1] : null) : null);
+  let cands = candidates(w, tol);
+  if (opt.ignoreHatch) cands = cands.filter(p => !(p.info && p.info.t === 'HATCH'));
+  let sn = null;
+  if (modes.size) {
+    const wide = modes.has('par') && prev ? candidates(w, tol * 40).filter(p => p.k === 0).slice(0, 300) : null;
+    sn = snapPoint(cands, w, tol, modes, prev, { wide });
+  }
+  // Yakalama izi (OTRACK): son yakalanan noktayla yatay ya da düşey hizaya gelince oraya oturur;
+  // nesne yakalaması (en yakın dışında) her zaman izi yener.
+  if (opt.otrack && S.trackPt && (!sn || sn.kind === 'nea')) {
+    const T = S.trackPt, dx = Math.abs(w[0] - T[0]), dy = Math.abs(w[1] - T[1]);
+    if (dx < tol || dy < tol) {
+      const q = dx <= dy ? [T[0], w[1]] : [w[0], T[1]];
+      if (!sn || Math.hypot(q[0] - w[0], q[1] - w[1]) < Math.hypot(sn.p[0] - w[0], sn.p[1] - w[1])) sn = { p: [q[0], q[1], undefined], kind: 'trk' };
+    }
+  }
+  if (sn && opt.zElev) sn.p[2] = 0;
   return sn;
+}
+/*
+ * DOKUNUŞ YAKALAMASI (durumu değiştirir): son noktayı, durum çipini, titreşimi, izleme noktasını ve
+ * dokunuş sonrası işareti günceller. Bir kerelik geçersiz kılmalar (menüden ya da nokta istemine
+ * yazılan END / MID / M2P / FROM / TK / NON) burada tüketilir; iki dokunuş isteyenler ilkinde
+ * { pending:true } döner ve araç o dokunuşu nokta saymaz.
+ */
+function doSnap(w, o = {}) {
+  const once = S.snapOnce;
+  const bitir = (sn) => {
+    if (sn) { S.lastPoint = [sn.p[0], sn.p[1]]; showSnapChip(Osnap.abbrOf(sn.kind)); haptic('snap'); S.trackPt = [sn.p[0], sn.p[1]]; snapFlash(sn); }
+    else S.lastPoint = [w[0], w[1]];
+    return sn;
+  };
+  if (!once) return bitir(findSnap(w, o));
+  if (once === 'non') { Osnap.clearOnce(); showSnapChip('NON'); S.lastPoint = [w[0], w[1]]; return null; }
+  if (once === 'm2p') {
+    const q = findSnap(w, o), pt = q ? q.p.slice() : [w[0], w[1], undefined];
+    const tmp = S.snapTemp || (S.snapTemp = { pts: [] });
+    tmp.pts.push(pt); if (q) snapFlash(q);
+    if (tmp.pts.length < 2) { toast(t('osM2pSecond'), 1800); haptic('snap'); return { pending: true }; }
+    const [a, b] = tmp.pts; Osnap.clearOnce();
+    const z = a[2] != null && b[2] != null ? (a[2] + b[2]) / 2 : undefined;
+    return bitir({ p: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, z], kind: 'm2p' });
+  }
+  if (once === 'tk') {
+    const q = findSnap(w, o), pt = q ? q.p.slice() : [w[0], w[1], undefined];
+    S.snapTemp = { tk: pt }; S.snapOnce = 'tk2'; if (q) snapFlash(q);
+    toast(t('osTkFirst'), 2200); haptic('snap');
+    return { pending: true };
+  }
+  if (once === 'tk2') {
+    const T = S.snapTemp && S.snapTemp.tk ? S.snapTemp.tk : [w[0], w[1]];
+    Osnap.clearOnce();
+    const q = Math.abs(w[0] - T[0]) <= Math.abs(w[1] - T[1]) ? [T[0], w[1]] : [w[0], T[1]];   // yakın olan hizaya (düşey / yatay) oturur
+    return bitir({ p: [q[0], q[1], undefined], kind: 'tk' });
+  }
+  if (once === 'from') {
+    const q = findSnap(w, o), pt = q ? q.p.slice() : [w[0], w[1], undefined];
+    S.snapTemp = { from: pt }; S.snapOnce = null; if (q) snapFlash(q);
+    toast(t('osFromBase'), 2600); haptic('snap');
+    return { pending: true };
+  }
+  Osnap.clearOnce();
+  return bitir(findSnap(w, { ...o, once }));
+}
+/** FROM tabanı: '@dx,dy' yazılınca bir kez kullanılır (tools.parsePoint) */
+function fromBase() { const b = S.snapTemp && S.snapTemp.from; if (b) { S.snapTemp = null; return b; } return null; }
+let snapFlashTimer = 0;
+function snapFlash(sn) {
+  S.snapFlash = { p: sn.p, kind: sn.kind, until: performance.now() + 900 };
+  clearTimeout(snapFlashTimer); snapFlashTimer = setTimeout(() => { S.snapFlash = null; drawOverlay(); }, 950);
 }
 
 async function onTap(sx, sy) {
@@ -905,6 +985,7 @@ async function onTap(sx, sy) {
   if (S.notesOn) { await noteTap(sx, sy, w); return; }
   if (S.mode === 'measure' || S.mode === 'profile') {
     const sn = doSnap(w);
+    if (sn && sn.pending) { drawOverlay(); return; }
     const p = sn ? sn.p.slice() : [w[0], w[1], undefined];
     if (S.mode === 'profile') {
       if (p[2] == null || !isFinite(p[2]) || p[2] === 0) {
@@ -1261,10 +1342,12 @@ $('btnMeasure').addEventListener('click', () => setMode(S.mode === 'measure' ? '
 $('btnMeasureClear').addEventListener('click', () => { S.measure = []; S.snap = null; updateMeasure(); drawOverlay(); });
 $('btnMeasureUndo').addEventListener('click', () => { S.measure.pop(); S.snap = null; updateMeasure(); drawOverlay(); });
 $('btnMeasureClose').addEventListener('click', () => setMode('view'));
-document.querySelectorAll('[data-snap]').forEach(cb => cb.addEventListener('change', () => {
-  if (cb.checked) S.snapModes.add(cb.dataset.snap); else S.snapModes.delete(cb.dataset.snap);
-  settings.snap = [...S.snapModes]; saveSettings();
-}));
+/*
+ * Nesne yakalama modülü: çalışan kipler, bir kerelik geçersiz kılma, ayar kutusu. Kipler değişince
+ * ölçü panelindeki çip şeridi, durum çubuğu düğmesi ve şerit karosu birlikte tazelenir.
+ */
+Osnap.init({ S, t, esc, openDoc, hide, toast, haptic, settings, saveSettings, widgets: D.widgets,
+  changed: () => { Osnap.renderBar($('snapBar')); edCall('snapChanged'); } });
 
 // ---- katmanlar -----------------------------------------------------------------------
 const layerUi = { sort: 'name', onlyVis: false, sel: null };   // sel: yöneticide seçili satır (Sil / Geçerli yap / İzole et hedefi)
@@ -3628,7 +3711,7 @@ async function checkUpdate(manual) {
 // ---------------------------------------------------------------------------
 // Başlangıç
 // ---------------------------------------------------------------------------
-window.dwgApp = { loadCurrent, onFilePicked, onLocation, onBack, onBackSystem, loadBytes, zoomExtents, render, toScreen, toWorld, state: S, notes, editor, setMode, setLayout, refreshRecent: buildRecent, showInfo,
+window.dwgApp = { osnap: Osnap, loadCurrent, onFilePicked, onLocation, onBack, onBackSystem, loadBytes, zoomExtents, render, toScreen, toWorld, state: S, notes, editor, setMode, setLayout, refreshRecent: buildRecent, showInfo,
   onFilesPicked, onQr: (text) => { try { const s = String(text || '').trim(); if (s) onQr(s); } catch (e) { console.warn(e); } },   // Android ACTION_SEND / EXTRA_TEXT
   onLocationError: (m) => { const perm = /kalıcı olarak reddedildi|permanently denied/i.test(String(m)); const openSet = A() && A().openAppSettings ? () => A().openAppSettings() : null;
     toast('GPS: ' + m, perm && openSet ? { ms: 8000, action: { label: tt('settings', 'Ayarlar'), fn: openSet } } : undefined); },
@@ -3656,7 +3739,7 @@ ensureStatusChips();
 Ed.initEdition({ toast, rebuildToolbar: () => editor.rebuild(), refreshMenu });   // Ücretsiz / Pro: menü, karşılama kartı, Pro paneli, Drive düğmeleri; reklam zamanlayıcısı; onEdition → şerit yeniden kurulur
 D.initDisplay({ requestRender, drawOverlay, toast, openDoc, show, hide, buildLayerList, settings, saveSettings, editorTheme, zoomExtents, zoomBy, fitPrims, viewHistory, setLayout, editor, ui: uiPrefs(), basemaps: BASEMAPS, haptic });
 mountNavFabs(vp);
-initEditor({ S, requestRender, drawOverlay, toast, noFaces: showNoFaces, pick: (w) => pick(w, TOL.pick / S.view.scale), snap: doSnap, showInfo, openDoc, hide, show, esc, kv, copyText, buildLayerList, fmt, store, RTree, baseName, zoomExtents, tracePath, worldTransform, strokeWorldRect, worldOrigin,
+initEditor({ S, requestRender, drawOverlay, toast, noFaces: showNoFaces, pick: (w) => pick(w, TOL.pick / S.view.scale), snap: doSnap, snapPeek: findSnap, fromBase, osnap: Osnap, showInfo, openDoc, hide, show, esc, kv, copyText, buildLayerList, fmt, store, RTree, baseName, zoomExtents, tracePath, worldTransform, strokeWorldRect, worldOrigin,
   action: (a) => { if (a === 'layers') $('btnLayers').click(); else if (a === 'search') $('btnSearch').click(); else if (a === 'more') $('btnMore').click(); else if (a === 'open') Open.open(); else if (a === 'new') showNewDoc(); else menuAction(a); },
   savePng, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, isolateLayers, unisolate, settings, saveSettings, stamp, haptic, openDisplayOptions, setDisplay, getDisplay, toggleDisplay, display: D });
 $('stScale').addEventListener('click', showScalePicker);
