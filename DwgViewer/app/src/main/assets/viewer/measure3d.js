@@ -64,6 +64,15 @@ const ANG_TOL = 1e-6;      // derece cinsinden açı karşılaştırma payı (di
  *   groups  noktaların hangi geometriyi tanımladığı, ör. [1,2] = önce 1 nokta, sonra 2 noktalı doğru
  *   parts   her grubun makine okunur adı; stepOf bunu döndürür, i18n metni buradan üretir
  */
+/*
+ * Satır ve parça anahtarları. Bunlar i18n'e t('…') LİTERALİ olarak değil VERİ olarak gider
+ * (measure3d → editor.js geoRows/prompt3D → t(key)); tools/i18n_audit.mjs literal aradığı için
+ * onları göremez ve eksik bir anahtar kullanıcıya ham metin olarak görünür — 'dir' iki yayın
+ * boyunca öyle kaldı. Listeler burada durur, tools/lang_check.mjs her çalıştırmada ikisinin de
+ * TR sözlüğünde bulunduğunu sınar; yeni bir satır eklendiğinde çeviri unutulamaz.
+ */
+export const ROW_KEYS = ['angle', 'angleSupp', 'apex', 'arm1', 'arm2', 'at', 'coincident', 'dir', 'dist3', 'foot', 'inPlane', 'intersecting', 'normal1', 'normal2', 'onLine', 'onPlane', 'onSegment', 'pa', 'parallel', 'pb', 'perpendicular', 'proj', 'signedDist', 'skew'];
+export const PART_KEYS = ['line1', 'line2', 'plane1', 'plane2', 'point'];
 export const MODES = [
   { id: 'ptline', needs: 3, min: 3, groups: [1, 2], parts: ['point', 'line1'] },
   { id: 'ptplane', needs: 4, min: 4, groups: [1, 3], parts: ['point', 'plane1'] },

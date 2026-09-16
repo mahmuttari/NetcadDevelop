@@ -3,7 +3,7 @@
  * Çözümleme worker.js'te, geometri geom.js'te, çizim render.js'te.
  */
 import { S, toWorld, toScreen, fitView, zoomAtScreen, visibleRect, UNITS, UNIT_TO_M, fmt, fmtUnit, store, clampPrec, PREC_MIN, PREC_MAX } from './state.js';
-import { RTree, snapPoint, primDist, flatten, pathLength, polyArea, meshMetrics, TAU } from './geom.js';
+import { RTree, snapPoint, primDist, flatten, pathLength, pathLength3, polyArea, meshMetrics, TAU } from './geom.js';
 import { FG, primSignature } from './scene.js';
 import { drawFrame, rgbCss, bgColor, fgColor, tracePath, renderRegion, gridState, niceStep, worldTransform as renderWorldTransform, worldOrigin } from './render.js';
 import * as D from './display.js';
@@ -13,7 +13,7 @@ import { setTileCallback, basemapAttribution } from './tiles.js';
 import { notes, loadNotes, saveNotes, addNote, removeNote, hitNote, drawNotes } from './notes.js';
 import { CRS, GeoRef, BASEMAPS, nameOf } from './proj.js';
 import { t, setLang, getLang, applyI18n, LANGS, langInfo, resolveLang } from './i18n.js';
-import { askText, askConfirm, isOpen as askOpen, cancel as askCancel } from './dialog.js';
+import { askText, askConfirm, askForm, isOpen as askOpen, cancel as askCancel } from './dialog.js';
 import { initEditor, onScene as editorScene, tap as editorTap, back as editorBack, overlay as editorOverlay, onResize as editorResize, onTheme as editorTheme, editor } from './editor.js';
 import * as Docs from './docs.js';
 import * as New from './newdoc.js';
@@ -772,13 +772,16 @@ function showInfo(p) {
   more.push([t('ltype'), p.lt || (L ? L.lt : 'Continuous')]);
   if (p.lw != null) more.push([t('lweight'), fmt(p.lw / 100, 2) + ' mm']);
   if (p.k === 0) {
-    const len = pathLength(p.ops, p.closed);
+    const len = pathLength3(p.ops, p.closed);            // eğik (gerçek) boy
+    const lenH = pathLength(p.ops, p.closed);            // yatay izdüşüm
     if (sub === 'CIRCLE' && p.ops[1]) { const o = p.ops[1]; rows.push([t('center'), fmt(o[1]) + ' ; ' + fmt(o[2])], [t('radius'), fmt(o[3]) + u], [t('area'), fmt(Math.PI * o[3] * o[3]) + (u ? u + '²' : '')]); more.push([t('circumference'), fmt(len) + u]); }
     else if (sub === 'ARC' && p.ops[1] && p.ops[1][0] === 2) { const o = p.ops[1]; rows.push([t('radius'), fmt(o[3]) + u], [t('arcLen'), fmt(len) + u], [t('angle'), fmt(((o[5] - o[4] + TAU) % TAU) * 180 / Math.PI, 2) + '°']); more.push([t('center'), fmt(o[1]) + ' ; ' + fmt(o[2])]); }
     else {
       const pts = flatten(p.ops);
       const first = pts[0], last = pts[pts.length - 1];
       rows.push([t('length'), fmt(len) + u]);
+      // Kotlu bir yolda eğik boy ile yatay izdüşüm ayrışır; ikisi de okunmalıdır (boru boyu ↔ plan boyu)
+      if (Math.abs(len - lenH) > Math.max(1e-9, len * 1e-9)) more.push([t('lengthH'), fmt(lenH) + u]);
       if (S.unitToM && S.unitToM !== 1) more.push([t('length') + ' (m)', fmt(len * S.unitToM, 2) + ' m']);
       if (sub === 'LINE' && first && last) { rows.push([t('start'), fmt(first[0]) + ' ; ' + fmt(first[1]) + zTxt(p.ops[0][3])], [t('end'), fmt(last[0]) + ' ; ' + fmt(last[1]) + zTxt(p.ops[1][3])]); more.push(['ΔX / ΔY', fmt(last[0] - first[0]) + ' / ' + fmt(last[1] - first[1])]); }
       else if (first) { rows.push([t('start'), fmt(first[0]) + ' ; ' + fmt(first[1])], [t('end'), fmt(last[0]) + ' ; ' + fmt(last[1])]); more.push([t('vertices'), p.ops.length]); }
@@ -888,6 +891,16 @@ function setMode(m) {
   } else { hide('measurePanel'); S.measure = []; S.snap = null; }
   drawOverlay();
 }
+/*
+ * İki ölçüm noktası arasındaki mesafe. Yakalama (osnap) kotu getirdiğinde eğik mesafe verilir;
+ * serbest dokunuşta kot bilinmediği için Δz sıfır sayılır ve sonuç 2B ölçümle birebir aynı kalır.
+ */
+function segLen(a, b) {
+  const za = a[2], zb = b[2];
+  const dz = (za != null && isFinite(za) && zb != null && isFinite(zb)) ? zb - za : 0;
+  const dxy = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  return { dxy, dz, d: dz ? Math.hypot(dxy, dz) : dxy };
+}
 function updateMeasure() {
   const u = S.units ? ' ' + S.units : '';
   const m = S.measure;
@@ -908,12 +921,12 @@ function updateMeasure() {
     if (m.length > 1) rows.push([t('total'), `${fmt(cum, 2)} m   Δh ${fmt(m[m.length - 1][2] - m[0][2], 3)} m   ${t('slope')} ${fmt((m[m.length - 1][2] - m[0][2]) / cum * 1000, 2)} ‰`]);
   } else {
     for (let i = 1; i < m.length; i++) {
-      const d = Math.hypot(m[i][0] - m[i - 1][0], m[i][1] - m[i - 1][1]); total += d;
+      const sl = segLen(m[i - 1], m[i]), d = sl.d; total += d;
       const ang = Math.atan2(m[i][1] - m[i - 1][1], m[i][0] - m[i - 1][0]) * 180 / Math.PI;
-      rows.push([`${i} → ${i + 1}`, `${fmt(d)}${u}   (ΔX ${fmt(m[i][0] - m[i - 1][0])}, ΔY ${fmt(m[i][1] - m[i - 1][1])}, ${fmt(ang, 2)}°)` + (S.unitToM && S.unitToM !== 1 ? `  = ${fmt(d * S.unitToM, 2)} m` : '')]);
+      rows.push([`${i} → ${i + 1}`, `${fmt(d)}${u}   (ΔX ${fmt(m[i][0] - m[i - 1][0])}, ΔY ${fmt(m[i][1] - m[i - 1][1])}` + (sl.dz ? `, ΔZ ${fmt(sl.dz)}` : '') + `, ${fmt(ang, 2)}°)` + (sl.dz ? `   ${t('lengthH')} ${fmt(sl.dxy)}${u}` : '') + (S.unitToM && S.unitToM !== 1 ? `  = ${fmt(d * S.unitToM, 2)} m` : '')]);
     }
     if (m.length > 2) {
-      const closing = Math.hypot(m[0][0] - m[m.length - 1][0], m[0][1] - m[m.length - 1][1]);
+      const closing = segLen(m[m.length - 1], m[0]).d;
       rows.push([t('total'), fmt(total) + u], [t('closedPerim'), fmt(total + closing) + u], [t('areaClosed'), fmt(polyArea(m)) + (u ? u + '²' : '') + (S.unitToM && S.unitToM !== 1 ? `  = ${fmt(polyArea(m) * S.unitToM * S.unitToM, 2)} m²` : '')]);
     } else if (m.length === 2) rows.push([t('total'), fmt(total) + u]);
     const last = m[m.length - 1];
@@ -931,16 +944,18 @@ function updateMeasureBig(rows, total) {
     big = document.createElement('div'); big.id = 'measureBig'; big.className = 'meas-big';
     acts = document.createElement('div'); acts.id = 'measureActions'; acts.className = 'meas-actions';
     acts.innerHTML = `<button type="button" class="chip" id="measureCopy">${tt('copyClip', 'Panoya kopyala')}</button>`
-      + `<button type="button" class="chip" id="measureShare">${esc(t('share'))}</button>`;
+      + `<button type="button" class="chip" id="measureShare">${esc(t('share'))}</button>`
+      + `<button type="button" class="chip" id="measureCsv">${esc(t('exportCsv'))}</button>`;
     const body = $('measureBody'); body.parentElement.insertBefore(big, body); body.parentElement.insertBefore(acts, body);
     $('measureCopy').addEventListener('click', () => copyText(measureText()));
     $('measureShare').addEventListener('click', () => shareMeasure());
+    $('measureCsv').addEventListener('click', () => saveTextFile('\ufeff' + measureCsv(), baseName() + '_olcum_' + stamp() + '.csv', 'text/csv'));
   }
   const m = S.measure, u = S.units ? ' ' + S.units : '';
   if (!m.length) { big.hidden = true; acts.hidden = true; return; }
   big.hidden = false; acts.hidden = false;
   if (S.mode === 'profile') { big.textContent = rows.length ? rows[rows.length - 1][1] : ''; return; }
-  const last = m.length > 1 ? Math.hypot(m[m.length - 1][0] - m[m.length - 2][0], m[m.length - 1][1] - m[m.length - 2][1]) : 0;
+  const last = m.length > 1 ? segLen(m[m.length - 2], m[m.length - 1]).d : 0;
   let s = m.length > 1 ? fmt(last) + u : fmt(m[0][0]) + ' ; ' + fmt(m[0][1]);
   if (m.length > 2) s += '   Σ ' + fmt(total) + u + '   A ' + fmt(polyArea(m)) + (u ? u + '²' : '');
   else if (m.length === 2 && S.unitToM && S.unitToM !== 1) s += '  = ' + fmt(last * S.unitToM, 2) + ' m';
@@ -959,6 +974,51 @@ function measureText() {
   }, []).join('\n');
   const big = $('measureBig');
   return [head, big && !big.hidden ? big.textContent : '', body].filter(Boolean).join('\n');
+}
+/*
+ * Ölçüm dökümünün CSV'si. Metin dökümü (measureText) panelden kazınır ve okunmak içindir;
+ * CSV hesap tablosuna girer, o yüzden PANELDEN DEĞİL ÖLÇÜM VERİSİNDEN üretilir: her parça
+ * kendi satırında, koordinatlar ve Δ'lar ayrı sütunlarda. Ayraç noktalı virgüldür (Excel'in
+ * Türkçe yerelinde sütunlara doğru düşer), ondalık ayracı fmt() ile yerelden gelir.
+ */
+function measureCsv() {
+  const m = S.measure, u = S.units || '';
+  const L = [];
+  L.push([t('measure'), S.fileName || ''].map(csvCell).join(';'));
+  L.push([t('unit'), u].map(csvCell).join(';'));
+  L.push('');
+  if (S.mode === 'profile') {
+    const k = S.unitToM || 1;
+    L.push(['#', 'X', 'Y', t('elev') + ' (m)', 'L (m)', 'Δh (m)', t('slopeLbl') + ' (‰)', 'Σ (m)'].map(csvCell).join(';'));
+    let cum = 0;
+    for (let i = 0; i < m.length; i++) {
+      const Lm = i ? Math.hypot(m[i][0] - m[i - 1][0], m[i][1] - m[i - 1][1]) * k : 0;
+      cum += Lm;
+      const dh = i ? m[i][2] - m[i - 1][2] : 0;
+      L.push([i + 1, fmt(m[i][0]), fmt(m[i][1]), fmt(m[i][2], 2), i ? fmt(Lm, 2) : '', i ? fmt(dh, 3) : '',
+        i && Lm > 0 ? fmt(dh / Lm * 1000, 2) : '', fmt(cum, 2)].map(csvCell).join(';'));
+    }
+    return L.join('\r\n');
+  }
+  L.push([t('segmentN'), 'X1', 'Y1', 'Z1', 'X2', 'Y2', 'Z2', 'ΔX', 'ΔY', 'ΔZ',
+    t('lengthH') + (u ? ' (' + u + ')' : ''), t('length') + (u ? ' (' + u + ')' : ''), t('angle') + ' (°)'].map(csvCell).join(';'));
+  let total = 0;
+  const zs = (v) => (v != null && isFinite(v) ? fmt(v) : '');
+  for (let i = 1; i < m.length; i++) {
+    const a2 = m[i - 1], b2 = m[i], sl = segLen(a2, b2);
+    total += sl.d;
+    L.push([i, fmt(a2[0]), fmt(a2[1]), zs(a2[2]), fmt(b2[0]), fmt(b2[1]), zs(b2[2]),
+      fmt(b2[0] - a2[0]), fmt(b2[1] - a2[1]), sl.dz ? fmt(sl.dz) : '',
+      fmt(sl.dxy), fmt(sl.d), fmt(Math.atan2(b2[1] - a2[1], b2[0] - a2[0]) * 180 / Math.PI, 2)].map(csvCell).join(';'));
+  }
+  if (m.length === 1) L.push([1, fmt(m[0][0]), fmt(m[0][1]), zs(m[0][2])].map(csvCell).join(';'));
+  L.push('');
+  if (m.length > 1) L.push([t('total'), fmt(total)].map(csvCell).join(';'));
+  if (m.length > 2) {
+    L.push([t('closedPerim'), fmt(total + segLen(m[m.length - 1], m[0]).d)].map(csvCell).join(';'));
+    L.push([t('areaClosed'), fmt(polyArea(m))].map(csvCell).join(';'));
+  }
+  return L.join('\r\n');
 }
 /** Ölçümü başka uygulamaya gönderir (köprü yoksa panoya kopyalar) */
 function shareMeasure() {
@@ -1168,10 +1228,14 @@ function markMeasurement() {
   const m = S.measure;
   if (m.length < 2) { toast(t('markNeedMeasure'), { type: 'warn' }); return; }
   const a = m[m.length - 2], b = m[m.length - 1];
-  const d = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  const d = segLen(a, b).d;
   if (!(d > 0)) { toast(t('markNeedMeasure'), { type: 'warn' }); return; }
   const label = fmt(d) + (S.units ? ' ' + S.units : '');
-  const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] || 0)];
+  // Açıklama ölçülen parçanın kotuna konur; eskiden a[2] her zaman tanımsız olduğu için Z=0 düzlemine düşüyordu
+  const zf = (v) => (v != null && isFinite(v) ? v : null);
+  const za = zf(a[2]), zb = zf(b[2]);
+  const mz = za != null && zb != null ? (za + zb) / 2 : (za != null ? za : (zb != null ? zb : 0));
+  const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, mz];
   const off = Math.max(d * 0.25, (S.ext ? (S.ext[2] - S.ext[0]) : 100) / 40);
   if (editor.addAnnot([mid, [mid[0] + off, mid[1] + off, mid[2]]], label)) toast(label, { type: 'ok' });
   else toast(t('error'), { type: 'error' });
@@ -1574,9 +1638,25 @@ function selectionEnts(L) {
   return { sel, ents };
 }
 /** Varlıkları görünümün ortasına yerleştirip ekler ve seçili bırakır */
-function placeEntsAtCenter(L, ents, base) {
+/*
+ * Blok / pano içeriğini görünümün ortasına koyar. Ölçek ve dönüş isteğe bağlıdır: 1 ve 0°
+ * verildiğinde geometriye hiç dokunulmaz. Dönüşümler yerleştirmeden ÖNCE, içeriğin kendi
+ * merkezinde uygulanır — böylece ölçeklenen blok yine ortada kalır, kenara kaymaz. Ölçek
+ * negatifse merkeze göre nokta yansımasıdır (blocklib.scaleEnts bunu açıklıyor), ayna değildir.
+ */
+function placeEntsAtCenter(L, ents0, base, opts) {
+  const sc = opts && isFinite(opts.scale) && opts.scale !== 0 ? opts.scale : 1;
+  const rot = opts && isFinite(opts.rot) ? opts.rot : 0;
+  let ents = ents0;
+  if (sc !== 1 || rot !== 0) {
+    const b0 = L.entsBBox(ents);
+    const cx0 = (b0[0] + b0[2]) / 2, cy0 = (b0[1] + b0[3]) / 2;
+    if (sc !== 1) ents = L.scaleEnts(ents, sc, cx0, cy0);
+    if (rot !== 0) ents = L.rotateEnts(ents, rot * Math.PI / 180, cx0, cy0);
+    if (!ents.length) return 0;
+  }
   const c = [S.view.cx, S.view.cy];
-  const b = base && isFinite(base[0]) ? base : L.entsBBox(ents);
+  const b = sc !== 1 || rot !== 0 ? L.entsBBox(ents) : (base && isFinite(base[0]) ? base : L.entsBBox(ents));
   const bx = b.length === 4 ? (b[0] + b[2]) / 2 : b[0], by = b.length === 4 ? (b[1] + b[3]) / 2 : b[1];
   const moved = L.moveEnts(ents, c[0] - bx, c[1] - by, 0);
   const n0 = S.prims.length;
@@ -1619,7 +1699,14 @@ async function showBlockLib() {
     if (!it) return;
     const b = L.loadBlock(store, it.dataset.blk);
     if (!b || !b.ents.length) { toast(t('error'), { type: 'error' }); return; }
-    const n = placeEntsAtCenter(L, b.ents, b.base);
+    // Ölçek ve dönüş sorulur; boş bırakılırsa 1 ve 0° ile birebir yerleştirilir.
+    const f = await askForm(it.dataset.blk, [
+      { id: 'scale', label: t('blockScale'), type: 'number', value: '1' },
+      { id: 'rot', label: t('blockRot'), type: 'number', value: '0' }], { ok: t('blockInsert') });
+    if (f === null) return;
+    const sc = parseFloat(String(f.scale).replace(',', '.'));
+    const rt = parseFloat(String(f.rot).replace(',', '.'));
+    const n = placeEntsAtCenter(L, b.ents, b.base, { scale: isFinite(sc) ? sc : 1, rot: isFinite(rt) ? rt : 0 });
     hide('docPanel');
     toast(n ? `${t('blockInserted')} · ${fmt(n, 0)}` : t('error'), { type: n ? 'ok' : 'error' });
   };
@@ -1793,29 +1880,94 @@ function showDocInfo() {
  * Blok yerleştirmeleri ilkellerden değil TANITICIDAN sayılır: bir INSERT patlatıldığında onlarca ilkel
  * üretir, hepsi aynı tanıtıcıyı taşır; tanıtıcı kümesi gerçek yerleştirme sayısını verir.
  */
-function showCount() {
-  const blocks = new Map(), seen = new Set();
-  for (const p of S.prims) {
-    const i = p.info;
-    if (!i || i.t !== 'INSERT' || !i.name) continue;
-    const key = i.name + '\u0000' + (i.h || '');
-    if (seen.has(key)) continue;
-    seen.add(key);
-    blocks.set(i.name, (blocks.get(i.name) || 0) + 1);
+function countScope(scope) {
+  if (scope === 'sel') { const sel = (editor && editor.sel) ? [...editor.sel] : []; return sel.length ? sel : null; }
+  if (scope === 'vis') return S.prims.filter(p => primVisible(p));
+  if (scope === 'win') {
+    const r = visibleRect(), out = [];
+    if (S.tree) S.tree.search(r[0], r[1], r[2], r[3], i => { const p = S.prims[i]; if (primVisible(p)) out.push(p); });
+    else for (const p of S.prims) { const bb = p.bb; if (primVisible(p) && bb && bb[2] >= r[0] && bb[0] <= r[2] && bb[3] >= r[1] && bb[1] <= r[3]) out.push(p); }
+    return out;
   }
-  const c = S.counts || {};
+  return S.prims;
+}
+/*
+ * Sayım verisi. Blok yerleştirmeleri ilkellerden değil TANITICIDAN sayılır: bir INSERT
+ * patlatıldığında onlarca ilkel üretir, hepsi aynı tanıtıcıyı taşır; tanıtıcı kümesi gerçek
+ * yerleştirme sayısını verir. Aynı sayım katman × tür çaprazını da üretir — hangi katmanda kaç
+ * çizgi, kaç yazı olduğu keşif ve metraj kontrolünde ilk sorulan şeydir.
+ */
+function countData(prims) {
+  const blocks = new Map(), seen = new Set(), types = new Map(), byLayer = new Map();
+  let n = 0;
+  for (const p of prims) {
+    const i = p.info;
+    if (!i) continue;
+    n++;
+    const et = i.t || '?';
+    const lay = p.lay || '0';
+    let L = byLayer.get(lay); if (!L) { L = new Map(); byLayer.set(lay, L); }
+    const key = i.t === 'INSERT' && i.name ? i.name + '\u0000' + (i.h || '') : (i.h != null ? et + '\u0000' + i.h : null);
+    if (key == null || !seen.has(key)) {
+      if (key != null) seen.add(key);
+      types.set(et, (types.get(et) || 0) + 1);
+      L.set(et, (L.get(et) || 0) + 1);
+      if (i.t === 'INSERT' && i.name) blocks.set(i.name, (blocks.get(i.name) || 0) + 1);
+    }
+  }
+  return { blocks, types, byLayer, prims: n };
+}
+function countCsv(d, scope) {
+  const L = [];
+  L.push([t('count'), S.fileName || ''].map(csvCell).join(';'));
+  L.push([t('scope'), t('scope' + scope.charAt(0).toUpperCase() + scope.slice(1))].map(csvCell).join(';'));
+  L.push('');
+  L.push([t('countBlocks'), t('count')].map(csvCell).join(';'));
+  for (const [name, n] of [...d.blocks].sort((a, b) => b[1] - a[1])) L.push([name, n].map(csvCell).join(';'));
+  L.push('');
+  L.push([t('countTypes'), t('count')].map(csvCell).join(';'));
+  for (const [k, n] of [...d.types].sort((a, b) => b[1] - a[1])) L.push([trType(k), n].map(csvCell).join(';'));
+  L.push('');
+  const tl = [...d.types].sort((a, b) => b[1] - a[1]).map(x => x[0]);
+  L.push([t('countByLayer'), ...tl.map(trType), t('total')].map(csvCell).join(';'));
+  for (const [lay, m] of [...d.byLayer].sort((a, b) => a[0].localeCompare(b[0]))) {
+    let tot = 0; for (const v of m.values()) tot += v;
+    L.push([lay, ...tl.map(k => m.get(k) || ''), tot].map(csvCell).join(';'));
+  }
+  return L.join('\r\n');
+}
+function showCount(scope) {
+  const sc = scope || 'all';
+  const prims = countScope(sc);
+  if (!prims) { toast(t('selectFirstQ'), { type: 'warn' }); return; }
+  const d = countData(prims);
   const bar = (n, max) => `<div class="cbar"><i style="width:${Math.max(2, Math.round(100 * n / (max || 1)))}%"></i></div>`;
   const rows = [];
-  const bl = [...blocks].sort((a, b) => b[1] - a[1]);
+  const opt = (id) => `<option value="${id}"${id === sc ? ' selected' : ''}>${esc(t('scope' + id.charAt(0).toUpperCase() + id.slice(1)))}</option>`;
+  rows.push([t('scope'), `<select id="cntScope">${opt('all')}${opt('sel')}${opt('vis')}${opt('win')}</select>`, 1]);
+  const bl = [...d.blocks].sort((a, b) => b[1] - a[1]);
   const bmax = bl.length ? bl[0][1] : 0;
-  rows.push(['<strong>' + t('countBlocks') + '</strong>', bl.length ? String(bl.reduce((n, x) => n + x[1], 0)) : '0']);
+  rows.push([`<div class="cnt-h"><strong>${esc(t('countBlocks'))}</strong> <span>${bl.length ? bl.reduce((n, x) => n + x[1], 0) : 0}</span></div>`]);
   if (!bl.length) rows.push([t('countNone')]);
-  for (const [name, n] of bl.slice(0, 200)) rows.push([name, n + bar(n, bmax)]);
-  const tl = Object.keys(c).map(k => [k, c[k]]).sort((a, b) => b[1] - a[1]);
+  for (const [name, n] of bl.slice(0, 200)) rows.push([name, n + bar(n, bmax), 1]);
+  const tl = [...d.types].sort((a, b) => b[1] - a[1]);
   const tmax = tl.length ? tl[0][1] : 0;
-  rows.push(['<strong>' + t('countTypes') + '</strong>', String(S.entityCount || 0)]);
-  for (const [k, n] of tl) rows.push([trType(k), n + bar(n, tmax)]);
+  rows.push([`<div class="cnt-h"><strong>${esc(t('countTypes'))}</strong> <span>${tl.reduce((n, x) => n + x[1], 0)}</span></div>`]);
+  for (const [k, n] of tl) rows.push([trType(k), n + bar(n, tmax), 1]);
+  const ll = [...d.byLayer].sort((a, b) => a[0].localeCompare(b[0]));
+  if (ll.length > 1) {
+    rows.push([`<div class="cnt-h"><strong>${esc(t('countByLayer'))}</strong> <span>${ll.length}</span></div>`]);
+    for (const [lay, m] of ll.slice(0, 200)) {
+      let tot = 0; for (const v of m.values()) tot += v;
+      const dok = [...m].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k, v]) => trType(k) + ' ' + v).join(', ');
+      rows.push([lay, tot + (dok ? ' <span class="muted">(' + esc(dok) + ')</span>' : ''), 1]);
+    }
+  }
+  rows.push([`<div class="full btns"><button class="btn small" id="cntCsv">${esc(t('exportCsv'))}</button><button class="btn small" id="cntCopy">${esc(tt('copyClip', 'Panoya kopyala'))}</button></div>`]);
   openDoc(t('count'), kv(rows));
+  const sel = $('cntScope'); if (sel) sel.onchange = () => showCount(sel.value);
+  $('cntCsv').onclick = () => { saveTextFile('\ufeff' + countCsv(d, sc), baseName() + '_sayim_' + stamp() + '.csv', 'text/csv'); hide('docPanel'); };
+  $('cntCopy').onclick = () => copyText(countCsv(d, sc).replace(/;/g, '\t'));
 }
 /** derleme kimliği (kısa git SHA; Bridge.buildId) — Hakkında satırına ve hata kaydı başlığına eklenir */
 function buildIdText() { try { return A() && A().buildId ? ' · ' + A().buildId() : ''; } catch (_) { return ''; } }
@@ -2114,8 +2266,17 @@ async function setCompare(buf, name) {
   setLoading(t('loading'), name, undefined, 'cad');
   try {
     const res = await runWorker({ cmd: 'parse', bytes: buf, name }, (st, pct) => setLoading(stageText(st), name, pct));
-    const B = res.scene.layouts[0].prims.filter(p => p.k !== 4);
-    const Aprims = S.scene.layouts[0].prims;
+    /*
+     * Karşılaştırma ETKİN DÜZEN üzerinden yapılır. Eskiden iki tarafta da layouts[0] (Model)
+     * okunuyordu: paftası kâğıt düzeninde duran iki sürüm karşılaştırıldığında ekranda düzen
+     * görünürken Model karşılaştırılıyor ve "fark yok" deniyordu. Karşı dosyada aynı adlı düzen
+     * aranır; yoksa aynı sıradaki, o da yoksa Model kullanılır.
+     */
+    const curLay = S.scene.layouts[S.layoutIndex] || S.scene.layouts[0];
+    const bLays = res.scene.layouts;
+    const bLay = bLays.find(l => l.name === curLay.name) || bLays[S.layoutIndex] || bLays[0];
+    const B = bLay.prims.filter(p => p.k !== 4);
+    const Aprims = curLay.prims;
     const sigB = new Set(), sigA = new Set();
     for (const p of B) { const s = primSignature(p); if (s) sigB.add(s); }
     for (const p of Aprims) { const s = primSignature(p); if (s) sigA.add(s); }
@@ -2988,7 +3149,8 @@ window.dwgApp = { loadCurrent, onFilePicked, onLocation, onBack, onBackSystem, l
   // sınama kancaları: çok sayfalı PDF kurucusu, metin toplayıcı ve ölçüm dökümü
   __pdf: { build: (pages, wmm, hmm, title) => buildPdf(pages, wmm, hmm, title) },
   __text: { collect: (prims) => collectTexts(prims || S.prims), csvCell },
-  __measure: { text: () => measureText() },
+  __measure: { text: () => measureText(), csv: () => measureCsv() },
+  __count: { data: (scope) => { const p = countScope(scope || 'all'); return p ? countData(p) : null; }, csv: (scope) => { const p = countScope(scope || 'all'); return p ? countCsv(countData(p), scope || 'all') : ''; } },
   __fr: { scan: (find, rep, opts) => frScan(find, rep, opts || {}), replace: (src, f, r, cs, ww) => replaceIn(src, f, r, cs, ww) },
   action: (a) => menuAction(a) };
 ensureStatusChips();

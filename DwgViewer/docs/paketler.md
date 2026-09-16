@@ -191,13 +191,46 @@ bulutu (Drive + WebDAV/Nextcloud) — rakibin 10 GB'lık satıcı deposundan hem
 sınırsız hem gizlilik açısından üstün · ZIP/RAR gezgini · onbeş dil ·
 eldiven kipi ve güneş modu.
 
-### Önerilen iki kademe düzeltmesi
+### Kademe hizalaması — YAPILDI (v7.48)
 
-Rakip **çizim karşılaştırmayı** ve **bulut depolamayı** Premium'da veriyor;
-bizde ikisi de Super'de. `edition.js` FEATURE_TIER'da `compare` ve
-`driveUpload` premium'a alınırsa Premium rakiple denk olur. `profile`
-(kot/eğim profili) Super'de kalmalı — rakipte karşılığı yok, Super'in gerçek
-gerekçesi odur.
+DWG FastView'ün "Open an account" ekranı satır satır çıkarıldığında beş
+özelliğimizin rakipten bir basamak yukarıda durduğu görüldü: aynı parayı
+ödeyen kullanıcı bizde daha azını alıyordu. Başvuru sahibinin kararıyla
+beşi de Premium'a indirildi:
+
+| Özellik | Kimlik | Eskiden | Şimdi | Rakipte |
+|---|---|---|---|---|
+| PDF→CAD | `pdfcad` | super | **premium** | Premium |
+| Toplu işlem | `batch` | super | **premium** | Premium |
+| Çizim karşılaştırma | `compare` | super | **premium** | Premium (Windows) |
+| Drive'a yükleme | `driveUpload` | super | **premium** | Premium (bulut) |
+| Yüzey / yanal alan | `area3d` | super | **premium** | Premium (mobil) |
+
+**Super'i ayıran iki özellik yerinde kaldı** ve mağaza metninde Super bu iki
+satırla anlatılmalıdır — ikisinin de rakipte hiçbir kademede karşılığı yoktur:
+
+- `profile` — kot / eğim profili (her parçada uzunluk, Δh, ‰ ve %, kümülatif Σ)
+- `savedelta` — yalnız değişenleri DXF olarak teslim etme
+
+Yetenek toplamı değişmedi (65); dağılım değişti: Premium 47 → **52**,
+Super 18 → **13**.
+
+**Kart metni kapıdan türemez.** Paket kartındaki madde listesi
+`tierFeat_*` anahtarlarından okunur (`edition.js` `featureList`), kapı ise
+`FEATURE_TIER`dan. İkisi ayrı yerlerde durduğu için kapı bir şey yapıp kart
+başka bir şey söyleyebilir. Bu yüzden 15 dil dosyasının tamamı elle
+güncellendi ve `tools/test_lock.mjs` 15a-15d denetimleri eklendi: beş
+kimliğin kapısı, Super'in iki ayırt edici özelliği ve kartın sözü birlikte
+sınanır.
+
+### Fiyatlar değişmedi
+
+Rakibin Eylül 2026 TR fiyatlarına göre konumumuz korunuyor: Ad-Free
+−%27 aylık / −%40 yıllık, Premium −%28 / −%32, Super −%26 / −%13.
+Rakipte Premium yıllık (2.499,99) ile Super yıllık (2.539,99) arasında
+yalnız **%1,6** fark var — onlarda Premium yıllık ölü üründür. Bizde bu
+fark %29, aylıkta %60'tır; iki üründe de yükseltmenin gerekçesi vardır.
+Fiyata dokunmak bu yapısal avantajı bozardı.
 
 ## Paket kartının görünümü
 

@@ -193,6 +193,34 @@ export function pathLength(ops, closed) {
   if (closed) len += Math.hypot(sx - lx, sy - ly);
   return len;
 }
+/*
+ * Yolun GERÇEK (eğik) uzunluğu. pathLength yalnız XY düzleminde ölçer; eğik bir isale hattında
+ * ya da kotlu bir polyline'da yatay izdüşüm verir ve çizimde yazan boydan kısa çıkar. Kot yalnız
+ * moveTo/lineTo'da taşınır (ops biçimi: [0,x,y,z?] [1,x,y,z?]); yaylar ilkelin kendi kotunda
+ * düzlemseldir, o yüzden yay boyu iki ölçümde de aynıdır. Kot verilmemiş uçta Δz sıfır sayılır,
+ * böylece 2B çizimde sonuç pathLength ile birebir aynı kalır.
+ */
+export function pathLength3(ops, closed) {
+  let len = 0, lx = 0, ly = 0, lz = 0, sx = 0, sy = 0, sz = 0;
+  const zOf = (o) => (o.length > 3 && typeof o[3] === 'number' && isFinite(o[3]) ? o[3] : 0);
+  for (const o of ops) {
+    if (o[0] === 0) { lx = sx = o[1]; ly = sy = o[2]; lz = sz = zOf(o); }
+    else if (o[0] === 1) { const z = zOf(o); len += Math.hypot(o[1] - lx, o[2] - ly, z - lz); lx = o[1]; ly = o[2]; lz = z; }
+    else if (o[0] === 2 || o[0] === -2) {
+      let d = o[0] === 2 ? o[5] - o[4] : o[4] - o[5];
+      while (d <= 0) d += TAU;
+      if (d > TAU) d = TAU;
+      len += o[3] * d;
+      lx = o[1] + o[3] * Math.cos(o[5]); ly = o[2] + o[3] * Math.sin(o[5]);
+    } else {
+      const pts = []; ellipsePts(o[1], o[2], o[3], o[4], o[5], o[6], o[7], pts);
+      for (let i = 1; i < pts.length; i++) len += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+      lx = pts[pts.length - 1][0]; ly = pts[pts.length - 1][1];
+    }
+  }
+  if (closed) len += Math.hypot(sx - lx, sy - ly, sz - lz);
+  return len;
+}
 export function polyArea(pts) {
   let a = 0;
   for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) a += (pts[j][0] + pts[i][0]) * (pts[j][1] - pts[i][1]);

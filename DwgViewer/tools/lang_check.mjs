@@ -30,6 +30,20 @@ for (const f of ['editor.js', 'tools.js']) { try { await import(V + f); } catch 
 const KEYS = Object.keys(i18n.TR);
 const EN = i18n.EN, TR = i18n.TR;
 
+/*
+ * 3B ölçüm satır anahtarları VERİ olarak t()'ye gider (measure3d.js → editor.js geoRows), yani
+ * statik literal taraması onları göremez. Eksik anahtar t() tarafından olduğu gibi döndürüldüğü
+ * için kullanıcı ham 'dir' gibi bir metin görür. Burada kümenin tamamı TR sözlüğüne sınanır.
+ */
+let m3bad = 0;
+try {
+  const m3 = await import(V + 'measure3d.js');
+  const m3keys = [...(m3.ROW_KEYS || []), ...(m3.PART_KEYS || [])];
+  const miss3 = m3keys.filter(k => !(k in TR));
+  if (miss3.length) { m3bad = miss3.length; console.log(`measure3d anahtarı TR sözlüğünde YOK (${miss3.length}): ${miss3.join(' ')}`); }
+  else console.log(`measure3d anahtarları: ${m3keys.length} satır/parça anahtarının tamamı sözlükte`);
+} catch (e) { console.warn('uyarı: measure3d.js —', e.message.split('\n')[0]); }
+
 /** %1$s, {0}, {name} gibi yer tutucular çeviride de bulunmalı (biçim dizgileri bozulmasın) */
 const holders = (s) => (String(s).match(/%\d*\$?[sd]|\{\w+\}/g) || []).sort().join(',');
 /** Türkçe'ye özgü harfler: çeviri dosyasına sızmış Türkçe metnin izi */
@@ -60,5 +74,5 @@ for (const id of i18n.LANG_IDS) {
 }
 console.log('\nkod  anahtar  eksik  fazla  EN-aynı  durum');
 for (const r of rows) console.log(String(r[0]).padEnd(5) + String(r[1]).padStart(7) + String(r[2]).padStart(7) + String(r[3]).padStart(7) + String(r[4]).padStart(9) + '  ' + r[5]);
-console.log(`\nÖzet: hata ${bad}, uyarı ${warn}`);
-process.exit(bad ? 1 : 0);
+console.log(`\nÖzet: hata ${bad + m3bad}, uyarı ${warn}`);
+process.exit(bad + m3bad ? 1 : 0);

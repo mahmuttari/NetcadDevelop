@@ -92,8 +92,14 @@ export const FEATURE_TIER = new Map([
   // --- 3B çizim ve düzenleme (yalnız Super)
   ['t:pline3d', 'super'], ['t:face3d', 'super'], ['t:setz', 'super'],
   ['3:move', 'super'], ['3:setz', 'super'], ['3:del', 'super'], ['3:pline', 'super'],
-  // --- mühendislik eklentileri (yalnız Super)
-  ['profile', 'super'], ['compare', 'super'], ['savedelta', 'super'], ['driveUpload', 'super'], ['area3d', 'super'],
+  /*
+   * Mühendislik eklentileri. Kot/eğim profili ve yalnız değişenleri DXF olarak teslim etme
+   * Super'de kalır — rakipte bu ikisinin hiçbir kademede karşılığı yoktur, Super'i ayıran şey
+   * budur. Karşılaştırma, Drive'a yükleme ve yanal alan Premium'a indirildi: rakip bunları
+   * Premium'da veriyor ve aynı parayı ödeyen kullanıcının bizde daha azını alması doğru değil.
+   */
+  ['profile', 'super'], ['savedelta', 'super'],
+  ['compare', 'premium'], ['driveUpload', 'premium'], ['area3d', 'premium'],
   // --- ölçülendirme ve açıklama (2B çizim: Premium)
   ['t:dim', 'premium'], ['t:dimh', 'premium'], ['t:dimv', 'premium'], ['t:dimr', 'premium'], ['t:dimd', 'premium'], ['t:dima', 'premium'],
   ['t:leader', 'premium'], ['t:cloud', 'premium'], ['t:balloon', 'premium'], ['t:hatch', 'premium'], ['markdim', 'premium'],
@@ -102,8 +108,9 @@ export const FEATURE_TIER = new Map([
   ['blocklib', 'premium'], ['copyclip', 'premium'], ['pasteclip', 'premium'],
   // --- 2B çıktı eklentileri
   ['textout', 'premium'], ['tableout', 'premium'],
-  // --- 3B üretim, dönüştürme ve toplu işlem (Super)
-  ['t:thick', 'super'], ['3:geo', 'super'], ['3:note', 'super'], ['mesh3d', 'super'], ['batch', 'super'], ['pdfcad', 'super'],
+  // --- 3B üretim (Super) · PDF→CAD ve toplu işlem Premium'a indirildi (rakip ikisini de Premium'da veriyor)
+  ['t:thick', 'super'], ['3:geo', 'super'], ['3:note', 'super'], ['mesh3d', 'super'],
+  ['batch', 'premium'], ['pdfcad', 'premium'],
 ]);
 
 /** Özelliğin istediği basamak ('free' kısıtsız demektir) */

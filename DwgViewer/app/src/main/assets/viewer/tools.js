@@ -10,7 +10,7 @@
  *   fmt(v)   units()     unitToM()
  * Nokta girişi: dokunma (yakalamalı) ya da yazılı: "x,y" | "x,y,z" | "@dx,dy" | "@L<açı"
  */
-import { TAU, flatten, polyArea, pathLength, segDist, opsBBox, enclosingPrim } from './geom.js';
+import { TAU, flatten, polyArea, pathLength, pathLength3, segDist, opsBBox, enclosingPrim } from './geom.js';
 import { newId, offsetPoints } from './edit.js';
 import { t, addStrings } from './i18n.js';
 import { askText, askConfirm, askForm } from './dialog.js';
@@ -47,6 +47,7 @@ export const TOOLS = {
   radius: { name: 'Yarıçap', en: 'Radius', steps: ['Daire ya da yaya dokunun'], stepsEn: ['Tap a circle or arc'] },
   coord: { name: 'Koordinat', en: 'Coordinate', steps: ['Noktaya dokunun'], stepsEn: ['Tap a point'] },
   fillarea: { name: 'Dolgu alanı', en: 'Fill area', steps: ['Kapalı alanın içine dokunun'], stepsEn: ['Tap inside a closed area'] },
+  ident: { name: 'Akıllı ölçüm', en: 'Smart measure', steps: ['Nesneye dokunun'], stepsEn: ['Tap an object'] },
   // ölçülendirme ve açıklama
   dim: { name: 'Doğrusal ölçü', en: 'Linear dimension', steps: ['Birinci ölçü noktası', 'İkinci ölçü noktası', 'Ölçü çizgisinin yerini seçin'], stepsEn: ['First extension point', 'Second extension point', 'Pick the dimension line position'] },
   dimh: { name: 'Yatay ölçü', en: 'Horizontal dimension', steps: ['Birinci ölçü noktası', 'İkinci ölçü noktası', 'Ölçü çizgisinin yerini seçin'], stepsEn: ['First extension point', 'Second extension point', 'Pick the dimension line position'] },
@@ -72,7 +73,7 @@ const SELECT_TOOLS = new Set(['move', 'copy', 'rotate', 'scale', 'mirror', 'offs
 /** Sayı girişi bekleyen araçlar ve hangi adımda beklediği — TEK kaynak (say / typed / tap buraya bakar) */
 const NUMBER_STEP = { circle: 1, rotate: 2, scale: 2, offset: 1, setz: 1, thick: 1, textsize: 1 };
 /** Nokta değil NESNE (ya da kapalı alan) seçilerek çalışan araçlar */
-const OBJECT_TOOLS = new Set(['radius', 'edittext', 'dimr', 'dimd', 'explode', 'attr', 'hatch', 'fillarea']);
+const OBJECT_TOOLS = new Set(['radius', 'edittext', 'dimr', 'dimd', 'explode', 'attr', 'hatch', 'fillarea', 'ident']);
 /** Çok noktalı ölçülendirme / açıklama araçları: taslakları çizgi olarak gösterilir */
 const PATH_TOOLS = new Set(['dim', 'dimh', 'dimv', 'dima', 'leader', 'cloud']);
 /** Sonraki numara: sayıysa artar, harfle bitiyorsa harf ilerler ("A1"→"A2", "B"→"C") */
@@ -199,6 +200,71 @@ export class ToolManager {
     if (txt !== null && txt !== old) this.api.run({ op: 'edittext', keys: [p.key], text: txt });
     this.api.render();
   }
+  /*
+   * AKILLI ÖLÇÜM. Kullanıcı hangi ölçüyü istediğini önceden seçmez: nesneye dokunur, araç türünü
+   * anlar ve o türün ANLAMLI ölçüsünü verir — daireden yarıçap/çap/çevre/alan, yaydan yay boyu ve
+   * açı, doğrudan eğik ve yatay boy, kapalı yoldan alan ve çevre, yazıdan içerik ve yükseklik,
+   * ağdan yüzey ve hacim. Bilgi panelinden farkı: yalnız ÖLÇÜ verir (renk, katman, çizgi tipi yok),
+   * sonuç ölçüm sonucu olarak basılır, taslağı çizilir ve panodan/CSV'den dışarı çıkabilir.
+   */
+  identify(p) {
+    const A = this.api, u = A.units(), k = A.unitToM() || 1;
+    const rows = [], inf = p.info || {};
+    const tur = inf.t || (p.k === 5 ? 'MESH' : p.k === 1 ? 'TEXT' : p.k === 2 ? 'POINT' : 'ENTITY');
+    rows.push([t('entityTypes'), A.trType ? A.trType(tur) : tur]);
+    if (p.k === 0) {
+      const yay = p.ops.find(q => q[0] === 2 || q[0] === -2);
+      const kapali = !!(p.closed || p.fill);
+      const pts = flatten(p.ops);
+      const boy = pathLength3(p.ops, p.closed), boyH = pathLength(p.ops, p.closed);
+      if (yay && p.ops.length <= 2) {
+        const tam = Math.abs(((yay[5] - yay[4]) % TAU)) < 1e-9;
+        rows.push([t('radius'), A.fmt(yay[3]) + u], [t('diameter'), A.fmt(2 * yay[3]) + u]);
+        rows.push([tam ? t('circumference') : t('arcLen'), A.fmt(boy) + u]);
+        if (!tam) rows.push([t('angle'), A.fmt(((yay[5] - yay[4] + TAU) % TAU) * 180 / Math.PI, 2) + '°']);
+        if (tam) rows.push([t('area'), A.fmt(Math.PI * yay[3] * yay[3]) + (u ? u + '\u00b2' : '')]);
+        rows.push([t('center'), A.fmt(yay[1]) + ' ; ' + A.fmt(yay[2])]);
+        this.draft = { circle: { c: [yay[1], yay[2]], r: yay[3] } };
+      } else {
+        rows.push([kapali ? t('perimeter') : t('length'), A.fmt(boy) + u]);
+        if (Math.abs(boy - boyH) > Math.max(1e-9, boy * 1e-9)) rows.push([t('lengthH'), A.fmt(boyH) + u]);
+        if (k !== 1) rows.push([t('length') + ' (m)', A.fmt(boy * k, 2) + ' m']);
+        if (kapali && pts.length >= 3) {
+          const al = Math.abs(polyArea(pts));
+          rows.push([t('area'), A.fmt(al) + (u ? u + '\u00b2' : '')]);
+          if (k !== 1) rows.push([t('areaM2'), A.fmt(al * k * k, 2) + ' m\u00b2'], [t('areaDa'), A.fmt(al * k * k / 1000, 3) + ' da']);
+          else rows.push([t('areaDa'), A.fmt(al / 1000, 3) + ' da']);
+        }
+        rows.push([t('vertices'), pts.length]);
+        if (pts.length) {
+          const f0 = pts[0], l0 = pts[pts.length - 1];
+          rows.push([t('start'), A.fmt(f0[0]) + ' ; ' + A.fmt(f0[1])], [t('end'), A.fmt(l0[0]) + ' ; ' + A.fmt(l0[1])]);
+          if (pts.length === 2) rows.push([t('angle'), A.fmt(Math.atan2(l0[1] - f0[1], l0[0] - f0[0]) * 180 / Math.PI, 2) + '°']);
+        }
+        this.draft = { pts, segs: pts.slice(1).map((q, i) => [pts[i], q]), close: kapali, keep: true };
+      }
+    } else if (p.k === 1) {
+      rows.push([t('textK'), (p.lines || []).join(' ').slice(0, 120)], [t('height'), A.fmt(p.h) + u],
+        [t('position'), A.fmt(p.x) + ' ; ' + A.fmt(p.y)]);
+    } else if (p.k === 5) {
+      const m = A.meshMetrics ? A.meshMetrics(p) : null;
+      if (m) {
+        rows.push([t('surfTotal'), A.fmt(m.total) + (u ? u + '\u00b2' : '')]);
+        if (m.lateral) rows.push([t('surfLateral'), A.fmt(m.lateral) + (u ? u + '\u00b2' : '')]);
+        if (m.volume) rows.push([t('volume'), A.fmt(m.volume) + (u ? u + '\u00b3' : '')]);
+      }
+      rows.push([t('triCount'), (p.idx ? p.idx.length / 3 : 0)]);
+      if (p.zmin != null) rows.push([t('elev'), A.fmt(p.zmin) + ' … ' + A.fmt(p.zmax) + u]);
+    } else if (p.k === 2) {
+      rows.push([t('position'), A.fmt(p.x) + ' ; ' + A.fmt(p.y)]);
+    }
+    const bb = p.bb;
+    if (bb && isFinite(bb[0])) rows.push([t('size'), A.fmt(bb[2] - bb[0]) + ' × ' + A.fmt(bb[3] - bb[1]) + u]);
+    if (inf.name) rows.push([t('blockN'), inf.name]);
+    if (inf.lay) rows.push([t('layer'), inf.lay]);
+    A.result(rows);
+    A.overlay();
+  }
   /**
    * Nesneye (ya da kapalı alana) dokunarak çalışan araçlar. Ölçülendirmede dokunulan daireden
    * yarıçap okunur, patlatmada ve öznitelikte dokunulan ilkelin BLOK bilgisi kullanılır.
@@ -208,12 +274,13 @@ export class ToolManager {
     if (act === 'hatch' || act === 'fillarea') { await this.regionTap(w); return; }
     const p = A.pick(w);
     if (!p) { A.toast(t('noObject')); return; }
+    if (act === 'ident') { this.identify(p); return; }
     if (act === 'radius' || act === 'dimr' || act === 'dimd') {
       const o = p.k === 0 ? p.ops.find(q => q[0] === 2 || q[0] === -2) : null;
       if (!o) { A.toast(t('notCircle')); return; }
       const u = A.units();
       if (act === 'radius') {
-        A.result([[t('radius'), A.fmt(o[3]) + u], [t('diameter'), A.fmt(2 * o[3]) + u], [t('center'), A.fmt(o[1]) + ' ; ' + A.fmt(o[2])], [t('circumference'), A.fmt(pathLength(p.ops, p.closed)) + u]]);
+        A.result([[t('radius'), A.fmt(o[3]) + u], [t('diameter'), A.fmt(2 * o[3]) + u], [t('center'), A.fmt(o[1]) + ' ; ' + A.fmt(o[2])], [t('circumference'), A.fmt(pathLength3(p.ops, p.closed)) + u]]);
         this.draft = { circle: { c: [o[1], o[2]], r: o[3] } }; A.overlay();
         return;
       }
@@ -257,7 +324,7 @@ export class ToolManager {
     const z = (reg.prim.ops[0] && reg.prim.ops[0][3]) || 0;
     const pts = reg.pts.map(q => [q[0], q[1], z]);
     if (this.active === 'fillarea') {
-      const per = pathLength(reg.prim.ops, true);
+      const per = pathLength3(reg.prim.ops, true);
       const rows = [[t('area'), A.fmt(reg.area) + (u ? u + '\u00b2' : '')], [t('perimeter'), A.fmt(per) + u], [t('cornersN'), pts.length]];
       if (k !== 1) rows.push([t('areaM2'), A.fmt(reg.area * k * k, 2) + ' m\u00b2'], [t('areaDa'), A.fmt(reg.area * k * k / 1000, 3) + ' da']);
       else rows.push([t('areaDa'), A.fmt(reg.area / 1000, 3) + ' da'], [t('areaHa'), A.fmt(reg.area / 10000, 4) + ' ha']);
@@ -546,7 +613,7 @@ export class ToolManager {
   }
   showArea() {
     const A = this.api, m = this.pts, u = A.units();
-    const area = polyArea(m), per = pathLength(m.map((q, i) => [i ? 1 : 0, q[0], q[1]]), true);
+    const area = polyArea(m), per = pathLength3(m.map((q, i) => [i ? 1 : 0, q[0], q[1]]), true);
     const rows = [[t('area'), A.fmt(area) + (u ? u + '²' : '')], [t('perimeter'), A.fmt(per) + u], [t('cornersN'), m.length]];
     if (A.unitToM() && A.unitToM() !== 1) rows.push([t('areaM2'), A.fmt(area * A.unitToM() ** 2, 2) + ' m²'], [t('areaDa'), A.fmt(area * A.unitToM() ** 2 / 1000, 3) + ' da']);
     else if (A.unitToM() === 1) rows.push([t('areaDa'), A.fmt(area / 1000, 3) + ' da'], [t('areaHa'), A.fmt(area / 10000, 4) + ' ha']);

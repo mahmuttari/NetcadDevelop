@@ -253,9 +253,11 @@ await setEd('free');
     const dv = document.querySelector('#drivePanel [data-drive="upload"]');
     return { drive: dv ? dv.dataset.need || '' : '', newBtn: (document.getElementById('btnNew2') || {}).dataset?.need || '', marks: document.querySelectorAll('.lk').length };
   });
+  // Beklenen basamak kapı tablosundan okunur; kademe yeniden konumlandığında sınama kendiliğinden uyar
+  const bek = await ev(async () => { const Ed = await import('./edition.js'); const m = {}; for (const [id, x] of Ed.FEATURE_TIER) m[id] = x; return { drive: m.driveUpload, yeni: m.new }; });
   ok('11 yetki yükselince Drive ve "Yeni dosya" rozetleri YENİDEN ÇİZİLMEDEN kalkar (bayat rozet yalan söylemez)',
-    before.drive === 'super' && before.newBtn === 'premium' && after.drive === '' && after.newBtn === '' && after.marks === 0,
-    JSON.stringify({ before, after }));
+    before.drive === bek.drive && before.newBtn === bek.yeni && after.drive === '' && after.newBtn === '' && after.marks === 0,
+    JSON.stringify({ before, after, bek }));
   await setEd('free');
 }
 
@@ -313,12 +315,42 @@ await setEd('free');
     return { counts, lists, total: p.querySelectorAll('.lk-all li').length, cap: Ed.capabilityList().length, title: !!p.querySelector('.lk-all .opt-title') };
   });
   // Sayaç KÜMÜLATİFtir: Super kartı, Premium'un açtıklarını da açar. Okuyucu dökümdeki grupları
-  // toplayarak doğrulayabilir — Premium = 47, Super = 47 + 18 = 65.
+  // toplayarak doğrulayabilir — Premium = 52, Super = 52 + 13 = 65. (Beş özellik v7.48'de
+  // Super'den Premium'a indi; toplam 65 değişmedi, dağılım değişti.)
   const cum = (x) => ['adfree', 'premium', 'super'].slice(0, ['adfree', 'premium', 'super'].indexOf(x) + 1).reduce((a, y) => a + (r.lists[y] || 0), 0);
   const same = ['premium', 'super'].every(x => r.counts[x] === cum(x));
-  ok('14 kart sayacı dökümdeki grupların toplamıyla birebir aynı (Premium 47, Super 47+18=65); Ad-Free\'de sayaç yok',
+  ok('14 kart sayacı dökümdeki grupların toplamıyla birebir aynı (Premium 52, Super 52+13=65); Ad-Free\'de sayaç yok',
     r.title && same && r.total === r.cap && r.counts.adfree === 0 && r.total === 65, JSON.stringify({ ...r, cumPremium: cum('premium'), cumSuper: cum('super') }));
   await page.screenshot({ path: `${out}/lock_panel.png` });
+
+  /*
+   * KART METNİ ↔ KAPI TUTARLILIĞI. Kartın madde listesi FEATURE_TIER'dan TÜREMEZ; ayrı
+   * tierFeat_* anahtarlarından okunur (edition.js featureList). Yani kapı bir şey yapıp kart
+   * başka bir şey söyleyebilir ve bunu hiçbir sınama yakalamıyordu. Rakiple hizalanan beş
+   * özelliğin kapısı ile kartta durduğu yer burada birlikte sınanır.
+   */
+  const tut = await ev(async () => {
+    const Ed = await import('./edition.js');
+    const I = await import('./i18n.js');
+    const t = (k) => I.t(k);
+    const kapi = {};
+    for (const [id, x] of Ed.FEATURE_TIER) kapi[id] = x;
+    const mad = (x) => String(t('tierFeat_' + x)).split('|').map(v => v.trim().toLocaleLowerCase('tr'));
+    return { kapi, premium: mad('premium'), super: mad('super') };
+  });
+  const BES = ['pdfcad', 'batch', 'compare', 'driveUpload', 'area3d'];
+  ok('15a rakiple hizalanan beş özellik Premium kapısında',
+    BES.every(k => tut.kapi[k] === 'premium'), BES.map(k => k + '=' + tut.kapi[k]).join(' '));
+  ok('15b Super\'i ayıran iki özellik Super\'de kaldı (profil ve yalnız değişenleri teslim)',
+    tut.kapi.profile === 'super' && tut.kapi.savedelta === 'super',
+    `profile=${tut.kapi.profile} savedelta=${tut.kapi.savedelta}`);
+  // Kartın sözü kapıyla aynı olmalı: Premium kartı bu dördünü saymalı, Super kartı artık saymamalı
+  const gecer = (liste, ip) => liste.some(v => v.includes(ip));
+  ok('15c Premium kartı karşılaştırma, PDF→CAD, Drive ve yanal alanı sayıyor',
+    ['karşılaştırma', 'pdf→cad', 'drive', 'yanal alan'].every(ip => gecer(tut.premium, ip)),
+    tut.premium.join(' | '));
+  ok('15d Super kartı artık karşılaştırma ve Drive vaat etmiyor',
+    !gecer(tut.super, 'karşılaştırma') && !gecer(tut.super, 'drive'), tut.super.join(' | '));
   await ev(() => window.dwgApp.onBack()); await page.waitForTimeout(100);
 }
 

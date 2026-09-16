@@ -19,7 +19,7 @@ import { FG, ACI } from './scene.js';
 import { toScreen, toWorld, fmt, store } from './state.js';
 import { bgColor, fgColor } from './render.js';
 import { t, applyI18n, addStrings } from './i18n.js';
-import { TAU } from './geom.js';
+import { TAU, meshMetrics } from './geom.js';
 import * as D from './display.js';
 import { askText, askForm } from './dialog.js';
 import { leaderEnts } from './annot.js';
@@ -85,7 +85,7 @@ const TABS = [
     { cap: 'grpHist', items: [T('undo', 'i-undo', 'Geri al', 'Undo'), T('redo', 'i-redo', 'Yinele', 'Redo'), T('more', 'i-more', 'Diğer', 'More', 'Diğer işlevler menüsü', 'More functions')] } ] },
   { id: 'display', i18n: 'tabDisplay', icon: 'i-sliders', groups: [] },   // satır içeriği 2B/3B'ye göre üretilir
   { id: 'measure', i18n: 'tabMeasure', icon: 'i-dist', groups: [
-    { cap: 'grpMeasure', items: [T('t:dist', 'i-dist', 'Mesafe', 'Distance', 'Noktalar arası mesafe, ΔX/ΔY, açı', 'Distance between points'), T('t:area', 'i-area', 'Alan', 'Area', 'Kapalı alan ve çevre', 'Closed area and perimeter'), T('t:angle', 'i-angle', 'Açı', 'Angle', 'Üç noktayla açı', 'Angle by three points'), T('t:radius', 'i-radius', 'Yarıçap', 'Radius', 'Daire / yay yarıçapı', 'Circle / arc radius'), T('t:coord', 'i-coord', 'Koordinat', 'Coordinate', 'Noktanın koordinatını okur', 'Read point coordinates'), T('t:fillarea', 'i-fill', 'Dolgu alanı', 'Fill area', 'Kapalı alanın içine dokunun; alan, çevre ve dönüşümler', 'Tap inside a closed area for its area and perimeter'), T('profile', 'i-profile', 'Profil', 'Profile', 'Kot / eğim profili', 'Elevation / slope profile')] },
+    { cap: 'grpMeasure', items: [T('t:dist', 'i-dist', 'Mesafe', 'Distance', 'Noktalar arası mesafe, ΔX/ΔY, açı', 'Distance between points'), T('t:area', 'i-area', 'Alan', 'Area', 'Kapalı alan ve çevre', 'Closed area and perimeter'), T('t:angle', 'i-angle', 'Açı', 'Angle', 'Üç noktayla açı', 'Angle by three points'), T('t:radius', 'i-radius', 'Yarıçap', 'Radius', 'Daire / yay yarıçapı', 'Circle / arc radius'), T('t:coord', 'i-coord', 'Koordinat', 'Coordinate', 'Noktanın koordinatını okur', 'Read point coordinates'), T('t:fillarea', 'i-fill', 'Dolgu alanı', 'Fill area', 'Kapalı alanın içine dokunun; alan, çevre ve dönüşümler', 'Tap inside a closed area for its area and perimeter'), T('t:ident', 'i-ident', 'Akıllı ölçüm', 'Smart measure', 'Nesneye dokunun: türüne göre boy, alan, yarıçap ya da hacim', 'Tap an object: length, area, radius or volume by its type'), T('profile', 'i-profile', 'Profil', 'Profile', 'Kot / eğim profili', 'Elevation / slope profile')] },
     { cap: 'grpHelpers', items: [T('osnap', 'i-snap', 'Yakalama', 'Osnap', 'Nesne yakalamayı açar / kapatır', 'Toggle object snap'), T('grid', 'i-grid', 'Izgara', 'Grid'), T('crosshair', 'i-crosshair', 'Artı imleç', 'Crosshair')] } ] },
   { id: 'draw', i18n: 'tabDraw', icon: 'i-pen', groups: [
     { cap: 'grpDraw2', items: [T('t:line', 'i-line', 'Çizgi', 'Line', 'İki nokta ya da @uzunluk<açı', 'Two points or @length<angle'), T('t:pline', 'i-pline', 'Polyline', 'Polyline', 'Çok köşeli çizgi; Bitir / Kapat', 'Multi-vertex line'), T('t:rect', 'i-rect', 'Dikdörtgen', 'Rectangle'), T('t:circle', 'i-circle', 'Daire', 'Circle', 'Merkez + yarıçap', 'Center + radius'), T('t:arc3', 'i-arc', 'Yay', 'Arc', 'Üç noktadan yay', 'Three-point arc'), T('t:point', 'i-point', 'Nokta', 'Point'), T('t:text', 'i-text', 'Yazı', 'Text', 'Konum, metin ve yükseklik', 'Position, text and height')] },
@@ -160,6 +160,8 @@ export function initEditor(a) {
     lonLat: (x, y) => S.geo.active ? S.geo.toLonLat(x, y) : null,
     visiblePrims: () => S.prims.filter(p => !(S.layers.get(p.lay) && !S.layers.get(p.lay).visible)),
     allPrims: () => (S.scene ? S.scene.layouts[0].prims : []),
+    trType: (x) => tt('ety_' + x, x),               // DXF tür adının yerelleşmiş karşılığı (yoksa adın kendisi)
+    meshMetrics: (p) => { try { return p && p.vtx && p.idx ? meshMetrics(p.vtx, p.idx) : null; } catch (_) { return null; } },
   });
   ed.tools = tools;
   applyUi({ store: false });
@@ -771,10 +773,20 @@ export function exit3D() {
 }
 function syncCube() { const c3 = $('cube3d'); if (!c3) return; c3.hidden = !(ed.is3D() && v3 && v3.opts.cube && cube); if (v3) c3.classList.toggle('below-hud', !!(v3.opts.hud && v3.opts.hudPos === 'tl')); if (!c3.hidden && cube) cube.update(); if (ed.is3D() && v3) overlay3D(); }
 function resize3D() { const cv = $('cv3d'); const r = cv.getBoundingClientRect(); cv.width = Math.round(r.width * S.dpr); cv.height = Math.round(r.height * S.dpr); }
+/*
+ * 3B görünümün kaynağı HER ZAMAN Model uzayıdır: kâğıt düzeni tanımı gereği iki boyutludur,
+ * gövde geometrisi Model'de durur. Kullanıcı bir pafta sekmesindeyken 3B'ye geçerse ekrandaki
+ * çizim değişir; bu sessiz kalmamalı, bir kez söylenir.
+ */
 function refresh3D() {
   if (!v3) return;
+  const model = S.scene.layouts[0];
+  if (S.scene.layouts[S.layoutIndex] !== model && ed._3dLayoutWarned !== S.fileKey + ':' + S.layoutIndex) {
+    ed._3dLayoutWarned = S.fileKey + ':' + S.layoutIndex;
+    api.toast(tt('view3dModelOnly', '3B görünüm Model uzayını gösterir'), 3500);
+  }
   const fadeLayers = new Set([...S.layers.values()].filter(l => l.faded).map(l => l.name));
-  v3.setScene(S.scene.layouts[0].prims, S.layers, { dark: S.dark, mono: S.mono, bg: bgColor(), fg: fgColor(), fade: S.fade.on && fadeLayers.size ? { pct: S.fade.pct, layers: fadeLayers } : null, selColor: S.selColor });
+  v3.setScene(model.prims, S.layers, { dark: S.dark, mono: S.mono, bg: bgColor(), fg: fgColor(), fade: S.fade.on && fadeLayers.size ? { pct: S.fade.pct, layers: fadeLayers } : null, selColor: S.selColor });
   v3.setSelection(ed.sel);
   if (!v3.counts.tris && typeof api.noFaces === 'function' && ed._noFaceKey !== S.fileKey) { ed._noFaceKey = S.fileKey; try { api.noFaces(); } catch (_) { /* geç */ } }
 }
@@ -980,8 +992,13 @@ async function noteStep(p) {
 }
 function prompt3D() {
   const m = ed.m3; if (!m) return;
+  // Altı noktalı düzlem-düzlem ölçümünde "köşelere dokunun" yetmez: hangi parçanın kaçıncı
+  // noktasını verdiğini söylemek gerekir. measure3d.stepOf bunu üretiyordu ama hiç çağrılmıyordu.
+  const adim = m.name === 'geo' && geoM && geoM.stepOf ? geoM.stepOf(m.mode, m.pts.length) : null;
   const txt = m.name === 'geo'
-    ? `${t('geo3_' + m.mode)} · ${t('geo3Pick')} [${m.pts.length}/${m.need}]`
+    ? `${t('geo3_' + m.mode)} · ` + (adim
+      ? `${t(adim.part)} · ${adim.index + 1}. ${t('pointsN')}${adim.optional ? ' (' + t('optionalPt') + ')' : ''} [${m.pts.length}/${m.need}]`
+      : `${t('geo3Pick')} [${m.pts.length}/${m.need}]`)
     : m.name === 'note' ? t('p3Note')
       : { select: `${t('p3Select')} [${ed.sel.size} ${t('selCount')}]`, dist: m.pts.length ? t('p3Dist2') : t('p3Dist1'), move: m.pts.length ? t('p3Move2') : t('p3Move1'), pline: `${t('p3Pline')} [${m.pts.length} ${t('pointsN')}] · ${t('finish')}` }[m.name];
   $('cmdBar').hidden = false; $('cmdText').textContent = txt;

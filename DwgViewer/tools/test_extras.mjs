@@ -105,7 +105,100 @@ ok('4b panoya kopyala düğmesi duruyor', meas.hasCopy === true);
 ok('4c geri al bir nokta düşürdü', meas.n === 2, String(meas.n));
 ok('4d döküm ölçü başlığıyla başlıyor', /Ölç/i.test(meas.txt.split('\n')[0]), meas.txt.split('\n')[0]);
 ok('4e dökümde 3-4-5 üçgeninin 50 uzunluğu geçiyor', meas.txt.includes('50'), meas.txt.replace(/\n/g, ' | ').slice(0, 160));
+
+// Ölçüm CSV'si: panelden kazınmaz, ölçüm verisinden kurulur — parça başına bir satır, Δ'lar ayrı sütunda.
+const mcsv = await page.evaluate(() => {
+  const app = window.dwgApp, S = app.state;
+  S.measure.length = 0;
+  S.measure.push([0, 0, 0], [30, 40, 0]);
+  const duz = app.__measure.csv();
+  S.measure.length = 0;
+  S.measure.push([0, 0, 0], [30, 40, 120]);          // kotlu: eğik boy 130, yatay 50
+  const egik = app.__measure.csv();
+  return { duz, egik, has: !!document.getElementById('measureCsv') };
+});
+ok('4f ölçüm panelinde CSV düğmesi var', mcsv.has === true);
+ok('4g CSV noktalı virgülle ayrılmış başlık satırı taşıyor',
+  mcsv.duz.split('\r\n').some(l => l.split(';').length >= 12 && /X1/.test(l)),
+  mcsv.duz.split('\r\n').find(l => /X1/.test(l)) || '');
+ok('4h düz ölçümde eğik boy = yatay boy = 50', /(^|;)50(;|$)/m.test(mcsv.duz.replace(/\r/g, '')), mcsv.duz.replace(/\r?\n/g, ' | ').slice(0, 200));
+
+// 3B uzunluk kusuru: kot bilinen uçlarda mesafe EĞİK ölçülmeli (30-40-120 → 130), yatay izdüşüm 50 ayrı sütunda.
+ok('4i kotlu ölçümde eğik boy 130, yatay 50 ayrı sütunda',
+  /(^|;)130(;|$)/m.test(mcsv.egik.replace(/\r/g, '')) && /(^|;)50(;|$)/m.test(mcsv.egik.replace(/\r/g, '')) && /(^|;)120(;|$)/m.test(mcsv.egik.replace(/\r/g, '')),
+  mcsv.egik.replace(/\r?\n/g, ' | ').slice(0, 260));
 await page.evaluate(() => window.dwgApp.setMode('view'));
+
+// ---- 4b. Eğik yolun uzunluğu: pathLength3 yatay izdüşümü değil gerçek boyu vermeli --------------
+const zlen = await page.evaluate(async () => {
+  const g = await import('./geom.js');
+  const ops = [[0, 0, 0, 0], [1, 30, 40, 120]];      // 3-4-5 tabanı, Δz 120 → eğik 130
+  return { d2: g.pathLength(ops, false), d3: g.pathLength3(ops, false),
+    kapali2: g.pathLength(ops, true), kapali3: g.pathLength3(ops, true),
+    kotsuz3: g.pathLength3([[0, 0, 0], [1, 30, 40]], false) };
+});
+ok('4j pathLength yatay izdüşüm veriyor (50)', Math.abs(zlen.d2 - 50) < 1e-9, String(zlen.d2));
+ok('4k pathLength3 gerçek eğik boyu veriyor (130)', Math.abs(zlen.d3 - 130) < 1e-9, String(zlen.d3));
+ok('4l kapalı yolda dönüş parçası da eğik sayılıyor (260)', Math.abs(zlen.kapali3 - 260) < 1e-9 && Math.abs(zlen.kapali2 - 100) < 1e-9, `${zlen.kapali3} / ${zlen.kapali2}`);
+ok('4m kot verilmemiş 2B yolda iki ölçüm birebir aynı', Math.abs(zlen.kotsuz3 - 50) < 1e-9, String(zlen.kotsuz3));
+
+// ---- 4c. Sayım paneli: kapsam, katman × tür çaprazı ve CSV --------------------------------------
+const cnt = await page.evaluate(async () => {
+  const app = window.dwgApp;
+  app.action('count');
+  await new Promise(r => setTimeout(r, 250));
+  const body = document.getElementById('docBody');
+  const sel = document.getElementById('cntScope');
+  const opts = sel ? [...sel.options].map(o => o.value) : [];
+  const bar = body.querySelectorAll('.cbar').length, head = body.querySelectorAll('.cnt-h').length;
+  const hepsi = app.__count.data('all'), gorunur = app.__count.data('vis');
+  const csv = app.__count.csv('all');
+  document.getElementById('docClose') && document.getElementById('docClose').click();
+  return { opts, bar, head, csv, hepsi: hepsi.prims, gorunur: gorunur.prims,
+    tur: [...hepsi.types.keys()].length, kat: [...hepsi.byLayer.keys()].length,
+    ham: /&lt;div/.test(body.innerHTML) };
+});
+ok('5A sayım panelinde dört kapsam var', cnt.opts.join(',') === 'all,sel,vis,win', cnt.opts.join(','));
+ok('5B oransal çubuklar ve başlıklar HTML olarak basılıyor (kaçırılmıyor)', cnt.bar > 0 && cnt.head >= 2 && !cnt.ham, `${cnt.bar} çubuk · ${cnt.head} başlık · ham=${cnt.ham}`);
+ok('5C kapsam daraltması ilkel sayısını değiştirebiliyor', cnt.gorunur <= cnt.hepsi && cnt.hepsi > 0, `${cnt.gorunur}/${cnt.hepsi}`);
+ok('5D katman × tür çaprazı üretildi', cnt.kat >= 1 && cnt.tur >= 1, `${cnt.kat} katman · ${cnt.tur} tür`);
+ok('5E sayım CSV\'sinde blok, tür ve katman bölümleri var',
+  cnt.csv.includes(';') && cnt.csv.split('\r\n').length > 4, cnt.csv.split('\r\n').slice(0, 3).join(' | '));
+
+// ---- 5b. Akıllı ölçüm: dokunulan nesnenin TÜRÜNE göre doğru ölçü ------------------------------
+// Kullanıcı hangi ölçüyü istediğini önceden seçmez; araç türü anlayıp anlamlı olanı verir.
+const ident = await page.evaluate(() => {
+  const app = window.dwgApp, ed = app.editor;
+  const oku = (pred) => {
+    const p = app.state.prims.find(pred);
+    if (!p) return null;
+    ed.tools.start('ident');
+    ed.tools.identify(p);
+    const body = document.getElementById('resultBody') || document.getElementById('docBody');
+    return (body ? body.textContent : '').replace(/\s+/g, ' ');
+  };
+  return {
+    daire: oku(p => { if (!(p.k === 0 && p.ops.length === 2)) return false; const o = p.ops[1]; if (o[0] !== 2 && o[0] !== -2) return false; return Math.abs(Math.abs(o[5] - o[4]) - Math.PI * 2) < 1e-6; }),
+    yay: oku(p => { if (!(p.k === 0 && p.ops.length === 2)) return false; const o = p.ops[1]; if (o[0] !== 2 && o[0] !== -2) return false; return Math.abs(Math.abs(o[5] - o[4]) - Math.PI * 2) > 1e-6; }),
+    cizgi: oku(p => p.k === 0 && p.ops.length === 2 && p.ops[1][0] === 1),
+    yazi: oku(p => p.k === 1),
+    karo: !!document.querySelector('[data-act="t:ident"]'),
+  };
+});
+ok('5F akıllı ölçüm karosu ölçü sekmesinde', ident.karo === true);
+ok('5G tam daireden yarıçap, çap, çevre ve alan okunuyor',
+  !!ident.daire && /Yarıçap/.test(ident.daire) && /Çap/.test(ident.daire) && /Çevre/.test(ident.daire) && /Alan/.test(ident.daire),
+  (ident.daire || '').slice(0, 130));
+// Yay tam daire değildir: çevre ve alan YERİNE yay uzunluğu ve merkez açısı verilmeli
+ok('5G2 yaydan yay uzunluğu ve açı okunuyor, çevre/alan verilmiyor',
+  !!ident.yay && /Yay uzunluğu/.test(ident.yay) && /Açı/.test(ident.yay) && !/Çevre/.test(ident.yay) && !/Alan/.test(ident.yay),
+  (ident.yay || '').slice(0, 130));
+ok('5H çizgiden uzunluk, köşe sayısı ve açı okunuyor',
+  !!ident.cizgi && /Uzunluk/.test(ident.cizgi) && /Açı/.test(ident.cizgi) && !/Yarıçap/.test(ident.cizgi),
+  (ident.cizgi || '').slice(0, 120));
+ok('5I yazıdan içerik ve yükseklik okunuyor',
+  !!ident.yazi && /Yükseklik/.test(ident.yazi) && /Metin/.test(ident.yazi),
+  (ident.yazi || '').slice(0, 120));
 
 // ---- 5. Metin çıkarma ---------------------------------------------------------------------------
 const tx = await page.evaluate(() => {

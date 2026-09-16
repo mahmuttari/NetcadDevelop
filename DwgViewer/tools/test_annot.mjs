@@ -383,9 +383,22 @@ await page.waitForTimeout(400);
 const blkList = await page.evaluate(() => [...document.querySelectorAll('#docBody [data-blk]')].map(e => e.dataset.blk));
 ok('11f seçimden blok kaydedildi', blkList.includes('Deneme bloğu'), JSON.stringify(blkList));
 const nBlk = await count();
+// Yerleştirme artık ölçek ve dönüş soruyor; varsayılanlarla (1 · 0°) geometri birebir konur.
+await queueAnswers(page, {});
 await page.click('#docBody [data-blk="Deneme bloğu"]');
 await page.waitForTimeout(400);
 ok('11g kütüphaneden blok eklendi', await count() === nBlk + 1, `${nBlk} → ${await count()}`);
+const bb1 = await page.evaluate(() => { const S = window.dwgApp.state; const p = [...window.dwgApp.editor.sel][0]; return p ? p.bb.slice() : null; });
+// Ölçek 2 ve 90° dönüşle aynı blok: sınır kutusu iki katına çıkmalı ve blok yine görünümün ortasında kalmalı
+await page.evaluate(() => window.dwgApp.action('blocklib'));
+await page.waitForTimeout(250);
+await queueAnswers(page, { scale: '2', rot: '90' });
+await page.click('#docBody [data-blk="Deneme bloğu"]');
+await page.waitForTimeout(400);
+const bb2 = await page.evaluate(() => { const p = [...window.dwgApp.editor.sel][0]; return p ? p.bb.slice() : null; });
+ok('11g2 ölçek ve dönüş sorulup uygulanıyor (2× → kutu iki katı)',
+  !!bb1 && !!bb2 && Math.abs(((bb2[2] - bb2[0]) + (bb2[3] - bb2[1])) - 2 * ((bb1[2] - bb1[0]) + (bb1[3] - bb1[1]))) < 1e-6,
+  bb1 && bb2 ? `${(bb1[2] - bb1[0]).toFixed(2)}×${(bb1[3] - bb1[1]).toFixed(2)} → ${(bb2[2] - bb2[0]).toFixed(2)}×${(bb2[3] - bb2[1]).toFixed(2)}` : 'bb yok');
 // bul-değiştir paneli
 await page.evaluate(() => window.dwgApp.action('findrep'));
 await page.waitForTimeout(250);

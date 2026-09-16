@@ -798,6 +798,8 @@ html[dir="rtl"] #cv, html[dir="rtl"] #cv3d, html[dir="rtl"] .stage { direction: 
 html[dir="rtl"] .kv-copy { text-align: right; }
 
 /* Sayım panelindeki oransal çubuk: değerin yanında, satır yüksekliğini bozmadan */
+.cnt-h { margin: 10px 0 2px; display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid var(--line); padding-bottom: 3px; }
+.cnt-h span { color: var(--muted); font-variant-numeric: tabular-nums; }
 .cbar { display: inline-block; vertical-align: middle; width: 84px; height: 6px; margin-left: 8px; border-radius: 3px; background: var(--line); overflow: hidden; }
 .cbar i { display: block; height: 100%; background: var(--accent); }
 /* Çok alanlı giriş kutusu (askForm): etiket solda, alan sağda; dar ekranda alt alta */
