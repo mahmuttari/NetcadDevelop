@@ -366,7 +366,7 @@ export default {
   clipCopied: 'क्लिपबोर्ड पर कॉपी किया गया',
   clipEmpty: 'क्लिपबोर्ड खाली है',
   clipPasted: 'चिपकाया गया',
-  geo3Title: '3D ज्यामितीय माप', view3dModelOnly: '3D दृश्य मॉडल स्पेस दिखाता है',
+  geo3Title: '3D ज्यामितीय माप', pick3Title: '3D लक्ष्य', pick3Vertex: 'शीर्ष', pick3Surface: 'सतह', pick3Auto: 'स्वचालित', tapVertexOrSurface: 'किसी शीर्ष या सतह पर टैप करें', surfacePoint: 'सतह बिंदु', tl_target3: 'लक्ष्य', th_target3: 'शीर्ष / सतह / स्वचालित: 3D टैप किससे जुड़े', view3dModelOnly: '3D दृश्य मॉडल स्पेस दिखाता है',
   geo3Mode: 'माप का प्रकार',
   geo3Need: 'बिंदु चाहिए',
   geo3Pick: 'शीर्षों पर टैप करें',

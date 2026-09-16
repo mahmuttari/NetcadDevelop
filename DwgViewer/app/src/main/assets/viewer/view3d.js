@@ -9,7 +9,7 @@
  * Seçenekler `opts` içindedir; dışarıdan yalnız `set(key, value)` ile değiştirilir. Kalıcı
  * seçenekler `store 'view3d'` anahtarında tutulur (clip, clipBox, turntable ve zScale hariç).
  */
-import { TAU, arcPts, ellipsePts } from './geom.js';
+import { TAU, arcPts, ellipsePts, rayBox3, rayMesh3 } from './geom.js';
 import { t } from './i18n.js';
 import { FG } from './scene.js';
 import { store, fmt as fmtNum } from './state.js';
@@ -226,6 +226,7 @@ export class View3D {
     this.bb = null; this.zrange = [0, 1];
     // yakalama köşeleri: xyz (Float64, ölçüm hassasiyeti için) + ilkel dizisi; `vertices` görünümü istenince kurulur
     this.vertXYZ = new Float64Array(0); this.vertPrim = []; this._vertsView = null;
+    this.meshPrims = [];                                   // yüzey seçimi için ağ ilkelleri (k=5); görünmez katmanlar zaten elenmiş olur
     this.dark = true;
     this.fg = [0.95, 0.96, 0.97]; this.bgTheme = [0.11, 0.13, 0.16]; this.selColor = [1, 0.62, 0.04];
     this.units = ''; this.gridStep = 1;
@@ -448,6 +449,7 @@ export class View3D {
       push(t, a[0], a[1], a[2]); push(t, b2[0], b2[1], b2[2]); push(t, c2[0], c2[1], c2[2]);
       t.nrm.push3(nx, ny, nz); t.nrm.push3(nx, ny, nz); t.nrm.push3(nx, ny, nz);
     };
+    this.meshPrims = [];
     for (const p of prims) {
       if (p.inf || p.k === 4 || p.k === 3) continue;
       const lay = layers.get(p.lay); if (lay && !lay.visible) continue;
@@ -457,6 +459,7 @@ export class View3D {
       if (p.k === 1) { push(B.txt, p.x, p.y, p.z || 0); continue; }
       if (p.k === 5) {                                        // ağ ilkeli
         const V = p.vtx, I = p.idx, S2 = p.seg;
+        if (V && I && I.length >= 3) this.meshPrims.push(p);   // yüzey seçimi kaynağı
         if (useIdx) addMesh(p);                               // paylaşılan köşe + indeks tamponu
         else for (let i = 0; i + 2 < I.length; i += 3) {       // 32 bit indeks yoksa: eski genişletilmiş yol
           const a = I[i] * 3, b2 = I[i + 1] * 3, c2 = I[i + 2] * 3;
@@ -1070,6 +1073,67 @@ export class View3D {
       const px = ((m[0] * vx + m[4] * vy + m[8] * z + m[12]) / w + 1) / 2 * W, py = (1 - (m[1] * vx + m[5] * vy + m[9] * z + m[13]) / w) / 2 * H;
       const d = Math.hypot(px - sx, py - sy);
       if (d < bd) { bd = d; best = { p: [vx, vy, vz], prim: this.vertPrim[i] }; }
+    }
+    return best;
+  }
+  /*
+   * EKRAN IŞINI. Ters izdüşüm matrisi KURULMAZ: ışın, kameranın kendi tabanından üretilir ve
+   * mvp() ile birebir aynı üç açıdan (yaw, pitch, dist) beslenir; böylece ışın ile ekranda
+   * görünen sahne asla ayrışmaz. Canlandırma sürerken de _display() okunur — mvp() de onu okur.
+   *
+   * Paralel izdüşümde bütün ışınlar aynı yöndedir (bakış doğrultusu) ve başlangıç noktası
+   * pikselden kayar; perspektifte başlangıç gözdür ve yön pikselden pikselden değişir.
+   * Dönen koordinatlar Z ABARTILI uzaydadır — rayMesh3 aynı uzayda çalışır ve sonucu gerçek
+   * kota çevirir.
+   */
+  screenRay(sx, sy) {
+    const c = this._display();
+    const e = this._eye(c), tgt = e[3], eye = [e[0], e[1], e[2]];
+    let fx = tgt[0] - eye[0], fy = tgt[1] - eye[1], fz = tgt[2] - eye[2];
+    const fl = Math.hypot(fx, fy, fz) || 1; fx /= fl; fy /= fl; fz /= fl;
+    // sağ = ileri × yukarı(0,0,1), yukarı = sağ × ileri  (lookAt ile aynı taban)
+    let rx = fy * 1 - fz * 0, ry = fz * 0 - fx * 1, rz = fx * 0 - fy * 0;
+    const rl = Math.hypot(rx, ry, rz) || 1; rx /= rl; ry /= rl; rz /= rl;
+    const ux = ry * fz - rz * fy, uy = rz * fx - rx * fz, uz = rx * fy - ry * fx;
+    const W = Math.max(1, this.cv.clientWidth), H = Math.max(1, this.cv.clientHeight);
+    const ndcX = (sx / W) * 2 - 1, ndcY = 1 - (sy / H) * 2;
+    const fov = Math.min(120, Math.max(10, this.opts.fov)) * Math.PI / 180;
+    const hh = c.dist * Math.tan(fov / 2), hw = hh * (W / H);
+    if (c.persp) {
+      const dx = fx * c.dist + rx * ndcX * hw + ux * ndcY * hh;
+      const dy = fy * c.dist + ry * ndcX * hw + uy * ndcY * hh;
+      const dz = fz * c.dist + rz * ndcX * hw + uz * ndcY * hh;
+      const dl = Math.hypot(dx, dy, dz) || 1;
+      return { o: eye, d: [dx / dl, dy / dl, dz / dl] };
+    }
+    // paralel: göz düzleminde kaydırılmış başlangıç, sabit yön. Başlangıç modelin gerisine alınır
+    // ki kameranın arkasında kalan gövdeler de taranabilsin (t her zaman pozitif olsun).
+    const geri = c.dist + this.radius * 3;
+    const ox = eye[0] + rx * ndcX * hw + ux * ndcY * hh - fx * geri;
+    const oy = eye[1] + ry * ndcX * hw + uy * ndcY * hh - fy * geri;
+    const oz = eye[2] + rz * ndcX * hw + uz * ndcY * hh - fz * geri;
+    return { o: [ox, oy, oz], d: [fx, fy, fz] };
+  }
+  /**
+   * Ekran noktasının altındaki YÜZEY noktası: en yakın ışın-üçgen kesişimi.
+   * Gövde sınır kutusuyla ön elenir (rayBox3), kesit kutusu dışındaki kesişimler yok sayılır.
+   * Dönüş {p:[x,y,z] gerçek kot, n:[birim normal], prim, t} ya da null.
+   */
+  pickSurface(sx, sy) {
+    const list = this.meshPrims;
+    if (!list || !list.length) return null;
+    const ray = this.screenRay(sx, sy);
+    const [ox, oy, oz] = ray.o, [dx, dy, dz] = ray.d;
+    const ix = 1 / dx, iy = 1 / dy, iz = 1 / dz;
+    const zs = this.zScale, cl = this.opts.clip;
+    let best = null, bt = Infinity;
+    for (const p of list) {
+      const bb = p.bb;
+      if (!bb) continue;
+      const z0 = (p.zmin != null ? p.zmin : 0) * zs, z1 = (p.zmax != null ? p.zmax : 0) * zs;
+      if (!rayBox3(ox, oy, oz, ix, iy, iz, bb[0], bb[1], Math.min(z0, z1), bb[2], bb[3], Math.max(z0, z1), bt)) continue;
+      const h = rayMesh3(p.vtx, p.idx, ox, oy, oz, dx, dy, dz, zs, bt, cl || null);
+      if (h && h.t < bt) { bt = h.t; best = { ...h, prim: p }; }
     }
     return best;
   }

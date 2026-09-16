@@ -279,7 +279,7 @@ export default {
   pdfcadNoVector: '该页没有矢量内容（扫描件或图像 PDF）', pdfcadDone: '已导入该页', pageN: '页', pdfcadNote: '仅转换矢量内容：嵌入图像、裁剪路径和透明度不会导入。文字的字间距为近似值。', blockTitle: '块库',
   blockNone: '块库为空', blockName: '块名称', blockSave: '从选择集创建块', blockSaved: '块已保存', blockInsertHint: '点按以插入', blockDeleted: '块已删除', blockDelAsk: '要删除此块吗？',
   blockNoSel: '请先选择对象', blockTooBig: '块过大（上限 2 MB）', blockInserted: '已插入块', blockScale: '比例', blockRot: '旋转 (°)', blockInsert: '插入', clipCopied: '已复制到剪贴板', clipEmpty: '剪贴板为空',
-  clipPasted: '已粘贴', geo3Title: '三维几何测量', view3dModelOnly: '三维视图显示模型空间', geo3Mode: '测量类型', geo3Need: '个点待指定', geo3Pick: '点按各顶点', geo3_ptline: '点 – 直线', geo3_ptplane: '点 – 平面',
+  clipPasted: '已粘贴', geo3Title: '三维几何测量', pick3Title: '三维目标', pick3Vertex: '顶点', pick3Surface: '曲面', pick3Auto: '自动', tapVertexOrSurface: '请点按顶点或曲面', surfacePoint: '曲面上的点', tl_target3: '目标', th_target3: '顶点／曲面／自动：三维点按吸附到何处', view3dModelOnly: '三维视图显示模型空间', geo3Mode: '测量类型', geo3Need: '个点待指定', geo3Pick: '点按各顶点', geo3_ptline: '点 – 直线', geo3_ptplane: '点 – 平面',
   geo3_lineline: '直线 – 直线', geo3_lineplane: '直线 – 平面', geo3_planeplane: '平面 – 平面', geo3_planeangle: '平面间夹角', geo3_smartangle: '智能角度',
   geo3Degenerate: '所选点无法确定该几何图形', p3Note: '点按要标注的顶点', angleSupp: '补角', apex: '顶点', at: '交点', coincident: '重合', point: '点', line1: '直线 1', line2: '直线 2', plane1: '平面 1', plane2: '平面 2', optionalPt: '可选', dir: '交线方向', distP1: '到点 1 的距离', distP2: '到点 2 的距离',
   foot: '垂足', inPlane: '在平面内', intersecting: '相交', lineLen: '直线长度', normal1: '法线 1', normal2: '法线 2', onLine: '在直线上', onPlane: '在平面上',

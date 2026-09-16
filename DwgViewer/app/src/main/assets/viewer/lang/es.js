@@ -366,7 +366,7 @@ export default {
   clipCopied: 'Copiado al portapapeles',
   clipEmpty: 'El portapapeles está vacío',
   clipPasted: 'Pegado',
-  geo3Title: 'Medición geométrica 3D', view3dModelOnly: 'La vista 3D muestra el espacio modelo',
+  geo3Title: 'Medición geométrica 3D', pick3Title: 'Objetivo 3D', pick3Vertex: 'Vértice', pick3Surface: 'Superficie', pick3Auto: 'Automático', tapVertexOrSurface: 'Toque un vértice o una superficie', surfacePoint: 'Punto de superficie', tl_target3: 'Objetivo', th_target3: 'Vértice / superficie / automático: a qué se ajusta un toque 3D', view3dModelOnly: 'La vista 3D muestra el espacio modelo',
   geo3Mode: 'Tipo de medición',
   geo3Need: 'puntos necesarios',
   geo3Pick: 'Toque los vértices',

@@ -366,7 +366,7 @@ export default {
   clipCopied: 'クリップボードにコピーしました',
   clipEmpty: 'クリップボードは空です',
   clipPasted: '貼り付けました',
-  geo3Title: '3D 幾何計測', view3dModelOnly: '3D ビューはモデル空間を表示します',
+  geo3Title: '3D 幾何計測', pick3Title: '3D 対象', pick3Vertex: '頂点', pick3Surface: '面', pick3Auto: '自動', tapVertexOrSurface: '頂点または面をタップしてください', surfacePoint: '面上の点', tl_target3: '対象', th_target3: '頂点／面／自動：3D タップのスナップ先', view3dModelOnly: '3D ビューはモデル空間を表示します',
   geo3Mode: '計測の種類',
   geo3Need: '点が必要です',
   geo3Pick: '頂点をタップしてください',

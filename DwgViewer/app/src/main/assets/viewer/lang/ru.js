@@ -366,7 +366,7 @@ export default {
   clipCopied: 'Скопировано в буфер обмена',
   clipEmpty: 'Буфер обмена пуст',
   clipPasted: 'Вставлено',
-  geo3Title: '3D-измерение геометрии', view3dModelOnly: '3D-вид показывает пространство модели',
+  geo3Title: '3D-измерение геометрии', pick3Title: 'Цель в 3D', pick3Vertex: 'Вершина', pick3Surface: 'Поверхность', pick3Auto: 'Авто', tapVertexOrSurface: 'Коснитесь вершины или поверхности', surfacePoint: 'Точка на поверхности', tl_target3: 'Цель', th_target3: 'Вершина / поверхность / авто: к чему привязывается касание в 3D', view3dModelOnly: '3D-вид показывает пространство модели',
   geo3Mode: 'Вид измерения',
   geo3Need: 'нужно точек',
   geo3Pick: 'Коснитесь вершин',

@@ -366,7 +366,7 @@ export default {
   clipCopied: '클립보드에 복사했습니다',
   clipEmpty: '클립보드가 비었습니다',
   clipPasted: '붙여넣었습니다',
-  geo3Title: '3D 기하 측정', view3dModelOnly: '3D 뷰는 모델 공간을 표시합니다',
+  geo3Title: '3D 기하 측정', pick3Title: '3D 대상', pick3Vertex: '정점', pick3Surface: '면', pick3Auto: '자동', tapVertexOrSurface: '정점 또는 면을 탭하세요', surfacePoint: '면 위의 점', tl_target3: '대상', th_target3: '정점 / 면 / 자동: 3D 탭이 스냅되는 대상', view3dModelOnly: '3D 뷰는 모델 공간을 표시합니다',
   geo3Mode: '측정 종류',
   geo3Need: '개의 점이 필요합니다',
   geo3Pick: '정점을 누르세요',

@@ -728,6 +728,76 @@ export function planePlane3(p1, p2) {
   return { parallel: false, dist: 0, angle: ang };
 }
 
+/*
+ * IŞIN-KUTU (slab testi). ix/iy/iz ÇAĞIRAN tarafından bir kez hesaplanmış 1/d değerleridir:
+ * her gövde için üç bölme yapmamak içindir, binlerce gövdede fark eder. Işın yönünün bir
+ * bileşeni sıfırken 1/0 = ±Infinity doğru sonucu verir (ışın o eksende hiç ilerlemez);
+ * NaN yalnız (0 − 0) · Infinity durumunda çıkar ve NaN karşılaştırmaları false döndürdüğü
+ * için kutu elenmiş olur — kaybedilen, ışının kutunun yüzeyi üzerinde tam teğet geçtiği
+ * kıl payı durumdur, seçimde önemsizdir.
+ */
+export function rayBox3(ox, oy, oz, ix, iy, iz, x0, y0, z0, x1, y1, z1, tMax) {
+  let t0 = (x0 - ox) * ix, t1 = (x1 - ox) * ix;
+  if (t0 > t1) { const q = t0; t0 = t1; t1 = q; }
+  let u0 = (y0 - oy) * iy, u1 = (y1 - oy) * iy;
+  if (u0 > u1) { const q = u0; u0 = u1; u1 = q; }
+  if (u0 > t0) t0 = u0;
+  if (u1 < t1) t1 = u1;
+  if (t0 > t1) return false;
+  let v0 = (z0 - oz) * iz, v1 = (z1 - oz) * iz;
+  if (v0 > v1) { const q = v0; v0 = v1; v1 = q; }
+  if (v0 > t0) t0 = v0;
+  if (v1 < t1) t1 = v1;
+  return t0 <= t1 && t1 >= 0 && t0 <= (tMax == null ? Infinity : tMax);
+}
+/*
+ * IŞIN-ÜÇGEN (Möller–Trumbore). Sıkışık ağ ilkelinin (k=5) vtx/idx dizilerini doğrudan tarar;
+ * ara nesne üretmez. zs, Z abartısıdır: üçgenler dünya kotunda durur ama ekranda zs ile
+ * ölçeklenmiş görünür, dolayısıyla KESİŞİM ÖLÇEKLENMİŞ UZAYDA aranmalı, dönen nokta ise
+ * gerçek kota geri çevrilmelidir — yoksa Z abartısı açıkken seçilen nokta ekranda
+ * dokunulan yerden kayar.
+ *
+ * İki yüzü de kabul eder (arka yüz elenmez): katı olmayan yüzeylerde ve içeriden bakışta
+ * yüzün hangi tarafa baktığı kullanıcının umurunda değildir.
+ */
+export function rayMesh3(vtx, idx, ox, oy, oz, dx, dy, dz, zs = 1, tMax = Infinity, clip = null) {
+  let bt = tMax, bi = -1;
+  const EPS = 1e-12;
+  for (let i = 0; i + 2 < idx.length; i += 3) {
+    const a = idx[i] * 3, b = idx[i + 1] * 3, c = idx[i + 2] * 3;
+    if (a + 2 >= vtx.length || b + 2 >= vtx.length || c + 2 >= vtx.length) continue;
+    const ax = vtx[a], ay = vtx[a + 1], az = vtx[a + 2] * zs;
+    const e1x = vtx[b] - vtx[a], e1y = vtx[b + 1] - vtx[a + 1], e1z = (vtx[b + 2] - vtx[a + 2]) * zs;
+    const e2x = vtx[c] - vtx[a], e2y = vtx[c + 1] - vtx[a + 1], e2z = (vtx[c + 2] - vtx[a + 2]) * zs;
+    const px = dy * e2z - dz * e2y, py = dz * e2x - dx * e2z, pz = dx * e2y - dy * e2x;
+    const det = e1x * px + e1y * py + e1z * pz;
+    if (det > -EPS && det < EPS) continue;                      // ışın üçgenin düzlemine paralel
+    const inv = 1 / det;
+    const tx = ox - ax, ty = oy - ay, tz = oz - az;
+    const u = (tx * px + ty * py + tz * pz) * inv;
+    if (u < -1e-9 || u > 1 + 1e-9) continue;
+    const qx = ty * e1z - tz * e1y, qy = tz * e1x - tx * e1z, qz = tx * e1y - ty * e1x;
+    const v = (dx * qx + dy * qy + dz * qz) * inv;
+    if (v < -1e-9 || u + v > 1 + 1e-9) continue;
+    const t = (e2x * qx + e2y * qy + e2z * qz) * inv;
+    if (t <= 1e-9 || t >= bt) continue;
+    if (clip) {                                                 // kesit kutusu: kesilen yüzey seçilemez
+      const hx = ox + dx * t, hy = oy + dy * t, hz = (oz + dz * t) / (zs || 1);
+      if (hx < clip[0] || hy < clip[1] || hz < clip[2] || hx > clip[3] || hy > clip[4] || hz > clip[5]) continue;
+    }
+    bt = t; bi = i;
+  }
+  if (bi < 0) return null;
+  const a = idx[bi] * 3, b = idx[bi + 1] * 3, c = idx[bi + 2] * 3;
+  const e1x = vtx[b] - vtx[a], e1y = vtx[b + 1] - vtx[a + 1], e1z = (vtx[b + 2] - vtx[a + 2]) * zs;
+  const e2x = vtx[c] - vtx[a], e2y = vtx[c + 1] - vtx[a + 1], e2z = (vtx[c + 2] - vtx[a + 2]) * zs;
+  let nx = e1y * e2z - e1z * e2y, ny = e1z * e2x - e1x * e2z, nz = e1x * e2y - e1y * e2x;
+  const nl = Math.hypot(nx, ny, nz) || 1;
+  nx /= nl; ny /= nl; nz /= nl;
+  // Nokta GERÇEK kota çevrilir: kesişim ölçeklenmiş uzayda bulundu
+  return { t: bt, p: [ox + dx * bt, oy + dy * bt, (oz + dz * bt) / (zs || 1)], n: [nx, ny, nz], tri: bi / 3 };
+}
+
 /**
  * Revizyon bulutu: verilen yolu, dışa doğru kabaran r yarıçaplı yay dizisine çevirir.
  * Dönüş, ilkel `ops` biçimindedir (bir moveto + yaylar). closed ise yol kapatılır.

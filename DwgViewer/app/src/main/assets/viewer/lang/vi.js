@@ -290,7 +290,7 @@ export default {
   blockInsertHint: 'Chạm để chèn', blockDeleted: 'Đã xoá khối', blockDelAsk: 'Xoá khối này?', blockNoSel: 'Hãy chọn đối tượng trước',
   blockTooBig: 'Khối quá lớn (giới hạn 2 MB)', blockInserted: 'Đã chèn khối', blockScale: 'Tỷ lệ', blockRot: 'Xoay (°)', blockInsert: 'Chèn',
   clipCopied: 'Đã chép vào bộ nhớ tạm', clipEmpty: 'Bộ nhớ tạm trống', clipPasted: 'Đã dán',
-  geo3Title: 'Đo hình học 3D', view3dModelOnly: 'Chế độ 3D hiển thị không gian mô hình', geo3Mode: 'Kiểu đo', geo3Need: 'điểm cần chọn', geo3Pick: 'Chạm vào các đỉnh',
+  geo3Title: 'Đo hình học 3D', pick3Title: 'Mục tiêu 3D', pick3Vertex: 'Đỉnh', pick3Surface: 'Bề mặt', pick3Auto: 'Tự động', tapVertexOrSurface: 'Chạm vào đỉnh hoặc bề mặt', surfacePoint: 'Điểm trên bề mặt', tl_target3: 'Mục tiêu', th_target3: 'Đỉnh / bề mặt / tự động: điểm mà chạm 3D bám vào', view3dModelOnly: 'Chế độ 3D hiển thị không gian mô hình', geo3Mode: 'Kiểu đo', geo3Need: 'điểm cần chọn', geo3Pick: 'Chạm vào các đỉnh',
   'geo3_ptline': 'Điểm – đường thẳng', 'geo3_ptplane': 'Điểm – mặt phẳng', 'geo3_lineline': 'Đường – đường', 'geo3_lineplane': 'Đường – mặt phẳng',
   'geo3_planeplane': 'Mặt phẳng – mặt phẳng', 'geo3_planeangle': 'Góc giữa hai mặt phẳng', 'geo3_smartangle': 'Góc thông minh',
   geo3Degenerate: 'Các điểm đã chọn không xác định được hình học', p3Note: 'Chạm vào đỉnh cần ghi chú',

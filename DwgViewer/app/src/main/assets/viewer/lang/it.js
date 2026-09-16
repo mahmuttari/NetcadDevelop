@@ -366,7 +366,7 @@ export default {
   clipCopied: 'Copiato negli appunti',
   clipEmpty: 'Gli appunti sono vuoti',
   clipPasted: 'Incollato',
-  geo3Title: 'Misura geometrica 3D', view3dModelOnly: 'La vista 3D mostra lo spazio modello',
+  geo3Title: 'Misura geometrica 3D', pick3Title: 'Bersaglio 3D', pick3Vertex: 'Vertice', pick3Surface: 'Superficie', pick3Auto: 'Automatico', tapVertexOrSurface: 'Tocca un vertice o una superficie', surfacePoint: 'Punto sulla superficie', tl_target3: 'Bersaglio', th_target3: 'Vertice / superficie / automatico: a cosa si aggancia un tocco 3D', view3dModelOnly: 'La vista 3D mostra lo spazio modello',
   geo3Mode: 'Tipo di misura',
   geo3Need: 'punti necessari',
   geo3Pick: 'Tocca i vertici',

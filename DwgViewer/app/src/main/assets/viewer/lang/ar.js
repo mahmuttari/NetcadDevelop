@@ -365,7 +365,7 @@ export default {
   clipCopied: 'نُسخ إلى الحافظة',
   clipEmpty: 'الحافظة فارغة',
   clipPasted: 'تم اللصق',
-  geo3Title: 'قياس هندسي ثلاثي الأبعاد', view3dModelOnly: 'يعرض العرض ثلاثي الأبعاد حيز النموذج',
+  geo3Title: 'قياس هندسي ثلاثي الأبعاد', pick3Title: 'الهدف ثلاثي الأبعاد', pick3Vertex: 'رأس', pick3Surface: 'سطح', pick3Auto: 'تلقائي', tapVertexOrSurface: 'انقر على رأس أو سطح', surfacePoint: 'نقطة على السطح', tl_target3: 'الهدف', th_target3: 'رأس / سطح / تلقائي: إلى ماذا تنجذب النقرة ثلاثية الأبعاد', view3dModelOnly: 'يعرض العرض ثلاثي الأبعاد حيز النموذج',
   geo3Mode: 'نوع القياس',
   geo3Need: 'نقاط مطلوبة',
   geo3Pick: 'المس الرؤوس',

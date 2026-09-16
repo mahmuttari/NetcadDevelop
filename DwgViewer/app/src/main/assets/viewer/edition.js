@@ -111,6 +111,7 @@ export const FEATURE_TIER = new Map([
   ['textout', 'premium'], ['tableout', 'premium'],
   // --- 3B üretim (Super) · PDF→CAD ve toplu işlem Premium'a indirildi (rakip ikisini de Premium'da veriyor)
   ['t:thick', 'super'], ['3:geo', 'super'], ['3:note', 'super'], ['mesh3d', 'super'],
+  ['target3', 'super'],                  // 3B yüzey hedefi: ışın-üçgen kesişimi
   ['batch', 'premium'], ['pdfcad', 'premium'],
 ]);
 

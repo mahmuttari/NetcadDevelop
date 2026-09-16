@@ -36,7 +36,7 @@ const ed = { is3D: () => !!(v3 && !$('cv3d').hidden), tools: null, doc: null, cu
 // ---------------------------------------------------------------------------------
 // Kullanım tercihleri (ui) — kalıcı anahtar 'ui'
 // ---------------------------------------------------------------------------------
-const UI_DEFAULTS = { favs: [], tbCollapsed: { portrait: false, landscape: false }, hints: {}, fontScale: 1, glove: false, leftHand: false, contrast: false, reduceMotion: false, haptics: true, dpad: false, compactStatus: false, showLocked: true, gizmo: true, infoTap: true, infoFull: false };
+const UI_DEFAULTS = { favs: [], tbCollapsed: { portrait: false, landscape: false }, hints: {}, fontScale: 1, glove: false, leftHand: false, contrast: false, reduceMotion: false, haptics: true, dpad: false, compactStatus: false, showLocked: true, gizmo: true, infoTap: true, infoFull: false, pick3: 'auto' };
 export const ui = (() => {
   const o = JSON.parse(JSON.stringify(UI_DEFAULTS));
   const st = store.json('ui', null);
@@ -47,6 +47,8 @@ export const ui = (() => {
       else if (k === 'tbCollapsed') { if (st.tbCollapsed && typeof st.tbCollapsed === 'object') o.tbCollapsed = { portrait: !!st.tbCollapsed.portrait, landscape: !!st.tbCollapsed.landscape }; }
       else if (k === 'hints') { if (st.hints && typeof st.hints === 'object') o.hints = { ...st.hints }; }
       else if (k === 'fontScale') { const n = Number(st.fontScale); if (n >= 0.8 && n <= 1.6) o.fontScale = n; }
+      // 3B hedef kipi: 'vertex' (yalnız köşe — eski davranış), 'surface' (yalnız yüzey), 'auto'
+      else if (k === 'pick3') { if (['vertex', 'surface', 'auto'].includes(st.pick3)) o.pick3 = st.pick3; }
       else o[k] = !!st[k];
     }
   }
@@ -107,7 +109,7 @@ const TABS = [
     { cap: 'grpView3', items: [T('3d', 'i-3d', '3B aç/kapat', '3D on/off', 'Tek parmak döndürür, iki parmak kaydırır / yakınlaştırır', 'One finger orbits, two fingers pan / zoom'), T('fit3', 'i-fit', 'Sığdır', 'Fit'), T('v:iso', 'i-iso', 'İzometrik', 'Isometric'), T('v:top', 'i-top', 'Üst', 'Top'), T('v:front', 'i-front', 'Ön', 'Front'), T('v:left', 'i-left', 'Sol', 'Left'), T('v:right', 'i-right', 'Sağ', 'Right'), T('v:back', 'i-back', 'Arka', 'Back'), T('v:bottom', 'i-bottom', 'Alt', 'Bottom')] },
     { cap: 'grpCam3', items: [T('persp', 'i-eye', 'Perspektif', 'Perspective', 'Perspektif / ortografik', 'Perspective / orthographic'), T('zscale', 'i-zscale', 'Z abartı', 'Z scale', 'Düşey abartı çarpanı', 'Vertical exaggeration'), T('cam3', 'i-camera', 'Yer imleri', 'Bookmarks', 'Kamera konumlarını kaydeder', 'Save camera positions'), T('turn3', 'i-turn', 'Döner tabla', 'Turntable')] },
     { cap: 'grpStyle3', items: [T('vstyle', 'i-vs-wireframe', 'Görsel stil', 'Visual style', 'Tel kafes, gizli çizgi, gölgeli, gerçekçi, kavramsal, gri, eskiz, röntgen', 'Wireframe, hidden, shaded, realistic, conceptual, gray, sketchy, x-ray'), T('edges3', 'i-edges', 'Kenarlar', 'Edges', 'Yüzey kenar çizgilerini aç/kapat (stilin varsayılanını geçersiz kılar)', 'Toggle face edge lines (overrides the style default)'), T('color3', 'i-palette', 'Renk', 'Color', 'Nesne, katman, kot, tek renk', 'Entity, layer, elevation, mono'), T('clip3', 'i-clip', 'Kesit', 'Clip', 'Z aralığı ve kesit kutusu', 'Z range and clip box')] },
-    { cap: 'grpTools3', items: [T('3:select', 'i-select', 'Seç', 'Select'), T('3:dist', 'i-dist', '3B mesafe', '3D distance', 'Köşeler arası eğik mesafe, ΔZ, eğim', 'Slope distance between vertices'), T('3:move', 'i-move', 'Taşı (3B)', 'Move (3D)'), T('3:pline', 'i-pline3d', '3B Polyline', '3D Polyline'), T('3:geo', 'i-geo3', '3B geometrik ölçüm', '3D geometry measure', 'Nokta-doğru, nokta-düzlem, doğru-doğru, doğru-düzlem, düzlem-düzlem uzaklığı ve açı', 'Point-line, point-plane, line-line, line-plane, plane-plane distance and angle'), T('3:note', 'i-note3', '3B açıklama', '3D note', 'Seçilen 3B noktaya açıklama etiketi koyar', 'Place an annotation at a picked 3D point'), T('3:setz', 'i-z', 'Kot ata', 'Set Z'), T('3:del', 'i-trash', 'Sil', 'Delete'), T('undo', 'i-undo', 'Geri al', 'Undo')] } ] },
+    { cap: 'grpTools3', items: [T('3:select', 'i-select', 'Seç', 'Select'), T('target3', 'i-snap', 'Hedef', 'Target', 'Köşe / yüzey / otomatik: 3B dokunuşu neye oturur', 'Vertex / surface / auto: what a 3D tap snaps to'), T('3:dist', 'i-dist', '3B mesafe', '3D distance', 'Köşeler arası eğik mesafe, ΔZ, eğim', 'Slope distance between vertices'), T('3:move', 'i-move', 'Taşı (3B)', 'Move (3D)'), T('3:pline', 'i-pline3d', '3B Polyline', '3D Polyline'), T('3:geo', 'i-geo3', '3B geometrik ölçüm', '3D geometry measure', 'Nokta-doğru, nokta-düzlem, doğru-doğru, doğru-düzlem, düzlem-düzlem uzaklığı ve açı', 'Point-line, point-plane, line-line, line-plane, plane-plane distance and angle'), T('3:note', 'i-note3', '3B açıklama', '3D note', 'Seçilen 3B noktaya açıklama etiketi koyar', 'Place an annotation at a picked 3D point'), T('3:setz', 'i-z', 'Kot ata', 'Set Z'), T('3:del', 'i-trash', 'Sil', 'Delete'), T('undo', 'i-undo', 'Geri al', 'Undo')] } ] },
 ];
 const DISPLAY_2D = [
   { cap: 'grpTheme', items: [T('theme', 'i-theme', 'Koyu / açık', 'Dark / light', 'Arka plan temasını değiştirir', 'Switch the background theme'), T('sun', 'i-sun', 'Güneş', 'Sun', 'Güneş altında okunaklı yüksek kontrast', 'High contrast for sunlight'), T('display', 'i-sliders', 'Ekran ayarları', 'Display options', 'Tema, ön ayarlar, süzgeçler, çizgiler, ızgara…', 'Theme, presets, filters, lines, grid…')] },
@@ -371,6 +373,27 @@ function vstylePop(btn) {
     if (ev.target.closest('[data-vs-more]')) { closePop(); call(api.openDisplayOptions, { seg: '3d', focus: 'style' }); }
   });
 }
+/*
+ * 3B HEDEF SEÇİCİ. Ölçüden ÖNCE seçilir: kullanıcı köşeye mi yüzeye mi dokunacağını bilmelidir.
+ * vstylePop ile birebir aynı düzen — ayrı bir bileşen yazılmaz.
+ */
+const PICK3 = [['vertex', 'pick3Vertex'], ['surface', 'pick3Surface'], ['auto', 'pick3Auto']];
+function targetPop(btn) {
+  if (!v3 || !ed.is3D()) { if (!needModel()) return; enter3D(); }
+  if (!gate('target3')) return;
+  const cur = ui.pick3 || 'auto';
+  const html = `<div class="pop-title">${esc(t('pick3Title'))}</div><div class="vs-grid">`
+    + PICK3.map(([id, k]) => `<button type="button" data-p3="${id}" class="${cur === id ? 'on' : ''}"><svg class="ic" aria-hidden="true"><use href="#i-snap"/></svg><span>${esc(t(k))}</span></button>`).join('')
+    + '</div>';
+  const pop = openPop(btn, html);
+  pop.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-p3]'); if (!b) return;
+    ui.pick3 = b.dataset.p3;
+    applyUi();
+    pop.querySelectorAll('[data-p3]').forEach(x => x.classList.toggle('on', x === b));
+    refreshTiles(); haptic('toggle'); prompt3D(); overlay3D();
+  });
+}
 // ---- uzun basış: ipucu + sık kullanılan ---------------------------------------------------------
 function bindLongPress(tb) {
   let timer = 0, start = null, target = null;
@@ -478,6 +501,7 @@ function act(name, btn) {
     case 'persp': if (v3) { v3.set('persp', !v3.cam.persp); overlay3D(); api.toast(v3.cam.persp ? tt('perspective', 'Perspektif') : tt('orthographic', 'Ortografik'), 1200); } break;
     case 'zscale': optionPop(btn, renderZScale, tt('zscaleTitle', 'Düşey abartı')); break;
     case 'vstyle': vstylePop(btn); break;
+    case 'target3': targetPop(btn); break;
     case 'clip3': optionPop(btn, renderClip, tt('clipTitle', 'Kesit')); break;
     case 'color3': call(api.openDisplayOptions, { seg: '3d', focus: 'colorMode' }); break;
     case 'light3': if (v3) v3.set('light', !v3.opts.light); break;
@@ -798,7 +822,7 @@ export function onResize() {
   v3.render(); overlay3D();
 }
 export function onTheme() { if (ed.is3D()) { refresh3D(); v3.render(); overlay3D(); } }
-const p3 = { pointers: new Map(), last: null, d0: 0, mid0: null, ang0: 0, moved: false, snap: null, pts: [], lastTap: 0, lastTapAt: null };
+const p3 = { pointers: new Map(), last: null, d0: 0, mid0: null, ang0: 0, moved: false, snap: null, snapKind: null, pts: [], lastTap: 0, lastTapAt: null };
 /** 3B dokunma: 1 parmak döndür/kaydır · 2 parmak yakınlaştır + kaydır (ya da döndür) · 3 parmak kaydır/döndür · çift dokunuş sığdır/yakınlaştır · tekerlek yakınlaştır */
 function bind3D(cv) {
   const geom = () => { const a = [...p3.pointers.values()]; const n = a.length; let mx = 0, my = 0; for (const p of a) { mx += p[0]; my += p[1]; } mx /= n; my /= n; const d = n >= 2 ? Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]) : 0; const ang = n >= 2 ? Math.atan2(a[1][1] - a[0][1], a[1][0] - a[0][0]) : 0; return { n, mid: [mx, my], d, ang }; };
@@ -853,8 +877,28 @@ function bind3D(cv) {
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
   cv.addEventListener('wheel', (ev) => { ev.preventDefault(); ev.stopPropagation(); v3.zoom(ev.deltaY < 0 ? 1.15 : 1 / 1.15); v3.render(); overlay3D(); statusMode3D(); }, { passive: false });
 }
+/*
+ * 3B'de nokta toplama. Eskiden tek yol KÖŞEYE dokunmaktı: eğrisel bir yüzeyin ortasından ölçü
+ * alınamıyordu, kullanıcı en yakın köşeye razı olmak zorundaydı. Artık üç kip var:
+ *   vertex  — yalnız köşe (eski davranış; kot ve tutamak işleri için kesin nokta gerekir)
+ *   surface — yalnız yüzey (ışın-üçgen kesişimi; yüzeyin üstünde serbest nokta)
+ *   auto    — önce köşe, köşe yoksa yüzey (varsayılan)
+ * Yüzey seçimi 'target3' kapısına bağlıdır; kapı kapalıysa kip zorla 'vertex' olur, yani
+ * ücretsiz sürümde bugünkü davranış birebir korunur.
+ */
+function pick3At(sx, sy) {
+  const kip = has('target3') ? (ui.pick3 || 'auto') : 'vertex';
+  const tol = ui.glove ? 30 : 22;
+  if (kip !== 'surface') {
+    const h = v3.pickVertex(sx, sy, tol);
+    if (h) return { p: h.p, prim: h.prim, kind: 'vtx' };
+    if (kip === 'vertex') return null;
+  }
+  const s2 = v3.pickSurface(sx, sy);
+  return s2 ? { p: s2.p, prim: s2.prim, kind: 'srf', n: s2.n } : null;
+}
 function tap3D(sx, sy) {
-  const hit = v3.pickVertex(sx, sy, ui.glove ? 30 : 22);
+  const hit = pick3At(sx, sy);
   if (!ed.m3) {
     ed.sel.clear();
     if (hit) { ed.sel.add(hit.prim); api.showInfo(hit.prim); haptic('snap'); } else api.hide('infoPanel');
@@ -863,8 +907,8 @@ function tap3D(sx, sy) {
   }
   const m = ed.m3;
   if (m.name === 'select') { if (hit) { if (ed.sel.has(hit.prim)) ed.sel.delete(hit.prim); else ed.sel.add(hit.prim); prompt3D(); haptic('snap'); } v3.setSelection(ed.sel); v3.render(); overlay3D(); return; }
-  if (!hit) { api.toast(t('tapVertex')); return; }
-  p3.snap = hit.p; haptic('snap');
+  if (!hit) { api.toast(has('target3') && (ui.pick3 || 'auto') !== 'vertex' ? t('tapVertexOrSurface') : t('tapVertex')); return; }
+  p3.snap = hit.p; p3.snapKind = hit.kind; haptic('snap');
   m.pts.push(hit.p);
   if (m.name === 'dist' && m.pts.length === 2) {
     const [a, b] = m.pts; const dh = Math.hypot(b[0] - a[0], b[1] - a[1]), dz = b[2] - a[2], d3 = Math.hypot(dh, dz), u = S.units ? ' ' + S.units : '';
@@ -995,13 +1039,14 @@ function prompt3D() {
   // Altı noktalı düzlem-düzlem ölçümünde "köşelere dokunun" yetmez: hangi parçanın kaçıncı
   // noktasını verdiğini söylemek gerekir. measure3d.stepOf bunu üretiyordu ama hiç çağrılmıyordu.
   const adim = m.name === 'geo' && geoM && geoM.stepOf ? geoM.stepOf(m.mode, m.pts.length) : null;
+  const hedef = has('target3') && (ui.pick3 || 'auto') !== 'vertex' ? ' · ' + t(PICK3.find(x => x[0] === (ui.pick3 || 'auto'))[1]) : '';
   const txt = m.name === 'geo'
     ? `${t('geo3_' + m.mode)} · ` + (adim
       ? `${t(adim.part)} · ${adim.index + 1}. ${t('pointsN')}${adim.optional ? ' (' + t('optionalPt') + ')' : ''} [${m.pts.length}/${m.need}]`
       : `${t('geo3Pick')} [${m.pts.length}/${m.need}]`)
     : m.name === 'note' ? t('p3Note')
       : { select: `${t('p3Select')} [${ed.sel.size} ${t('selCount')}]`, dist: m.pts.length ? t('p3Dist2') : t('p3Dist1'), move: m.pts.length ? t('p3Move2') : t('p3Move1'), pline: `${t('p3Pline')} [${m.pts.length} ${t('pointsN')}] · ${t('finish')}` }[m.name];
-  $('cmdBar').hidden = false; $('cmdText').textContent = txt;
+  $('cmdBar').hidden = false; $('cmdText').textContent = txt + (m.name === 'geo' || m.name === 'dist' ? hedef : '');
   $('cmdInput').hidden = m.name !== 'pline'; $('cmdInput').placeholder = 'x,y,z';
   $('cmdBtns').innerHTML = (m.name === 'pline' ? `<button type="button" data-cmd3="finish">${esc(t('finishBtn'))}</button>` : '') + (m.pts.length ? `<button type="button" data-cmd3="back">${esc(t('backBtn'))}</button>` : '') + `<button type="button" data-cmd3="cancel">${esc(t('cancelBtn'))}</button>`;
   $('cmdBtns').onclick = (ev) => {
@@ -1043,7 +1088,13 @@ function overlay3D() {
     }
     c.restore();
   }
-  if (p3.snap) { const s = v3.project(p3.snap[0], p3.snap[1], p3.snap[2]); c.strokeStyle = '#3ddc84'; c.lineWidth = 2; c.strokeRect(s[0] - 7, s[1] - 7, 14, 14); }
+  // Yakalanan nokta: KÖŞE kare, YÜZEY çemberdir — kullanıcı neye oturduğunu ayırt edebilmelidir
+  if (p3.snap) {
+    const s = v3.project(p3.snap[0], p3.snap[1], p3.snap[2]);
+    c.strokeStyle = '#3ddc84'; c.lineWidth = 2;
+    if (p3.snapKind === 'srf') { c.beginPath(); c.arc(s[0], s[1], 7, 0, Math.PI * 2); c.stroke(); }
+    else c.strokeRect(s[0] - 7, s[1] - 7, 14, 14);
+  }
 }
 /** Kamera yer imleri (#docPanel içinde #camName / #camSave) */
 function showBookmarks() {
