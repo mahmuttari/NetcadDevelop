@@ -526,7 +526,7 @@ export default {
   penAct_snap: 'Accrochage', penAct_undo: 'Annuler', penAct_none: 'Aucune',
   penHint: 'Retournez le stylet : la pointe gomme supprime les objets. S Pen, Apple Pencil et les stylets Android courants sont pris en charge.',
   // AutoCAD komut satırı
-  cmdPrompt: 'Commande :', cmdPh: 'Saisissez une commande (LINE, TR, F…)', cmdUnknown: '%s : commande inconnue',
+  cmdPrompt: 'Commande :', cmdPh: 'Saisissez une commande (LINE, TR, F…)', cmdUnknown: '%s : commande inconnue', cmdKnown: 'Reconnu, pas encore disponible', cmdNotAvail: '%s : cette commande AutoCAD n\'est pas disponible dans cette application',
   cmdLineOn: 'Ligne de commande (noms AutoCAD)', cmdHelp: 'Liste des commandes', cmdAcad: 'Commande AutoCAD',
   cmdExt: 'Propre à l\'application', tl_cmdline: 'Ligne de commande', th_cmdline: 'Saisissez les noms de commandes AutoCAD : LINE, TR, F…',
   // masaüstü kipi (klavye + fare)

@@ -536,11 +536,12 @@ function penClearHover() {
  * kullanılıyor: sorgu açılışta kipi hazırlar, ilk fare olayı onu doğrular ve kalıcılaştırır.
  */
 function deskSeen() {
-  if (S.desk.mouse) return;
+  // Sınıf HER çağrıda eşitlenir: fare çizim açılmadan önce görülmüşse (ana ekranda gezinme)
+  // deskOn() o an yanlış döner; ilk fare hareketinde erken dönülseydi sınıf hiç konmazdı.
+  const ilk = !S.desk.mouse;
   S.desk.mouse = true;
   syncDeskClass();
-  edCall('refreshTiles');
-  drawOverlay();
+  if (ilk) { edCall('refreshTiles'); drawOverlay(); }
 }
 /*
  * Gövde sınıfı "fare GÖRÜLDÜ"yü değil ETKİN KİPİ gösterir: kullanıcı masaüstü kipini
@@ -1567,12 +1568,24 @@ function markMeasurement() {
  * (`toLocaleLowerCase('tr')` — I→ı, İ→i) ve dizi uzunluğu korunduğu için konumlar kaymaz.
  * wholeWord: eşleşmenin iki yanında harf/rakam bulunmamalıdır.
  */
+/** Uzunluk koruyan Türkçe katlama: İ→i, I→ı→i; boyu değişen bir karakter olduğu gibi kalır */
+function foldTr(s) {
+  let r = '';
+  for (const ch of s) { let l = ch.toLocaleLowerCase('tr'); if (l.length !== ch.length) l = ch; r += l === 'ı' ? 'i' : l; }
+  return r;
+}
 function replaceIn(src, find, rep, caseSensitive, wholeWord) {
   const S0 = String(src == null ? '' : src);
   const F = String(find == null ? '' : find);
   if (!F) return { out: S0, n: 0 };
-  const hay = caseSensitive ? S0 : S0.toLocaleLowerCase('tr');
-  const nee = caseSensitive ? F : F.toLocaleLowerCase('tr');
+  /*
+   * Harf duyarsız katlama TÜRKÇE'YE GÖRE yapılır ama noktasız ı da i'ye indirilir. Yalnız
+   * toLocaleLowerCase('tr') ile "ID" → "ıd" olur ve metindeki "id" ile eşleşmezdi (ölçüldü);
+   * Latin metinde büyük I'nın karşılığı i'dir. Katlama karakter karakter yapılır ve uzunluk
+   * korunur: eşleşme konumları (j) özgün dizgede de aynı yere düşer.
+   */
+  const hay = caseSensitive ? S0 : foldTr(S0);
+  const nee = caseSensitive ? F : foldTr(F);
   const isW = (ch) => ch != null && /[\p{L}\p{N}_]/u.test(ch);
   let out = '', i = 0, n = 0;
   for (;;) {
@@ -3274,6 +3287,7 @@ async function setScene(scene, name, size, rep) {
   S.units = UNITS[iu] || ''; S.unitToM = UNIT_TO_M[iu] || 0;
   S.images = new Map(); S.compare = null; S.selected = null; S.cacheValid = false;
   S.hasDoc = true;
+  syncDeskClass();   // masaüstü kipi çizim açıkken geçerlidir: sınıf burada da tazelenir
   Docs.suspend();
   if (S.mode !== 'view') setMode('view');
   if (S.notesOn) toggleNotes(false);
@@ -3480,7 +3494,7 @@ Ed.initEdition({ toast, rebuildToolbar: () => editor.rebuild(), refreshMenu }); 
 D.initDisplay({ requestRender, drawOverlay, toast, openDoc, show, hide, buildLayerList, settings, saveSettings, editorTheme, zoomExtents, zoomBy, fitPrims, viewHistory, setLayout, editor, ui: uiPrefs(), basemaps: BASEMAPS, haptic });
 mountNavFabs(vp);
 initEditor({ S, requestRender, drawOverlay, toast, noFaces: showNoFaces, pick: (w) => pick(w, TOL.pick / S.view.scale), snap: doSnap, showInfo, openDoc, hide, show, esc, kv, copyText, buildLayerList, fmt, store, RTree, baseName, zoomExtents, tracePath, worldTransform, strokeWorldRect, worldOrigin,
-  action: (a) => { if (a === 'layers') $('btnLayers').click(); else if (a === 'search') $('btnSearch').click(); else if (a === 'more') $('btnMore').click(); else menuAction(a); },
+  action: (a) => { if (a === 'layers') $('btnLayers').click(); else if (a === 'search') $('btnSearch').click(); else if (a === 'more') $('btnMore').click(); else if (a === 'open') Open.open(); else if (a === 'new') showNewDoc(); else menuAction(a); },
   savePng, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, isolateLayers, unisolate, settings, saveSettings, stamp, haptic, openDisplayOptions, setDisplay, getDisplay, toggleDisplay, display: D });
 $('stScale').addEventListener('click', showScalePicker);
 // belgeler (PDF / Word / ZIP / RAR) ve Google Drive

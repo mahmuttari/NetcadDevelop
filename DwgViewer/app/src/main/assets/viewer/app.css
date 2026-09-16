@@ -271,6 +271,8 @@ body.has-mouse.docmode #viewport { cursor: default; }
 .cmd-sug b { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: calc(13px * var(--fs)); letter-spacing: .02em; }
 .cmd-sug i { font-style: normal; opacity: .6; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: calc(11px * var(--fs)); }
 .cmd-sug span { margin-inline-start: auto; opacity: .65; font-size: calc(11px * var(--fs)); }
+/* tanınan ama bulunmayan komut: listede kalır, soluk durur (yazım hatası sanılmasın) */
+.cmd-sug button.na, .cmd-list tr.na { opacity: .55; }
 /* belge görünümü #viewport içindedir; çizim tuvalinin touch-action:none kuralı belge kipinde kaldırılır, yoksa bazı WebView sürümlerinde belge içinde parmakla kaydırma çalışmaz */
 body.docmode #viewport { touch-action: auto; }
 .open-mount { min-height: 120px; }

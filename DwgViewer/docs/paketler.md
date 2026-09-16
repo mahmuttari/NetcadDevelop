@@ -299,9 +299,20 @@ Hedef kullanıcı AutoCAD kaslıdır. Rakip DWG FastView'de komut satırı **yok
 vardır ve AutoCAD adlarıyla çalışır. Bu, mağaza metninde öne çıkarılması gereken bir
 ayırt edicidir.
 
-Kapsam: **86 komut, 144 ad ve kısaltma.** Kaynak `IPARD` değil, uygulamanın kendi
-`viewer/acad.js` dosyasıdır ve tektir — komut satırı, İngilizce arayüz etiketleri ve
-yardım listesi hepsi oradan okur.
+Kapsam (v7.52): **457 kayıt, 661 ad ve kısaltma** — 157 çalışan AutoCAD adı, 30
+uygulamaya özgü ad, 270 tanınan ama bulunmayan AutoCAD komutu. Kaynak `IPARD` değil,
+uygulamanın kendi `viewer/acad.js` dosyasıdır ve tektir — komut satırı, İngilizce arayüz
+etiketleri ve yardım listesi hepsi oradan okur. (v7.50'de 86 komut / 144 addı.)
+
+**Tanınan ama bulunmayan komut (v7.52).** Klavye-fare kipinde AutoCAD kaslı kullanıcı en
+sık kullandığı komutları yazar; POLYGON, STRETCH, PEDIT, EXTRUDE, MATCHPROP gibi bizde
+karşılığı olmayanlar `avail:false` ile tablodadır. Yazıldığında "bilinmeyen komut" denmez,
+bulunmadığı ve varsa en yakın karşılığı söylenir; öneri listesinde soluk durur, komut
+listesinde üçüncü bölümdedir. Bu sınıf **satılmaz**: mağaza metninde "300 AutoCAD komutu"
+denemez, doğrusu "157 çalışan AutoCAD komutu; 270 komut daha tanınır ve en yakın karşılığı
+söylenir"dir. "En sık kullanılan 300" sıralamasının yetkili bir kaynağı yoktur; liste
+acad.pgp kısaltma tablosu + şerit panelleri + eğitim müfredatlarından derlendi, `acad.js`
+başlığında yazar.
 
 **Kademe etkisi yok.** Komut satırı ücretsizdir; komutun kendisi hangi kademedeyse kapı
 orada çalışır (LINE yazan ücretsiz kullanıcı yükseltme kutusunu görür, bugünkü karo
@@ -317,9 +328,9 @@ açmaz, var olanlara ikinci bir kapı verir.
    sektörünün paylaştığı gösterim diline çevrildi — silgi, nesne+kopyası, kenarlarına
    ayrılan nesne — ama çizim bize aittir. Bu ayrım korunmalı; mağaza görsellerine
    Autodesk arayüzünden alınmış hiçbir parça konmamalıdır.
-3. AutoCAD'de karşılığı **olmayan** 25 yeteneğimiz komut listesinde ayrı bölümdedir ve
-   öyle kalmalıdır. "86 AutoCAD komutu" demek yanlış olur; doğrusu **"61 AutoCAD komutu
-   + 25 uygulamaya özgü komut"**tur.
+3. AutoCAD'de karşılığı **olmayan** 30 yeteneğimiz komut listesinde ayrı bölümdedir ve
+   öyle kalmalıdır. "457 AutoCAD komutu" demek yanlış olur; doğrusu **"157 çalışan
+   AutoCAD komutu + 30 uygulamaya özgü komut + 270 tanınan ama bulunmayan komut"**tur.
 
 ### Masaüstü kipi — YAPILDI (v7.51)
 

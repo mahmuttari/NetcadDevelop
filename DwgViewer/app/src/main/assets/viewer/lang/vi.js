@@ -367,7 +367,7 @@ export default {
   penAct_snap: 'Bắt điểm', penAct_undo: 'Hoàn tác', penAct_none: 'Không',
   penHint: 'Lật ngược bút: đầu tẩy sẽ xóa đối tượng. Hỗ trợ S Pen, Apple Pencil và các bút Android thông dụng.',
   // AutoCAD komut satırı
-  cmdPrompt: 'Lệnh:', cmdPh: 'Nhập một lệnh (LINE, TR, F…)', cmdUnknown: '%s: lệnh không xác định',
+  cmdPrompt: 'Lệnh:', cmdPh: 'Nhập một lệnh (LINE, TR, F…)', cmdUnknown: '%s: lệnh không xác định', cmdKnown: 'Nhận biết, chưa hỗ trợ', cmdNotAvail: '%s: lệnh AutoCAD này chưa có trong ứng dụng',
   cmdLineOn: 'Dòng lệnh (tên lệnh AutoCAD)', cmdHelp: 'Danh sách lệnh', cmdAcad: 'Lệnh AutoCAD',
   cmdExt: 'Riêng của ứng dụng', tl_cmdline: 'Dòng lệnh', th_cmdline: 'Nhập tên lệnh AutoCAD: LINE, TR, F…',
   // masaüstü kipi (klavye + fare)

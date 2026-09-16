@@ -1011,7 +1011,7 @@ export function hatchLines(polys, defs, opt = {}) {
   const bb = [Infinity, Infinity, -Infinity, -Infinity];
   for (const pl of polys) for (const q of pl) { if (q[0] < bb[0]) bb[0] = q[0]; if (q[1] < bb[1]) bb[1] = q[1]; if (q[0] > bb[2]) bb[2] = q[0]; if (q[1] > bb[3]) bb[3] = q[1]; }
   const diag = Math.hypot(bb[2] - bb[0], bb[3] - bb[1]);
-  if (!(diag > 0)) return false;
+  if (!(diag > 0)) return null;
   const corners = [[bb[0], bb[1]], [bb[2], bb[1]], [bb[2], bb[3]], [bb[0], bb[3]]];
   const npts = polys.reduce((t, l) => t + l.length, 0);
   const out = []; let segs = 0, lines = 0, minStep = Infinity;

@@ -525,7 +525,7 @@ export default {
   penAct_snap: 'Ajuste', penAct_undo: 'Anular', penAct_none: 'Nenhuma',
   penHint: 'Vire a caneta: a ponta borracha apaga objetos. São suportadas a S Pen, a Apple Pencil e as canetas Android comuns.',
   // AutoCAD komut satırı
-  cmdPrompt: 'Comando:', cmdPh: 'Escreva um comando (LINE, TR, F…)', cmdUnknown: '%s: comando desconhecido',
+  cmdPrompt: 'Comando:', cmdPh: 'Escreva um comando (LINE, TR, F…)', cmdUnknown: '%s: comando desconhecido', cmdKnown: 'Reconhecido, ainda não disponível', cmdNotAvail: '%s: este comando do AutoCAD não está disponível nesta aplicação',
   cmdLineOn: 'Linha de comandos (nomes do AutoCAD)', cmdHelp: 'Lista de comandos', cmdAcad: 'Comando do AutoCAD',
   cmdExt: 'Específico da aplicação', tl_cmdline: 'Linha de comandos', th_cmdline: 'Escreva nomes de comandos do AutoCAD: LINE, TR, F…',
   // masaüstü kipi (klavye + fare)

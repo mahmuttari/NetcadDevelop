@@ -25,7 +25,7 @@ import { askText, askForm } from './dialog.js';
 import { leaderEnts } from './annot.js';
 import * as Gz from './gizmo.js';
 import { has, gate, need, rank, tier, tierName, lockAttr, lockBadge, lockBadgeFor, openProPanel } from './edition.js';
-import { cmdOf, namesOf, resolve as acadResolve, suggest as acadSuggest, COMMANDS as ACAD } from './acad.js';
+import { cmdOf, namesOf, repeatable, resolve as acadResolve, suggest as acadSuggest, COMMANDS as ACAD } from './acad.js';
 import * as Desk from './desktop.js';
 
 const $ = (id) => document.getElementById(id);
@@ -505,7 +505,7 @@ function optionPop(btn, renderFn, title) {
 }
 function needDoc() { if (!S.hasDoc) { api.toast(t('openFirst')); return false; } return true; }
 /** belge açık olmadan da çalışan karolar; HIST kendi kapalılığını yönetir (refreshUndo / görünüm geçmişi) */
-const FREE = new Set(['more', 'display', 'drive', 'undo', 'redo', 'gps', 'basemap', 'theme', 'sun']);
+const FREE = new Set(['more', 'display', 'drive', 'undo', 'redo', 'gps', 'basemap', 'theme', 'sun', 'open', 'new', 'about', 'settings', 'cmdhelp', 'closefile']);
 const HIST = new Set(['undo', 'redo', 'prevview', 'nextview']);
 function needModel() { if (!needDoc()) return false; if (!S.scene.layouts[S.layoutIndex].isModel) { api.toast(t('modelOnly')); return false; } return true; }
 function act(name, btn) {
@@ -516,7 +516,7 @@ function act(name, btn) {
    * başlatıldığına bakmadan sonuncusunu yineler; yalnız komut satırından yazılanlar sayılsaydı
    * şeritten çalışan kullanıcı sağ tuşun neden bir şey yapmadığını anlayamazdı.
    */
-  { const c = cmdOf(name); if (c) cmdLast = c; }
+  if (repeatable(name)) cmdLast = cmdOf(name);   // açma/kapama karoları (GRID, ORTHO…) yinelenmez: geri kapatırdı
   if (name.startsWith('t:')) { if (!needModel()) return; if (ed.is3D()) exit3D(); const tn = name.slice(2); if (tools.active === tn) { tools.cancel(); markActive(null); } else { tools.start(tn); markActive(name); } return; }
   if (name.startsWith('v:')) { if (!v3 || !ed.is3D()) { if (!needModel()) return; enter3D(); } if (v3) { v3.preset(name.slice(2), { animate: !ui.reduceMotion }); v3.render(); overlay3D(); } return; }
   if (name.startsWith('3:')) { if (!needModel()) return; if (!ed.is3D()) enter3D(); void start3DTool(name.slice(2)); markActive(name); return; }
@@ -532,6 +532,18 @@ function act(name, btn) {
     case 'layers': case 'search': case 'notes': case 'gps': case 'pdf': case 'png': case 'more': case 'profile': case 'info': case 'views': case 'layouts': case 'basemap': case 'compare': case 'drive': case 'count': case 'textout':
     case 'markdim': case 'findrep': case 'blocklib': case 'copyclip': case 'pasteclip': case 'mesh3d': case 'tableout': case 'batch': case 'pdfcad': api.action(name); break;
     case 'osnap': toggleOsnap(); break;
+    // --- komut satırından gelen AutoCAD karşılıkları (karosu yok)
+    case 'regen': S.cacheValid = false; api.requestRender(); if (ed.is3D() && v3) v3.render(); break;
+    case 'selectall': if (!needModel()) return; if (ed.is3D()) exit3D(); if (tools.active !== 'select') { tools.start('select'); markActive('t:select'); } tools.selectAll(); break;
+    case 'list': { const p = ed.sel.size ? [...ed.sel][0] : null; if (!p) { api.toast(t('noSel')); break; } api.showInfo(p); break; }
+    case 'layiso': { const lays = selLayers(); if (!lays) break; call(api.isolateLayers, lays); break; }
+    case 'layuniso': call(api.unisolate); break;
+    case 'layoff': layerSet(selLayers(), (l) => { l.off = true; l.visible = false; }); break;
+    case 'layon': layerSet([...S.layers.keys()], (l) => { l.off = false; l.frozen = false; l.visible = true; }); break;
+    case 'laylck': layerSet(selLayers(), (l) => { l.locked = true; }); break;
+    case 'layulk': layerSet(selLayers(), (l) => { l.locked = false; }); break;
+    case 'xrefs': case 'about': case 'settings': case 'open': case 'new': api.action(name); break;
+    case 'closefile': api.action('home'); break;
     case 'grips': toggleGrips(); break;
     case 'cmdline': toggleCmdLine(); break;
     case 'ortho': toggleOrtho(); break;
@@ -567,6 +579,20 @@ function act(name, btn) {
     default: break;
   }
   refreshTiles();
+}
+/** Seçimdeki nesnelerin katman adları; seçim boşsa uyarır ve null döner (LAYISO, LAYOFF, LAYLCK, LAYULK) */
+function selLayers() {
+  const lays = [...new Set([...ed.sel].map(p => p.lay).filter(Boolean))];
+  if (!lays.length) { api.toast(t('noSel')); return null; }
+  return lays;
+}
+/** Verilen katmanlara fn uygular, listeyi ve çizimi tazeler (görünürlük önbelleği düşer) */
+function layerSet(names, fn) {
+  if (!names) return;
+  let n = 0;
+  for (const nm of names) { const l = S.layers.get(nm); if (l) { fn(l); n++; } }
+  if (!n) return;
+  S.cacheValid = false; call(api.buildLayerList); api.requestRender(); haptic('toggle');
 }
 let osnapBackup = null;
 /*
@@ -682,7 +708,9 @@ function showSuggest(text) {
   const el = $('cmdSug'); if (!el) return;
   const list = text ? acadSuggest(text, 8) : [];
   if (!list.length) { closeSuggest(); return; }
-  el.innerHTML = list.map(c => `<button type="button" data-cmd-run="${esc(c.cmd)}"><b>${esc(c.cmd)}</b>${c.alias && c.alias.length ? `<i>${esc(c.alias.join(', '))}</i>` : ''}<span>${esc(c.label || '')}${c.ext ? ' ·' : ''}</span></button>`).join('');
+  // Bulunmayan komut (avail:false) da listelenir ama soluk: kullanıcı yazdığının tanındığını,
+  // yalnız burada olmadığını görür; dokununca komut satırı nedenini söyler.
+  el.innerHTML = list.map(c => `<button type="button" data-cmd-run="${esc(c.cmd)}"${c.avail === false ? ' class="na"' : ''}><b>${esc(c.cmd)}</b>${c.alias && c.alias.length ? `<i>${esc(c.alias.join(', '))}</i>` : ''}<span>${esc(c.label || '')}${c.ext ? ' ·' : ''}${c.avail === false ? ' ✕' : ''}</span></button>`).join('');
   el.hidden = false;
 }
 /** Komut satırına yazılanı çalıştırır. → true işlendi, false tanınmadı */
@@ -691,7 +719,12 @@ function runCommand(text) {
   if (!raw) return false;
   const c = acadResolve(raw);
   if (!c) { api.toast(t('cmdUnknown').replace('%s', raw.toUpperCase()), 2200); return false; }
-  cmdLast = c.cmd;
+  /*
+   * Tanınan ama bulunmayan AutoCAD komutu: "bilinmeyen" denmez, bulunmadığı ve varsa en yakın
+   * karşılığı söylenir. Komut geçmişine de "son komut"a da girmez — yinelenecek bir şey yok.
+   */
+  if (c.avail === false) { closeSuggest(); api.toast(t('cmdNotAvail').replace('%s', c.cmd) + (c.note ? ' — ' + c.note : ''), 3600); return false; }
+  if (c.noRepeat !== true) cmdLast = c.cmd;
   cmdHist = [c.cmd, ...cmdHist.filter(x => x !== c.cmd)].slice(0, 30);
   cmdHistI = -1;
   closeSuggest();
@@ -756,13 +789,17 @@ function bindCmdBar() {
  * cevabını burada görür; davranış farkı olan komutlarda o fark da yazar.
  */
 function showCmdList() {
-  const sat = (c) => `<tr><td><code>${esc(c.cmd)}</code></td><td>${esc((c.alias || []).join(', '))}</td><td>${esc(c.label || '')}${c.note ? ` <i>(${esc(c.note)})</i>` : ''}</td></tr>`;
+  const sat = (c) => `<tr${c.avail === false ? ' class="na"' : ''}><td><code>${esc(c.cmd)}</code></td><td>${esc((c.alias || []).join(', '))}</td><td>${esc(c.label || '')}${c.note ? ` <i>(${esc(c.note)})</i>` : ''}</td></tr>`;
   const tablo = (list) => `<table class="cmd-list"><tbody>${list.map(sat).join('')}</tbody></table>`;
-  const acad = ACAD.filter(c => !c.ext).slice().sort((a, b) => a.cmd.localeCompare(b.cmd));
-  const ext = ACAD.filter(c => c.ext).slice().sort((a, b) => a.cmd.localeCompare(b.cmd));
+  const sirala = (l) => l.slice().sort((a, b) => a.cmd.localeCompare(b.cmd));
+  // Üç bölüm, üç dürüstlük: çalışan AutoCAD adları · uygulamaya özgü adlar · tanınan ama bulunmayanlar
+  const acad = sirala(ACAD.filter(c => !c.ext && c.avail !== false));
+  const ext = sirala(ACAD.filter(c => c.ext && c.avail !== false));
+  const yok = sirala(ACAD.filter(c => c.avail === false));
   api.openDoc(t('cmdHelp'),
     `<div class="full"><div class="opt-title">${esc(t('cmdAcad'))} · ${acad.length}</div>${tablo(acad)}` +
-    `<div class="opt-title">${esc(t('cmdExt'))} · ${ext.length}</div>${tablo(ext)}</div>`);
+    `<div class="opt-title">${esc(t('cmdExt'))} · ${ext.length}</div>${tablo(ext)}` +
+    `<div class="opt-title">${esc(t('cmdKnown'))} · ${yok.length}</div>${tablo(yok)}</div>`);
 }
 /** Komut satırını açar / kapar; kapanınca çubuk da gider (araç çalışmıyorsa) */
 function toggleCmdLine() {

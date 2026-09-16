@@ -74,8 +74,8 @@
  * stats.skipped artar. Modülde kullanıcıya gösterilecek metin yoktur (i18n çağıranın işi).
  *
  * NOT (çağıranı ilgilendirir): çok alt yollu yollar 'PATH' varlığı olarak çıkar; edit.js'teki
- * entToPrim'de bugün 'PATH' dalı YOKTUR ve bu varlıklar sessizce düşer. Dal eklenene dek çok
- * alt yollu PDF yolları sahnede görünmez.
+ * entToPrim bu türü ham işlem dizisiyle (ops) ilkele çevirir (blok kütüphanesiyle geldi), yani
+ * çok alt yollu PDF yolları da sahnede görünür.
  */
 import { mul, det, segDist } from './geom.js';
 import { loadPdfLib } from './pdfedit.js';

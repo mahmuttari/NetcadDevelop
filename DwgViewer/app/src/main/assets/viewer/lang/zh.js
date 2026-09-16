@@ -326,7 +326,7 @@ export default {
   penAct_snap: '捕捉', penAct_undo: '撤销', penAct_none: '无',
   penHint: '把笔翻转过来，橡皮端可删除对象。支持 S Pen、Apple Pencil 及常见的 Android 触控笔。',
   // AutoCAD komut satırı
-  cmdPrompt: '命令:', cmdPh: '输入命令 (LINE、TR、F…)', cmdUnknown: '%s: 未知命令',
+  cmdPrompt: '命令:', cmdPh: '输入命令 (LINE、TR、F…)', cmdUnknown: '%s: 未知命令', cmdKnown: '可识别，暂不可用', cmdNotAvail: '%s：此 AutoCAD 命令在本应用中不可用',
   cmdLineOn: '命令行 (AutoCAD 命令名)', cmdHelp: '命令列表', cmdAcad: 'AutoCAD 命令',
   cmdExt: '本应用特有', tl_cmdline: '命令行', th_cmdline: '输入 AutoCAD 命令名: LINE、TR、F…',
   // masaüstü kipi (klavye + fare)

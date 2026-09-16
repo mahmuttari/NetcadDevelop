@@ -217,6 +217,19 @@ const yak = (a, b, e = 1e-6) => Math.abs(a - b) < e;
   await page.waitForTimeout(200);
   const n1 = await ev(() => window.dwgApp.state.prims.length);
   ok('6b geri al çizgiyi kaldırdı', n1 === n0, `${n1} / ${n0}`);
+
+  // Dikdörtgenin karşı köşesi bir DOĞRULTU değil KÖŞEdir: ortho ona uygulanmaz (uygulansaydı
+  // dikdörtgen sıfır genişliğe çökerdi). AutoCAD'de de RECTANG'ın ikinci köşesi ortho'dan bağımsızdır.
+  await ev(() => window.dwgApp.editor.act('t:rect')); await page.waitForTimeout(150);
+  await ev(() => { window.dwgApp.state.desk.ortho = true; });
+  await page.mouse.click(r.x + a.x, r.y + a.y); await page.waitForTimeout(200);
+  await page.mouse.click(r.x + b.x, r.y + b.y); await page.waitForTimeout(250);
+  await ev(() => { window.dwgApp.state.desk.ortho = false; });
+  const rops = await sonPrim();
+  const rbb = rops && rops.length >= 4 ? [Math.min(...rops.map(o => o[1])), Math.min(...rops.map(o => o[2])), Math.max(...rops.map(o => o[1])), Math.max(...rops.map(o => o[2]))] : null;
+  ok('6c ortho AÇIKKEN dikdörtgen çökmez (genişlik ve yükseklik sıfırdan büyük)',
+    (await ev(() => window.dwgApp.state.prims.length)) === n0 + 1 && rbb && rbb[2] - rbb[0] > 1 && rbb[3] - rbb[1] > 1, JSON.stringify(rbb));
+  await ev(() => { window.dwgApp.editor.tools.cancel(); window.dwgApp.editor.doc.undo(); }); await page.waitForTimeout(200);
 }
 
 // ---------------------------------------------------------------------------------

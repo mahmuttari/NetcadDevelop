@@ -525,7 +525,7 @@ export default {
   penAct_snap: 'Привязка', penAct_undo: 'Отменить', penAct_none: 'Нет',
   penHint: 'Переверните перо — ластик удаляет объекты. Поддерживаются S Pen, Apple Pencil и обычные перья Android.',
   // AutoCAD komut satırı
-  cmdPrompt: 'Команда:', cmdPh: 'Введите команду (LINE, TR, F…)', cmdUnknown: '%s: неизвестная команда',
+  cmdPrompt: 'Команда:', cmdPh: 'Введите команду (LINE, TR, F…)', cmdUnknown: '%s: неизвестная команда', cmdKnown: 'Распознаётся, пока недоступна', cmdNotAvail: '%s: эта команда AutoCAD недоступна в этом приложении',
   cmdLineOn: 'Командная строка (имена команд AutoCAD)', cmdHelp: 'Список команд', cmdAcad: 'Команда AutoCAD',
   cmdExt: 'Только в этом приложении', tl_cmdline: 'Командная строка', th_cmdline: 'Вводите имена команд AutoCAD: LINE, TR, F…',
   // masaüstü kipi (klavye + fare)

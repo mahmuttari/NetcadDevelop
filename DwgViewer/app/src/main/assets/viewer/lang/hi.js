@@ -525,7 +525,7 @@ export default {
   penAct_snap: 'स्नैप', penAct_undo: 'पूर्ववत', penAct_none: 'कोई नहीं',
   penHint: 'पेन को उलट दें: रबर सिरा वस्तुएँ मिटाता है। S Pen, Apple Pencil और सामान्य Android स्टाइलस समर्थित हैं।',
   // AutoCAD komut satırı
-  cmdPrompt: 'कमांड:', cmdPh: 'कमांड लिखें (LINE, TR, F…)', cmdUnknown: '%s: अज्ञात कमांड',
+  cmdPrompt: 'कमांड:', cmdPh: 'कमांड लिखें (LINE, TR, F…)', cmdUnknown: '%s: अज्ञात कमांड', cmdKnown: 'पहचाना गया, अभी उपलब्ध नहीं', cmdNotAvail: '%s: यह AutoCAD कमांड इस ऐप में उपलब्ध नहीं है',
   cmdLineOn: 'कमांड लाइन (AutoCAD कमांड नाम)', cmdHelp: 'कमांड सूची', cmdAcad: 'AutoCAD कमांड',
   cmdExt: 'ऐप-विशिष्ट', tl_cmdline: 'कमांड लाइन', th_cmdline: 'AutoCAD कमांड नाम लिखें: LINE, TR, F…',
   // masaüstü kipi (klavye + fare)

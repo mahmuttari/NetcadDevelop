@@ -611,6 +611,9 @@ export class ToolManager {
   kisitla(p, sn) {
     const d = this.api.desk && this.api.desk();
     if (!d || (!d.ortho && !d.polar)) return p;
+    // Dikdörtgenin ikinci noktası bir KÖŞEdir, doğrultu değil: ortho onu eksene indirse
+    // dikdörtgen sıfır genişliğe çökerdi. AutoCAD da RECTANG'ın karşı köşesine ortho uygulamaz.
+    if (this.active === 'rect') return p;
     const taban = this.pts.length ? this.pts[this.pts.length - 1] : null;
     if (!taban) return p;
     const q = deskConstrain(taban, p, { snapped: !!sn, ortho: d.ortho, polar: d.polar, polarStep: d.polarStep });

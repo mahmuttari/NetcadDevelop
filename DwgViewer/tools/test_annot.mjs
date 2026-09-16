@@ -209,6 +209,7 @@ const fr = await page.evaluate(() => {
     plain: R.replace('beton beton', 'beton', 'BETON', false, false),
     caseOn: R.replace('Beton beton', 'beton', 'X', true, false),
     tr: R.replace('IŞIK ışık İzmir izmir', 'ışık', 'X', false, false),
+    trI: R.replace('id ID İd', 'ID', 'X', false, false),   // büyük I → i: Latin metinde ID ile id aynı sözcük
     word: R.replace('betonarme beton', 'beton', 'X', false, true),
     empty: R.replace('abc', '', 'X', false, false),
     scan: (() => { const r = R.scan('YENİ', 'ESKİ', { scope: 'text' }); return { hits: r.hits, n: r.texts.length }; })(),
@@ -217,6 +218,7 @@ const fr = await page.evaluate(() => {
 ok('7a düz değiştirme iki eşleşme', fr.plain.n === 2 && fr.plain.out === 'BETON BETON', JSON.stringify(fr.plain));
 ok('7b harf duyarlı tek eşleşme', fr.caseOn.n === 1 && fr.caseOn.out === 'Beton X', JSON.stringify(fr.caseOn));
 ok('7c Türkçe I/ı duyarsız eşleşme (IŞIK ve ışık)', fr.tr.n === 2, JSON.stringify(fr.tr));
+ok('7c2 Latin büyük I harf duyarsızda i ile eşleşir (ID → id, İd)', fr.trI.n === 3 && fr.trI.out === 'X X X', JSON.stringify(fr.trI));
 ok('7d tam sözcük "betonarme"yi atlıyor', fr.word.n === 1 && fr.word.out === 'betonarme X', JSON.stringify(fr.word));
 ok('7e boş arama hiçbir şey değiştirmez', fr.empty.n === 0 && fr.empty.out === 'abc', JSON.stringify(fr.empty));
 ok('7f tarama çizimdeki yazıları buluyor', fr.scan.hits >= 2, JSON.stringify(fr.scan));

@@ -70,14 +70,32 @@ const etiket = (act) => ev((a) => { const b = document.querySelector(`#toolbar [
       onerKisa: A.suggest('TR').map(c => c.cmd),
       cmdLine: A.cmdOf('t:line'), cmdDel: A.cmdOf('t:del'), cmdYok: A.cmdOf('olmayan'),
       adlar: A.namesOf('t:copy'),
+      st: A.stats(),
+      // tanınan ama bulunmayan komut: kimliği yok, avail:false; kısaltması da çözülür
+      polygon: A.resolve('polygon') && { id: A.resolve('polygon').id, avail: A.resolve('polygon').avail },
+      pol: A.resolve('pol') && A.resolve('pol').cmd,
+      stretchS: A.resolve('s') && A.resolve('s').cmd,
+      // eşanlamlı: MTEXT / T aynı araca gider ama etiket birincil addan (TEXT) okunur
+      mtext: A.resolve('t') && A.resolve('t').id, textCmd: A.cmdOf('t:text'), textNames: A.namesOf('t:text'),
+      ds: A.resolve('ds') && A.resolve('ds').id, dimstyleD: A.resolve('d') && A.resolve('d').cmd,
+      layiso: A.resolve('layiso') && A.resolve('layiso').id, regenRE: A.resolve('re') && A.resolve('re').id,
+      repGrid: A.repeatable('grid'), repOrtho: A.repeatable('ortho'), repLine: A.repeatable('t:line'), repYok: A.repeatable('olmayan'),
+      onerNa: A.suggest('POL', 8).map(c => [c.cmd, c.avail === false]),
     };
   });
   ok('1a tabloda çakışan ad, yinelenen kimlik ya da eksik alan yok', g.hata.length === 0, JSON.stringify(g.hata).slice(0, 200));
-  ok('1b tablo dolu: 80+ komut, 140+ ad ve kısaltma', g.n >= 80 && g.adet >= 140, `${g.n} komut · ${g.adet} ad`);
-  ok('1c AutoCAD karşılığı olanlar ile uygulamaya özgü olanlar ayrı sayılıyor', g.acad >= 55 && g.ext >= 20, `AutoCAD ${g.acad} · özgü ${g.ext}`);
+  ok('1b tablo dolu: 300+ komut, 600+ ad ve kısaltma', g.n >= 300 && g.adet >= 600, `${g.n} komut · ${g.adet} ad`);
+  ok('1c çalışan AutoCAD · uygulamaya özgü · tanınan-bulunmayan ayrı sayılıyor', g.st.acad >= 150 && g.st.ext >= 25 && g.st.known >= 250 && g.st.acad + g.st.ext + g.st.known === g.n, JSON.stringify(g.st));
   ok('1d AutoCAD kısaltmaları doğru bağlanmış (L, TR, E, F, CHA, X)',
     g.L === 't:line' && g.TR === 't:trim' && g.E === 't:del' && g.F === 't:fillet' && g.CHA === 't:chamfer' && g.X === 't:explode',
     JSON.stringify({ L: g.L, TR: g.TR, E: g.E, F: g.F, CHA: g.CHA, X: g.X }));
+  ok('1h tanınan ama bulunmayan komut çözülür: kimliksiz, avail:false; kısaltması da (POL, S)',
+    g.polygon && g.polygon.id === null && g.polygon.avail === false && g.pol === 'POLYGON' && g.stretchS === 'STRETCH', JSON.stringify({ p: g.polygon, pol: g.pol, s: g.stretchS }));
+  ok('1i eşanlamlı ad aynı araca gider, etiket birincil addan okunur (T → TEXT, DS → DSETTINGS, D → DIMSTYLE)',
+    g.mtext === 't:text' && g.textCmd === 'TEXT' && g.textNames === 'TEXT (DT)' && g.ds === 'display' && g.dimstyleD === 'DIMSTYLE', JSON.stringify({ mtext: g.mtext, textCmd: g.textCmd, names: g.textNames, ds: g.ds, d: g.dimstyleD }));
+  ok('1j yeni katman ve yenileme komutları bağlı (LAYISO, RE → REGEN)', g.layiso === 'layiso' && g.regenRE === 'regen', JSON.stringify({ layiso: g.layiso, re: g.regenRE }));
+  ok('1k açma/kapama komutları yinelenmez, çizim komutları yinelenir', g.repGrid === false && g.repOrtho === false && g.repLine === true && g.repYok === false, JSON.stringify({ grid: g.repGrid, ortho: g.repOrtho, line: g.repLine, yok: g.repYok }));
+  ok('1l öneride çalışan komut bulunmayandan önce gelir', g.onerNa.length >= 2 && g.onerNa[0][1] === false && g.onerNa.some(x => x[1] === true) && g.onerNa.findIndex(x => x[1]) > g.onerNa.filter(x => !x[1]).length - 1, JSON.stringify(g.onerNa));
   ok('1e AutoCAD önekleri kabul edilir: _ (dil bağımsız), \' (saydam), - (komut satırı sürümü)',
     g.onek === 't:line' && g.tirnak === 'extents' && g.tire === 'layers', JSON.stringify({ onek: g.onek, tirnak: g.tirnak, tire: g.tire }));
   ok('1f tanınmayan ve boş girdi null döner (sessizce yanlış komut çalışmaz)', g.yok === null && g.bos === null);
@@ -98,6 +116,7 @@ const etiket = (act) => ev((a) => { const b = document.querySelector(`#toolbar [
     const karo = new Set([...document.querySelectorAll('#toolbar [data-act]')].map(b => b.dataset.act));
     const arac = new Set(T.TOOL_IDS || []);
     const yok = A.COMMANDS.filter(c => {
+      if (!c.id) return c.avail !== false;   // kimliksiz kayıt yalnız "bulunmayan" olabilir
       if (c.id.startsWith('t:')) return !arac.has(c.id.slice(2));
       return false;   // karo kimlikleri sekmeye göre çizilir, DOM'da hepsi aynı anda olmaz
     });
@@ -140,6 +159,24 @@ const etiket = (act) => ev((a) => { const b = document.querySelector(`#toolbar [
 
   await yaz('BOZUKKOMUT'); await gir();
   ok('4g tanınmayan ad uyarı verir, hiçbir araç başlamaz', (await aktif()) === null && /BOZUKKOMUT/.test(await toast()), await toast());
+
+  // Tanınan ama bulunmayan AutoCAD komutu: "bilinmeyen" DENMEZ; bulunmadığı ve en yakın karşılığı söylenir
+  await ev(() => { document.getElementById('toast').hidden = true; });
+  await yaz('polygon'); await gir();
+  const tNa = await toast();
+  ok('4h POLYGON: "bulunmuyor" uyarısı ve en yakın karşılık (PLINE); araç başlamaz', (await aktif()) === null && /POLYGON/.test(tNa) && /bulunmuyor|not available/.test(tNa) && /PLINE/.test(tNa), tNa);
+  // boş Enter bulunmayan komutu DEĞİL, ondan önceki gerçek komutu yineler
+  await yaz(''); await gir();
+  ok('4i boş Enter bulunmayan komutu değil son gerçek komutu (FILLET) yineler', (await aktif()) === 'fillet', String(await aktif()));
+  await iptal();
+  // açma/kapama karosu "son komut" olmaz: GRID'e dokunduktan sonra boş Enter ızgarayı geri kapatmaz
+  const gridOnce = await ev(() => window.dwgApp.state.grid.on);
+  await ev(() => window.dwgApp.editor.act('grid')); await page.waitForTimeout(150);
+  await yaz(''); await gir();
+  const gridSonra = await ev(() => window.dwgApp.state.grid.on);
+  ok('4j GRID karosundan sonra boş Enter ızgarayı yinelemez (FILLET başlar, ızgara değişmez)', (await aktif()) === 'fillet' && gridSonra === !gridOnce, JSON.stringify({ once: gridOnce, sonra: gridSonra, aktif: await aktif() }));
+  await iptal();
+  await ev(() => window.dwgApp.editor.act('grid')); await page.waitForTimeout(100);
 }
 
 // ---------------------------------------------------------------------------------
@@ -211,7 +248,7 @@ const etiket = (act) => ev((a) => { const b = document.querySelector(`#toolbar [
     return { acik: true, basliklar, tablolar, kod: ilk ? ilk.querySelector('code').textContent : '', ham: /cmdAcad|cmdExt/.test(p.textContent) };
   });
   ok('8a "?" düğmesi komut listesini açar', d.acik === true);
-  ok('8b liste İKİ bölüm: AutoCAD komutu ve uygulamaya özgü', d.acik && d.basliklar.length === 2 && /AutoCAD/.test(d.basliklar[0]) && d.tablolar.length === 2 && d.tablolar[0] > 50, JSON.stringify({ b: d.basliklar, t: d.tablolar }));
+  ok('8b liste ÜÇ bölüm: AutoCAD komutu · uygulamaya özgü · tanınan-bulunmayan', d.acik && d.basliklar.length === 3 && /AutoCAD/.test(d.basliklar[0]) && d.tablolar.length === 3 && d.tablolar[0] >= 150 && d.tablolar[2] >= 250, JSON.stringify({ b: d.basliklar, t: d.tablolar }));
   ok('8c uygulamaya özgü komutlar AutoCAD komutu gibi SUNULMUYOR (ayrı bölüm, ayrı sayı)', d.acik && d.tablolar[1] >= 20 && d.tablolar[0] !== d.tablolar[1], JSON.stringify(d.tablolar));
   ok('8d ham i18n anahtarı sızmamış', d.acik && d.ham === false);
   await shot('komut_listesi');

@@ -71,7 +71,7 @@ const ANG_TOL = 1e-6;      // derece cinsinden açı karşılaştırma payı (di
  * boyunca öyle kaldı. Listeler burada durur, tools/lang_check.mjs her çalıştırmada ikisinin de
  * TR sözlüğünde bulunduğunu sınar; yeni bir satır eklendiğinde çeviri unutulamaz.
  */
-export const ROW_KEYS = ['angle', 'angleSupp', 'apex', 'arm1', 'arm2', 'at', 'coincident', 'dir', 'dist3', 'foot', 'inPlane', 'intersecting', 'normal1', 'normal2', 'onLine', 'onPlane', 'onSegment', 'pa', 'parallel', 'pb', 'perpendicular', 'proj', 'signedDist', 'skew'];
+export const ROW_KEYS = ['angle', 'angleSupp', 'apex', 'arm1', 'arm2', 'at', 'coincident', 'dir', 'dist3', 'distP1', 'distP2', 'foot', 'inPlane', 'intersecting', 'lineLen', 'normal1', 'normal2', 'onLine', 'onPlane', 'onSegment', 'pa', 'parallel', 'pb', 'perpendicular', 'proj', 'signedDist', 'skew'];
 export const PART_KEYS = ['line1', 'line2', 'plane1', 'plane2', 'point'];
 export const MODES = [
   { id: 'ptline', needs: 3, min: 3, groups: [1, 2], parts: ['point', 'line1'] },
