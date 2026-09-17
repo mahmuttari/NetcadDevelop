@@ -691,18 +691,20 @@ function renderMode() {
 const BTN = { finish: ['finishBtn', () => tools.finish()], close: ['close', () => tools.close()], back: ['backBtn', () => tools.back()], selall: ['layersAll', () => tools.selectAll()], selbox: ['selBoxBtn', () => tools.setSelMode('box')], sellasso: ['selLassoBtn', () => tools.setSelMode('lasso')],
   // Ekran / Ölçü: değer isteyen düzenleme araçlarının kipi (ötele, kavis, pah, buda, uzat); araç boyunca görünür, seçili olan vurgulu
   modescreen: ['modeScreenBtn', () => tools.setMode('screen')], modevalue: ['modeValueBtn', () => tools.setMode('value')],
+  // Aynala: orijinal kalsın mı? Açık = kopya (AutoCAD "Erase source objects? <N>"), kapalı = kaynak silinir
+  mirrorkeep: ['mirrorKeepBtn', () => tools.toggleMirrorKeep()],
   cancel: ['cancelBtn', () => { tools.cancel(); markActive(null); ed.sel.clear(); api.drawOverlay(); }] };
 /*
  * Komut çubuğu düğmesi: SVG simge + etiket. Çeviri metinlerinin başındaki ince Unicode imleri
  * (✓ ↶ ✕) atılır; simgeyi yazı tipi değil SVG çizer, böylece her dilde aynı dolgunlukta görünür.
  * Bitir birincil (vurgu renkli) düğmedir: çubuğun onay eylemi odur.
  */
-const CMD_ICON = { finish: 'i-check', close: 'i-closepath', back: 'i-undo', selall: 'i-selectall', cancel: 'i-close', selbox: 'i-selbox', sellasso: 'i-lasso', modescreen: 'i-crosshair', modevalue: 'i-ruler' };
+const CMD_ICON = { finish: 'i-check', close: 'i-closepath', back: 'i-undo', selall: 'i-selectall', cancel: 'i-close', selbox: 'i-selbox', sellasso: 'i-lasso', modescreen: 'i-crosshair', modevalue: 'i-ruler', mirrorkeep: 'i-copyobj' };
 const CMD_ICON_ONLY = new Set(['selbox', 'sellasso']);   // yalnız simge: beş düğme 412 px'te tek satıra sığsın; ad başlık / aria-label'da
 function cmdBtnHtml(attr, k, label) {
   const lbl = String(label == null ? '' : label).replace(/^[✓↶✕⟲←]+\s*/, '');
   const ic = CMD_ICON[k];
-  const on = !!tools && ((k === 'selbox' && tools.selMode === 'box') || (k === 'sellasso' && tools.selMode === 'lasso') || (k === 'modescreen' && tools.mode === 'screen') || (k === 'modevalue' && tools.mode === 'value'));
+  const on = !!tools && ((k === 'selbox' && tools.selMode === 'box') || (k === 'sellasso' && tools.selMode === 'lasso') || (k === 'modescreen' && tools.mode === 'screen') || (k === 'modevalue' && tools.mode === 'value') || (k === 'mirrorkeep' && tools.mirrorKeep === true));
   const cls = k === 'finish' ? 'primary' : (CMD_ICON_ONLY.has(k) ? 'icon' + (on ? ' on' : '') : (on ? 'on' : ''));
   const svg = ic ? `<svg class="ic" aria-hidden="true"><use href="#${ic}"/></svg>` : '';
   if (CMD_ICON_ONLY.has(k)) return `<button type="button" ${attr}="${k}" class="${cls}" title="${esc(lbl)}" aria-label="${esc(lbl)}" aria-pressed="${on}">${svg}</button>`;

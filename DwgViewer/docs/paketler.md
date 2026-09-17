@@ -139,6 +139,7 @@ Bu yedisi v7.28 ile kapandı; **birinci öbekte açık madde kalmadı**. Ayrınt
 | Pickbox imleci: nesne isteminde küçük kare + nesne vurgusu, yakalama kapalı; nokta isteminde artı imleç + yakalama (v7.57) | bütün düzenleme araçları, Seç aracı | ücretsiz (imleç davranışı) |
 | Pickbox yarı boy (6 px) + kareye değmeyen artı kolları; tek imleç kuralı (kalem gezinirken son dokunuş imleci çizilmez) (v7.58) | bütün araçlar | ücretsiz (imleç davranışı) |
 | Parmakla nişan alma: araç / ölçü çalışırken uzun basıp sürükleme, imleç parmağın altında, 2× büyüteç üstte, bırakınca dokunuş (v7.58) | dokunmatik, araç çalışırken | ücretsiz (dokunma doğruluğu) |
+| Aynala: "Orijinal kalsın" düğmesi — seçimden sonra komut çubuğunda, açık = kopya, kapalı = kaynak silinir; soru kutusu kalktı (v7.59) | Aynala aracı | var olan aracın kademesi |
 | Ölçümü çizime işaretleme | Açıklama ▸ Ölçümü işle | premium |
 | Revizyon bulutu | Açıklama ▸ Revizyon bulutu | premium |
 | Numaralandırma (balon, artan) | Açıklama ▸ Numaralandır | premium |

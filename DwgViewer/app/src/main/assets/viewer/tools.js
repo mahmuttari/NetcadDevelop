@@ -13,7 +13,7 @@
 import { TAU, flatten, polyArea, pathLength, pathLength3, segDist, opsBBox, enclosingPrim, segmentsOf, segAt, trimPath, extendPath, lengthenPath, filletCorner, chamferCorner, cornerAt, segIntersect, pointInPoly } from './geom.js';
 import { newId, offsetPoints } from './edit.js';
 import { t, addStrings } from './i18n.js';
-import { askText, askConfirm, askForm } from './dialog.js';
+import { askText, askForm } from './dialog.js';
 import { dimLinear, dimRadial, dimAngular, leaderEnts, cloudEnt, balloonEnts, arrayItems, hatchEnts } from './annot.js';
 import { cmdOf } from './acad.js';
 import { constrain as deskConstrain } from './desktop.js';
@@ -177,6 +177,7 @@ export class ToolManager {
     this.cancel(true);
     this.active = name; this.pts = []; this.step = 0; this.draft = null; this.results = []; this.balloonNext = null;
     this.cut = null; this.c1 = null; this.corner = null; this.selMode = 'tap'; this.mode = null; this.val = null;
+    this.mirrorKeep = true;   // AutoCAD MIRROR "Erase source objects? <N>": her başlangıçta orijinal kalır; komut çubuğundaki düğme değiştirir
     if (SELECT_TOOLS.has(name)) {
       this.selecting = this.api.sel.size === 0;
       if (!this.selecting) { this.step = 1; }
@@ -215,6 +216,7 @@ export class ToolManager {
     if (['pline', 'area', 'cloud'].includes(this.active) && this.pts.length > 2) buttons.push('close');
     if (this.pts.length) buttons.push('back');
     if (this.selecting) buttons.push('selbox', 'sellasso', 'selall');
+    if (this.active === 'mirror' && !this.selecting) buttons.push('mirrorkeep');   // seçimden sonra: orijinal kalsın mı? (AutoCAD'in sondaki sorusu, düğme olarak)
     buttons.push('cancel');
     this.api.prompt(text, { input: wantsNumber ? 'number' : (this.selecting ? null : 'point'), buttons });
   }
@@ -1083,7 +1085,7 @@ export class ToolManager {
     if (this.active === 'move' && n === 2) { const [a, b] = this.pts; this.xform([1, 0, 0, 1, b[0] - a[0], b[1] - a[1]], (b[2] || 0) - (a[2] || 0)); this.done(); return; }
     if (this.active === 'copy' && n >= 2) { const a = this.pts[0], b = this.pts[n - 1]; const keys = [...A.sel].map(p => p.key); A.run({ op: 'copy', keys, newKeys: keys.map(() => newId()), m: [1, 0, 0, 1, b[0] - a[0], b[1] - a[1]], dz: (b[2] || 0) - (a[2] || 0) }); A.render(); this.step = 2; return; }
     if (this.active === 'rotate' && n === 2) { const [c, q] = this.pts; this.xform(rotM(c, Math.atan2(q[1] - c[1], q[0] - c[0]))); this.done(); return; }
-    if (this.active === 'mirror' && n === 2) { const [a, b] = this.pts; const keys = [...A.sel].map(p => p.key); const m = mirrorM(a, b); const keep = await askConfirm(t('keepOriginals')); if (keep) A.run({ op: 'copy', keys, newKeys: keys.map(() => newId()), m }); else A.run({ op: 'xform', keys, m }); A.render(); this.done(); return; }
+    if (this.active === 'mirror' && n === 2) { const [a, b] = this.pts; const keys = [...A.sel].map(p => p.key); const m = mirrorM(a, b); if (this.mirrorKeep) A.run({ op: 'copy', keys, newKeys: keys.map(() => newId()), m }); else A.run({ op: 'xform', keys, m }); A.render(); this.done(); return; }   // orijinal kalsın mı: komut çubuğundaki düğme (soru kutusu kalktı)
     this.step = Math.min(n + 1, TOOLS[this.active].steps.length - 1);
   }
   xform(m, dz = 0) { const keys = [...this.api.sel].map(p => p.key); if (!keys.length) return; this.api.run({ op: 'xform', keys, m, dz }); this.api.render(); }
@@ -1146,6 +1148,8 @@ export class ToolManager {
   selectAll() { for (const p of this.api.visiblePrims()) if (p.k !== 4) this.api.sel.add(p); this.say(); this.api.overlay(); }
   /** Seç aracının kipi: aynı kip yeniden seçilirse dokunma kipine döner */
   setSelMode(m) { if (!this.selecting) return; this.selMode = this.selMode === m ? 'tap' : m; this.say(); this.api.overlay(); }
+  /** Aynala: "Orijinal kalsın" düğmesi — açıkken kopya (AutoCAD <N>), kapalıyken kaynak silinir (Yes) */
+  toggleMirrorKeep() { if (this.active !== 'mirror') return; this.mirrorKeep = !this.mirrorKeep; this.say(); }
   /** Bölge seçimi: { rect:[x0,y0,x1,y1] } ya da { poly:[[x,y]…] }; crossing → dokunanlar da girer. Eklenen sayı döner. */
   selectRegion(shape, crossing) {
     const A = this.api, list = A.selectable ? A.selectable() : A.visiblePrims();
