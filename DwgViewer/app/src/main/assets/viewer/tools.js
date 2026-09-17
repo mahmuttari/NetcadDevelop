@@ -178,6 +178,7 @@ export class ToolManager {
     this.active = name; this.pts = []; this.step = 0; this.draft = null; this.results = []; this.balloonNext = null;
     this.cut = null; this.c1 = null; this.corner = null; this.selMode = 'tap'; this.mode = null; this.val = null;
     this.mirrorKeep = true;   // AutoCAD MIRROR "Erase source objects? <N>": her başlangıçta orijinal kalır; komut çubuğundaki düğme değiştirir
+    this.mirrorAxis = null;   // 'x' | 'y': ayna çizgisi eksene paralel, tek noktayla (AutoCAD'de ikinci noktada ORTHO'nun karşılığı)
     if (SELECT_TOOLS.has(name)) {
       this.selecting = this.api.sel.size === 0;
       if (!this.selecting) { this.step = 1; }
@@ -209,6 +210,7 @@ export class ToolManager {
       return;
     }
     if (this.selecting) text += (this.selMode === 'box' ? t('selBoxHint') : this.selMode === 'lasso' ? t('selLassoHint') : toolStep(this.active, 0)) + `  [${this.api.sel.size} ${t('selCount')}]`;
+    else if (this.active === 'mirror' && this.mirrorAxis && !this.pts.length) text += t(this.mirrorAxis === 'x' ? 'mirrorAxisX' : 'mirrorAxisY');   // eksen seçildi: tek nokta yeter
     else text += toolStep(this.active, Math.min(this.step, def.steps.length - 1));
     const wantsNumber = NUMBER_STEP[this.active] != null && this.step === NUMBER_STEP[this.active] && !this.selecting;
     const buttons = [];
@@ -216,7 +218,10 @@ export class ToolManager {
     if (['pline', 'area', 'cloud'].includes(this.active) && this.pts.length > 2) buttons.push('close');
     if (this.pts.length) buttons.push('back');
     if (this.selecting) buttons.push('selbox', 'sellasso', 'selall');
-    if (this.active === 'mirror' && !this.selecting) buttons.push('mirrorkeep');   // seçimden sonra: orijinal kalsın mı? (AutoCAD'in sondaki sorusu, düğme olarak)
+    if (this.active === 'mirror' && !this.selecting) {
+      if (!this.pts.length) buttons.push('mirrorx', 'mirrory');   // ilk noktadan önce: yatay (X) / düşey (Y) ayna çizgisi — sonra tek nokta yeter
+      buttons.push('mirrorkeep');                                   // seçimden sonra: orijinal kalsın mı? (AutoCAD'in sondaki sorusu, düğme olarak)
+    }
     buttons.push('cancel');
     this.api.prompt(text, { input: wantsNumber ? 'number' : (this.selecting ? null : 'point'), buttons });
   }
@@ -1085,7 +1090,14 @@ export class ToolManager {
     if (this.active === 'move' && n === 2) { const [a, b] = this.pts; this.xform([1, 0, 0, 1, b[0] - a[0], b[1] - a[1]], (b[2] || 0) - (a[2] || 0)); this.done(); return; }
     if (this.active === 'copy' && n >= 2) { const a = this.pts[0], b = this.pts[n - 1]; const keys = [...A.sel].map(p => p.key); A.run({ op: 'copy', keys, newKeys: keys.map(() => newId()), m: [1, 0, 0, 1, b[0] - a[0], b[1] - a[1]], dz: (b[2] || 0) - (a[2] || 0) }); A.render(); this.step = 2; return; }
     if (this.active === 'rotate' && n === 2) { const [c, q] = this.pts; this.xform(rotM(c, Math.atan2(q[1] - c[1], q[0] - c[0]))); this.done(); return; }
-    if (this.active === 'mirror' && n === 2) { const [a, b] = this.pts; const keys = [...A.sel].map(p => p.key); const m = mirrorM(a, b); if (this.mirrorKeep) A.run({ op: 'copy', keys, newKeys: keys.map(() => newId()), m }); else A.run({ op: 'xform', keys, m }); A.render(); this.done(); return; }   // orijinal kalsın mı: komut çubuğundaki düğme (soru kutusu kalktı)
+    // Ayna çizgisi: iki nokta, ya da eksen seçildiyse TEK nokta (çizgi o noktadan X'e / Y'ye paralel geçer).
+    // Orijinal kalsın mı: komut çubuğundaki düğme (soru kutusu kalktı).
+    if (this.active === 'mirror' && (n === 2 || (n === 1 && this.mirrorAxis))) {
+      const a = this.pts[0], b = n === 2 ? this.pts[1] : (this.mirrorAxis === 'x' ? [a[0] + 1, a[1], a[2]] : [a[0], a[1] + 1, a[2]]);
+      const keys = [...A.sel].map(p => p.key); const m = mirrorM(a, b);
+      if (this.mirrorKeep) A.run({ op: 'copy', keys, newKeys: keys.map(() => newId()), m }); else A.run({ op: 'xform', keys, m });
+      A.render(); this.done(); return;
+    }
     this.step = Math.min(n + 1, TOOLS[this.active].steps.length - 1);
   }
   xform(m, dz = 0) { const keys = [...this.api.sel].map(p => p.key); if (!keys.length) return; this.api.run({ op: 'xform', keys, m, dz }); this.api.render(); }
@@ -1150,6 +1162,8 @@ export class ToolManager {
   setSelMode(m) { if (!this.selecting) return; this.selMode = this.selMode === m ? 'tap' : m; this.say(); this.api.overlay(); }
   /** Aynala: "Orijinal kalsın" düğmesi — açıkken kopya (AutoCAD <N>), kapalıyken kaynak silinir (Yes) */
   toggleMirrorKeep() { if (this.active !== 'mirror') return; this.mirrorKeep = !this.mirrorKeep; this.say(); }
+  /** Aynala: X (yatay) / Y (düşey) ayna çizgisi düğmesi — aynı düğme yeniden basılınca serbest çizgiye döner */
+  setMirrorAxis(ax) { if (this.active !== 'mirror' || this.selecting) return; this.mirrorAxis = this.mirrorAxis === ax ? null : ax; this.say(); this.api.overlay(); }
   /** Bölge seçimi: { rect:[x0,y0,x1,y1] } ya da { poly:[[x,y]…] }; crossing → dokunanlar da girer. Eklenen sayı döner. */
   selectRegion(shape, crossing) {
     const A = this.api, list = A.selectable ? A.selectable() : A.visiblePrims();

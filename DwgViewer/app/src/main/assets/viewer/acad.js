@@ -75,7 +75,7 @@ export const COMMANDS = [
   T('COPY', 't:copy', ['CO', 'CP'], 'Copy'),
   T('ROTATE', 't:rotate', ['RO'], 'Rotate'),
   T('SCALE', 't:scale', ['SC'], 'Scale'),
-  T('MIRROR', 't:mirror', ['MI'], 'Mirror', { note: 'AutoCAD asks "Erase source objects?" at the end; here it is the Keep original button on the command bar after the selection (default on, like AutoCAD\'s <N>).' }),
+  T('MIRROR', 't:mirror', ['MI'], 'Mirror', { note: 'AutoCAD asks "Erase source objects?" at the end; here it is the Keep original button on the command bar after the selection (default on, like AutoCAD\'s <N>). The X / Y buttons make the mirror line horizontal / vertical through a single point (what ORTHO does for the second point).' }),
   T('OFFSET', 't:offset', ['O'], 'Offset', { note: 'asks Screen or Measure first: Screen = through point, Measure = typed distance' }),
   T('ARRAY', 't:array', ['AR'], 'Array'),
   T('ERASE', 't:del', ['E'], 'Erase'),

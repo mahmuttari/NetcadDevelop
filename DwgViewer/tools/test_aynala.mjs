@@ -1,4 +1,4 @@
-// AYNALA — "Orijinal kalsın" düğmesi (v7.59). AutoCAD MIRROR'ın sondaki "Erase source objects? <N>" sorusu
+// AYNALA — "Orijinal kalsın" düğmesi (v7.59) ve X / Y eksen düğmeleri (v7.60: ayna çizgisi yatay / düşey, tek noktayla). AutoCAD MIRROR'ın sondaki "Erase source objects? <N>" sorusu
 // seçimden sonra komut çubuğunda bir düğmedir: açıkken (varsayılan) aynalanmış kopya eklenir ve kaynak durur,
 // kapalıyken kaynak taşınır. Soru kutusu kalktı; düğme her başlangıçta açığa döner, Geri durumu korur.
 // Kullanım: PLAYWRIGHT_PKG=<node_modules> node tools/test_aynala.mjs [çıktı] [örnekler]
@@ -35,7 +35,7 @@ const count = () => ev(() => window.dwgApp.state.prims.length);
 const zoom = async (bb) => { await ev((b) => window.dwgApp.zoomExtents(b), bb); await bekle(200); };
 const toast = () => ev(() => { const el = document.getElementById('toast'); return el && !el.hidden ? el.textContent.trim() : ''; });
 const bar = () => ev(() => ({ text: document.getElementById('cmdText').textContent.trim(), btns: [...document.querySelectorAll('#cmdBtns [data-cmd]')].map(b => [b.dataset.cmd, b.classList.contains('on'), b.textContent.trim(), !!b.querySelector('svg use[href="#i-copyobj"]'), Math.round(b.getBoundingClientRect().height)]), h: document.getElementById('cmdBar').getBoundingClientRect().height }));
-const durum = () => ev(() => { const T = window.dwgApp.editor.tools; return { active: T.active, selecting: T.selecting, step: T.step, keep: T.mirrorKeep, sel: window.dwgApp.editor.sel.size, pts: T.pts.length }; });
+const durum = () => ev(() => { const T = window.dwgApp.editor.tools; return { active: T.active, selecting: T.selecting, step: T.step, keep: T.mirrorKeep, axis: T.mirrorAxis, sel: window.dwgApp.editor.sel.size, pts: T.pts.length }; });
 const kutuAcik = () => ev(async () => { const D = await import('./dialog.js'); return D.isOpen(); });
 const arac = async (id) => { await ev((a) => { const E = window.dwgApp.editor; if (E.tools.running) E.tools.cancel(); E.sel.clear(); document.getElementById('infoPanel').hidden = true; E.act(a); }, id); await bekle(150); };
 const dugme = async (k) => { await page.click(`#cmdBtns [data-cmd="${k}"]`); await bekle(150); };
@@ -56,8 +56,8 @@ await zoom([0, 0, 800, 600]);
   await tapWorld(300, 200);
   await dugme('finish');
   const d1 = await durum(), b1 = await bar(), mk = dugmeVar(b1, 'mirrorkeep');
-  ok('1b Bitir: ayna çizgisinin 1. noktası istenir; "Orijinal kalsın" düğmesi görünür, AÇIK (vurgulu), kopya simgeli; İptal yanında', d1.selecting === false && d1.step === 1 && d1.sel === 1 && /Ayna çizgisi 1\. nokta/.test(b1.text) && !!mk && mk[1] === true && mk[2] === 'Orijinal kalsın' && mk[3] === true && b1.btns[b1.btns.length - 1][0] === 'cancel', J({ d1, text: b1.text, btns: b1.btns }));
-  ok('1c komut çubuğu iki satırı aşmaz (< 100 px): istem + [giriş · Enter · Orijinal kalsın · İptal]', b1.h < 100, String(b1.h));
+  ok('1b Bitir: ayna çizgisinin 1. noktası istenir; "Orijinal kalsın" düğmesi görünür, AÇIK (vurgulu), kopya simgeli; İptal sonda', d1.selecting === false && d1.step === 1 && d1.sel === 1 && /Ayna çizgisi 1\. nokta/.test(b1.text) && !!mk && mk[1] === true && mk[2] === 'Orijinal kalsın' && mk[3] === true && b1.btns[b1.btns.length - 1][0] === 'cancel', J({ d1, text: b1.text, btns: b1.btns }));
+  ok('1c komut çubuğu en çok üç satır (< 150 px): istem + giriş · Enter + [X · Y · Orijinal kalsın · İptal]; etiket tek satır', b1.h < 150 && mk[4] === dugmeVar(b1, 'cancel')[4], J({ h: b1.h, btns: b1.btns.map(q => [q[0], q[4]]) }));
   await page.screenshot({ path: `${out}/aynala_dugme.png` });
   ok('1d soru kutusu açılmadı', (await kutuAcik()) === false);
 }
@@ -135,6 +135,61 @@ await zoom([0, 0, 800, 600]);
   ok('5b komut tablosu: MIRROR notu düğmeyi söyler; sayılar değişmedi (458 / 158 / 663)', /Keep original/.test(a.mi || '') && /Erase source/.test(a.mi || '') && a.st.total === 458 && a.st.acad === 158 && a.st.names === 663, J(a));
   const dil15 = await ev(async () => { const I = await import('./i18n.js'); const out = { tr: I.TR.mirrorKeepBtn, en: I.EN.mirrorKeepBtn }; for (const l of ['ar', 'de', 'es', 'fr', 'hi', 'id', 'it', 'ja', 'ko', 'pt', 'ru', 'vi', 'zh']) { const M = await import(`./lang/${l}.js`); out[l] = M.default.mirrorKeepBtn; } return out; });
   ok('5c "Orijinal kalsın" 15 dilde de var', Object.values(dil15).every(v => typeof v === 'string' && v.length > 0) && Object.keys(dil15).length === 15, J(dil15));
+}
+
+// ---------------------------------------------------------------------------------
+// 6 · X / Y eksen düğmeleri: ayna çizgisi yatay (X) ya da düşey (Y), tek noktayla
+// ---------------------------------------------------------------------------------
+{
+  await arac('t:mirror'); await tapWorld(300, 200); await dugme('finish');
+  const b0 = await bar(), mx = dugmeVar(b0, 'mirrorx'), my = dugmeVar(b0, 'mirrory');
+  ok('6a seçimden sonra X ve Y düğmeleri, ikisi de kapalı; sıra X · Y · Orijinal kalsın · İptal', mx && my && mx[1] === false && my[1] === false && b0.btns.map(q => q[0]).join(',') === 'mirrorx,mirrory,mirrorkeep,cancel', J(b0.btns));
+  const basliklar = await ev(() => [...document.querySelectorAll('#cmdBtns [data-cmd="mirrorx"], #cmdBtns [data-cmd="mirrory"]')].map(b => [b.title, b.getAttribute('aria-label'), b.getAttribute('aria-pressed'), b.querySelector('use') ? b.querySelector('use').getAttribute('href') : null]));
+  ok('6b eksen düğmeleri simge + başlık / aria: "Yatay ayna çizgisi (X)" (#i-mirror-x), "Düşey ayna çizgisi (Y)" (#i-mirror)', basliklar[0][0] === 'Yatay ayna çizgisi (X)' && basliklar[0][1] === 'Yatay ayna çizgisi (X)' && basliklar[0][3] === '#i-mirror-x' && basliklar[1][0] === 'Düşey ayna çizgisi (Y)' && basliklar[1][3] === '#i-mirror' && basliklar.every(q => q[2] === 'false'), J(basliklar));
+  await dugme('mirrorx');
+  const b1 = await bar(), d1 = await durum();
+  await page.screenshot({ path: `${out}/aynala_eksen_x.png` });
+  ok('6c X: düğme açık (aria-pressed), istem "Yatay ayna çizgisinin geçeceği nokta", durum x', dugmeVar(b1, 'mirrorx')[1] === true && /Yatay ayna çizgisinin geçeceği nokta/.test(b1.text) && d1.axis === 'x' && (await ev(() => document.querySelector('#cmdBtns [data-cmd="mirrorx"]').getAttribute('aria-pressed'))) === 'true', J({ text: b1.text, d1 }));
+  await dugme('mirrorx');
+  ok('6d X yeniden basılınca serbest çizgiye dönülür, istem 1. noktaya döner', (await durum()).axis === null && /Ayna çizgisi 1\. nokta/.test((await bar()).text));
+  await dugme('mirrorx');
+  const n0 = await count();
+  await tapWorld(300, 300);                                    // yatay ayna çizgisi y = 300 → kopya y = 400
+  await bekle(200);
+  const n1 = await count(), yeni = await sonPrim(), d2 = await durum();
+  // dokunulan nokta ekran pikseline yuvarlanır (~1,8 birim / px): ayna çizgisi 300'den değil 300 ± 0,001'den geçebilir; pay 1e-3
+  ok('6e tek nokta yeter: y = 300 yatay çizgisine göre kopya y = 400 (x 200..400), araç bitti', n1 === n0 + 1 && yak(yeni.bb[1], 400, 1e-3) && yak(yeni.bb[3], 400, 1e-3) && yak(yeni.bb[0], 200, 1e-3) && yak(yeni.bb[2], 400, 1e-3) && d2.active === null, J({ n0, n1, yeni, d2 }));
+  await ev((k) => { window.dwgApp.editor.doc.run({ op: 'delete', keys: [k] }); window.dwgApp.requestRender(); }, yeni.key);
+  await arac('t:mirror');
+  ok('6f yeni başlangıçta eksen serbest', (await durum()).axis === null);
+  await tapWorld(300, 200); await dugme('finish'); await dugme('mirrory');
+  const b3 = await bar();
+  ok('6g Y: düğme açık, X kapalı, istem "Düşey ayna çizgisinin geçeceği nokta"', dugmeVar(b3, 'mirrory')[1] === true && dugmeVar(b3, 'mirrorx')[1] === false && /Düşey ayna çizgisinin geçeceği nokta/.test(b3.text), J(b3.btns));
+  const n2 = await count();
+  await tapWorld(500, 300); await bekle(200);                  // düşey ayna çizgisi x = 500 → kopya x 600..800
+  const n3 = await count(), yeni2 = await sonPrim();
+  ok('6h x = 500 düşey çizgisine göre kopya x = 600..800, y = 200 (dokunuş payı 1e-3)', n3 === n2 + 1 && yak(yeni2.bb[0], 600, 1e-3) && yak(yeni2.bb[2], 800, 1e-3) && yak(yeni2.bb[1], 200, 1e-3) && yak(yeni2.bb[3], 200, 1e-3), J({ yeni2 }));
+  await ev((k) => { window.dwgApp.editor.doc.run({ op: 'delete', keys: [k] }); window.dwgApp.requestRender(); }, yeni2.key);
+  await arac('t:mirror'); await tapWorld(300, 200); await dugme('finish'); await dugme('mirrorx'); await dugme('mirrorkeep');
+  const n4 = await count();
+  await ev(() => window.dwgApp.editor.tools.typed('300,300')); await bekle(250);   // nokta yazıyla
+  const n5 = await count(), kaynak = await primOf('ay_0');
+  ok("6i X + Orijinal kalsın kapalı, nokta yazıyla (300,300): kaynak y = 400'e taşındı, sayı sabit", n5 === n4 && yak(kaynak.ops[0][2], 400) && yak(kaynak.ops[1][2], 400), J({ n4, n5, kaynak: kaynak.ops }));
+  await ev(() => { window.dwgApp.editor.doc.undo(); window.dwgApp.requestRender(); });
+  await arac('t:mirror'); await tapWorld(300, 200); await dugme('finish'); await tapWorld(300, 300);
+  const b4 = await bar();
+  ok('6j serbest kipte 1. noktadan sonra eksen düğmeleri kalkar (Geri · Orijinal kalsın · İptal)', !dugmeVar(b4, 'mirrorx') && !dugmeVar(b4, 'mirrory') && !!dugmeVar(b4, 'back') && b4.h < 150, J({ btns: b4.btns.map(q => q[0]), h: b4.h }));
+  await dugme('back');
+  ok('6k Geri: eksen düğmeleri geri gelir', !!dugmeVar(await bar(), 'mirrorx') && !!dugmeVar(await bar(), 'mirrory'));
+  await dugme('cancel');
+  await dil('en'); await bekle(150);
+  await ev(() => { const E = window.dwgApp.editor; E.sel.clear(); E.sel.add(window.dwgApp.state.prims.find(x => x.key === 'ay_0')); E.act('t:mirror'); }); await bekle(150);
+  await dugme('mirrory');
+  const be = await bar(), te = await ev(() => [document.querySelector('#cmdBtns [data-cmd="mirrorx"]').title, document.querySelector('#cmdBtns [data-cmd="mirrory"]').title]);
+  ok('6l İngilizce: "MIRROR: Point on the vertical mirror line", başlıklar "Horizontal / Vertical mirror line (X / Y)"', /^MIRROR: Point on the vertical mirror line/.test(be.text) && te[0] === 'Horizontal mirror line (X)' && te[1] === 'Vertical mirror line (Y)', J({ text: be.text, te }));
+  await dugme('cancel'); await dil('tr'); await bekle(150);
+  const a = await ev(async () => { const A = await import('./acad.js'); return { mi: A.resolve('MI').note, st: A.stats() }; });
+  ok('6m MIRROR notu X / Y düğmelerini ve ORTHO karşılığını söyler; sayılar sabit', /X \/ Y buttons/.test(a.mi || '') && /ORTHO/.test(a.mi || '') && a.st.total === 458, J(a));
 }
 
 await page.screenshot({ path: `${out}/aynala.png` });
