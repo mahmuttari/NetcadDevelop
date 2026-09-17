@@ -2054,8 +2054,8 @@ function togglePolar() {
 }
 /*
  * ORTHO KOMUTLA BİRLİKTE. Telefonda F8 yok, Ekran sekmesindeki karo ise çizim sırasında uzaktadır;
- * bu yüzden komut çubuğunun koordinat giriş satırında, nokta istenen HER adımda aynı yerde bir
- * Ortho düğmesi durur. Durum tektir (S.desk.ortho): karo, F8, kutupsal ve bu düğme aynı değeri
+ * bu yüzden komut çubuğunun İSTEM SATIRININ sağında, nokta istenen HER adımda aynı yerde bir Ortho
+ * düğmesi durur (giriş satırına konduğunda Bitir · Geri · İptal üçüncü satıra taşıyordu). Durum tektir (S.desk.ortho): karo, F8, kutupsal ve bu düğme aynı değeri
  * okur ve yazar. show verilmezse yalnız açık / kapalı görünümü tazelenir.
  */
 function syncOrthoBtn(show) {

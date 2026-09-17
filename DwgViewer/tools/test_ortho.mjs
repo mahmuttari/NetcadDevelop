@@ -53,7 +53,15 @@ await zoom([0, 0, 800, 600]);
   ok('1a boşta (komut istemi) Ortho düğmesi gizli', b0 && b0.hidden === true, J(b0));
   await arac('t:line');
   const b1 = await dugme(), d1 = await durum();
-  ok('1b Çizgi aracı nokta ister: düğme görünür, KAPALI, kare simge, başlık / aria "Ortho (F8)"', b1.hidden === false && b1.on === false && b1.pressed === 'false' && b1.title === 'Ortho (F8)' && b1.aria === 'Ortho (F8)' && b1.w === 44 && b1.h === 44 && d1.inp === false, J({ b1, d1 }));
+  ok('1b Çizgi aracı nokta ister: düğme görünür, KAPALI, istem satırının sağında (44 x 32), başlık / aria "Ortho (F8)"', b1.hidden === false && b1.on === false && b1.pressed === 'false' && b1.title === 'Ortho (F8)' && b1.aria === 'Ortho (F8)' && b1.w === 44 && b1.h === 32 && d1.inp === false, J({ b1, d1 }));
+  // v7.61 gerilemesi: giriş satırına konan düğme Enter'ı Bitir'in altına sokuyor, Bitir · Geri · İptal'i üçüncü satıra taşırıyordu.
+  // Şimdi düğme istem satırındadır: Enter hiçbir düğmeyle çakışmaz; Bitir · Geri · İptal ile bile çubuk iki satırda kalır (< 100 px)
+  const yer = await ev(() => { const r = (el) => { const b = el.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom]; }; const en = r(document.getElementById('cmdEnter')), o = r(document.getElementById('cmdOrtho')), tx = r(document.getElementById('cmdText')); const kesisen = [...document.querySelectorAll('#cmdBtns button')].map(r).filter(q => q[0] < en[2] && q[2] > en[0] && q[1] < en[3] && q[3] > en[1]); return { kesisen: kesisen.length, ortoSagda: o[0] >= tx[2] - 1 && Math.abs((o[1] + o[3]) / 2 - (tx[1] + tx[3]) / 2) < 12, h: document.getElementById('cmdBar').getBoundingClientRect().height }; });
+  ok('1b2 Enter hiçbir komut düğmesiyle çakışmaz; Ortho istem metninin sağında, aynı satırda', yer.kesisen === 0 && yer.ortoSagda, J(yer));
+  await tapWorld(300, 300);                                    // birinci nokta → Bitir · Geri · İptal
+  const h3 = await ev(() => ({ h: document.getElementById('cmdBar').getBoundingClientRect().height, btns: [...document.querySelectorAll('#cmdBtns [data-cmd]')].map(b => b.dataset.cmd) }));
+  ok('1b3 Bitir · Geri · İptal ile çubuk iki satırda kalır (< 100 px): Ortho tuvalden satır yemez', h3.btns.join(',') === 'finish,back,cancel' && h3.h < 100, J(h3));
+  await ev(() => window.dwgApp.editor.tools.back()); await bekle(120);
   await arac('t:select');
   ok('1c Seç aracı (giriş yok): düğme gizli', (await dugme()).hidden === true);
   await arac('t:offset');

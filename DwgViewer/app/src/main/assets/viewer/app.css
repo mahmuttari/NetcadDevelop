@@ -463,7 +463,15 @@ body.glove .ask-field .opt-text { min-height: 52px; }
 #cv3d { z-index: 3; touch-action: none; }
 #ov { z-index: 4; }
 .cmdbar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 7; display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--bar); opacity: .97; border-top: 1px solid var(--line); font-size: calc(13px * var(--fs)); flex-wrap: wrap; }
-.cmdbar #cmdText { flex: 1 1 100%; color: var(--accent); font-weight: 600; }
+/* İstem satırı: metin solda, Ortho düğmesi sağda — giriş satırına düğme eklemek Bitir · Geri · İptal'i üçüncü satıra taşırıp
+   tuvalden 50 px yiyordu (v7.61–7.62 kusuru); istem satırında zaten boş yer vardır, ek satır maliyeti yoktur */
+.cmd-head { flex: 1 1 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.cmdbar #cmdText { flex: 1 1 auto; min-width: 0; color: var(--accent); font-weight: 600; }
+#cmdOrtho { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 32px; padding: 0; border: 1px solid var(--line); border-radius: 9px; background: var(--btn); color: var(--fg); cursor: pointer; }
+#cmdOrtho svg.ic { width: 20px; height: 20px; }
+#cmdOrtho.on { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--btn)); }
+#cmdOrtho:active { filter: brightness(1.2); }
+body.glove #cmdOrtho { height: 38px; width: 52px; }
 /* Komut çubuğu düğmeleri. Eskiden ↵ ve ? yazı tipinin ince karakterleriyle çizilen 40 px'lik yassı
    kutulardı ve telefonda güç okunuyordu. Şimdi: 44 px, 10 px köşe, 1 px kenarlık, 22 px SVG simge;
    Enter vurgu renginde BİRİNCİL düğmedir (çubuğun tek onay eylemi), ötekiler nötr. Simgeli metin

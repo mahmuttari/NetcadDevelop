@@ -192,11 +192,21 @@ await zoom([0, 0, 2000, 2000]);
   await page.waitForTimeout(160);
   const st = await penState();
   ok('4a havada gezinme konumu okunur (uç değmeden)', !!st.hover, JSON.stringify(st.hover));
-  ok('4b gezinme uç noktaya YAKALANIR (1400;1000)', st.hover && Math.abs(st.hover[0] - 1400) < 1e-6 && Math.abs(st.hover[1] - 1000) < 1e-6, JSON.stringify(st.hover));
+  // v7.62: boşta (komut yok) gezinme YAKALAMAZ — AutoCAD'de işaret yalnız nokta isteminde çıkar; kullanıcı kalemle dolaşırken beliren glifleri istemedi
+  ok('4b boşta gezinme yakalamaz (komut yok): konum ham, uç noktaya oturmaz', st.hover && Math.abs(st.hover[0] - 1400) > 1e-3, JSON.stringify(st.hover));
   ok('4c gezinme belgeye dokunmaz (geri alma yığını sabit)', (await undoLen()) === u0, `${u0} → ${await undoLen()}`);
   ok('4d gezinme hiçbir nesneyi SEÇMEZ', (await selKey()) === null, String(await selKey()));
   const chip = await ev(() => { const el = document.getElementById('stSnap'); return el && !el.hidden ? el.textContent.trim() : ''; });
-  ok('4e yakalama çipi gezinmede de yazar', chip.length > 0, chip);
+  ok('4e boşta yakalama çipi de yazmaz', chip.length === 0, chip);
+  // nokta isteminde (Çizgi aracı) aynı gezinme uç noktaya YAKALANIR ve çip yazar
+  await ev(() => window.dwgApp.editor.act('t:line')); await page.waitForTimeout(120);
+  await sendPen('pointermove', { id: 8, pt: 'pen', x: p.x + 6, y: p.y + 5, buttons: 0, pressure: 0 });
+  await page.waitForTimeout(160);
+  const st2 = await penState();
+  ok('4e2 nokta isteminde gezinme uç noktaya YAKALANIR (1400;1000)', st2.hover && Math.abs(st2.hover[0] - 1400) < 1e-6 && Math.abs(st2.hover[1] - 1000) < 1e-6, JSON.stringify(st2.hover));
+  const chip2 = await ev(() => { const el = document.getElementById('stSnap'); return el && !el.hidden ? el.textContent.trim() : ''; });
+  ok('4e3 nokta isteminde yakalama çipi yazar', chip2.length > 0, chip2);
+  await ev(() => window.dwgApp.editor.tools.cancel()); await page.waitForTimeout(100);
   await shot('kalem_hover');
   await sendPen('pointerout', { id: 8, pt: 'pen', x: p.x, y: p.y, buttons: 0 });
   await page.waitForTimeout(80);
