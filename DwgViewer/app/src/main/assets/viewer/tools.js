@@ -99,6 +99,14 @@ const SELECT_TOOLS = new Set(['move', 'copy', 'rotate', 'scale', 'mirror', 'del'
  * istem anahtarı. Buda / uzatta Ölçü kipi AutoCAD LENGTHEN DElta'sıdır (yazılan boy kadar kısalt / uzat).
  */
 const MODE_TOOLS = { offset: 'typeDist', fillet: 'filletRadius', chamfer: 'chamferDist', trim: 'trimLen', extend: 'extendLen' };
+/*
+ * DOĞRUDAN UZAKLIK GİRİŞİ (AutoCAD direct distance entry) — Çizgi ve Polyline'da bir taban nokta varken kutuya
+ * yazılan tek sayı bir UZUNLUKTUR: sonraki dokunuş yalnız YÖNÜ verir, nokta tabandan o yönde o kadar ileride
+ * alınır. Kutudaki sayı dokunma anında okunur (Enter gerekmez); Enter'la da bekletilir ve istem yönü ister.
+ * Ortho / kutupsal yönü kısıtlar. Virgüllü sayı ("500,360") nokta isteminde koordinattır, uzunluk değil.
+ */
+const DIRECT_DIST_TOOLS = new Set(['line', 'pline']);
+const LEN_RE = /^[-+]?\d+(\.\d+)?$/;
 /** Sayı girişi bekleyen araçlar ve hangi adımda beklediği — TEK kaynak (say / typed / tap buraya bakar) */
 const NUMBER_STEP = { circle: 1, rotate: 2, scale: 2, setz: 1, thick: 1, textsize: 1 };
 /** Nokta değil NESNE (ya da kapalı alan) seçilerek çalışan araçlar */
@@ -177,6 +185,7 @@ export class ToolManager {
     this.cancel(true);
     this.active = name; this.pts = []; this.step = 0; this.draft = null; this.results = []; this.balloonNext = null;
     this.cut = null; this.c1 = null; this.corner = null; this.selMode = 'tap'; this.mode = null; this.val = null;
+    this.pendLen = null;      // doğrudan uzaklık: Enter'la bekletilen uzunluk (Çizgi / Polyline)
     this.mirrorKeep = true;   // AutoCAD MIRROR "Erase source objects? <N>": her başlangıçta orijinal kalır; komut çubuğundaki düğme değiştirir
     this.mirrorAxis = null;   // 'x' | 'y': ayna çizgisi eksene paralel, tek noktayla (AutoCAD'de ikinci noktada ORTHO'nun karşılığı)
     if (SELECT_TOOLS.has(name)) {
@@ -188,7 +197,7 @@ export class ToolManager {
   }
   cancel(silent) {
     if (this.active && this.active !== 'select' && this.pts.length && ['pline', 'pline3d', 'face3d', 'area', 'cloud'].includes(this.active)) this.finish();
-    this.active = null; this.pts = []; this.step = 0; this.draft = null; this.selecting = false; this.cut = null; this.c1 = null; this.corner = null; this.selMode = 'tap'; this.mode = null; this.val = null;
+    this.active = null; this.pts = []; this.step = 0; this.draft = null; this.selecting = false; this.cut = null; this.c1 = null; this.corner = null; this.selMode = 'tap'; this.mode = null; this.val = null; this.pendLen = null;
     if (!silent) { this.api.prompt(null); this.api.overlay(); }
   }
   say() {
@@ -214,6 +223,7 @@ export class ToolManager {
     if (this.selecting) text += (this.selMode === 'box' ? t('selBoxHint') : this.selMode === 'lasso' ? t('selLassoHint') : toolStep(this.active, 0)) + `  [${this.api.sel.size} ${t('selCount')}]`;
     else if (this.active === 'mirror' && this.mirrorAxis && !this.pts.length) text += t(this.mirrorAxis === 'x' ? 'mirrorAxisX' : 'mirrorAxisY');   // eksen seçildi: tek nokta yeter
     else text += toolStep(this.active, Math.min(this.step, def.steps.length - 1));
+    if (this.pendLen > 0 && DIRECT_DIST_TOOLS.has(this.active) && this.pts.length) text += ' \u00b7 ' + t('dirTapHint').replace('%s', this.api.fmt(this.pendLen));
     const wantsNumber = NUMBER_STEP[this.active] != null && this.step === NUMBER_STEP[this.active] && !this.selecting;
     const buttons = [];
     if (this.selecting || ['pline', 'pline3d', 'face3d', 'area', 'copy', 'line', 'dist', 'leader', 'cloud'].includes(this.active)) buttons.push('finish');
@@ -228,7 +238,8 @@ export class ToolManager {
     // Yalnız sayı kabul eden adımlar (kot, kalınlık, yazı yüksekliği): giriş alanı odaklanır, klavye kendiliğinden açılır.
     // Döndür / ölçekle / daire yarıçapı nokta da kabul eder: orada klavye çizimi örtmesin diye odaklanmaz.
     const focus = wantsNumber && ['setz', 'thick', 'textsize'].includes(this.active);
-    this.api.prompt(text, { input: wantsNumber ? 'number' : (this.selecting ? null : 'point'), buttons, focus });
+    // keepLen: Çizgi / Polyline'da kutuda duran tek sayı bir uzunluktur; istem tazelenince (ilk noktadan sonra) silinmesin
+    this.api.prompt(text, { input: wantsNumber ? 'number' : (this.selecting ? null : 'point'), buttons, focus, keepLen: DIRECT_DIST_TOOLS.has(this.active) });
   }
 
   // ---- giriş -----------------------------------------------------------------------
@@ -261,10 +272,40 @@ export class ToolManager {
       this.onNumber(v);
       return;
     }
+    if (DIRECT_DIST_TOOLS.has(this.active) && this.pts.length && LEN_RE.test(s)) {
+      const v = parseFloat(s);
+      if (!(v > 0)) { this.api.toast(t('numberExpected')); return; }
+      this.pendLen = v; this.say(); this.api.overlay();
+      return;
+    }
     const p = this.parsePoint(s);
     if (!p) { this.api.toast(t('coordFormat')); return; }
     void this.point(p, null);
   }
+  /** Bekleyen uzunluk: Enter'la bekletilen ya da kutuda o an yazılı duran tek sayı (> 0), yoksa 0 */
+  directLen() {
+    if (this.pendLen > 0) return this.pendLen;
+    const s = this.api.input ? String(this.api.input() || '').trim() : '';
+    if (!LEN_RE.test(s)) return 0;
+    const v = parseFloat(s);
+    return v > 0 ? v : 0;
+  }
+  /**
+   * Doğrudan uzaklık noktası: taban (son nokta) + uzunluk × dokunuş yönü. Yön önce ortho / kutupsal kısıtından
+   * geçer; dokunuş bir noktaya yakalandıysa yön o noktaya doğrudur. Uzunluk yoksa, taban yoksa ya da dokunuş
+   * tabanın üstündeyse null: dokunuş olağan nokta olarak işlenir.
+   */
+  directPoint(p, sn) {
+    if (!DIRECT_DIST_TOOLS.has(this.active) || !this.pts.length) return null;
+    const L = this.directLen(); if (!(L > 0)) return null;
+    const base = this.pts[this.pts.length - 1];
+    const q = this.kisitla(p, sn);
+    const dx = q[0] - base[0], dy = q[1] - base[1], d = Math.hypot(dx, dy);
+    if (!(d > 1e-9)) return null;
+    return [base[0] + dx / d * L, base[1] + dy / d * L, base[2] || 0];
+  }
+  /** Gezinen imleç / parmakla nişan önizlemesi: bekleyen uzunluk varsa hedef nokta, yoksa kısıtlı nokta */
+  previewPoint(w) { return this.directPoint([w[0], w[1], 0], null) || this.kisitla([w[0], w[1], 0], null); }
   parsePoint(s) {
     const rel = s.startsWith('@');
     const body = rel ? s.slice(1) : s;
@@ -309,6 +350,9 @@ export class ToolManager {
     const sn = this.api.snap(w, { prev: this.pts.length ? this.pts[this.pts.length - 1] : (this.last || null) });
     if (sn && sn.pending) { this.api.overlay(); return true; }
     const p = sn ? [sn.p[0], sn.p[1], sn.p[2] != null ? sn.p[2] : 0] : [w[0], w[1], 0];
+    // Doğrudan uzaklık: kutuda (ya da Enter'la bekletilmiş) bir uzunluk varsa dokunuş yalnız yönü verir
+    const dp = this.directPoint(p, sn);
+    if (dp) { this.pendLen = null; if (this.api.clearInput) this.api.clearInput(); void this.point(dp, null); return true; }
     if (NUMBER_STEP[this.active] === this.step) {
       const need = { scale: 'typeFactor', setz: 'typeZ', thick: 'typeHeight', textsize: 'typeHeight' }[this.active];
       if (need) { this.api.toast(t(need)); return true; }
@@ -1113,6 +1157,7 @@ export class ToolManager {
   }
   /** Bitir düğmesi */
   finish() {
+    this.pendLen = null;   // bekleyen uzunluk parçayla birlikte biter
     const A = this.api;
     if (MODE_TOOLS[this.active]) { if (!this.enterEmpty()) this.say(); return; }   // Bitir / Enter: son değeri alır; kesici ve ilk doğru önizlemesi silinmez
     if (this.selecting) {

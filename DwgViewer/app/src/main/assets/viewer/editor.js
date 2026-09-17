@@ -172,6 +172,9 @@ export function initEditor(a) {
     unitToM: () => S.unitToM,
     // Açı kısıtları (ortho / kutupsal). Araç kendi kısıtını hesaplamaz, durumu buradan okur.
     desk: () => S.desk,
+    // Komut satırı kutusu: doğrudan uzaklık girişi dokunma anında kutudaki sayıyı okur, kullanınca siler
+    input: () => { const i = $('cmdInput'); return i && !i.hidden ? i.value : ''; },
+    clearInput: () => { const i = $('cmdInput'); if (i) i.value = ''; },
     fmt,
     copy: (t) => api.copyText(t),
     lonLat: (x, y) => S.geo.active ? S.geo.toLonLat(x, y) : null,
@@ -725,7 +728,9 @@ function showPrompt(text, opts = {}) {
   { const en = $('cmdEnter'); if (en) en.hidden = !opts.input; }   // giriş yokken Enter da yok: seçim kipinde işlevsizdi, yer kaplıyordu
   syncOrthoBtn(opts.input === 'point');                             // Ortho yalnız NOKTA istenirken: sayı ve seçim istemlerinde anlamsız
   inp.placeholder = opts.input === 'number' ? t('numberPh') : t('coordPh');
-  inp.type = 'text'; inp.value = '';
+  inp.type = 'text';
+  // Kutudaki tek sayı doğrudan uzaklık girişidir (Çizgi / Polyline): istem tazelenince silinmez, dokunuşta kullanılır
+  if (!(opts.keepLen && /^[-+]?\d+(\.\d+)?$/.test(inp.value))) inp.value = '';
   $('cmdBtns').innerHTML = (opts.buttons || []).map(k => cmdBtnHtml('data-cmd', k, t(BTN[k][0]))).join('');
   // Yalnız değer istenen istemde alan odaklanır: kullanıcı kutuya ayrıca dokunmak zorunda kalmaz, klavye
   // (kalemde el yazısı paneli) kendiliğinden gelir. Nokta istemlerinde odaklanmaz — klavye çizimi örterdi.
@@ -1173,7 +1178,7 @@ ed.gizmoDown = (sx, sy, o = {}) => {
   if (!gate(Gz.needOf(kind))) return true;   // yetki yoksa jest yine yutulur: kutu açıldı
   if (String(kind).startsWith('v:')) {
     const vi = +kind.slice(2);
-    giz = { kind, vi, prim: G.p, ops0: G.p.ops.map(o => o.slice()), w0: toWorld(sx, sy), p: null, m: null, info: null };
+    giz = { kind, vi, prim: G.p, ops0: G.p.ops.map(o => o.slice()), w0: toWorld(sx, sy), p: null, m: null, info: null, sn: null };
     haptic('snap');
     return true;
   }
@@ -1191,8 +1196,14 @@ ed.gizmoMove = (sx, sy) => {
   if (!giz) return false;
   if (giz.vi != null) {
     // Bırakma noktası yakalamaya oturur: düğüm bir başka çizginin ucuna TAM denk gelsin diye.
-    const w = toWorld(sx, sy), sn = api.snapPeek ? api.snapPeek(w, { grip: true }) : api.snap(w), q = sn ? sn.p : w;   // tutamak sürüklemesi NOKTA işidir: yakalama orada çalışır
-    giz.p = [q[0], q[1]];
+    // Tutamak sürüklemesi NOKTA işidir: yakalama orada çalışır (uç / orta / merkez / kesişim…), açıklık 1,5 kat.
+    // Sürüklenen köşenin KENDİ eski yeri yakalanmaz (elde tutulan düğüm oraya geri yapışırdı); nesnenin öteki
+    // köşeleri yine hedef olur. Sürükleme boyunca işaret çizilir (overlay): nereye oturacağı görülür.
+    const w = toWorld(sx, sy), o0 = giz.ops0[giz.vi];
+    let sn = api.snapPeek ? api.snapPeek(w, { grip: true }) : null;
+    if (sn && Math.hypot(sn.p[0] - o0[1], sn.p[1] - o0[2]) < 1e-9) sn = api.snapPeek(w, { grip: true, skip: giz.prim });
+    const q = sn ? sn.p : w;
+    giz.p = [q[0], q[1]]; giz.sn = sn || null;
     giz.info = { tip: 'vertex', dx: q[0] - giz.ops0[giz.vi][1], dy: q[1] - giz.ops0[giz.vi][2] };
     api.drawOverlay();
     return true;
@@ -1263,6 +1274,15 @@ export function overlay(c) {
       Gz.draw(c, L, { line: acc, fill: bgColor(), ink: acc }, { fs: ui.fontScale });
       const G = gizmoVertLayout();
       if (G) Gz.drawVerts(c, G.VL, { line: acc, fill: bgColor(), ink: acc }, { fs: ui.fontScale, active: giz && giz.vi != null ? giz.vi : -1 });
+      // Köşe sürüklenirken yakalama işareti (dokunuş işaretiyle aynı glif ve renk): neye oturacağı görülsün
+      if (giz && giz.vi != null && giz.sn && api.osnap) {
+        const s = toScreen(giz.sn.p[0], giz.sn.p[1]);
+        c.save(); c.strokeStyle = '#3ddc84'; c.fillStyle = '#3ddc84'; c.lineWidth = 2; c.setLineDash([]);
+        api.osnap.drawMarker(c, s[0], s[1], giz.sn.kind, 8);
+        c.font = 'bold 10px sans-serif'; c.textBaseline = 'bottom'; c.textAlign = 'left';
+        c.fillText(api.osnap.abbrOf(giz.sn.kind), s[0] + 11, s[1] - 10);
+        c.restore();
+      }
       const txt = gizmoText();
       if (txt) {
         c.font = `bold ${Math.round(12 * ui.fontScale)}px sans-serif`; c.textAlign = 'center'; c.textBaseline = 'bottom';
@@ -1855,7 +1875,7 @@ ed.gripTap = (hit) => {
 /** Sınama: seçili tek yolun tutamak sayısı (kip kapalıysa ya da yol yoksa 0) ve ekran konumları */
 ed.gripInfo = () => { const G = gizmoVertLayout(); return G ? { n: G.vs.length, pts: G.VL.pts.map(q => q.slice(0, 2)), r: G.VL.r, hitR: G.VL.hitR } : { n: 0, pts: [] }; };
 /** Sınama: seçim kutusu tutamaklarının ekran konumları (taşı / döndür) ve isabet yarıçapı; kutu yoksa null */
-ed.gizmoInfo = () => { const L = gizmoLayout(); return L ? { move: L.pts.move.slice(0, 2), rot: L.pts.rot.slice(0, 2), hitR: L.hitR, grip: L.grip, busy: ed.gizmoBusy() } : null; };
+ed.gizmoInfo = () => { const L = gizmoLayout(); return L ? { move: L.pts.move.slice(0, 2), rot: L.pts.rot.slice(0, 2), hitR: L.hitR, grip: L.grip, busy: ed.gizmoBusy(), sn: giz && giz.sn ? giz.sn.kind : null, p: giz && giz.p ? giz.p.slice() : null } : null; };
 ed.setCurLayer = (name) => { if (!name || !S.layers.has(name)) return false; ed.curLayer = name; updateLayerButton(); return true; };
 ed.openTab = (id) => { if ($('toolbar').classList.contains('collapsed')) collapse(false); setTab(id); };
 ed.collapse = (on) => collapse(!!on);
@@ -2067,5 +2087,5 @@ function syncOrthoBtn(show) {
 }
 ed.syncOrthoBtn = () => syncOrthoBtn();
 /** Gezinen imleç / parmakla nişan önizlemesi: nokta isteminde ortho / kutupsal kısıtı uygulanmış nokta (kısıt yoksa aynı nokta) */
-ed.constrainPoint = (w) => (tools && tools.running && !tools.selecting && !tools.pickingObject() && typeof tools.kisitla === 'function') ? tools.kisitla(w, null) : w;
+ed.constrainPoint = (w) => (tools && tools.running && !tools.selecting && !tools.pickingObject() && typeof tools.previewPoint === 'function') ? tools.previewPoint(w) : w;
 export const editor = ed;

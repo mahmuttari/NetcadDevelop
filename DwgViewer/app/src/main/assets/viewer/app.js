@@ -1063,12 +1063,15 @@ function findSnap(w, o = {}) {
   // yalnızca ekranda dolaşıyor — kalemli cihazda her uç ve orta noktada beliren glifler rahatsız ediyordu.
   if (o.hover && !o.grip && !pointPrompt()) return null;
   const opt = Osnap.opt();
-  const tol = (opt.aperture > 0 ? opt.aperture : TOL.snap) / S.view.scale;
+  // Tutamak sürüklemesinde açıklık 1,5 kat: parmak hedefi örter, kalem ucu ise hızlı gider; köşeyi başka nesnenin
+  // ucuna / ortasına oturtmak ince nişan istememeli.
+  const tol = (opt.aperture > 0 ? opt.aperture : TOL.snap) * (o.grip ? 1.5 : 1) / S.view.scale;
   const modes = o.once ? new Set([o.once]) : S.snapModes;
   if (!modes.size && !opt.otrack) return null;
   const prev = o.prev || (S.mode === 'measure' || S.mode === 'profile' ? (S.measure.length ? S.measure[S.measure.length - 1] : null) : null);
   let cands = candidates(w, tol);
   if (opt.ignoreHatch) cands = cands.filter(p => !(p.info && p.info.t === 'HATCH'));
+  if (o.skip) cands = cands.filter(p => p !== o.skip);   // sürüklenen nesnenin kendisi (kendi eski köşesine yapışmasın)
   let sn = null;
   if (modes.size) {
     const wide = modes.has('par') && prev ? candidates(w, tol * 40).filter(p => p.k === 0).slice(0, 300) : null;

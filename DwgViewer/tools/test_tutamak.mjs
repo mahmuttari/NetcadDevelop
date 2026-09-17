@@ -116,6 +116,44 @@ await zoom([0, 0, 800, 600]);
   ok('3d karo ipucu yeni davranışı söyler (TR / EN)', /dokunulan nesne seçilir/.test(ip.tr) && /tapping selects/.test(ip.en), J(ip));
 }
 
+// ---------------------------------------------------------------------------------
+// 4 · Köşe tutamağı sürüklenirken başka nesnenin yakalama noktalarına oturur (v7.65); işaret çizilir;
+//     köşenin kendi eski yeri yakalanmaz; yakalama kapalıyken ham bırakış
+// ---------------------------------------------------------------------------------
+{
+  await ev(() => window.dwgApp.osnap.setModes(['end', 'mid']));
+  await act('grips');
+  await tapWorld(300, 200);                                    // tu_0 seçilir, 4 tutamak
+  const d = await durum();
+  ok('4a hazırlık: tu_0 seçili, 4 tutamak, yakalama uç + orta', d.sel === 1 && d.grip.n === 4, J(d.grip));
+  // 3. köşe (400,400) → tu_1 doğrusunun ucu (600,150): parmak uca 10 px kala bırakılır
+  const g = d.grip.pts[2], uc = await scr(600, 150), hedef = [uc[0] - 7, uc[1] + 7];
+  await ev(([a, b]) => { const vp = document.getElementById('viewport'), r = vp.getBoundingClientRect(); const mk = (t, p) => new PointerEvent(t, { pointerId: 5, pointerType: 'touch', isPrimary: true, bubbles: true, cancelable: true, clientX: r.left + p[0], clientY: r.top + p[1], button: t === 'pointerdown' ? 0 : -1, buttons: 1 }); vp.dispatchEvent(mk('pointerdown', a)); vp.dispatchEvent(mk('pointermove', [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2])); vp.dispatchEvent(mk('pointermove', b)); }, [g, hedef]);
+  await bekle(150);
+  const orta = await ev(() => window.dwgApp.editor.gizmoInfo());
+  await page.screenshot({ path: `${out}/tutamak_yakalama.png` });
+  ok('4b sürükleme sırasında uç yakalandı (END), sürüklenen köşe uca oturdu, işaret için durum dolu', !!orta && orta.sn === 'end' && orta.p && yak(orta.p[0], 600, 1e-6) && yak(orta.p[1], 150, 1e-6), J(orta));
+  await ev((b) => { const vp = document.getElementById('viewport'), r = vp.getBoundingClientRect(); vp.dispatchEvent(new PointerEvent('pointerup', { pointerId: 5, pointerType: 'touch', isPrimary: true, bubbles: true, cancelable: true, clientX: r.left + b[0], clientY: r.top + b[1], button: -1, buttons: 0 })); }, hedef);
+  await bekle(300);
+  const p = await primOf('tu_0');
+  ok('4c bırakınca köşe TAM (600,150): başka nesnenin ucuna oturdu', p.ops[2][1] === 600 && p.ops[2][2] === 150, J(p.ops));
+  await ev(() => { window.dwgApp.editor.doc.undo(); window.dwgApp.requestRender(); }); await bekle(150);
+  // 2. köşe (400,200) kendi eski yerinin 9 px yanına: kendi eski köşesine yapışmaz
+  const d2 = await durum(), g2 = d2.grip.pts[1], yakin = [g2[0] + 9, g2[1] - 6];
+  await surukle([[g2[0], g2[1]], [g2[0] + 4, g2[1] - 3], yakin]);
+  const p2 = await primOf('tu_0'), w2 = await ev((q) => window.dwgApp.toWorld(q[0], q[1]), yakin);
+  ok('4d köşe kendi eski yerine geri yapışmaz: (400,200)\'den ayrıldı, parmağın bıraktığı yere gitti', !(yak(p2.ops[1][1], 400, 1e-6) && yak(p2.ops[1][2], 200, 1e-6)) && yak(p2.ops[1][1], w2[0], 1e-3) && yak(p2.ops[1][2], w2[1], 1e-3), J({ ops: p2.ops, w2 }));
+  await ev(() => { window.dwgApp.editor.doc.undo(); window.dwgApp.requestRender(); }); await bekle(150);
+  // yakalama kapalı: ham bırakış
+  await ev(() => window.dwgApp.osnap.setModes([]));
+  const d3 = await durum(), g3 = d3.grip.pts[2];
+  await surukle([[g3[0], g3[1]], [(g3[0] + hedef[0]) / 2, (g3[1] + hedef[1]) / 2], hedef]);
+  const p3 = await primOf('tu_0'), w3 = await ev((q) => window.dwgApp.toWorld(q[0], q[1]), hedef);
+  ok('4e yakalama kapalıyken köşe parmağın bıraktığı ham noktaya gider (uca oturmaz)', yak(p3.ops[2][1], w3[0], 1e-3) && yak(p3.ops[2][2], w3[1], 1e-3) && !(p3.ops[2][1] === 600 && p3.ops[2][2] === 150), J({ ops: p3.ops, w3 }));
+  await ev(() => { window.dwgApp.editor.doc.undo(); window.dwgApp.requestRender(); });
+  await act('grips');
+}
+
 await page.screenshot({ path: `${out}/tutamak.png` });
 C.summary(errors);
 await browser.close(); try { srv.close && srv.close(); } catch (_) { /* geç */ }

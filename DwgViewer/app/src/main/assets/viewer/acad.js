@@ -53,8 +53,8 @@ export const COMMANDS = [
   // ÇALIŞAN AUTOCAD KOMUTLARI
   // =============================================================================================
   // --- çizim
-  T('LINE', 't:line', ['L'], 'Line'),
-  T('PLINE', 't:pline', ['PL'], 'Polyline'),
+  T('LINE', 't:line', ['L'], 'Line', { note: 'Direct distance entry: type a length in the box, then tap the direction (or press Enter first; the prompt then asks for the direction). Ortho / polar constrain the direction.' }),
+  T('PLINE', 't:pline', ['PL'], 'Polyline', { note: 'Direct distance entry: type a length in the box, then tap the direction (or press Enter first; the prompt then asks for the direction). Ortho / polar constrain the direction.' }),
   T('RECTANG', 't:rect', ['REC', 'RECTANGLE'], 'Rectangle'),
   T('CIRCLE', 't:circle', ['C'], 'Circle'),
   T('ARC', 't:arc3', ['A'], 'Arc', { note: 'three points' }),

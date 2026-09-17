@@ -145,6 +145,8 @@ Bu yedisi v7.28 ile kapandı; **birinci öbekte açık madde kalmadı**. Ayrınt
 | Köşe tutamakları: kip açıkken boşta dokunuş nesneyi seçer ve tutamakları çıkarır (düzeltme, v7.61) | Düzenle ▸ Köşe tutamakları | premium (grips) |
 | Kalemli cihaz: boşta gezinirken yakalama yok, değer isteminde kendiliğinden odak, düşürülen parmağın tutamak jesti kapanır, kalem kipinde parmak tutamağı sürükler (v7.62) | kalem / dokunma | ücretsiz (doğru çalışma) |
 | Tutamaklar %75 boyuta indi; dokunma yarıçapı aynı (v7.64) | seçim kutusu, köşe tutamakları | var olan yeteneklerin kademesi |
+| Doğrudan uzaklık girişi: Çizgi / Polyline'da kutudaki sayı kadar dokunulan yönde ilerleme (AutoCAD direct distance entry) (v7.65) | Çiz ▸ Çizgi, Polyline | var olan araçların kademesi |
+| Köşe tutamağı sürüklenirken başka nesnelerin yakalama noktalarına oturur; sürüklemede işaret; kendi eski yerine yapışmaz (v7.65) | Düzenle ▸ Köşe tutamakları | premium (grips) |
 | Ölçümü çizime işaretleme | Açıklama ▸ Ölçümü işle | premium |
 | Revizyon bulutu | Açıklama ▸ Revizyon bulutu | premium |
 | Numaralandırma (balon, artan) | Açıklama ▸ Numaralandır | premium |
