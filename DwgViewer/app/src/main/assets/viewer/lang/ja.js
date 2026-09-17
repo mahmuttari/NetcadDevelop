@@ -522,7 +522,7 @@ export default {
   tool_extend: '延長', tstep_extend_0: '境界をタップ', tstep_extend_1: '延長する端点をタップ (繰り返し)', tstep_extend_v0: '延長する端をタップ（繰り返し）',
   tool_fillet: 'フィレット', tstep_fillet_0: '1 本目の線をタップ', tstep_fillet_1: '2 本目の線をタップ', tstep_fillet_v1: '2 本目の線をタップ', tstep_fillet_v0: '1 本目の線をタップ', tstep_fillet_2: '円弧を通す位置をタップ · または半径を入力',
   tool_chamfer: '面取り', tstep_chamfer_0: '1 本目の線をタップ', tstep_chamfer_1: '2 本目の線をタップ', tstep_chamfer_v1: '2 本目の線をタップ', tstep_chamfer_v0: '1 本目の線をタップ', tstep_chamfer_2: '面取りを通す位置をタップ · または距離を入力',
-  tl_grips: '頂点グリップ', th_grips: '選択したパスの各頂点を個別にドラッグ', 'tl_t:trim': 'トリム',
+  tl_grips: '頂点グリップ', th_grips: 'オンのときタップで選択され、パスの各頂点を個別にドラッグできます', 'tl_t:trim': 'トリム',
   'th_t:trim': '先に画面か数値かを尋ねます：切断エッジ＋部分、または端から入力した長さを切り取り', 'tl_t:extend': '延長', 'th_t:extend': '先に画面か数値かを尋ねます：境界＋端、または端を入力した長さだけ延長',
   'tl_t:fillet': 'フィレット', 'th_t:fillet': '先に画面か数値かを尋ねます：円弧を通す位置または入力した半径、その後 2 本の線', 'tl_t:chamfer': '面取り',
   'th_t:chamfer': '先に画面か数値かを尋ねます：面取りを通す位置または入力した距離、その後 2 本の線',

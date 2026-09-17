@@ -176,7 +176,7 @@ export const COMMANDS = [
   T('OSNAP', 'osnapset', ['OS', 'DDOSNAP'], 'Object snap settings', { noRepeat: true, note: '-OSNAP asks for the mode list on the command line' }),
   T('OTRACK', 'otrack', [], 'Object snap tracking', { ext: true, noRepeat: true, note: 'F11 · aligns with the last snapped point' }),
   T('GRID', 'grid', [], 'Grid', { noRepeat: true }),
-  T('ORTHO', 'ortho', [], 'Ortho', { noRepeat: true }),
+  T('ORTHO', 'ortho', [], 'Ortho', { noRepeat: true, note: 'F8, the Ortho tile on the Display tab, or the Ortho button in the command bar input row whenever a point is requested (phones have no F8).' }),
   T('LINETYPE', 'ltype', ['LT', 'LTYPE'], 'Linetype', { noRepeat: true, note: 'toggles linetype display' }),
   T('LWEIGHT', 'lw', ['LW', 'LINEWEIGHT'], 'Lineweight', { noRepeat: true, note: 'toggles lineweight display' }),
   T('LTSCALE', 'display', ['LTS'], 'Linetype scale', { syn: true, noRepeat: true, note: 'Display options › Lines' }),

@@ -478,8 +478,8 @@ function drawPenHover(c, fg) {
     if (penHover.aim) drawLoupe(c, fg);
     return;
   }
-  const sn = penHover.snap;
-  const s = sn ? toScreen(sn.p[0], sn.p[1]) : [penHover.sx, penHover.sy];
+  const sn = penHover.snap, q = penHover.q;
+  const s = sn ? toScreen(sn.p[0], sn.p[1]) : q ? toScreen(q[0], q[1]) : [penHover.sx, penHover.sy];   // kısıtlı nokta: imleç oraya, parmağa / kaleme değil
   const acc = S.selColor || '#ff9f0a';
   c.save();
   c.setLineDash([3, 3]); c.lineWidth = 1; c.strokeStyle = fg; c.globalAlpha = 0.55;
@@ -497,8 +497,8 @@ function drawPenHover(c, fg) {
   // Koordinat kutusu imlecin yanında; parmakla nişan alırken parmağın altında kalacağından o zaman
   // büyütecin altına yazılır (drawLoupe).
   if (!penHover.aim) {
-    const p = sn ? sn.p : penHover.w;
-    const txt = fmt(p[0]) + ' ; ' + fmt(p[1]) + (sn ? '  ' + String(sn.kind || '').toUpperCase() : '');
+    const p = sn ? sn.p : (q || penHover.w);
+    const txt = fmt(p[0]) + ' ; ' + fmt(p[1]) + (sn ? '  ' + String(sn.kind || '').toUpperCase() : q ? '  ' + (S.desk.polar ? 'POLAR' : 'ORTHO') : '');
     c.font = '11px system-ui, sans-serif'; c.textBaseline = 'bottom'; c.textAlign = 'left';
     const w = c.measureText(txt).width + 10;
     // Kutu imlecin sağına sığmıyorsa soluna geçer; ekran kenarında yazı kırpılmasın.
@@ -536,7 +536,7 @@ function loupeGeom(h) {
 function drawLoupe(c, fg) {
   const h = penHover, fs = uiPrefs().fontScale || 1, acc = S.selColor || '#ff9f0a';
   const Z = 2, { cx, cy, R } = loupeGeom(h);
-  const sn = h.snap, p = sn ? toScreen(sn.p[0], sn.p[1]) : [h.sx, h.sy];
+  const sn = h.snap, p = sn ? toScreen(sn.p[0], sn.p[1]) : h.q ? toScreen(h.q[0], h.q[1]) : [h.sx, h.sy];
   const d = S.dpr, src = R / Z;
   c.save();
   c.beginPath(); c.arc(cx, cy, R, 0, TAU); c.closePath();
@@ -557,7 +557,7 @@ function drawLoupe(c, fg) {
   // etiket büyütecin altında: nokta isteminde koordinat (+ yakalama kipi), nesne isteminde altındaki nesnenin türü ve katmanı
   let txt = '';
   if (pickingObject()) { const hit = pick(h.w, TOL.pick / S.view.scale); if (hit) txt = trType(hit.info ? hit.info.t : hit.et) + ' \u00b7 ' + hit.lay; }
-  else { const q = sn ? sn.p : h.w; txt = fmt(q[0]) + ' ; ' + fmt(q[1]) + (sn ? '  ' + Osnap.abbrOf(sn.kind) : ''); }
+  else { const q = sn ? sn.p : (h.q || h.w); txt = fmt(q[0]) + ' ; ' + fmt(q[1]) + (sn ? '  ' + Osnap.abbrOf(sn.kind) : h.q ? '  ' + (S.desk.polar ? 'POLAR' : 'ORTHO') : ''); }
   if (txt) {
     c.font = `${Math.round(11 * fs)}px system-ui, sans-serif`; c.textBaseline = 'top'; c.textAlign = 'center';
     const w = c.measureText(txt).width + 12, ly = cy + R + 6, th = Math.round(18 * fs);
@@ -863,7 +863,10 @@ function hoverTick() {
     // Yakalama, dokunuştaki ile AYNI yolu kullanır (doSnap değil: o S.lastPoint'i ve titreşimi
     // değiştirir; gezinme belgeye ve duruma hiç dokunmamalıdır).
     penHover.snap = findSnap(w, { prev: edCall('lastToolPoint'), hover: true });
-    S.pen.hover = penHover.snap ? penHover.snap.p.slice(0, 2) : [w[0], w[1]];
+    // Ortho / kutupsal: yakalama yoksa önizleme de dokunuşun düşeceği kısıtlı noktayı gösterir (tools.kisitla ile aynı hesap)
+    penHover.q = null;
+    if (!penHover.snap) { const q = edCall('constrainPoint', w); if (q && (q[0] !== w[0] || q[1] !== w[1])) penHover.q = [q[0], q[1]]; }
+    S.pen.hover = penHover.snap ? penHover.snap.p.slice(0, 2) : penHover.q ? penHover.q.slice() : [w[0], w[1]];
     showSnapChip(penHover.snap ? penHover.snap.kind : null);
     updateStatus(penHover.sx, penHover.sy);
     drawOverlay();
@@ -1147,6 +1150,9 @@ async function onTap(sx, sy) {
     return;
   }
   const hit = pick(w, TOL.pick / S.view.scale);
+  // Köşe tutamakları açıkken boşta dokunuş nesneyi SEÇER (AutoCAD'in Command: istemindeki tıklama): tutamaklar
+  // seçili nesnede çıkar, bilgi paneli açılmaz. Kip kapalıyken eski yol: vurgu + (ayara göre) bilgi paneli.
+  if (edCall('gripTap', hit)) { S.selected = null; hide('infoPanel'); drawOverlay(); return; }
   S.selected = hit;
   drawOverlay();
   // Panelin dokunuşta açılması isteğe bağlıdır (Ayarlar › "Dokununca bilgi panelini aç").

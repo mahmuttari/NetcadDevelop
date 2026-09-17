@@ -102,7 +102,7 @@ const TABS = [
     { cap: 'grpCur', items: [T('layer', 'i-layers', 'Katman', 'Layer'), T('color', 'i-palette', 'Renk', 'Color')] },
     { cap: 'grpHist', items: [T('undo', 'i-undo', 'Geri al', 'Undo'), T('redo', 'i-redo', 'Yinele', 'Redo')] } ] },
   { id: 'edit', i18n: 'tabEdit', icon: 'i-select', groups: [
-    { cap: 'grpSel', items: [T('t:select', 'i-select', 'Seç', 'Select', 'Dokunarak seçim; Tümü düğmesiyle hepsi', 'Tap to select'), T('props', 'i-props', 'Özellikler', 'Properties', 'Seçimin katmanı ve rengi', 'Layer and color of the selection'), T('grips', 'i-grips', 'Köşe tutamakları', 'Vertex grips', 'Seçili yolun her köşesini ayrı ayrı sürükleyin', 'Drag each vertex of the selected path')] },
+    { cap: 'grpSel', items: [T('t:select', 'i-select', 'Seç', 'Select', 'Dokunarak seçim; Tümü düğmesiyle hepsi', 'Tap to select'), T('props', 'i-props', 'Özellikler', 'Properties', 'Seçimin katmanı ve rengi', 'Layer and color of the selection'), T('grips', 'i-grips', 'Köşe tutamakları', 'Vertex grips', 'Açıkken dokunulan nesne seçilir; yolun her köşesi ayrı ayrı sürüklenir', 'When on, tapping selects the object; drag each vertex of the path')] },
     { cap: 'grpXform', items: [T('t:move', 'i-move', 'Taşı', 'Move'), T('t:copy', 'i-copyobj', 'Kopyala', 'Copy'), T('t:rotate', 'i-rotate', 'Döndür', 'Rotate'), T('t:scale', 'i-scale', 'Ölçekle', 'Scale'), T('t:mirror', 'i-mirror', 'Aynala', 'Mirror'), T('t:offset', 'i-offset', 'Ofset', 'Offset', 'Önce Ekran mı Ölçü mü: geçiş noktası ya da yazılan mesafe, sonra nesne', 'Asks Screen or Measure first: through point or typed distance, then the object')] },
     { cap: 'grpModify', items: [T('t:del', 'i-erase', 'Sil', 'Delete'), T('t:setz', 'i-z', 'Kot ata', 'Set Z', 'Seçime Z kotu atar', 'Assign elevation'), T('t:edittext', 'i-edittext', 'Yazı düzenle', 'Edit text'), T('t:array', 'i-array', 'Dizi', 'Array', 'Dikdörtgen ya da kutupsal artımlı kopya', 'Rectangular or polar incremental copy'), T('t:thick', 'i-thick', 'Kalınlık', 'Thickness', '2B nesneye yükseklik vererek 3B gövde üretir', 'Extrude 2D objects into 3D bodies'), T('t:explode', 'i-explode', 'Patlat', 'Explode', 'Blok yerleştirmesini parçalarına ayırır', 'Break a block insertion into its parts'), T('t:textsize', 'i-textsize', 'Yazı yüksekliği', 'Text height', 'Seçili yazıların yüksekliğini değiştirir', 'Change the height of selected texts'), T('t:attr', 'i-attr', 'Öznitelik', 'Attributes', 'Blok özniteliklerini düzenler', 'Edit block attributes'), T('findrep', 'i-findrep', 'Bul-değiştir', 'Find & replace', 'Çizimdeki yazılarda toplu değiştirme', 'Bulk replace across drawing texts'), T('t:trim', 'i-trim', 'Buda', 'Trim', 'Önce Ekran mı Ölçü mü: kesici kenar + parça, ya da yazılan boy kadar kısalt', 'Asks Screen or Measure first: cutting edge + piece, or cut a typed length off the end'), T('t:extend', 'i-extend', 'Uzat', 'Extend', 'Önce Ekran mı Ölçü mü: sınır + uç, ya da yazılan boy kadar uzat', 'Asks Screen or Measure first: boundary + end, or add a typed length to the end'), T('t:fillet', 'i-fillet', 'Kavis', 'Fillet', 'Önce Ekran mı Ölçü mü: yayın geçeceği nokta ya da yazılan yarıçap, sonra iki doğru', 'Asks Screen or Measure first: where the arc passes or a typed radius, then two lines'), T('t:chamfer', 'i-chamfer', 'Pah', 'Chamfer', 'Önce Ekran mı Ölçü mü: pahın geçeceği nokta ya da yazılan mesafe, sonra iki doğru', 'Asks Screen or Measure first: where the chamfer passes or a typed distance, then two lines')] },
     { cap: 'grpBlock', items: [T('blocklib', 'i-block', 'Blok kütüphanesi', 'Block library', 'Seçimden blok oluştur, kaydet, çizime ekle', 'Create, save and insert blocks'), T('copyclip', 'i-copy', 'Panoya kopyala', 'Copy to clipboard', 'Seçimi panoya alır; başka çizimde yapıştırılır', 'Copy the selection for pasting into another drawing'), T('pasteclip', 'i-paste', 'Panodan yapıştır', 'Paste', 'Panodaki nesneleri bu çizime ekler', 'Paste clipboard objects into this drawing')] },
@@ -723,6 +723,7 @@ function showPrompt(text, opts = {}) {
   const inp = $('cmdInput');
   inp.hidden = !opts.input;
   { const en = $('cmdEnter'); if (en) en.hidden = !opts.input; }   // giriş yokken Enter da yok: seçim kipinde işlevsizdi, yer kaplıyordu
+  syncOrthoBtn(opts.input === 'point');                             // Ortho yalnız NOKTA istenirken: sayı ve seçim istemlerinde anlamsız
   inp.placeholder = opts.input === 'number' ? t('numberPh') : t('coordPh');
   inp.type = 'text'; inp.value = '';
   $('cmdBtns').innerHTML = (opts.buttons || []).map(k => cmdBtnHtml('data-cmd', k, t(BTN[k][0]))).join('');
@@ -752,6 +753,7 @@ function idlePrompt() {
   const inp = $('cmdInput');
   inp.hidden = false; inp.type = 'text'; inp.value = ''; inp.placeholder = t('cmdPh');
   { const en = $('cmdEnter'); if (en) en.hidden = false; }
+  syncOrthoBtn(false);
   // Komut listesine tek kapı: boştaki çubuğun "?" düğmesi. Menüye gömülseydi komut satırını
   // yeni gören kullanıcı hangi adları yazabileceğini hiç öğrenemezdi.
   $('cmdBtns').innerHTML = `<button type="button" class="icon" data-cmd-help="1" aria-label="${esc(t('cmdHelp'))}" title="${esc(t('cmdHelp'))}"><svg class="ic" aria-hidden="true"><use href="#i-help"/></svg></button>`;
@@ -798,6 +800,7 @@ function runCommand(text) {
   return true;
 }
 function bindCmdBar() {
+  { const ob = $('cmdOrtho'); if (ob && !ob.dataset.bound) { ob.dataset.bound = '1'; ob.addEventListener('click', () => toggleOrtho()); } }   // giriş satırındaki Ortho düğmesi (odak vermez: klavye açılmasın)
   const bar = $('cmdBar'), vp = $('viewport');
   const syncCmd = () => { document.body.classList.toggle('cmd-open', !bar.hidden); if (!bar.hidden && vp) vp.style.setProperty('--cmd-h', bar.offsetHeight + 'px'); };
   new MutationObserver(syncCmd).observe(bar, { attributes: true, attributeFilter: ['hidden'] });
@@ -1830,6 +1833,22 @@ ed.render3D = render3D;
 ed.overlay3D = overlay3D;   // app.drawOverlay 3B'de HUD'u silmek yerine yeniden çizer
 ed.statusMode = statusMode;
 ed.select = (prim) => { ed.sel.clear(); if (prim) ed.sel.add(prim); if (ed.is3D()) { v3.setSelection(ed.sel); render3D(); } else api.drawOverlay(); };
+/*
+ * KÖŞE TUTAMAKLARI AÇIKKEN BOŞTA DOKUNUŞ. Tutamaklar seçili nesnede çıkar; boşta dokunuş ise bilgi
+ * paneline gidiyordu, nesne seçime girmiyordu — kullanıcı karoyu açıp nesneye dokununca hiçbir şey
+ * olmuyordu. AutoCAD'in Command: istemindeki tıklama gibi: dokunulan nesne (grubuyla) SEÇİLİR, seçim
+ * kutusu ve tutamakları çıkar; boş yere dokunmak seçimi bırakır. Bilgi paneli seçim rozetinden ya da
+ * uzun basış menüsünden açılır. true dönerse app.js bilgi yolunu işletmez.
+ */
+ed.gripTap = (hit) => {
+  if (!ui.grips || tools.running || ed.is3D() || S.mode !== 'view' || S.notesOn) return false;
+  ed.sel.clear();
+  if (hit) { for (const q of tools.groupOf(hit)) ed.sel.add(q); haptic('snap'); }
+  api.drawOverlay();
+  return true;
+};
+/** Sınama: seçili tek yolun tutamak sayısı (kip kapalıysa ya da yol yoksa 0) ve ekran konumları */
+ed.gripInfo = () => { const G = gizmoVertLayout(); return G ? { n: G.vs.length, pts: G.VL.pts.map(q => q.slice(0, 2)), r: G.VL.r, hitR: G.VL.hitR } : { n: 0, pts: [] }; };
 ed.setCurLayer = (name) => { if (!name || !S.layers.has(name)) return false; ed.curLayer = name; updateLayerButton(); return true; };
 ed.openTab = (id) => { if ($('toolbar').classList.contains('collapsed')) collapse(false); setTab(id); };
 ed.collapse = (on) => collapse(!!on);
@@ -2017,13 +2036,29 @@ function deskKey(ev) {
 function toggleOrtho() {
   S.desk.ortho = !S.desk.ortho;
   if (S.desk.ortho) S.desk.polar = false;
-  haptic('toggle'); refreshTiles(); api.drawOverlay();
+  haptic('toggle'); refreshTiles(); syncOrthoBtn(); api.drawOverlay();
   api.toast(t(S.desk.ortho ? 'orthoOn' : 'orthoOff'), 1200);
 }
 function togglePolar() {
   S.desk.polar = !S.desk.polar;
   if (S.desk.polar) S.desk.ortho = false;
-  haptic('toggle'); refreshTiles(); api.drawOverlay();
+  haptic('toggle'); refreshTiles(); syncOrthoBtn(); api.drawOverlay();
   api.toast(t(S.desk.polar ? 'polarOn' : 'polarOff') + (S.desk.polar ? ' · ' + S.desk.polarStep + '°' : ''), 1400);
 }
+/*
+ * ORTHO KOMUTLA BİRLİKTE. Telefonda F8 yok, Ekran sekmesindeki karo ise çizim sırasında uzaktadır;
+ * bu yüzden komut çubuğunun koordinat giriş satırında, nokta istenen HER adımda aynı yerde bir
+ * Ortho düğmesi durur. Durum tektir (S.desk.ortho): karo, F8, kutupsal ve bu düğme aynı değeri
+ * okur ve yazar. show verilmezse yalnız açık / kapalı görünümü tazelenir.
+ */
+function syncOrthoBtn(show) {
+  const b = $('cmdOrtho'); if (!b) return;
+  if (show != null) b.hidden = !show;
+  const on = !!(S.desk && S.desk.ortho);
+  b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
+  const lbl = t('tl_ortho') + ' (F8)'; b.title = lbl; b.setAttribute('aria-label', lbl);
+}
+ed.syncOrthoBtn = () => syncOrthoBtn();
+/** Gezinen imleç / parmakla nişan önizlemesi: nokta isteminde ortho / kutupsal kısıtı uygulanmış nokta (kısıt yoksa aynı nokta) */
+ed.constrainPoint = (w) => (tools && tools.running && !tools.selecting && !tools.pickingObject() && typeof tools.kisitla === 'function') ? tools.kisitla(w, null) : w;
 export const editor = ed;

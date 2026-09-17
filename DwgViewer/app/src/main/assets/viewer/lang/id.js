@@ -522,7 +522,7 @@ export default {
   tool_extend: 'Perpanjang', tstep_extend_0: 'Ketuk batas', tstep_extend_1: 'Ketuk ujung yang diperpanjang (berulang)', tstep_extend_v0: 'Ketuk ujung yang dipanjangkan (berulang)',
   tool_fillet: 'Filet', tstep_fillet_0: 'Ketuk garis pertama', tstep_fillet_1: 'Ketuk garis kedua', tstep_fillet_v1: 'Ketuk garis kedua', tstep_fillet_v0: 'Ketuk garis pertama', tstep_fillet_2: 'Ketuk tempat busur harus lewat · atau ketik jari-jari',
   tool_chamfer: 'Champer', tstep_chamfer_0: 'Ketuk garis pertama', tstep_chamfer_1: 'Ketuk garis kedua', tstep_chamfer_v1: 'Ketuk garis kedua', tstep_chamfer_v0: 'Ketuk garis pertama', tstep_chamfer_2: 'Ketuk tempat chamfer harus lewat · atau ketik jarak',
-  tl_grips: 'Gagang titik', th_grips: 'Seret setiap titik jalur terpilih satu per satu', 'tl_t:trim': 'Pangkas',
+  tl_grips: 'Gagang titik', th_grips: 'Saat aktif, ketukan memilih objek; seret tiap simpul jalur satu per satu', 'tl_t:trim': 'Pangkas',
   'th_t:trim': 'Menanyakan Layar atau Ukuran dulu: tepi potong + bagian, atau potong panjang yang diketik dari ujung', 'tl_t:extend': 'Perpanjang', 'th_t:extend': 'Menanyakan Layar atau Ukuran dulu: batas + ujung, atau tambahkan panjang yang diketik ke ujung',
   'tl_t:fillet': 'Filet', 'th_t:fillet': 'Menanyakan Layar atau Ukuran dulu: tempat busur lewat atau jari-jari yang diketik, lalu dua garis', 'tl_t:chamfer': 'Champer',
   'th_t:chamfer': 'Menanyakan Layar atau Ukuran dulu: tempat chamfer lewat atau jarak yang diketik, lalu dua garis',

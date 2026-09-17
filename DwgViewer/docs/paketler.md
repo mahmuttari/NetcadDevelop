@@ -141,6 +141,8 @@ Bu yedisi v7.28 ile kapandı; **birinci öbekte açık madde kalmadı**. Ayrınt
 | Parmakla nişan alma: araç / ölçü çalışırken uzun basıp sürükleme, imleç parmağın altında, 2× büyüteç üstte, bırakınca dokunuş (v7.58) | dokunmatik, araç çalışırken | ücretsiz (dokunma doğruluğu) |
 | Aynala: "Orijinal kalsın" düğmesi — seçimden sonra komut çubuğunda, açık = kopya, kapalı = kaynak silinir; soru kutusu kalktı (v7.59) | Aynala aracı | var olan aracın kademesi |
 | Aynala: X / Y düğmeleri — ayna çizgisi yatay ya da düşey, tek noktayla (AutoCAD'de ikinci noktada ORTHO) (v7.60) | Aynala aracı | var olan aracın kademesi |
+| Ortho komutla birlikte: koordinat giriş satırında Ortho düğmesi (nokta istenen her adımda), kalem / parmak önizlemesi kısıtlı noktayı gösterir (v7.61) | komut çubuğu | ücretsiz (yardımcı) |
+| Köşe tutamakları: kip açıkken boşta dokunuş nesneyi seçer ve tutamakları çıkarır (düzeltme, v7.61) | Düzenle ▸ Köşe tutamakları | premium (grips) |
 | Ölçümü çizime işaretleme | Açıklama ▸ Ölçümü işle | premium |
 | Revizyon bulutu | Açıklama ▸ Revizyon bulutu | premium |
 | Numaralandırma (balon, artan) | Açıklama ▸ Numaralandır | premium |

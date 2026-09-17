@@ -522,7 +522,7 @@ export default {
   tool_extend: '연장', tstep_extend_0: '경계를 누르세요', tstep_extend_1: '연장할 끝점을 누르세요 (반복)', tstep_extend_v0: '늘릴 끝을 탭하세요 (반복)',
   tool_fillet: '모깎기', tstep_fillet_0: '첫 번째 선을 누르세요', tstep_fillet_1: '두 번째 선을 누르세요', tstep_fillet_v1: '두 번째 선을 탭하세요', tstep_fillet_v0: '첫 번째 선을 탭하세요', tstep_fillet_2: '호가 지날 위치를 탭하세요 · 또는 반지름 입력',
   tool_chamfer: '모따기', tstep_chamfer_0: '첫 번째 선을 누르세요', tstep_chamfer_1: '두 번째 선을 누르세요', tstep_chamfer_v1: '두 번째 선을 탭하세요', tstep_chamfer_v0: '첫 번째 선을 탭하세요', tstep_chamfer_2: '모따기가 지날 위치를 탭하세요 · 또는 거리 입력',
-  tl_grips: '정점 그립', th_grips: '선택한 경로의 각 정점을 따로 끌어 보세요', 'tl_t:trim': '자르기',
+  tl_grips: '정점 그립', th_grips: '켜면 탭으로 객체가 선택되고 경로의 각 꼭짓점을 따로 끌 수 있습니다', 'tl_t:trim': '자르기',
   'th_t:trim': '먼저 화면 또는 치수를 묻습니다: 절단 모서리 + 부분, 또는 끝에서 입력한 길이만큼 잘라내기', 'tl_t:extend': '연장', 'th_t:extend': '먼저 화면 또는 치수를 묻습니다: 경계 + 끝, 또는 끝을 입력한 길이만큼 연장',
   'tl_t:fillet': '모깎기', 'th_t:fillet': '먼저 화면 또는 치수를 묻습니다: 호가 지날 위치 또는 입력한 반지름, 그다음 두 선', 'tl_t:chamfer': '모따기',
   'th_t:chamfer': '먼저 화면 또는 치수를 묻습니다: 모따기가 지날 위치 또는 입력한 거리, 그다음 두 선',

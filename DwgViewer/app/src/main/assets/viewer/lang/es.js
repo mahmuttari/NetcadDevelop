@@ -522,7 +522,7 @@ export default {
   tool_extend: 'Alargar', tstep_extend_0: 'Toque el límite', tstep_extend_1: 'Toque el extremo que se va a alargar (se repite)', tstep_extend_v0: 'Toque el extremo a alargar (se repite)',
   tool_fillet: 'Empalme', tstep_fillet_0: 'Toque la primera línea', tstep_fillet_1: 'Toque la segunda línea', tstep_fillet_v1: 'Toque la segunda línea', tstep_fillet_v0: 'Toque la primera línea', tstep_fillet_2: 'Toque por donde debe pasar el arco · o escriba el radio',
   tool_chamfer: 'Chaflán', tstep_chamfer_0: 'Toque la primera línea', tstep_chamfer_1: 'Toque la segunda línea', tstep_chamfer_v1: 'Toque la segunda línea', tstep_chamfer_v0: 'Toque la primera línea', tstep_chamfer_2: 'Toque por donde debe pasar el chaflán · o escriba la distancia',
-  tl_grips: 'Pinzamientos de vértice', th_grips: 'Arrastre cada vértice de la polilínea seleccionada', 'tl_t:trim': 'Recortar',
+  tl_grips: 'Pinzamientos de vértice', th_grips: 'Activado: tocar selecciona el objeto; arrastra cada vértice de la ruta', 'tl_t:trim': 'Recortar',
   'th_t:trim': 'Pregunta primero Pantalla o Medida: arista de corte + trozo, o recortar del extremo una longitud escrita', 'tl_t:extend': 'Alargar', 'th_t:extend': 'Pregunta primero Pantalla o Medida: límite + extremo, o alargar el extremo una longitud escrita',
   'tl_t:fillet': 'Empalme', 'th_t:fillet': 'Pregunta primero Pantalla o Medida: por dónde pasa el arco o radio escrito, luego dos líneas', 'tl_t:chamfer': 'Chaflán',
   'th_t:chamfer': 'Pregunta primero Pantalla o Medida: por dónde pasa el chaflán o distancia escrita, luego dos líneas',

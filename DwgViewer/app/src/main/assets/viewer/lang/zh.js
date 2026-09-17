@@ -323,7 +323,7 @@ export default {
   tool_extend: '延伸', tstep_extend_0: '点击边界', tstep_extend_1: '点击要延伸的端点（可重复）', tstep_extend_v0: '点击要加长的端点（重复）',
   tool_fillet: '圆角', tstep_fillet_0: '点击第一条线', tstep_fillet_1: '点击第二条线', tstep_fillet_v1: '点击第二条线', tstep_fillet_v0: '点击第一条线', tstep_fillet_2: '点击圆弧应经过的位置 · 或输入半径',
   tool_chamfer: '倒角', tstep_chamfer_0: '点击第一条线', tstep_chamfer_1: '点击第二条线', tstep_chamfer_v1: '点击第二条线', tstep_chamfer_v0: '点击第一条线', tstep_chamfer_2: '点击倒角应经过的位置 · 或输入距离',
-  tl_grips: '顶点夹点', th_grips: '逐个拖动所选路径的每个顶点', 'tl_t:trim': '修剪',
+  tl_grips: '顶点夹点', th_grips: '开启时点按即选中对象；可逐个拖动路径的顶点', 'tl_t:trim': '修剪',
   'th_t:trim': '先询问屏幕还是数值：剪切边 + 部分，或从端点截去输入的长度', 'tl_t:extend': '延伸', 'th_t:extend': '先询问屏幕还是数值：边界 + 端点，或将端点加长输入的长度',
   'tl_t:fillet': '圆角', 'th_t:fillet': '先询问屏幕还是数值：圆弧经过的位置或输入的半径，然后两条线', 'tl_t:chamfer': '倒角',
   'th_t:chamfer': '先询问屏幕还是数值：倒角经过的位置或输入的距离，然后两条线',

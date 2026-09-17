@@ -523,7 +523,7 @@ export default {
   tool_extend: 'Prolonger', tstep_extend_0: 'Touchez la limite', tstep_extend_1: 'Touchez l\'extrémité à prolonger (répété)', tstep_extend_v0: 'Touchez l’extrémité à allonger (répète)',
   tool_fillet: 'Raccord', tstep_fillet_0: 'Touchez la première ligne', tstep_fillet_1: 'Touchez la deuxième ligne', tstep_fillet_v1: 'Touchez la deuxième ligne', tstep_fillet_v0: 'Touchez la première ligne', tstep_fillet_2: 'Touchez là où l’arc doit passer · ou saisissez le rayon',
   tool_chamfer: 'Chanfrein', tstep_chamfer_0: 'Touchez la première ligne', tstep_chamfer_1: 'Touchez la deuxième ligne', tstep_chamfer_v1: 'Touchez la deuxième ligne', tstep_chamfer_v0: 'Touchez la première ligne', tstep_chamfer_2: 'Touchez là où le chanfrein doit passer · ou saisissez la distance',
-  tl_grips: 'Poignées de sommet', th_grips: 'Faites glisser chaque sommet du tracé sélectionné', 'tl_t:trim': 'Ajuster',
+  tl_grips: 'Poignées de sommet', th_grips: 'Activé : toucher sélectionne l’objet ; glissez chaque sommet du tracé', 'tl_t:trim': 'Ajuster',
   'th_t:trim': 'Demande d’abord Écran ou Mesure : arête de coupe + morceau, ou retirer une longueur saisie à l’extrémité', 'tl_t:extend': 'Prolonger', 'th_t:extend': 'Demande d’abord Écran ou Mesure : limite + extrémité, ou allonger l’extrémité d’une longueur saisie',
   'tl_t:fillet': 'Raccord', 'th_t:fillet': 'Demande d’abord Écran ou Mesure : où passe l’arc ou rayon saisi, puis deux lignes', 'tl_t:chamfer': 'Chanfrein',
   'th_t:chamfer': 'Demande d’abord Écran ou Mesure : où passe le chanfrein ou distance saisie, puis deux lignes',

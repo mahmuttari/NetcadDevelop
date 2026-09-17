@@ -364,7 +364,7 @@ export default {
   tool_extend: 'Kéo dài', tstep_extend_0: 'Chạm vào biên', tstep_extend_1: 'Chạm vào đầu cần kéo dài (lặp lại)', tstep_extend_v0: 'Chạm vào đầu cần kéo dài (lặp lại)',
   tool_fillet: 'Bo tròn', tstep_fillet_0: 'Chạm vào đường thứ nhất', tstep_fillet_1: 'Chạm vào đường thứ hai', tstep_fillet_v1: 'Chạm đường thứ hai', tstep_fillet_v0: 'Chạm đường thứ nhất', tstep_fillet_2: 'Chạm nơi cung sẽ đi qua · hoặc nhập bán kính',
   tool_chamfer: 'Vát góc', tstep_chamfer_0: 'Chạm vào đường thứ nhất', tstep_chamfer_1: 'Chạm vào đường thứ hai', tstep_chamfer_v1: 'Chạm đường thứ hai', tstep_chamfer_v0: 'Chạm đường thứ nhất', tstep_chamfer_2: 'Chạm nơi mép vát sẽ đi qua · hoặc nhập khoảng cách',
-  tl_grips: 'Nút đỉnh', th_grips: 'Kéo từng đỉnh của đường đã chọn', 'tl_t:trim': 'Cắt tỉa',
+  tl_grips: 'Nút đỉnh', th_grips: 'Khi bật, chạm sẽ chọn đối tượng; kéo từng đỉnh của đường', 'tl_t:trim': 'Cắt tỉa',
   'th_t:trim': 'Hỏi Màn hình hay Số đo trước: cạnh cắt + phần, hoặc cắt bớt đầu theo chiều dài đã nhập', 'tl_t:extend': 'Kéo dài', 'th_t:extend': 'Hỏi Màn hình hay Số đo trước: giới hạn + đầu, hoặc kéo dài đầu theo chiều dài đã nhập',
   'tl_t:fillet': 'Bo tròn', 'th_t:fillet': 'Hỏi Màn hình hay Số đo trước: nơi cung đi qua hoặc bán kính đã nhập, rồi hai đường', 'tl_t:chamfer': 'Vát góc',
   'th_t:chamfer': 'Hỏi Màn hình hay Số đo trước: nơi mép vát đi qua hoặc khoảng cách đã nhập, rồi hai đường',

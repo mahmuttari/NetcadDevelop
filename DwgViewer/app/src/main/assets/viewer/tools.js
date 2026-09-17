@@ -287,9 +287,7 @@ export class ToolManager {
       if (p) {
         // Grup damgası taşıyan parçalar (ölçülendirme, balon, lider) birlikte seçilir: biri taşınırsa hepsi taşınır.
         // Dosyadan gelen DIMENSION varlığının parçaları da (aynı tanıtıcı) bütün olarak seçilir — AutoCAD'de de ölçü tek nesnedir
-        const gid = p.info && p.info.gid, fdim = !gid && p.info && p.info.t === 'DIMENSION' && p.info.h;
-        const group = gid ? this.api.visiblePrims().filter(q => q.info && q.info.gid === gid)
-          : fdim ? this.api.visiblePrims().filter(q => q.info && q.info.t === 'DIMENSION' && q.info.h === p.info.h) : [p];
+        const group = this.groupOf(p);
         const on = this.api.sel.has(p);
         for (const q of group) { if (on) this.api.sel.delete(q); else this.api.sel.add(q); }
         this.say(); this.api.overlay();
@@ -1160,6 +1158,16 @@ export class ToolManager {
   selectAll() { for (const p of this.api.visiblePrims()) if (p.k !== 4) this.api.sel.add(p); this.say(); this.api.overlay(); }
   /** Seç aracının kipi: aynı kip yeniden seçilirse dokunma kipine döner */
   setSelMode(m) { if (!this.selecting) return; this.selMode = this.selMode === m ? 'tap' : m; this.say(); this.api.overlay(); }
+  /*
+   * Dokunulan parçanın seçim GRUBU: grup damgası taşıyan parçalar (ölçülendirme, balon, lider) birlikte,
+   * dosyadan gelen DIMENSION varlığının parçaları (aynı tanıtıcı) birlikte seçilir; öteki her şey tek başına.
+   * Seç aracı da, tutamak kipindeki boşta dokunuş da bu tek tanımı kullanır.
+   */
+  groupOf(p) {
+    const gid = p.info && p.info.gid, fdim = !gid && p.info && p.info.t === 'DIMENSION' && p.info.h;
+    return gid ? this.api.visiblePrims().filter(q => q.info && q.info.gid === gid)
+      : fdim ? this.api.visiblePrims().filter(q => q.info && q.info.t === 'DIMENSION' && q.info.h === p.info.h) : [p];
+  }
   /** Aynala: "Orijinal kalsın" düğmesi — açıkken kopya (AutoCAD <N>), kapalıyken kaynak silinir (Yes) */
   toggleMirrorKeep() { if (this.active !== 'mirror') return; this.mirrorKeep = !this.mirrorKeep; this.say(); }
   /** Aynala: X (yatay) / Y (düşey) ayna çizgisi düğmesi — aynı düğme yeniden basılınca serbest çizgiye döner */

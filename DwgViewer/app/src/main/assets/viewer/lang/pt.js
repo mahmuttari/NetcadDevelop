@@ -522,7 +522,7 @@ export default {
   tool_extend: 'Estender', tstep_extend_0: 'Toque no limite', tstep_extend_1: 'Toque na extremidade a estender (repete)', tstep_extend_v0: 'Toque na extremidade a alongar (repete)',
   tool_fillet: 'Concordância', tstep_fillet_0: 'Toque na primeira linha', tstep_fillet_1: 'Toque na segunda linha', tstep_fillet_v1: 'Toque na segunda linha', tstep_fillet_v0: 'Toque na primeira linha', tstep_fillet_2: 'Toque por onde o arco deve passar · ou digite o raio',
   tool_chamfer: 'Chanfro', tstep_chamfer_0: 'Toque na primeira linha', tstep_chamfer_1: 'Toque na segunda linha', tstep_chamfer_v1: 'Toque na segunda linha', tstep_chamfer_v0: 'Toque na primeira linha', tstep_chamfer_2: 'Toque por onde o chanfro deve passar · ou digite a distância',
-  tl_grips: 'Alças de vértice', th_grips: 'Arraste cada vértice da polilinha selecionada', 'tl_t:trim': 'Aparar',
+  tl_grips: 'Alças de vértice', th_grips: 'Ligado: tocar seleciona o objeto; arraste cada vértice do traçado', 'tl_t:trim': 'Aparar',
   'th_t:trim': 'Pergunta primeiro Tela ou Medida: aresta de corte + trecho, ou encurtar a extremidade em um comprimento digitado', 'tl_t:extend': 'Estender', 'th_t:extend': 'Pergunta primeiro Tela ou Medida: limite + extremidade, ou alongar a extremidade em um comprimento digitado',
   'tl_t:fillet': 'Concordância', 'th_t:fillet': 'Pergunta primeiro Tela ou Medida: por onde o arco passa ou raio digitado, depois duas linhas', 'tl_t:chamfer': 'Chanfro',
   'th_t:chamfer': 'Pergunta primeiro Tela ou Medida: por onde o chanfro passa ou distância digitada, depois duas linhas',
