@@ -206,7 +206,9 @@ export class ToolManager {
       // giriş alanı: soruda ve değer isteminde sayı; kavis / pahın nokta adımında sayı (yarıçap) — koordinat da yazılabilir;
       // ötelenin geçiş / taraf noktasında koordinat (sayı yazılırsa mesafe olur)
       const num = !this.mode || (this.mode === 'value' && this.val == null) || (this.wantsPoint() && this.active !== 'offset');
-      this.api.prompt(text, { input: num ? 'number' : 'point', buttons: ['modescreen', 'modevalue', 'cancel'] });
+      // Ölçü seçildi ve değer isteniyor: yalnız sayı beklenir → giriş alanı odaklanır, klavye kendiliğinden açılır.
+      // Soru adımında odaklanmaz: dokunmak Ekran'ı seçer, klavye çizimi örtmemeli.
+      this.api.prompt(text, { input: num ? 'number' : 'point', buttons: ['modescreen', 'modevalue', 'cancel'], focus: this.mode === 'value' && this.val == null });
       return;
     }
     if (this.selecting) text += (this.selMode === 'box' ? t('selBoxHint') : this.selMode === 'lasso' ? t('selLassoHint') : toolStep(this.active, 0)) + `  [${this.api.sel.size} ${t('selCount')}]`;
@@ -223,7 +225,10 @@ export class ToolManager {
       buttons.push('mirrorkeep');                                   // seçimden sonra: orijinal kalsın mı? (AutoCAD'in sondaki sorusu, düğme olarak)
     }
     buttons.push('cancel');
-    this.api.prompt(text, { input: wantsNumber ? 'number' : (this.selecting ? null : 'point'), buttons });
+    // Yalnız sayı kabul eden adımlar (kot, kalınlık, yazı yüksekliği): giriş alanı odaklanır, klavye kendiliğinden açılır.
+    // Döndür / ölçekle / daire yarıçapı nokta da kabul eder: orada klavye çizimi örtmesin diye odaklanmaz.
+    const focus = wantsNumber && ['setz', 'thick', 'textsize'].includes(this.active);
+    this.api.prompt(text, { input: wantsNumber ? 'number' : (this.selecting ? null : 'point'), buttons, focus });
   }
 
   // ---- giriş -----------------------------------------------------------------------

@@ -143,6 +143,7 @@ Bu yedisi v7.28 ile kapandı; **birinci öbekte açık madde kalmadı**. Ayrınt
 | Aynala: X / Y düğmeleri — ayna çizgisi yatay ya da düşey, tek noktayla (AutoCAD'de ikinci noktada ORTHO) (v7.60) | Aynala aracı | var olan aracın kademesi |
 | Ortho komutla birlikte: koordinat giriş satırında Ortho düğmesi (nokta istenen her adımda), kalem / parmak önizlemesi kısıtlı noktayı gösterir (v7.61) | komut çubuğu | ücretsiz (yardımcı) |
 | Köşe tutamakları: kip açıkken boşta dokunuş nesneyi seçer ve tutamakları çıkarır (düzeltme, v7.61) | Düzenle ▸ Köşe tutamakları | premium (grips) |
+| Kalemli cihaz: boşta gezinirken yakalama yok, değer isteminde kendiliğinden odak, düşürülen parmağın tutamak jesti kapanır, kalem kipinde parmak tutamağı sürükler (v7.62) | kalem / dokunma | ücretsiz (doğru çalışma) |
 | Ölçümü çizime işaretleme | Açıklama ▸ Ölçümü işle | premium |
 | Revizyon bulutu | Açıklama ▸ Revizyon bulutu | premium |
 | Numaralandırma (balon, artan) | Açıklama ▸ Numaralandır | premium |

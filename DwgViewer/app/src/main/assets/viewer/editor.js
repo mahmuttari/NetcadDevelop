@@ -727,6 +727,9 @@ function showPrompt(text, opts = {}) {
   inp.placeholder = opts.input === 'number' ? t('numberPh') : t('coordPh');
   inp.type = 'text'; inp.value = '';
   $('cmdBtns').innerHTML = (opts.buttons || []).map(k => cmdBtnHtml('data-cmd', k, t(BTN[k][0]))).join('');
+  // Yalnız değer istenen istemde alan odaklanır: kullanıcı kutuya ayrıca dokunmak zorunda kalmaz, klavye
+  // (kalemde el yazısı paneli) kendiliğinden gelir. Nokta istemlerinde odaklanmaz — klavye çizimi örterdi.
+  if (opts.focus && !inp.hidden) setTimeout(() => { try { if (!inp.hidden && document.activeElement !== inp) inp.focus(); } catch (_) { /* odak yoksa geç */ } }, 0);
 }
 /* ---- AutoCAD tarzı komut satırı ---------------------------------------------------
  * Boştayken çubuk "Command:" der ve komut adı bekler; bir araç çalışırken o aracın istemini
@@ -1150,15 +1153,17 @@ function updateSelBadge() {
   el.hidden = false;
 }
 /** İşaretçi bir tutamağa indi mi? true dönerse app.js kaydırma/dokunma yapmaz. */
-ed.gizmoDown = (sx, sy) => {
-  if (selDragArmed()) { selDrag = { mode: tools.selMode, pts: [[sx, sy]], x0: sx, y0: sy, x1: sx, y1: sy, crossing: null }; return true; }
+ed.gizmoDown = (sx, sy, o = {}) => {
+  // o.handlesOnly: "Kalem çizer, parmak gezinir" kipinde parmak için — bölge seçimi ve örtük pencere parmağa
+  // kapalıdır (seçim kalemin işi), ama seçim kutusunun tutamakları ve köşe tutamakları açık hedeflerdir: sürüklenebilir.
+  if (!o.handlesOnly && selDragArmed()) { selDrag = { mode: tools.selMode, pts: [[sx, sy]], x0: sx, y0: sy, x1: sx, y1: sy, crossing: null }; return true; }
   /*
    * AutoCAD'in ÖRTÜK PENCERESİ: seçim aşamasında (Seç aracı ya da Taşı / Sil gibi araçların nesne seçimi)
    * BOŞ yere basıp sürüklemek kutu seçer — soldan sağa mavi pencere (içindekiler), sağdan sola yeşil kesen
    * (dokunanlar). Nesneye dokunmak onu seçer, iki parmak kaydırır. Parmak kıpırdamadan kalkarsa bu bir dokunuştur
    * ve olağan dokunma yoluna verilir (boş yere dokunmak zaten bir şey seçmez).
    */
-  if (tools && tools.running && tools.selecting && tools.selMode === 'tap' && !ed.is3D() && !api.pick(toWorld(sx, sy))) {
+  if (!o.handlesOnly && tools && tools.running && tools.selecting && tools.selMode === 'tap' && !ed.is3D() && !api.pick(toWorld(sx, sy))) {
     selDrag = { mode: 'box', implied: true, pts: [[sx, sy]], x0: sx, y0: sy, x1: sx, y1: sy, crossing: null };
     return true;
   }
@@ -1849,6 +1854,8 @@ ed.gripTap = (hit) => {
 };
 /** Sınama: seçili tek yolun tutamak sayısı (kip kapalıysa ya da yol yoksa 0) ve ekran konumları */
 ed.gripInfo = () => { const G = gizmoVertLayout(); return G ? { n: G.vs.length, pts: G.VL.pts.map(q => q.slice(0, 2)), r: G.VL.r, hitR: G.VL.hitR } : { n: 0, pts: [] }; };
+/** Sınama: seçim kutusu tutamaklarının ekran konumları (taşı / döndür) ve isabet yarıçapı; kutu yoksa null */
+ed.gizmoInfo = () => { const L = gizmoLayout(); return L ? { move: L.pts.move.slice(0, 2), rot: L.pts.rot.slice(0, 2), hitR: L.hitR, busy: ed.gizmoBusy() } : null; };
 ed.setCurLayer = (name) => { if (!name || !S.layers.has(name)) return false; ed.curLayer = name; updateLayerButton(); return true; };
 ed.openTab = (id) => { if ($('toolbar').classList.contains('collapsed')) collapse(false); setTab(id); };
 ed.collapse = (on) => collapse(!!on);

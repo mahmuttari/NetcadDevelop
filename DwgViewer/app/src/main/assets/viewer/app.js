@@ -675,6 +675,10 @@ const touchIds = () => [...pointers.entries()].filter(([, p]) => p.pt === 'touch
 function dropTouches(ids) {
   if (!ids || !ids.length) return;
   for (const id of ids) { pointers.delete(id); try { vp.releasePointerCapture(id); } catch (_) { /* yakalama yoksa önemsiz */ } }
+  // Düşürülen parmak bir tutamağı sürüklüyorsa jest editörde de kapatılır (değişiklik atılır); yoksa giz
+  // takılı kalır, gizmoBusy hep true döner ve kalem indikten sonra hiçbir dokunuş işlenmezdi.
+  if (gesture && gesture.type === 'gizmo' && (pointers.size === 0 || ids.length)) { edCall('gizmoUp', false); gesture = null; S.gestureActive = false; }
+  if (gesture && gesture.type === 'zoomwin' && pointers.size === 0) { cancelZoomWindow(); gesture = null; S.gestureActive = false; }
   if (pointers.size === 0 || (gesture && (gesture.type === 'pinch' || gesture.type === 'aim'))) { gesture = null; S.gestureActive = false; }
   if (penHover && penHover.aim) penClearHover();
   if (noteDraft) { noteDraft = null; drawOverlay(); }
@@ -728,7 +732,9 @@ vp.addEventListener('pointerdown', (ev) => {
   if (pointers.size === 1) gestureView0 = { ...S.view, li: S.layoutIndex };
   closeMenu(); clearLong();
   const arr = [...pointers.values()];
-  if (edCall('gizmoBusy')) return;   // tutamak sürüklenirken ikinci parmak yakınlaştırmaya geçmesin
+  // Tutamak sürüklenirken ikinci parmak yakınlaştırmaya geçmesin. Ama basılı BAŞKA işaretçi yokken giz'in
+  // dolu olması bayat bir durumdur (bırakış olayı hiç gelmemiştir): kapatılır, dokunuş olağan yoldan işlenir.
+  if (edCall('gizmoBusy')) { if (pointers.size > 1 || (gesture && gesture.type === 'gizmo')) return; edCall('gizmoUp', false); gesture = null; }
   if (arr.length === 1) {
     const [sx, sy] = rel(ev);
     // "Kalem çizer, parmak gezinir": açıkken parmak yalnız kaydırır ve yakınlaştırır. Çizim,
@@ -746,8 +752,9 @@ vp.addEventListener('pointerdown', (ev) => {
       gesture = { type: 'note' };
       return;
     }
-    // Seçim tutamağı: parmak bir tutamağa indiyse jest kaydırmaya değil dönüşüme gider
-    if (!navOnly && edCall('gizmoDown', sx, sy)) { gesture = { type: 'gizmo' }; S.gestureActive = true; return; }
+    // Seçim tutamağı: parmak bir tutamağa indiyse jest kaydırmaya değil dönüşüme gider. "Kalem çizer, parmak gezinir"
+    // kipinde de tutamak sürüklenir (açık hedef), yalnız bölge seçimi ve örtük pencere parmağa kapalı kalır.
+    if (edCall('gizmoDown', sx, sy, { handlesOnly: navOnly })) { gesture = { type: 'gizmo' }; S.gestureActive = true; return; }
     if (zoomWin && zoomWin.pending) { zoomWin = { x0: sx, y0: sy, x1: null, y1: null }; gesture = { type: 'zoomwin', x0: sx, y0: sy }; S.gestureActive = true; return; }
     const now = performance.now();
     if (lastTapPos && now - lastTap < TOL.dbl && Math.hypot(lastTapPos[0] - sx, lastTapPos[1] - sy) < 30 && !S.notesOn) {
@@ -1043,10 +1050,18 @@ function pick(w, tol) {
  * o.hover: gezinme (izleme noktası güncellenmez). Seçenekler settings.snapOpt'tan: açıklık (px),
  * taramaları yoksayma, Z yerine geçerli kot, yakalama izi.
  */
+/** Şu an bir NOKTA mı isteniyor: çalışan araç nokta adımında ya da ölçü / profil kipi. Boşta (Komut:) ve nesne isteminde yakalama yoktur. */
+function pointPrompt() {
+  if (S.mode === 'measure' || S.mode === 'profile') return true;
+  return !!(editor.tools && editor.tools.running) && !pickingObject();
+}
 function findSnap(w, o = {}) {
   // AutoCAD'de yakalama YALNIZ nokta isteminde çalışır: "Select objects:" isteminde işaret çıkmaz,
   // imleç pickbox olur. Tutamak (grip) sürüklemesi nokta işidir; o muaftır ({ grip: true }).
   if (!o.grip && pickingObject()) return null;
+  // Boşta (komut yok) kalem / fare / parmak gezinirken de işaret çıkmaz: kullanıcı bir nokta seçmiyor,
+  // yalnızca ekranda dolaşıyor — kalemli cihazda her uç ve orta noktada beliren glifler rahatsız ediyordu.
+  if (o.hover && !o.grip && !pointPrompt()) return null;
   const opt = Osnap.opt();
   const tol = (opt.aperture > 0 ? opt.aperture : TOL.snap) / S.view.scale;
   const modes = o.once ? new Set([o.once]) : S.snapModes;
