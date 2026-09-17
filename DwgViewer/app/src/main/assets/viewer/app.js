@@ -595,6 +595,33 @@ function trkText(tr) {
   const one = (p) => (p.ext ? Osnap.abbrOf('ext') : Osnap.abbrOf(p.kind)) + ' ' + fmt(p.dist) + (p.deg == null ? '' : ' < ' + fmt(p.deg, 0) + '°');
   return tr.paths.map(one).join(' · ') + (tr.obj ? ' × ' + Osnap.abbrOf('int') : '');   // uzantı yolu EXT; nesneyle genişletilmiş kesişim × INT
 }
+/*
+ * DİNAMİK OKUMA (AutoCAD dynamic input): bir taban nokta varken (çalışan aracın son noktası ya da ölçümün önceki noktası)
+ * imlecin yanındaki kutuya taban noktadan uzaklık ve açı da yazılır ("↔ 250,00 mm ∠ 36,87°"); taban ile imleç arasına ince
+ * lastik bant çizilir. Açı +x'ten saat yönünün tersine, 0–360 (AutoCAD ANGDIR / ANGBASE varsayılanı).
+ */
+function hoverBase() {
+  if (editor.tools && editor.tools.running) return edCall('lastToolPoint') || null;
+  if ((S.mode === 'measure' || S.mode === 'profile') && S.measure.length) return S.measure[S.measure.length - 1];
+  return null;
+}
+function hoverReadout(p) {
+  const base = hoverBase(); if (!base) return { txt: '', base: null };
+  const dx = p[0] - base[0], dy = p[1] - base[1], L = Math.hypot(dx, dy);
+  if (!(L > 1e-12)) return { txt: '', base };
+  let deg = Math.atan2(dy, dx) * 180 / Math.PI; if (deg < 0) deg += 360; if (deg >= 359.995) deg = 0;
+  return { txt: '  \u2194 ' + fmt(L) + (S.units ? ' ' + S.units : '') + '  \u2220 ' + fmt(deg, 2) + '\u00b0', base, L, deg };
+}
+/** İmleç etiketi: koordinat, yakalama kipi / izleme ipucu / ORTHO, taban noktadan uzaklık ve açı */
+function hoverLabel(sn, q, w) {
+  const p = sn ? sn.p : (q || w);
+  return fmt(p[0]) + ' ; ' + fmt(p[1]) + (sn ? '  ' + (sn.trk ? trkText(sn.trk) : Osnap.abbrOf(sn.kind)) : q ? '  ' + (S.desk.polar ? 'POLAR' : 'ORTHO') : '') + hoverReadout(p).txt;
+}
+function drawRubber(c, base, s, fg) {
+  const b = toScreen(base[0], base[1]);
+  c.save(); c.setLineDash([4, 4]); c.lineWidth = 1; c.strokeStyle = fg; c.globalAlpha = 0.5;
+  c.beginPath(); c.moveTo(b[0], b[1]); c.lineTo(s[0], s[1]); c.stroke(); c.restore();
+}
 function drawPenHover(c, fg) {
   if (!penHover || !penHover.w) return;
   // Nesne isteminde yakalama aranmaz (findSnap boş döner): imleç karedir ve karenin altındaki nesne
@@ -610,6 +637,7 @@ function drawPenHover(c, fg) {
   const s = sn ? toScreen(sn.p[0], sn.p[1]) : q ? toScreen(q[0], q[1]) : [penHover.sx, penHover.sy];   // kısıtlı nokta: imleç oraya, parmağa / kaleme değil
   const acc = S.selColor || '#ff9f0a';
   if (sn && sn.trk) drawTrackPaths(c, sn.trk, acc, 0.8);   // izleme yolları: imleç hangi hizaya / kesişime oturdu
+  { const b = hoverBase(); if (b) drawRubber(c, b, s, fg); }   // taban noktadan imlece lastik bant
   c.save();
   c.setLineDash([3, 3]); c.lineWidth = 1; c.strokeStyle = fg; c.globalAlpha = 0.55;
   c.beginPath();
@@ -626,8 +654,7 @@ function drawPenHover(c, fg) {
   // Koordinat kutusu imlecin yanında; parmakla nişan alırken parmağın altında kalacağından o zaman
   // büyütecin altına yazılır (drawLoupe).
   if (!penHover.aim) {
-    const p = sn ? sn.p : (q || penHover.w);
-    const txt = fmt(p[0]) + ' ; ' + fmt(p[1]) + (sn ? '  ' + (sn.trk ? trkText(sn.trk) : String(sn.kind || '').toUpperCase()) : q ? '  ' + (S.desk.polar ? 'POLAR' : 'ORTHO') : '');
+    const txt = hoverLabel(sn, q, penHover.w);
     c.font = '11px system-ui, sans-serif'; c.textBaseline = 'bottom'; c.textAlign = 'left';
     const w = c.measureText(txt).width + 10;
     // Kutu imlecin sağına sığmıyorsa soluna geçer; iki yana da sığmıyorsa (iki yollu izleme ipucu) kenara dayanır — yazı kırpılmasın.
@@ -686,7 +713,7 @@ function drawLoupe(c, fg) {
   // etiket büyütecin altında: nokta isteminde koordinat (+ yakalama kipi), nesne isteminde altındaki nesnenin türü ve katmanı
   let txt = '';
   if (pickingObject()) { const hit = pick(h.w, TOL.pick / S.view.scale); if (hit) txt = trType(hit.info ? hit.info.t : hit.et) + ' \u00b7 ' + hit.lay; }
-  else { const q = sn ? sn.p : (h.q || h.w); txt = fmt(q[0]) + ' ; ' + fmt(q[1]) + (sn ? '  ' + (sn.trk ? trkText(sn.trk) : Osnap.abbrOf(sn.kind)) : h.q ? '  ' + (S.desk.polar ? 'POLAR' : 'ORTHO') : ''); }
+  else txt = hoverLabel(sn, h.q, h.w);
   if (txt) {
     c.font = `${Math.round(11 * fs)}px system-ui, sans-serif`; c.textBaseline = 'top'; c.textAlign = 'center';
     const w = c.measureText(txt).width + 12, ly = cy + R + 6, th = Math.round(18 * fs);
@@ -4043,6 +4070,7 @@ window.dwgApp = { osnap: Osnap, loadCurrent, onFilePicked, onLocation, onBack, o
   // Nesne yakalama izleme (bkz. tools/test_izleme.mjs): açık mı, edinilmiş noktalar, süren bekleme, gezinen imlecin oturduğu yol
   __track: () => { const h = penHover && penHover.snap && penHover.snap.trk ? penHover.snap.trk : null; return { on: !!Osnap.opt().otrack, pts: S.track.pts.map(q => ({ p: q.p.slice(), kind: q.kind, dirs: (q.dirs || []).slice(), arcs: (q.arcs || []).map(a => ({ c: a.c.slice(), r: a.r })) })), dwell: dwell ? dwell.key : null, hover: h ? { p: penHover.snap.p.slice(0, 2), cross: !!h.cross, lock: !!h.lock, obj: !!h.obj, n: h.paths.length, ext: h.paths.map(p => !!p.ext), arc: h.paths.map(p => !!p.arc), text: trkText(h) } : null }; },
   __trackAdd: (x, y, kind) => trackToggle([x, y], kind || 'end', true), __trackClear: () => trackClear(),
+  __hoverLabel: () => (penHover && penHover.w ? { text: hoverLabel(penHover.snap, penHover.q, penHover.w), base: hoverBase(), ...(function () { const p = penHover.snap ? penHover.snap.p : (penHover.q || penHover.w); const r = hoverReadout(p); return { L: r.L, deg: r.deg }; }()) } : null),
   // Açılış kestirimcisinin sınanabilir parçaları (bkz. tools/test_ilerleme.mjs)
   __band: (v) => bandOf(v), __tahminTaban: (n, mb) => tahminTaban(n, mb),
   __bantBeklenen: (b) => bantBeklenenMs(b), __olcek: () => acilisOlcek(),

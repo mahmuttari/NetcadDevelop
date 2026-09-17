@@ -152,6 +152,7 @@ Bu yedisi v7.28 ile kapandı; **birinci öbekte açık madde kalmadı**. Ayrınt
 | Tarama / Sınır / Dolgu alanı ayrı çizgi, yay ve polyline parçalarından kapalı alanı bulur (en küçük yüz) (v7.70) | Çiz ▸ Tarama, Sınır; Ölçü ▸ Dolgu alanı | aracın kendi kademesi |
 | Desen seçicide her desenin SVG önizlemesi (kartlı liste) (v7.70) | Çiz ▸ Desen | premium (hatchpat) |
 | Özellikler'de nesne türü süzgeci: Tümü / Çizgi (3) / Daire (2), seçim türe daralır (v7.70) | Düzenle ▸ Özellikler, seçim menüsü | premium (props) |
+| Dinamik okuma: çizim yaparken taban noktadan imlece uzaklık ve açı, lastik bant (v7.71) | imleç etiketi, büyüteç | var olan aracın kademesi |
 | Nesne yakalama izleme (AutoCAD OTRACK, F11): yakalama noktasında bekleyince iz noktası (+), yatay / düşey (kutupsalda açılı) hizalama yolları ve kesişimleri, ortho kilidiyle kesişim, İz noktası (TT) düğmesi Ortho'nun yanında, Yakalama izi karosu (v7.66) | Ölçü ▸ Yakalama izi, Ekran ▸ Yakalama izi, komut çubuğu | var olan yakalamanın kademesi (kalemle gezinme premium) |
 | Çokgen (POLYGON), Böl (DIVIDE), Aralıkla (MEASURE), Sınır (BOUNDARY) (v7.67) | Çiz ▸ Çokgen, Böl, Aralıkla, Sınır | premium |
 | Esnet (STRETCH, kesen pencere içindeki köşeler), Birleştir (JOIN), Özellik eşle (MATCHPROP) (v7.67) | Düzenle ▸ Esnet, Birleştir, Özellik eşle | premium |
