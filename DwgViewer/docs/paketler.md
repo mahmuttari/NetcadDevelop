@@ -147,6 +147,7 @@ Bu yedisi v7.28 ile kapandı; **birinci öbekte açık madde kalmadı**. Ayrınt
 | Tutamaklar %75 boyuta indi; dokunma yarıçapı aynı (v7.64) | seçim kutusu, köşe tutamakları | var olan yeteneklerin kademesi |
 | Doğrudan uzaklık girişi: Çizgi / Polyline'da kutudaki sayı kadar dokunulan yönde ilerleme (AutoCAD direct distance entry) (v7.65) | Çiz ▸ Çizgi, Polyline | var olan araçların kademesi |
 | Köşe tutamağı sürüklenirken başka nesnelerin yakalama noktalarına oturur; sürüklemede işaret; kendi eski yerine yapışmaz (v7.65) | Düzenle ▸ Köşe tutamakları | premium (grips) |
+| Nesne yakalama izleme (AutoCAD OTRACK, F11): yakalama noktasında bekleyince iz noktası (+), yatay / düşey (kutupsalda açılı) hizalama yolları ve kesişimleri, ortho kilidiyle kesişim, İz noktası (TT) düğmesi Ortho'nun yanında, Yakalama izi karosu (v7.66) | Ölçü ▸ Yakalama izi, Ekran ▸ Yakalama izi, komut çubuğu | var olan yakalamanın kademesi (kalemle gezinme premium) |
 | Ölçümü çizime işaretleme | Açıklama ▸ Ölçümü işle | premium |
 | Revizyon bulutu | Açıklama ▸ Revizyon bulutu | premium |
 | Numaralandırma (balon, artan) | Açıklama ▸ Numaralandır | premium |

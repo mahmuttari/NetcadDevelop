@@ -159,7 +159,7 @@ const dil = (l) => ev(async (x) => { const I = await import('./i18n.js'); const 
   const tr1 = await ev(() => ({ on: window.dwgApp.osnap.opt().otrack }));
   const t1 = await toast();
   await ev(() => window.dwgApp.editor.act('otrack')); await bekle();
-  ok('B17 F11 (otrack) yakalama izini açar / kapatır, ileti yazar', tr1.on === true && /Yakalama izi açık/.test(t1) && (await ev(() => window.dwgApp.osnap.opt().otrack)) === false, J({ tr1, t1 }));
+  ok('B17 F11 (otrack) nesne yakalama izlemeyi kapatır / açar (varsayılan AÇIK, AutoCAD gibi), ileti yazar', tr1.on === false && /Yakalama izi kapalı/.test(t1) && (await ev(() => window.dwgApp.osnap.opt().otrack)) === true, J({ tr1, t1 }));
   const fk = await ev(async () => { const D = await import('./desktop.js'); return D.FKEYS.F11 && D.FKEYS.F11.act; });
   ok('B18 desktop.js: F11 → otrack', fk === 'otrack', String(fk));
   // durum çubuğunda uzun basış ayar kutusunu açar, ardından gelen click kipi değiştirmez
@@ -205,10 +205,11 @@ const dil = (l) => ev(async (x) => { const I = await import('./i18n.js'); const 
   const p3 = await pts();
   ok('B29 sonraki @ yine SON noktaya göre (taban bir kez kullanıldı) → (50610,50505)', p3.length === 3 && near(p3[2][0], 50610, 0.5) && near(p3[2][1], 50505, 0.5), J(p3));
   await yaz('tk'); await gir(); await tapWorld(50800, 50800);
-  ok('B30 TK: iz noktası alınır, nokta sayılmaz', (await pts()).length === 3 && (await ev(() => window.dwgApp.state.snapOnce)) === 'tk2');
+  const tk = await ev(() => ({ once: window.dwgApp.state.snapOnce, n: window.dwgApp.state.track.pts.length, p: window.dwgApp.state.track.pts.map(q => q.p) }));
+  ok('B30 TK (AutoCAD TT): dokunulan nokta İZ NOKTASI olarak edinilir (state.track.pts), nokta sayılmaz, kip tüketilir', (await pts()).length === 3 && tk.once === null && tk.n === 1 && near(tk.p[0][0], 50800, 0.5) && near(tk.p[0][1], 50800, 0.5), J(tk));
   await tapWorld(50806, 50900);
   const p4 = await pts();
-  ok('B31 ikinci dokunuş iz noktasına DÜŞEY hizalanır → (50800,50900)', p4.length === 4 && near(p4[3][0], 50800, 0.5) && near(p4[3][1], 50900, 0.5), J(p4));
+  ok('B31 ikinci dokunuş iz noktasından geçen DÜŞEY yola oturur → (50800,50900); nokta verilince iz noktaları silinir', p4.length === 4 && near(p4[3][0], 50800, 0.5) && near(p4[3][1], 50900, 0.5) && (await ev(() => window.dwgApp.state.track.pts.length)) === 0, J(p4));
   await yaz('non'); await gir();
   ok('B32 NON bir kerelik "yakalama yok"', (await ev(() => window.dwgApp.state.snapOnce)) === 'non');
   await tapWorld(50900, 50900);
@@ -224,8 +225,8 @@ const dil = (l) => ev(async (x) => { const I = await import('./i18n.js'); const 
     const s = await ev(([x, y]) => window.dwgApp.toScreen(x, y), [uc.x, uc.y]);
     const r = await page.locator('#viewport').boundingBox();
     await page.touchscreen.tap(r.x + s[0] + 6, r.y + s[1] - 5); await bekle(200);
-    const st = await ev(() => ({ pts: window.dwgApp.editor.tools.pts.map(p => p.slice(0, 2)), flash: window.dwgApp.state.snapFlash && window.dwgApp.state.snapFlash.kind, chip: document.getElementById('stSnap').hidden ? '' : document.getElementById('stSnap').textContent, trk: window.dwgApp.state.trackPt }));
-    ok('B34 uç noktanın 6 px yanına dokunuş uca OTURUR; dokunuş sonrası işaret END, durum çipi END, iz noktası alındı', st.pts.length === 1 && near(st.pts[0][0], uc.x, 1e-6) && near(st.pts[0][1], uc.y, 1e-6) && st.flash === 'end' && st.chip === 'END' && !!st.trk, J(st));
+    const st = await ev(() => ({ pts: window.dwgApp.editor.tools.pts.map(p => p.slice(0, 2)), flash: window.dwgApp.state.snapFlash && window.dwgApp.state.snapFlash.kind, chip: document.getElementById('stSnap').hidden ? '' : document.getElementById('stSnap').textContent, trk: window.dwgApp.state.track.pts.length }));
+    ok('B34 uç noktanın 6 px yanına dokunuş uca OTURUR; dokunuş sonrası işaret END, durum çipi END; nokta verilince edinilmiş iz noktası kalmaz', st.pts.length === 1 && near(st.pts[0][0], uc.x, 1e-6) && near(st.pts[0][1], uc.y, 1e-6) && st.flash === 'end' && st.chip === 'END' && st.trk === 0, J(st));
     await shot('osnap_isaret');
     await ev(() => window.dwgApp.editor.tools.cancel()); await bekle();
   } else C.skip('B34 örnekte tek parçalı çizgi yok');

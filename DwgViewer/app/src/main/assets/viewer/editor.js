@@ -90,7 +90,7 @@ const TABS = [
   { id: 'display', i18n: 'tabDisplay', icon: 'i-sliders', groups: [] },   // satır içeriği 2B/3B'ye göre üretilir
   { id: 'measure', i18n: 'tabMeasure', icon: 'i-dist', groups: [
     { cap: 'grpMeasure', items: [T('t:dist', 'i-dist', 'Mesafe', 'Distance', 'Noktalar arası mesafe, ΔX/ΔY, açı', 'Distance between points'), T('t:area', 'i-area', 'Alan', 'Area', 'Kapalı alan ve çevre', 'Closed area and perimeter'), T('t:angle', 'i-angle', 'Açı', 'Angle', 'Üç noktayla açı', 'Angle by three points'), T('t:radius', 'i-radius', 'Yarıçap', 'Radius', 'Daire / yay yarıçapı', 'Circle / arc radius'), T('t:coord', 'i-coord', 'Koordinat', 'Coordinate', 'Noktanın koordinatını okur', 'Read point coordinates'), T('t:fillarea', 'i-fill', 'Dolgu alanı', 'Fill area', 'Kapalı alanın içine dokunun; alan, çevre ve dönüşümler', 'Tap inside a closed area for its area and perimeter'), T('t:ident', 'i-ident', 'Akıllı ölçüm', 'Smart measure', 'Nesneye dokunun: türüne göre boy, alan, yarıçap ya da hacim', 'Tap an object: length, area, radius or volume by its type'), T('profile', 'i-profile', 'Profil', 'Profile', 'Kot / eğim profili', 'Elevation / slope profile')] },
-    { cap: 'grpHelpers', items: [T('osnap', 'i-snap', 'Yakalama', 'Osnap', 'Nesne yakalamayı açar / kapatır', 'Toggle object snap'), T('osnapset', 'i-sliders', 'Yakalama ayarları', 'Osnap settings', 'Yakalama kipleri (14 AutoCAD kipi), bir kerelik yakalama, açıklık', 'Object snap modes (all 14 AutoCAD modes), one-shot overrides, aperture'), T('grid', 'i-grid', 'Izgara', 'Grid'), T('crosshair', 'i-crosshair', 'Artı imleç', 'Crosshair')] } ] },
+    { cap: 'grpHelpers', items: [T('osnap', 'i-snap', 'Yakalama', 'Osnap', 'Nesne yakalamayı açar / kapatır', 'Toggle object snap'), T('osnapset', 'i-sliders', 'Yakalama ayarları', 'Osnap settings', 'Yakalama kipleri (14 AutoCAD kipi), bir kerelik yakalama, açıklık', 'Object snap modes (all 14 AutoCAD modes), one-shot overrides, aperture'), T('otrack', 'i-otrack', 'Yakalama izi', 'Osnap tracking', 'Yakalama noktasında bekleyince iz noktası (+) alınır; imleç yatay / düşey yollara ve kesişimlere oturur (F11)', 'Pause over a snap point to acquire a tracking point (+); the cursor snaps to alignment paths and intersections (F11)'), T('grid', 'i-grid', 'Izgara', 'Grid'), T('crosshair', 'i-crosshair', 'Artı imleç', 'Crosshair')] } ] },
   { id: 'draw', i18n: 'tabDraw', icon: 'i-pen', groups: [
     { cap: 'grpDraw2', items: [T('t:line', 'i-line', 'Çizgi', 'Line', 'İki nokta ya da @uzunluk<açı', 'Two points or @length<angle'), T('t:pline', 'i-pline', 'Polyline', 'Polyline', 'Çok köşeli çizgi; Bitir / Kapat', 'Multi-vertex line'), T('t:rect', 'i-rect', 'Dikdörtgen', 'Rectangle'), T('t:circle', 'i-circle', 'Daire', 'Circle', 'Merkez + yarıçap', 'Center + radius'), T('t:arc3', 'i-arc', 'Yay', 'Arc', 'Üç noktadan yay', 'Three-point arc'), T('t:point', 'i-point', 'Nokta', 'Point'), T('t:text', 'i-text', 'Yazı', 'Text', 'Konum, metin ve yükseklik', 'Position, text and height')] },
     { cap: 'grpDraw3', items: [T('t:pline3d', 'i-pline3d', '3B Polyline', '3D Polyline', 'x,y,z köşeli çizgi', 'Vertices with z'), T('t:face3d', 'i-face', '3B Yüzey', '3D Face', 'Üç / dört köşeli yüzey', 'Three / four vertex face')] },
@@ -117,7 +117,7 @@ const DISPLAY_2D = [
   { cap: 'grpTheme', items: [T('theme', 'i-theme', 'Koyu / açık', 'Dark / light', 'Arka plan temasını değiştirir', 'Switch the background theme'), T('sun', 'i-sun', 'Güneş', 'Sun', 'Güneş altında okunaklı yüksek kontrast', 'High contrast for sunlight'), T('display', 'i-sliders', 'Ekran ayarları', 'Display options', 'Tema, ön ayarlar, süzgeçler, çizgiler, ızgara…', 'Theme, presets, filters, lines, grid…')] },
   { cap: 'grpVis', items: [T('text', 'i-text', 'Yazı', 'Text'), T('hatch', 'i-hatch', 'Tarama', 'Hatch'), T('dim', 'i-dim', 'Ölçüler', 'Dimensions'), T('points', 'i-point', 'Noktalar', 'Points'), T('images', 'i-image', 'Resimler', 'Images')] },
   { cap: 'grpLines', items: [T('lw', 'i-lw', 'Kalınlık', 'Lineweight', 'Çizgi kalınlıklarını gösterir', 'Show lineweights'), T('mono', 'i-mono', 'Tek renk', 'Mono', 'Tek renk / nesne rengi', 'Monochrome / entity color'), T('ltype', 'i-fade', 'Çizgi tipi', 'Linetype')] },
-  { cap: 'grpHelpers', items: [T('grid', 'i-grid', 'Izgara', 'Grid'), T('crosshair', 'i-crosshair', 'Artı imleç', 'Crosshair'), T('cmdline', 'i-cmdline', 'Komut satırı', 'Command line', 'AutoCAD komut adlarıyla çalışır: LINE, TR, F…', 'Type AutoCAD command names: LINE, TR, F…'), T('ortho', 'i-ortho', 'Ortho', 'Ortho', 'Noktayı yatay ya da düşeye kilitler (F8)', 'Locks the point to horizontal or vertical (F8)'), T('polar', 'i-polar', 'Kutupsal', 'Polar', 'Noktayı açı adımına oturtur (F10)', 'Snaps the point to an angle increment (F10)'), T('rulers', 'i-ruler', 'Cetvel', 'Rulers'), T('fade', 'i-fade', 'Soldur', 'Fade', 'Seçili olmayan katmanları soldurur', 'Fade other layers')] },
+  { cap: 'grpHelpers', items: [T('grid', 'i-grid', 'Izgara', 'Grid'), T('crosshair', 'i-crosshair', 'Artı imleç', 'Crosshair'), T('cmdline', 'i-cmdline', 'Komut satırı', 'Command line', 'AutoCAD komut adlarıyla çalışır: LINE, TR, F…', 'Type AutoCAD command names: LINE, TR, F…'), T('ortho', 'i-ortho', 'Ortho', 'Ortho', 'Noktayı yatay ya da düşeye kilitler (F8)', 'Locks the point to horizontal or vertical (F8)'), T('polar', 'i-polar', 'Kutupsal', 'Polar', 'Noktayı açı adımına oturtur (F10)', 'Snaps the point to an angle increment (F10)'), T('otrack', 'i-otrack', 'Yakalama izi', 'Osnap tracking', 'Yakalama noktasında bekleyince iz noktası (+) alınır; imleç yatay / düşey yollara ve kesişimlere oturur (F11)', 'Pause over a snap point to acquire a tracking point (+); the cursor snaps to alignment paths and intersections (F11)'), T('rulers', 'i-ruler', 'Cetvel', 'Rulers'), T('fade', 'i-fade', 'Soldur', 'Fade', 'Seçili olmayan katmanları soldurur', 'Fade other layers')] },
 ];
 const DISPLAY_3D = [
   { cap: 'grpStyle3', items: [T('vstyle', 'i-vs-wireframe', 'Görsel stil', 'Visual style'), T('edges3', 'i-edges', 'Kenarlar', 'Edges'), T('color3', 'i-palette', 'Renk', 'Color'), T('light3', 'i-light', 'Işık', 'Light', 'Gölgeli stilde aydınlatma', 'Lighting in shaded styles'), T('display', 'i-sliders', 'Ekran ayarları', 'Display options')] },
@@ -175,6 +175,7 @@ export function initEditor(a) {
     // Komut satırı kutusu: doğrudan uzaklık girişi dokunma anında kutudaki sayıyı okur, kullanınca siler
     input: () => { const i = $('cmdInput'); return i && !i.hidden ? i.value : ''; },
     clearInput: () => { const i = $('cmdInput'); if (i) i.value = ''; },
+    trackClear: () => call(api.trackClear),   // nokta belirlenince / araç bitince edinilmiş iz noktaları silinir (nesne yakalama izleme)
     fmt,
     copy: (t) => api.copyText(t),
     lonLat: (x, y) => S.geo.active ? S.geo.toLonLat(x, y) : null,
@@ -381,6 +382,7 @@ function refreshTiles() {
     on.theme = !S.dark; on.sun = !!S.sun; on.text = S.show.text; on.hatch = S.show.hatch; on.dim = S.show.dim; on.points = S.show.point; on.images = S.show.image;
     on.lw = !!S.lw; on.mono = S.colorMode === 'mono'; on.ltype = S.show.ltype; on.grid = S.grid.on; on.crosshair = S.crosshair !== 'off'; on.rulers = !!S.rulers; on.fade = S.fade.on;
     on.osnap = S.snapModes && S.snapModes.size > 0; on['3d'] = ed.is3D(); on.grips = !!ui.grips; on.cmdline = ui.cmdLine !== false; on.ortho = !!(S.desk && S.desk.ortho); on.polar = !!(S.desk && S.desk.polar);
+    try { on.otrack = !!(api && api.osnap && api.osnap.opt().otrack); } catch (_) { on.otrack = false; }   // nesne yakalama izleme (F11) karosu
   }
   if (v3) { const o = v3.opts; on.grid3 = o.grid; on.axes3 = o.axes; on.cube3 = o.cube; on.hud3 = o.hud; on.light3 = o.light; on.turn3 = o.turntable; on.persp = v3.cam.persp; on.clip3 = !!o.clip; on.shadow3 = o.shadow; on.sil3 = !!v3._styleFx().silhouette; on.edges3 = !!v3._styleFx().edges; }
   document.querySelectorAll('#toolbar [data-act]').forEach(b => { const k = b.dataset.act; if (k in on) { b.classList.toggle('on', !!on[k]); b.setAttribute('aria-pressed', String(!!on[k])); } if (!FREE.has(k) && !HIST.has(k)) b.disabled = has(k) ? !(S && S.hasDoc) : false; });
@@ -523,7 +525,7 @@ function optionPop(btn, renderFn, title) {
 }
 function needDoc() { if (!S.hasDoc) { api.toast(t('openFirst')); return false; } return true; }
 /** belge açık olmadan da çalışan karolar; HIST kendi kapalılığını yönetir (refreshUndo / görünüm geçmişi) */
-const FREE = new Set(['more', 'display', 'drive', 'undo', 'redo', 'gps', 'basemap', 'theme', 'sun', 'open', 'new', 'about', 'settings', 'cmdhelp', 'closefile', 'osnapset']);
+const FREE = new Set(['more', 'display', 'drive', 'undo', 'redo', 'gps', 'basemap', 'theme', 'sun', 'open', 'new', 'about', 'settings', 'cmdhelp', 'closefile', 'osnapset', 'otrack']);
 const HIST = new Set(['undo', 'redo', 'prevview', 'nextview']);
 function needModel() { if (!needDoc()) return false; if (!S.scene.layouts[S.layoutIndex].isModel) { api.toast(t('modelOnly')); return false; } return true; }
 function act(name, btn) {
@@ -551,7 +553,7 @@ function act(name, btn) {
     case 'markdim': case 'findrep': case 'blocklib': case 'copyclip': case 'pasteclip': case 'mesh3d': case 'tableout': case 'batch': case 'pdfcad': api.action(name); break;
     case 'osnap': toggleOsnap(); break;
     case 'osnapset': api.osnap.openDialog(); break;
-    case 'otrack': api.osnap.toggleTrack(); syncQuick(); refreshTiles(); break;
+    case 'otrack': api.osnap.toggleTrack(); syncQuick(); refreshTiles(); api.drawOverlay(); break;
     // --- komut satırından gelen AutoCAD karşılıkları (karosu yok)
     case 'regen': S.cacheValid = false; api.requestRender(); if (ed.is3D() && v3) v3.render(); break;
     case 'selectall': if (!needModel()) return; if (ed.is3D()) exit3D(); if (tools.active !== 'select') { tools.start('select'); markActive('t:select'); } tools.selectAll(); break;
@@ -635,7 +637,7 @@ function toggleGrips() {
 /** F3 / durum çubuğu / şerit karosu: tek kaynak osnap.toggle (liste saklanır, açılınca geri gelir) */
 function toggleOsnap() { api.osnap.toggle(); syncQuick(); refreshTiles(); }
 /** app.js kipleri değiştirdiğinde (ayar kutusu, çip şeridi, -OSNAP) durum çubuğu ve karolar tazelenir */
-ed.snapChanged = () => { syncQuick(); refreshTiles(); };
+ed.snapChanged = () => { syncQuick(); refreshTiles(); syncSnapOnce(); };
 /** Gezinme yakalaması için: çalışan aracın son noktası (dik / teğet / paralel bunu ister) */
 ed.lastToolPoint = () => (tools && tools.running && tools.pts && tools.pts.length ? tools.pts[tools.pts.length - 1] : null);
 
@@ -727,6 +729,7 @@ function showPrompt(text, opts = {}) {
   inp.hidden = !opts.input;
   { const en = $('cmdEnter'); if (en) en.hidden = !opts.input; }   // giriş yokken Enter da yok: seçim kipinde işlevsizdi, yer kaplıyordu
   syncOrthoBtn(opts.input === 'point');                             // Ortho yalnız NOKTA istenirken: sayı ve seçim istemlerinde anlamsız
+  syncTtBtn(opts.input === 'point');                                // İz noktası (TT) de yalnız nokta isteminde
   inp.placeholder = opts.input === 'number' ? t('numberPh') : t('coordPh');
   inp.type = 'text';
   // Kutudaki tek sayı doğrudan uzaklık girişidir (Çizgi / Polyline): istem tazelenince silinmez, dokunuşta kullanılır
@@ -761,7 +764,7 @@ function idlePrompt() {
   const inp = $('cmdInput');
   inp.hidden = false; inp.type = 'text'; inp.value = ''; inp.placeholder = t('cmdPh');
   { const en = $('cmdEnter'); if (en) en.hidden = false; }
-  syncOrthoBtn(false);
+  syncOrthoBtn(false); syncTtBtn(false);
   // Komut listesine tek kapı: boştaki çubuğun "?" düğmesi. Menüye gömülseydi komut satırını
   // yeni gören kullanıcı hangi adları yazabileceğini hiç öğrenemezdi.
   $('cmdBtns').innerHTML = `<button type="button" class="icon" data-cmd-help="1" aria-label="${esc(t('cmdHelp'))}" title="${esc(t('cmdHelp'))}"><svg class="ic" aria-hidden="true"><use href="#i-help"/></svg></button>`;
@@ -809,6 +812,9 @@ function runCommand(text) {
 }
 function bindCmdBar() {
   { const ob = $('cmdOrtho'); if (ob && !ob.dataset.bound) { ob.dataset.bound = '1'; ob.addEventListener('click', () => toggleOrtho()); } }   // giriş satırındaki Ortho düğmesi (odak vermez: klavye açılmasın)
+  // İz noktası (AutoCAD TT): sonraki dokunuş nokta sayılmaz, iz noktası edinir — izleme kapalıyken de çalışır (geçici iz noktası).
+  // İstem satırındadır: komut düğmesi satırına beşinci düğme (Bitir · Kapat · Geri · TT · İptal) 412 px telefonda üçüncü satır açıp tuvali örtüyordu.
+  { const tt = $('cmdTt'); if (tt && !tt.dataset.bound) { tt.dataset.bound = '1'; tt.addEventListener('click', () => { if (!tools.running) return; api.osnap.once('tk'); syncSnapOnce(); }); } }
   const bar = $('cmdBar'), vp = $('viewport');
   const syncCmd = () => { document.body.classList.toggle('cmd-open', !bar.hidden); if (!bar.hidden && vp) vp.style.setProperty('--cmd-h', bar.offsetHeight + 'px'); };
   new MutationObserver(syncCmd).observe(bar, { attributes: true, attributeFilter: ['hidden'] });
@@ -2086,6 +2092,23 @@ function syncOrthoBtn(show) {
   const lbl = t('tl_ortho') + ' (F8)'; b.title = lbl; b.setAttribute('aria-label', lbl);
 }
 ed.syncOrthoBtn = () => syncOrthoBtn();
+/*
+ * İZ NOKTASI (TT) DÜĞMESİ: Ortho düğmesinin yanında, nokta istenen her adımda; dokunulan (yakalanan) noktayı nokta
+ * saymadan edinir (nesne yakalama izleme). Yakalama izinin AÇMA / KAPAMA anahtarı burada DEĞİLDİR: Ölçü ve Ekran
+ * sekmelerindeki "Yakalama izi" karosu, F11 ve ayar kutusu tek durumu (settings.snapOpt.otrack) okur / yazar —
+ * istem satırına üçüncü düğme konduğunda "Çizgi: İkinci noktayı seçin (devam eder)" gibi istemler ikinci satıra sarıp
+ * çubuğu büyütüyordu.
+ */
+function syncTtBtn(show) {
+  const b = $('cmdTt'); if (!b) return;
+  if (show != null) b.hidden = !show;
+  const l = t('osTk') + ' (TT)'; b.title = l; b.setAttribute('aria-label', l);
+}
+/** İz noktası (TT) düğmesinin basılı görünümü: bir kerelik kip 'tk' kuruluyken vurgulu, tüketilince söner */
+function syncSnapOnce() {
+  const on = !!(S && S.snapOnce === 'tk');
+  const b = $('cmdTt'); if (b) { b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); }
+}
 /** Gezinen imleç / parmakla nişan önizlemesi: nokta isteminde ortho / kutupsal kısıtı uygulanmış nokta (kısıt yoksa aynı nokta) */
 ed.constrainPoint = (w) => (tools && tools.running && !tools.selecting && !tools.pickingObject() && typeof tools.previewPoint === 'function') ? tools.previewPoint(w) : w;
 export const editor = ed;

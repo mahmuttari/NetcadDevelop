@@ -6,7 +6,7 @@
  * birbirinden ayrışamaz.
  *
  * Durum (state.js):  S.snapModes Set<kip> · S.snapOnce bir kerelik kip · S.snapTemp ara nokta(lar) ·
- *                    S.trackPt son yakalanan nokta (yakalama izi) · S.snapFlash dokunuş sonrası işaret
+ *                    S.track.pts edinilmiş iz noktaları (nesne yakalama izleme, otrack.js) · S.snapFlash dokunuş sonrası işaret
  * Seçenekler:        settings.snapOpt { aperture (px), ignoreHatch, zElev, otrack }
  */
 let api = null;   // { S, t, esc, openDoc, hide, toast, haptic, settings, saveSettings, changed, widgets }
@@ -36,7 +36,7 @@ export const ONCE_ONLY = [
   { id: 'non', abbr: 'NON', key: 'osNon', names: ['NON', 'NONE'] },
 ];
 export const DEFAULT_MODES = ['end', 'mid', 'cen', 'int', 'ins', 'node'];
-export const OPT_DEFAULTS = { aperture: 18, ignoreHatch: false, zElev: false, otrack: false };
+export const OPT_DEFAULTS = { aperture: 18, ignoreHatch: false, zElev: false, otrack: true };   // otrack: AutoCAD'de de açık gelir (AUTOSNAP bit 16)
 const BY_ID = new Map([...MODES, ...ONCE_ONLY].map(m => [m.id, m]));
 const BY_NAME = new Map();
 for (const m of [...MODES, ...ONCE_ONLY]) for (const n of m.names) BY_NAME.set(n, m.id);
@@ -122,7 +122,8 @@ export function toggle() {
   api.haptic('toggle');
 }
 export function setOpt(k, v) { opt()[k] = v; api.saveSettings(); api.changed(); }
-export function toggleTrack() { setOpt('otrack', !opt().otrack); api.toast(t(opt().otrack ? 'osTrackOn' : 'osTrackOff'), 1200); api.haptic('toggle'); }
+/** F11 / komut çubuğu düğmesi / ayar kutusu: nesne yakalama izleme. Kapatınca edinilmiş iz noktaları da bırakılır. */
+export function toggleTrack() { const on = !opt().otrack; setOpt('otrack', on); if (!on && S().track) S().track.pts = []; api.toast(t(on ? 'osTrackOn' : 'osTrackOff'), 1200); api.haptic('toggle'); }
 /** Bir kerelik geçersiz kılma: sonraki nokta bu kiple alınır (m2p / from / tk iki dokunuş ister) */
 export function once(id) {
   if (!BY_ID.has(id)) return false;

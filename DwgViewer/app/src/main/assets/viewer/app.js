@@ -28,6 +28,7 @@ import { writeDxf, aciOf } from './edit.js';
 import { dwgObjectCount } from './dwgstat.js';
 import { skelList, emptyBox } from './skel.js';
 import * as Osnap from './osnap.js';
+import * as Trk from './otrack.js';
 
 const $ = (id) => document.getElementById(id);
 const A = () => window.Android || null;
@@ -319,7 +320,7 @@ function drawOverlay() {
   }
   // Dokunuşla yakalanan nokta kısa süre işaretli kalır (AutoCAD'in AutoSnap işareti): parmak kalkınca
   // kullanıcı neyin yakalandığını görsün. Her kipte (çizim, ölçü, düzenleme) aynı işaret.
-  if (S.snapFlash && S.snapFlash.until > performance.now() && !(S.mode === 'measure' && S.snap) && !pickingObject()) drawSnapMark(c, S.snapFlash, '#3ddc84');
+  if (S.snapFlash && S.snapFlash.until > performance.now() && !(S.mode === 'measure' && S.snap) && !pickingObject()) { drawSnapMark(c, S.snapFlash, '#3ddc84'); if (S.snapFlash.trk) drawTrackPaths(c, S.snapFlash.trk, '#3ddc84', 0.55); }   // izle oturan dokunuşta yol da kısa süre görünür (parmakla dokunan kullanıcı hangi hizaya oturduğunu görsün)
   if (S.gps.on && S.gps.lat != null && S.geo.active && S.scene.layouts[S.layoutIndex].isModel) {
     const d = S.geo.toDrawing(S.gps.lon, S.gps.lat);
     if (d) {
@@ -346,6 +347,7 @@ function drawOverlay() {
     const x = Math.min(zoomWin.x0, zoomWin.x1), y = Math.min(zoomWin.y0, zoomWin.y1), w = Math.abs(zoomWin.x1 - zoomWin.x0), h = Math.abs(zoomWin.y1 - zoomWin.y0);
     c.fillRect(x, y, w, h); c.strokeRect(x, y, w, h); c.setLineDash([]);
   }
+  drawTrack(c);
   drawCrosshair(c, fg);
   drawPenHover(c, fg);
   if (S.ui2d.scaleBar) drawScaleBar(c, fg);
@@ -467,6 +469,79 @@ function drawSnapMark(c, sn, col) {
   c.fillText(Osnap.abbrOf(sn.kind), s[0] + 11, s[1] - 10);
   c.restore();
 }
+/*
+ * NESNE YAKALAMA İZLEME (AutoCAD object snap tracking, F11). Geometri otrack.js'te (saf); burada edinme,
+ * temizleme ve çizim vardır. EDİNME: gezinen imleç (kalem / fare / parmakla nişan) bir yakalama noktasının
+ * üstünde DWELL_MS bekleyince nokta edinilir ve küçük bir artı (+) ile işaretlenir; aynı noktada yeniden
+ * bekleyince bırakılır (AutoCAD'deki gibi). Dokunmatikte İz noktası (TT) düğmesi dokunuşla edinir. Edinilmiş
+ * noktalar nokta verilince, araç bitince / iptalde, kip değişince ve iz kapatılınca silinir — AutoCAD'de de
+ * nokta belirlenince temizlenir. Hizalama findSnap içindedir: nesne yakalaması (en yakın dışında) izi yener.
+ */
+let dwell = null, dwellTimer = 0;
+const TRK_SKIP = new Set(['nea', 'ext', 'par', 'trk', 'tk']);   // kayan / türetilmiş noktalar edinilmez: sabit bir nokta değildir
+function trackClear() { if (S.track.pts.length) { S.track.pts = []; drawOverlay(); } trackDwell(null); }
+/** Noktayı edinir ya da (addOnly değilse ve zaten varsa) bırakır; en çok 7 nokta (otrack.js). → eklendi mi */
+function trackToggle(p, kind, addOnly) {
+  const cur = S.track.pts;
+  if (addOnly && cur.some(q => q.key === Trk.keyOf(p))) return false;
+  const r = Trk.toggle(cur, p, kind);
+  S.track.pts = r.list;
+  haptic('snap');
+  drawOverlay();
+  return r.added;
+}
+/** Gezinen imlecin bekleme sayacı: aynı yakalama noktasında DWELL_MS kalınca edinme / bırakma; nokta değişince sıfırlanır */
+function trackDwell(sn) {
+  const ok = !!(sn && sn.p && Osnap.opt().otrack && !TRK_SKIP.has(sn.kind) && pointPrompt());
+  const key = ok ? Trk.keyOf(sn.p) : null;
+  if (dwell && dwell.key === key) return;            // aynı noktada bekleme sürüyor; tetiklendiyse yeniden tetiklenmez
+  clearTimeout(dwellTimer); dwellTimer = 0; dwell = null;
+  if (!key) return;
+  dwell = { key, p: [sn.p[0], sn.p[1]], kind: sn.kind };
+  dwellTimer = setTimeout(() => { dwellTimer = 0; if (!dwell || dwell.key !== key || !penHover) return; trackToggle(dwell.p, dwell.kind, false); }, Trk.DWELL_MS);
+}
+/**
+ * Hizalama (findSnap'ten). Ortho / kutupsal açıkken ve aracın bir taban noktası varken imleç kilit doğrusundadır
+ * (tools.kisitla); o zaman yalnız yolun kilit doğrusunu kestiği nokta alınır — "şu uçla aynı hizada bitecek çizgi".
+ */
+function trackAlign(w, tol, o) {
+  const pts = S.track.pts; if (!pts.length) return null;
+  const d = S.desk;
+  let lock = null;
+  if ((d.ortho || d.polar) && !o.grip && S.mode === 'view' && editor.tools && editor.tools.running) {
+    const base = o.prev || edCall('lastToolPoint');
+    const q = base ? edCall('constrainPoint', w) : null;
+    if (base && q && (Math.abs(q[0] - w[0]) > 1e-12 || Math.abs(q[1] - w[1]) > 1e-12)) {
+      const dx = q[0] - base[0], dy = q[1] - base[1], L = Math.hypot(dx, dy);
+      if (L > 1e-9) lock = { base: [base[0], base[1]], dir: [dx / L, dy / L] };
+    }
+  }
+  return Trk.align(pts, w, tol, Trk.angles(!!d.polar, d.polarStep), lock);
+}
+/** Edinilmiş iz noktaları: küçük artı (AutoCAD'in "+" işareti), yalnız nokta isteminde */
+function drawTrack(c) {
+  const pts = S.track.pts;
+  if (!pts.length || !pointPrompt()) return;
+  c.save(); c.strokeStyle = S.selColor || '#ff9f0a'; c.lineWidth = 1.5; c.setLineDash([]); c.globalAlpha = 0.95;
+  c.beginPath();
+  for (const q of pts) { const s = toScreen(q.p[0], q.p[1]); const X = Math.round(s[0]) + 0.5, Y = Math.round(s[1]) + 0.5; c.moveTo(X - 6, Y); c.lineTo(X + 6, Y); c.moveTo(X, Y - 6); c.lineTo(X, Y + 6); }
+  c.stroke();
+  c.restore();
+}
+/** Hizalama yolları: edinilmiş noktadan geçen kesik çizgi, tam ekran (AutoCAD TRACKPATH 0); kilit doğrusu da çizilir */
+function drawTrackPaths(c, tr, col, alpha) {
+  if (!tr || !tr.paths || !tr.paths.length) return;
+  const L = S.W + S.H;
+  const dirS = (pt, dx, dy) => { const a = toScreen(pt[0], pt[1]), b = toScreen(pt[0] + dx, pt[1] + dy); const vx = b[0] - a[0], vy = b[1] - a[1], n = Math.hypot(vx, vy) || 1; return [a, vx / n, vy / n]; };
+  c.save(); c.strokeStyle = col; c.lineWidth = 1; c.setLineDash([5, 4]); c.globalAlpha = alpha == null ? 0.8 : alpha;
+  c.beginPath();
+  for (const p of tr.paths) { const [a, ux, uy] = dirS(p.pt, p.dx, p.dy); c.moveTo(a[0] - ux * L, a[1] - uy * L); c.lineTo(a[0] + ux * L, a[1] + uy * L); }
+  if (tr.lockLine) { const [a, ux, uy] = dirS(tr.lockLine.base, tr.lockLine.dir[0], tr.lockLine.dir[1]); c.moveTo(a[0] - ux * L, a[1] - uy * L); c.lineTo(a[0] + ux * L, a[1] + uy * L); }
+  c.stroke();
+  c.restore();
+}
+/** İpucu metni (AutoCAD "Endpoint: 245.3 < 0°"): yolun kipi, edinilmiş noktadan uzaklık, yolun açısı; kesişimde iki yol */
+function trkText(tr) { return tr.paths.map(p => Osnap.abbrOf(p.kind) + ' ' + fmt(p.dist) + ' < ' + fmt(p.deg, 0) + '°').join(' · '); }
 function drawPenHover(c, fg) {
   if (!penHover || !penHover.w) return;
   // Nesne isteminde yakalama aranmaz (findSnap boş döner): imleç karedir ve karenin altındaki nesne
@@ -481,6 +556,7 @@ function drawPenHover(c, fg) {
   const sn = penHover.snap, q = penHover.q;
   const s = sn ? toScreen(sn.p[0], sn.p[1]) : q ? toScreen(q[0], q[1]) : [penHover.sx, penHover.sy];   // kısıtlı nokta: imleç oraya, parmağa / kaleme değil
   const acc = S.selColor || '#ff9f0a';
+  if (sn && sn.trk) drawTrackPaths(c, sn.trk, acc, 0.8);   // izleme yolları: imleç hangi hizaya / kesişime oturdu
   c.save();
   c.setLineDash([3, 3]); c.lineWidth = 1; c.strokeStyle = fg; c.globalAlpha = 0.55;
   c.beginPath();
@@ -498,11 +574,11 @@ function drawPenHover(c, fg) {
   // büyütecin altına yazılır (drawLoupe).
   if (!penHover.aim) {
     const p = sn ? sn.p : (q || penHover.w);
-    const txt = fmt(p[0]) + ' ; ' + fmt(p[1]) + (sn ? '  ' + String(sn.kind || '').toUpperCase() : q ? '  ' + (S.desk.polar ? 'POLAR' : 'ORTHO') : '');
+    const txt = fmt(p[0]) + ' ; ' + fmt(p[1]) + (sn ? '  ' + (sn.trk ? trkText(sn.trk) : String(sn.kind || '').toUpperCase()) : q ? '  ' + (S.desk.polar ? 'POLAR' : 'ORTHO') : '');
     c.font = '11px system-ui, sans-serif'; c.textBaseline = 'bottom'; c.textAlign = 'left';
     const w = c.measureText(txt).width + 10;
-    // Kutu imlecin sağına sığmıyorsa soluna geçer; ekran kenarında yazı kırpılmasın.
-    const bx = s[0] + 14 + w > S.W ? s[0] - 14 - w : s[0] + 14;
+    // Kutu imlecin sağına sığmıyorsa soluna geçer; iki yana da sığmıyorsa (iki yollu izleme ipucu) kenara dayanır — yazı kırpılmasın.
+    const bx = Math.max(4, Math.min(S.W - w - 4, s[0] + 14 + w > S.W ? s[0] - 14 - w : s[0] + 14));
     c.fillStyle = S.dark ? 'rgba(20,26,34,.88)' : 'rgba(255,255,255,.88)';
     c.fillRect(bx, s[1] - 24, w, 18);
     c.fillStyle = sn ? acc : fg; c.fillText(txt, bx + 5, s[1] - 8);
@@ -557,7 +633,7 @@ function drawLoupe(c, fg) {
   // etiket büyütecin altında: nokta isteminde koordinat (+ yakalama kipi), nesne isteminde altındaki nesnenin türü ve katmanı
   let txt = '';
   if (pickingObject()) { const hit = pick(h.w, TOL.pick / S.view.scale); if (hit) txt = trType(hit.info ? hit.info.t : hit.et) + ' \u00b7 ' + hit.lay; }
-  else { const q = sn ? sn.p : (h.q || h.w); txt = fmt(q[0]) + ' ; ' + fmt(q[1]) + (sn ? '  ' + Osnap.abbrOf(sn.kind) : h.q ? '  ' + (S.desk.polar ? 'POLAR' : 'ORTHO') : ''); }
+  else { const q = sn ? sn.p : (h.q || h.w); txt = fmt(q[0]) + ' ; ' + fmt(q[1]) + (sn ? '  ' + (sn.trk ? trkText(sn.trk) : Osnap.abbrOf(sn.kind)) : h.q ? '  ' + (S.desk.polar ? 'POLAR' : 'ORTHO') : ''); }
   if (txt) {
     c.font = `${Math.round(11 * fs)}px system-ui, sans-serif`; c.textBaseline = 'top'; c.textAlign = 'center';
     const w = c.measureText(txt).width + 12, ly = cy + R + 6, th = Math.round(18 * fs);
@@ -645,6 +721,7 @@ const penNavOnly = () => S.pen.seen && penPrefs().penDraw === true && penPro();
 function penClearHover() {
   if (!penHover) return;
   penHover = null; S.pen.hover = null;
+  trackDwell(null);
   showSnapChip(null);
   drawOverlay();
 }
@@ -870,6 +947,7 @@ function hoverTick() {
     // Yakalama, dokunuştaki ile AYNI yolu kullanır (doSnap değil: o S.lastPoint'i ve titreşimi
     // değiştirir; gezinme belgeye ve duruma hiç dokunmamalıdır).
     penHover.snap = findSnap(w, { prev: edCall('lastToolPoint'), hover: true });
+    trackDwell(penHover.snap);   // yakalama noktasında bekleyince iz noktası edinilir (nesne yakalama izleme)
     // Ortho / kutupsal: yakalama yoksa önizleme de dokunuşun düşeceği kısıtlı noktayı gösterir (tools.kisitla ile aynı hesap)
     penHover.q = null;
     if (!penHover.snap) { const q = edCall('constrainPoint', w); if (q && (q[0] !== w[0] || q[1] !== w[1])) penHover.q = [q[0], q[1]]; }
@@ -1067,7 +1145,7 @@ function findSnap(w, o = {}) {
   // ucuna / ortasına oturtmak ince nişan istememeli.
   const tol = (opt.aperture > 0 ? opt.aperture : TOL.snap) * (o.grip ? 1.5 : 1) / S.view.scale;
   const modes = o.once ? new Set([o.once]) : S.snapModes;
-  if (!modes.size && !opt.otrack) return null;
+  if (!modes.size && !S.track.pts.length) return null;
   const prev = o.prev || (S.mode === 'measure' || S.mode === 'profile' ? (S.measure.length ? S.measure[S.measure.length - 1] : null) : null);
   let cands = candidates(w, tol);
   if (opt.ignoreHatch) cands = cands.filter(p => !(p.info && p.info.t === 'HATCH'));
@@ -1077,14 +1155,11 @@ function findSnap(w, o = {}) {
     const wide = modes.has('par') && prev ? candidates(w, tol * 40).filter(p => p.k === 0).slice(0, 300) : null;
     sn = snapPoint(cands, w, tol, modes, prev, { wide });
   }
-  // Yakalama izi (OTRACK): son yakalanan noktayla yatay ya da düşey hizaya gelince oraya oturur;
-  // nesne yakalaması (en yakın dışında) her zaman izi yener.
-  if (opt.otrack && S.trackPt && (!sn || sn.kind === 'nea')) {
-    const T = S.trackPt, dx = Math.abs(w[0] - T[0]), dy = Math.abs(w[1] - T[1]);
-    if (dx < tol || dy < tol) {
-      const q = dx <= dy ? [T[0], w[1]] : [w[0], T[1]];
-      if (!sn || Math.hypot(q[0] - w[0], q[1] - w[1]) < Math.hypot(sn.p[0] - w[0], sn.p[1] - w[1])) sn = { p: [q[0], q[1], undefined], kind: 'trk' };
-    }
+  // NESNE YAKALAMA İZLEME (OTRACK): edinilmiş iz noktalarından geçen hizalama yolları ve kesişimleri (otrack.js);
+  // nesne yakalaması (en yakın dışında) her zaman izi yener — kullanıcı belirli bir noktaya oturmak istemiştir.
+  if (S.track.pts.length && (!sn || sn.kind === 'nea')) {
+    const tr = trackAlign(w, tol, { ...o, prev });
+    if (tr && (!sn || Math.hypot(tr.p[0] - w[0], tr.p[1] - w[1]) < Math.hypot(sn.p[0] - w[0], sn.p[1] - w[1]))) sn = { p: [tr.p[0], tr.p[1], undefined], kind: 'trk', trk: tr };
   }
   if (sn && opt.zElev) sn.p[2] = 0;
   return sn;
@@ -1098,7 +1173,7 @@ function findSnap(w, o = {}) {
 function doSnap(w, o = {}) {
   const once = S.snapOnce;
   const bitir = (sn) => {
-    if (sn) { S.lastPoint = [sn.p[0], sn.p[1]]; showSnapChip(Osnap.abbrOf(sn.kind)); haptic('snap'); S.trackPt = [sn.p[0], sn.p[1]]; snapFlash(sn); }
+    if (sn) { S.lastPoint = [sn.p[0], sn.p[1]]; showSnapChip(Osnap.abbrOf(sn.kind)); haptic('snap'); snapFlash(sn); }
     else S.lastPoint = [w[0], w[1]];
     return sn;
   };
@@ -1114,16 +1189,15 @@ function doSnap(w, o = {}) {
     return bitir({ p: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, z], kind: 'm2p' });
   }
   if (once === 'tk') {
+    // İZ NOKTASI (AutoCAD TT): dokunulan (yakalanan) nokta EDİNİLİR, nokta sayılmaz; sonraki dokunuşlar ondan geçen
+    // hizalama yollarına oturur (nesne yakalama izleme, otrack.js). Yakalama izi kapalıyken de çalışır: geçici iz noktasıdır.
     const q = findSnap(w, o), pt = q ? q.p.slice() : [w[0], w[1], undefined];
-    S.snapTemp = { tk: pt }; S.snapOnce = 'tk2'; if (q) snapFlash(q);
-    toast(t('osTkFirst'), 2200); haptic('snap');
-    return { pending: true };
-  }
-  if (once === 'tk2') {
-    const T = S.snapTemp && S.snapTemp.tk ? S.snapTemp.tk : [w[0], w[1]];
     Osnap.clearOnce();
-    const q = Math.abs(w[0] - T[0]) <= Math.abs(w[1] - T[1]) ? [T[0], w[1]] : [w[0], T[1]];   // yakın olan hizaya (düşey / yatay) oturur
-    return bitir({ p: [q[0], q[1], undefined], kind: 'tk' });
+    trackToggle([pt[0], pt[1]], q && !TRK_SKIP.has(q.kind) ? q.kind : 'tk', true);
+    if (q) snapFlash(q);
+    toast(t('osTkFirst'), 2200);
+    edCall('snapChanged');
+    return { pending: true };
   }
   if (once === 'from') {
     const q = findSnap(w, o), pt = q ? q.p.slice() : [w[0], w[1], undefined];
@@ -1138,7 +1212,7 @@ function doSnap(w, o = {}) {
 function fromBase() { const b = S.snapTemp && S.snapTemp.from; if (b) { S.snapTemp = null; return b; } return null; }
 let snapFlashTimer = 0;
 function snapFlash(sn) {
-  S.snapFlash = { p: sn.p, kind: sn.kind, until: performance.now() + 900 };
+  S.snapFlash = { p: sn.p, kind: sn.kind, trk: sn.trk || null, until: performance.now() + 900 };
   clearTimeout(snapFlashTimer); snapFlashTimer = setTimeout(() => { S.snapFlash = null; drawOverlay(); }, 950);
 }
 
@@ -1162,6 +1236,7 @@ async function onTap(sx, sy) {
       } else p[2] = p[2] * (S.unitToM || 1);
     }
     S.measure.push(p);
+    trackClear();   // nokta belirlendi: edinilmiş iz noktaları silinir (AutoCAD)
     S.snap = sn;
     updateMeasure();
     drawOverlay();
@@ -1360,6 +1435,7 @@ function setMode(m) {
   if (m === 'profile' && !Ed.gate('profile')) return;
   if (m !== 'view' && S.notesOn) toggleNotes(false);
   S.mode = m;
+  trackClear();   // kip değişince edinilmiş iz noktaları kalmaz
   $('btnMeasure').classList.toggle('active', m === 'measure' || m === 'profile');
   edCall('statusMode', m === 'measure' ? tt('measure', 'Ölçü') : m === 'profile' ? t('profile') : null);
   if (m === 'measure' || m === 'profile') {
@@ -3889,6 +3965,9 @@ window.dwgApp = { osnap: Osnap, loadCurrent, onFilePicked, onLocation, onBack, o
   // o noktada yakalama ne buluyor (nesne isteminde null olmalıdır)
   __pickbox: () => ({ on: pickingObject(), r: pickBoxR(), tol: TOL.pick, hover: penHover ? { sx: penHover.sx, sy: penHover.sy, aim: !!penHover.aim, snap: penHover.snap ? penHover.snap.kind : null } : null, loupe: penHover && penHover.aim ? loupeGeom(penHover) : null }),
   __snapAt: (x, y, o) => { const sn = findSnap([x, y], o || {}); return sn ? { kind: sn.kind, p: sn.p.slice(0, 2) } : null; },
+  // Nesne yakalama izleme (bkz. tools/test_izleme.mjs): açık mı, edinilmiş noktalar, süren bekleme, gezinen imlecin oturduğu yol
+  __track: () => { const h = penHover && penHover.snap && penHover.snap.trk ? penHover.snap.trk : null; return { on: !!Osnap.opt().otrack, pts: S.track.pts.map(q => ({ p: q.p.slice(), kind: q.kind })), dwell: dwell ? dwell.key : null, hover: h ? { p: penHover.snap.p.slice(0, 2), cross: !!h.cross, lock: !!h.lock, n: h.paths.length, text: trkText(h) } : null }; },
+  __trackAdd: (x, y, kind) => trackToggle([x, y], kind || 'end', true), __trackClear: () => trackClear(),
   // Açılış kestirimcisinin sınanabilir parçaları (bkz. tools/test_ilerleme.mjs)
   __band: (v) => bandOf(v), __tahminTaban: (n, mb) => tahminTaban(n, mb),
   __bantBeklenen: (b) => bantBeklenenMs(b), __olcek: () => acilisOlcek(),
@@ -3911,7 +3990,7 @@ ensureStatusChips();
 Ed.initEdition({ toast, rebuildToolbar: () => editor.rebuild(), refreshMenu });   // Ücretsiz / Pro: menü, karşılama kartı, Pro paneli, Drive düğmeleri; reklam zamanlayıcısı; onEdition → şerit yeniden kurulur
 D.initDisplay({ requestRender, drawOverlay, toast, openDoc, show, hide, buildLayerList, settings, saveSettings, editorTheme, zoomExtents, zoomBy, fitPrims, viewHistory, setLayout, editor, ui: uiPrefs(), basemaps: BASEMAPS, haptic });
 mountNavFabs(vp);
-initEditor({ S, requestRender, drawOverlay, toast, noFaces: showNoFaces, pick: (w) => pick(w, TOL.pick / S.view.scale), snap: doSnap, snapPeek: findSnap, fromBase, osnap: Osnap, showInfo, openDoc, hide, show, esc, kv, copyText, buildLayerList, fmt, store, RTree, baseName, zoomExtents, tracePath, worldTransform, strokeWorldRect, worldOrigin,
+initEditor({ S, requestRender, drawOverlay, toast, noFaces: showNoFaces, pick: (w) => pick(w, TOL.pick / S.view.scale), snap: doSnap, snapPeek: findSnap, fromBase, trackClear, osnap: Osnap, showInfo, openDoc, hide, show, esc, kv, copyText, buildLayerList, fmt, store, RTree, baseName, zoomExtents, tracePath, worldTransform, strokeWorldRect, worldOrigin,
   action: (a) => { if (a === 'layers') $('btnLayers').click(); else if (a === 'search') $('btnSearch').click(); else if (a === 'more') $('btnMore').click(); else if (a === 'open') Open.open(); else if (a === 'new') showNewDoc(); else menuAction(a); },
   savePng, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, isolateLayers, unisolate, settings, saveSettings, stamp, haptic, openDisplayOptions, setDisplay, getDisplay, toggleDisplay, display: D });
 $('stScale').addEventListener('click', showScalePicker);

@@ -7,7 +7,7 @@
  *   run(cmd)             → EditDoc.run
  *   render()  overlay()  toast(msg)  result(rows)  layer()  color()
  *   visiblePrims()  allPrims()  copy(metin)  lonLat(x,y)  textHeight()
- *   fmt(v)   units()     unitToM()
+ *   fmt(v)   units()     unitToM()   trackClear() (nokta belirlenince edinilmiş iz noktaları silinir)
  * Nokta girişi: dokunma (yakalamalı) ya da yazılı: "x,y" | "x,y,z" | "@dx,dy" | "@L<açı"
  */
 import { TAU, flatten, polyArea, pathLength, pathLength3, segDist, opsBBox, enclosingPrim, segmentsOf, segAt, trimPath, extendPath, lengthenPath, filletCorner, chamferCorner, cornerAt, segIntersect, pointInPoly } from './geom.js';
@@ -198,6 +198,7 @@ export class ToolManager {
   cancel(silent) {
     if (this.active && this.active !== 'select' && this.pts.length && ['pline', 'pline3d', 'face3d', 'area', 'cloud'].includes(this.active)) this.finish();
     this.active = null; this.pts = []; this.step = 0; this.draft = null; this.selecting = false; this.cut = null; this.c1 = null; this.corner = null; this.selMode = 'tap'; this.mode = null; this.val = null; this.pendLen = null;
+    if (this.api.trackClear) this.api.trackClear();   // edinilmiş iz noktaları araçla birlikte gider
     if (!silent) { this.api.prompt(null); this.api.overlay(); }
   }
   say() {
@@ -1075,6 +1076,7 @@ export class ToolManager {
   /** toplanan nokta (kot / yazı / ayna onayı sorulabildiğinden async; çağıranlar beklemez) */
   async point(p, sn) {
     const A = this.api;
+    if (A.trackClear) A.trackClear();   // AutoCAD: nokta belirlenince edinilmiş iz noktaları silinir
     p = this.kisitla(p, sn);
     this.pts.push(p); this.last = p;
     const n = this.pts.length;
@@ -1159,6 +1161,7 @@ export class ToolManager {
   finish() {
     this.pendLen = null;   // bekleyen uzunluk parçayla birlikte biter
     const A = this.api;
+    if (A.trackClear) A.trackClear();
     if (MODE_TOOLS[this.active]) { if (!this.enterEmpty()) this.say(); return; }   // Bitir / Enter: son değeri alır; kesici ve ilk doğru önizlemesi silinmez
     if (this.selecting) {
       if (!A.sel.size) { A.toast(t('selEmpty')); return; }
