@@ -148,6 +148,10 @@ Bu yedisi v7.28 ile kapandı; **birinci öbekte açık madde kalmadı**. Ayrınt
 | Doğrudan uzaklık girişi: Çizgi / Polyline'da kutudaki sayı kadar dokunulan yönde ilerleme (AutoCAD direct distance entry) (v7.65) | Çiz ▸ Çizgi, Polyline | var olan araçların kademesi |
 | Köşe tutamağı sürüklenirken başka nesnelerin yakalama noktalarına oturur; sürüklemede işaret; kendi eski yerine yapışmaz (v7.65) | Düzenle ▸ Köşe tutamakları | premium (grips) |
 | Nesne yakalama izleme (AutoCAD OTRACK, F11): yakalama noktasında bekleyince iz noktası (+), yatay / düşey (kutupsalda açılı) hizalama yolları ve kesişimleri, ortho kilidiyle kesişim, İz noktası (TT) düğmesi Ortho'nun yanında, Yakalama izi karosu (v7.66) | Ölçü ▸ Yakalama izi, Ekran ▸ Yakalama izi, komut çubuğu | var olan yakalamanın kademesi (kalemle gezinme premium) |
+| Çokgen (POLYGON), Böl (DIVIDE), Aralıkla (MEASURE), Sınır (BOUNDARY) (v7.67) | Çiz ▸ Çokgen, Böl, Aralıkla, Sınır | premium |
+| Esnet (STRETCH, kesen pencere içindeki köşeler), Birleştir (JOIN), Özellik eşle (MATCHPROP) (v7.67) | Düzenle ▸ Esnet, Birleştir, Özellik eşle | premium |
+| Benzerini seç (SELECTSIMILAR / QSELECT), Gizle / İzole et / Hepsini göster (HIDEOBJECTS / ISOLATEOBJECTS / UNISOLATEOBJECTS), ZOOM seçenekleri (Z W / P / E / A / O / 2X), eş anlamlılar (LENGTHEN, RENAME, DDVPOINT, GEOMARKME) (v7.67) | Düzenle ▸ seçim grubu, seçim menüsü, komut satırı | free (seçim ve görünümün kademesi) |
+| Kes (CUTCLIP): seçimi panoya alıp siler (v7.67) | Düzenle ▸ Kes, seçim menüsü | premium (pano) |
 | Ölçümü çizime işaretleme | Açıklama ▸ Ölçümü işle | premium |
 | Revizyon bulutu | Açıklama ▸ Revizyon bulutu | premium |
 | Numaralandırma (balon, artan) | Açıklama ▸ Numaralandır | premium |

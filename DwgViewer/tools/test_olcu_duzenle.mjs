@@ -66,7 +66,7 @@ const TAP = 1e-3;   // dokunuşla girilen noktalar ekran pikseline yuvarlanır: 
   ok('1a "Ölçüyü düzenle" karosu ölçülendirme grubunda', r.tile && r.label === 'Ölçüyü düzenle', J([r.tile, r.label]));
   ok('1b t:dimedit Premium', r.tier === 'premium', String(r.tier));
   ok('1c DIMEDIT ve DED komutu araca bağlı', r.ded === 't:dimedit' && r.dimedit === 't:dimedit', J([r.ded, r.dimedit]));
-  ok('1d komut tablosu: 458 kayıt = 158 AutoCAD + 31 özgü + 269 bulunmayan; 663 ad', r.st.total === 458 && r.st.acad === 158 && r.st.ext === 31 && r.st.known === 269 && r.st.names === 663, J(r.st));
+  ok('1d komut tablosu: 487 kayıt = 175 AutoCAD + 31 özgü + 281 bulunmayan; 731 ad', r.st.total === 487 && r.st.acad === 175 && r.st.ext === 31 && r.st.known === 281 && r.st.names === 731, J(r.st));
 }
 
 // ---- 2. Doğrusal ölçü tanım taşır -------------------------------------------------------------------
@@ -200,14 +200,14 @@ ok('11b açısal: taşma 20 uygulanır (kol = r + 20), çarpan açıya uygulanma
 {
   await ev((g) => { const E = window.dwgApp.editor; E.sel.clear(); for (const p of window.dwgApp.state.scene.layouts[0].prims.filter(p => p.info && p.info.gid === g)) E.sel.add(p); E.selMenu(); }, g1); await bekle(200);
   const m = await ev(() => { const b = document.querySelector('#docBody [data-sm="dimedit"]'); const ids = [...document.querySelectorAll('#docBody [data-sm]')].map(e => e.dataset.sm); return { var: !!b, ad: b ? b.textContent.trim() : '', n: ids.length, sira: ids.indexOf('dimedit') }; });
-  ok('12a ölçü seçiliyken seçim menüsünde "Ölçü özellikleri" kartı (13 kart, Özellikler kartının önünde)', m.var && m.ad === 'Ölçü özellikleri' && m.n === 13 && m.sira === 10, J(m));
+  ok('12a ölçü seçiliyken seçim menüsünde "Ölçü özellikleri" kartı (17 kart, Özellikler kartının önünde)', m.var && m.ad === 'Ölçü özellikleri' && m.n === 17 && m.sira === 10, J(m));
   const l12 = await gunluk();
   await queueAnswers(page, { prefix: 'S=' });
   await page.click('#docBody [data-sm="dimedit"]'); await bekle(300);
   const d12 = await grup(g1), l12b = await gunluk(), selN = await ev(() => window.dwgApp.editor.sel.size);
   ok('12b karttan düzenleme: ölçü yeniden kuruldu, tek adım, seçim bırakıldı', d12.text.startsWith('S=') && l12b.log === l12.log + 1 && selN === 0, J([d12.text, l12, l12b, selN]));
   await ev(() => { const E = window.dwgApp.editor; E.sel.clear(); const p = window.dwgApp.state.scene.layouts[0].prims.find(q => q.k === 0 && !(q.info && q.info.t === 'DIMENSION')); E.sel.add(p); E.selMenu(); }); await bekle(200);
-  ok('12c ölçü seçili değilken kart yok (12 kart)', await ev(() => !document.querySelector('#docBody [data-sm="dimedit"]') && document.querySelectorAll('#docBody [data-sm]').length === 12));
+  ok('12c ölçü seçili değilken kart yok (16 kart)', await ev(() => !document.querySelector('#docBody [data-sm="dimedit"]') && document.querySelectorAll('#docBody [data-sm]').length === 16));
   await ev(() => { window.dwgApp.editor.sel.clear(); document.getElementById('docPanel').hidden = true; });
 }
 

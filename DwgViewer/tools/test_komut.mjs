@@ -90,7 +90,7 @@ const etiket = (act) => ev((a) => { const b = document.querySelector(`#toolbar [
     g.L === 't:line' && g.TR === 't:trim' && g.E === 't:del' && g.F === 't:fillet' && g.CHA === 't:chamfer' && g.X === 't:explode',
     JSON.stringify({ L: g.L, TR: g.TR, E: g.E, F: g.F, CHA: g.CHA, X: g.X }));
   ok('1h tanınan ama bulunmayan komut çözülür: kimliksiz, avail:false; kısaltması da (POL, S)',
-    g.polygon && g.polygon.id === null && g.polygon.avail === false && g.pol === 'POLYGON' && g.stretchS === 'STRETCH', JSON.stringify({ p: g.polygon, pol: g.pol, s: g.stretchS }));
+    g.polygon && g.polygon.id === 't:polygon' && g.polygon.avail !== false && g.pol === 'POLYGON' && g.stretchS === 'STRETCH', JSON.stringify({ p: g.polygon, pol: g.pol, s: g.stretchS }));
   ok('1i eşanlamlı ad aynı araca gider, etiket birincil addan okunur (T → TEXT, DS → DSETTINGS, D → DIMSTYLE)',
     g.mtext === 't:text' && g.textCmd === 'TEXT' && g.textNames === 'TEXT (DT)' && g.ds === 'display' && g.dimstyleD === 'DIMSTYLE', JSON.stringify({ mtext: g.mtext, textCmd: g.textCmd, names: g.textNames, ds: g.ds, d: g.dimstyleD }));
   ok('1j yeni katman ve yenileme komutları bağlı (LAYISO, RE → REGEN)', g.layiso === 'layiso' && g.regenRE === 'regen', JSON.stringify({ layiso: g.layiso, re: g.regenRE }));
@@ -162,13 +162,21 @@ const etiket = (act) => ev((a) => { const b = document.querySelector(`#toolbar [
 
   // Tanınan ama bulunmayan AutoCAD komutu: "bilinmeyen" DENMEZ; bulunmadığı ve en yakın karşılığı söylenir
   await ev(() => { document.getElementById('toast').hidden = true; });
-  await yaz('polygon'); await gir();
+  await yaz('donut'); await gir();
   const tNa = await toast();
-  ok('4h POLYGON: "bulunmuyor" uyarısı ve en yakın karşılık (PLINE); araç başlamaz', (await aktif()) === null && /POLYGON/.test(tNa) && /bulunmuyor|not available/.test(tNa) && /PLINE/.test(tNa), tNa);
+  ok('4h DONUT: "bulunmuyor" uyarısı ve en yakın karşılık (iki daire); araç başlamaz', (await aktif()) === null && /DONUT/.test(tNa) && /bulunmuyor|not available/.test(tNa) && /circle/i.test(tNa), tNa);
   // boş Enter bulunmayan komutu DEĞİL, ondan önceki gerçek komutu yineler
   await yaz(''); await gir();
   ok('4i boş Enter bulunmayan komutu değil son gerçek komutu (FILLET) yineler', (await aktif()) === 'fillet', String(await aktif()));
   await iptal();
+  // POLYGON artık gerçek bir komuttur (v7.67): aracı başlatır, kenar sayısını sorar
+  await yaz('polygon'); await gir();
+  ok('4h2 POLYGON çokgen aracını başlatır (kısaltma POL)', (await aktif()) === 'polygon', String(await aktif()));
+  await iptal();
+  await yaz('pol'); await gir();
+  ok('4h3 "POL" kısaltması da çokgeni başlatır', (await aktif()) === 'polygon', String(await aktif()));
+  await iptal();
+  await yaz('f'); await gir(); await iptal(); // son gerçek komut yine FILLET olsun (4j buna bakar)
   // açma/kapama karosu "son komut" olmaz: GRID'e dokunduktan sonra boş Enter ızgarayı geri kapatmaz
   const gridOnce = await ev(() => window.dwgApp.state.grid.on);
   await ev(() => window.dwgApp.editor.act('grid')); await page.waitForTimeout(150);

@@ -221,6 +221,25 @@ export function pathLength3(ops, closed) {
   if (closed) len += Math.hypot(sx - lx, sy - ly, sz - lz);
   return len;
 }
+/**
+ * Düz parçalı yol (flatten çıktısı) boyunca verilen yol uzunluklarındaki noktalar — AutoCAD DIVIDE / MEASURE.
+ * dists artan sırada olmak zorunda değildir; yol boyunu aşanlar ve negatifler atlanır. → [[x, y]…]
+ */
+export function pathPointsAt(pts, dists) {
+  const out = [];
+  if (!Array.isArray(pts) || pts.length < 2) return out;
+  const cum = [0];
+  for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  const L = cum[cum.length - 1];
+  for (const d of dists) {
+    if (!(d >= 0) || d > L + 1e-9) continue;
+    let i = 1; while (i < cum.length - 1 && cum[i] < d) i++;
+    const seg = cum[i] - cum[i - 1];
+    const t = seg > 0 ? Math.max(0, Math.min(1, (d - cum[i - 1]) / seg)) : 0;
+    out.push([pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * t, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * t]);
+  }
+  return out;
+}
 export function polyArea(pts) {
   let a = 0;
   for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) a += (pts[j][0] + pts[i][0]) * (pts[j][1] - pts[i][1]);

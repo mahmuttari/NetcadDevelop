@@ -1107,6 +1107,18 @@ function longPressMenu(sx, sy) {
   };
 }
 
+/*
+ * NESNE GİZLEME / İZOLASYON (AutoCAD HIDEOBJECTS / ISOLATEOBJECTS / UNISOLATEOBJECTS). Görünüm durumudur: çizim
+ * değişmez, DXF'e yazılmaz, yeni dosyada sıfırlanır. render.passFilters ve seçim (candidates → primVisible) aynı
+ * kümeye bakar: gizlenen nesne çizilmez ve dokunuşla seçilemez.
+ */
+function hideObjects(keys, isolate) {
+  if (isolate) S.isoObj = new Set(keys); else for (const k of keys) S.hideObj.add(k);
+  S.selected = null; hide('infoPanel');
+  S.cacheValid = false; requestRender(); drawOverlay();
+}
+function showAllObjects() { S.hideObj = new Set(); S.isoObj = null; S.cacheValid = false; requestRender(); drawOverlay(); }
+
 function candidates(w, tol) {
   const out = [];
   if (S.tree) S.tree.search(w[0] - tol, w[1] - tol, w[0] + tol, w[1] + tol, i => out.push(S.prims[i]));
@@ -2542,6 +2554,14 @@ async function clipCopySelection() {
   const bb = L.entsBBox(ents);
   if (!L.clipWrite(store, ents, [(bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2])) { toast(t('blockTooBig'), { type: 'error', ms: 5000 }); return; }
   toast(`${t('clipCopied')} · ${fmt(ents.length, 0)}`, { type: 'ok' });
+  return true;
+}
+/** CUTCLIP (AutoCAD Ctrl+X): panoya kopyala ve sil. Silme tek geri alma adımıdır; pano ayrı durur. */
+async function clipCut() {
+  const sel = editor.selection();
+  if (!sel.length) { toast(t('blockNoSel'), { type: 'warn' }); return; }
+  if (await clipCopySelection() !== true) return;
+  if (editor.eraseKeys(sel.map(p => p.key))) toast(t('cutDone').replace('%s', fmt(sel.length, 0)), 1800);
 }
 async function clipPaste() {
   const L = await blockLib(); if (!L) return;
@@ -2605,6 +2625,7 @@ function menuAction(act) {
     case 'findrep': showFindReplace(); break;
     case 'blocklib': showBlockLib(); break;
     case 'copyclip': clipCopySelection(); break;
+    case 'cutclip': void clipCut(); break;
     case 'pasteclip': void clipPaste(); break;
     case 'mesh3d': showMeshExport(); break;
     case 'tableout': showTableOut(); break;
@@ -3776,6 +3797,7 @@ async function setScene(scene, name, size, rep) {
   const iu = scene.header.INSUNITS;
   S.units = UNITS[iu] || ''; S.unitToM = UNIT_TO_M[iu] || 0;
   S.images = new Map(); S.compare = null; S.selected = null; S.cacheValid = false;
+  S.hideObj = new Set(); S.isoObj = null;   // nesne gizleme / izolasyon dosyaya özeldir
   S.hasDoc = true;
   syncDeskClass();   // masaüstü kipi çizim açıkken geçerlidir: sınıf burada da tazelenir
   Docs.suspend();
@@ -3990,7 +4012,7 @@ ensureStatusChips();
 Ed.initEdition({ toast, rebuildToolbar: () => editor.rebuild(), refreshMenu });   // Ücretsiz / Pro: menü, karşılama kartı, Pro paneli, Drive düğmeleri; reklam zamanlayıcısı; onEdition → şerit yeniden kurulur
 D.initDisplay({ requestRender, drawOverlay, toast, openDoc, show, hide, buildLayerList, settings, saveSettings, editorTheme, zoomExtents, zoomBy, fitPrims, viewHistory, setLayout, editor, ui: uiPrefs(), basemaps: BASEMAPS, haptic });
 mountNavFabs(vp);
-initEditor({ S, requestRender, drawOverlay, toast, noFaces: showNoFaces, pick: (w) => pick(w, TOL.pick / S.view.scale), snap: doSnap, snapPeek: findSnap, fromBase, trackClear, osnap: Osnap, showInfo, openDoc, hide, show, esc, kv, copyText, buildLayerList, fmt, store, RTree, baseName, zoomExtents, tracePath, worldTransform, strokeWorldRect, worldOrigin,
+initEditor({ S, requestRender, drawOverlay, toast, noFaces: showNoFaces, pick: (w) => pick(w, TOL.pick / S.view.scale), snap: doSnap, snapPeek: findSnap, fromBase, trackClear, hideObjects, showAllObjects, primVisible, osnap: Osnap, showInfo, openDoc, hide, show, esc, kv, copyText, buildLayerList, fmt, store, RTree, baseName, zoomExtents, tracePath, worldTransform, strokeWorldRect, worldOrigin,
   action: (a) => { if (a === 'layers') $('btnLayers').click(); else if (a === 'search') $('btnSearch').click(); else if (a === 'more') $('btnMore').click(); else if (a === 'open') Open.open(); else if (a === 'new') showNewDoc(); else menuAction(a); },
   savePng, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, isolateLayers, unisolate, settings, saveSettings, stamp, haptic, openDisplayOptions, setDisplay, getDisplay, toggleDisplay, display: D });
 $('stScale').addEventListener('click', showScalePicker);

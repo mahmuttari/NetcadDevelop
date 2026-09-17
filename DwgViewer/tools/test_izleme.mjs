@@ -271,7 +271,7 @@ await zoom([50000, 50000, 51000, 51000]);
 // ---------------------------------------------------------------------------------
 {
   const a = await ev(async () => { const A = await import('./acad.js'); const c = A.resolve('OTRACK'); return { note: c && c.note, st: A.stats() }; });
-  ok('10a OTRACK notu iz noktasını, TT düğmesini ve kesişimi söyler; komut sayıları sabit', /tracking point/.test(a.note || '') && /TT/.test(a.note || '') && /intersections/.test(a.note || '') && a.st.total === 458 && a.st.names === 663, J(a));
+  ok('10a OTRACK notu iz noktasını, TT düğmesini ve kesişimi söyler; komut sayıları sabit', /tracking point/.test(a.note || '') && /TT/.test(a.note || '') && /intersections/.test(a.note || '') && a.st.total === 487 && a.st.names === 731, J(a));
   const dil = await ev(async () => { const I = await import('./i18n.js'); const tr = [I.t('osTrackHint'), I.t('osTkFirst'), I.t('osTk')]; I.setLang('en'); const en = [I.t('osTrackHint'), I.t('osTkFirst'), I.t('osTk')]; I.setLang('tr'); return { tr, en }; });
   ok('10b TR / EN metinler: bekleyince edinme, TT düğmesi, iz noktası', /bekleyince iz noktası/.test(dil.tr[0]) && /yollara oturur/.test(dil.tr[1]) && dil.tr[2] === 'İz noktası' && /Pausing over a snap point acquires a tracking point/.test(dil.en[0]) && /paths through it/.test(dil.en[1]) && dil.en[2] === 'Tracking point', J(dil));
 }

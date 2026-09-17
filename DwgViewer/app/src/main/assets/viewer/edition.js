@@ -83,6 +83,8 @@ export const FEATURE_TIER = new Map([
   // --- 2B düzenleme
   ['t:select', 'premium'], ['t:move', 'premium'], ['t:copy', 'premium'], ['t:rotate', 'premium'],
   ['t:scale', 'premium'], ['t:mirror', 'premium'], ['t:offset', 'premium'], ['t:del', 'premium'], ['t:edittext', 'premium'],
+  ['t:polygon', 'premium'], ['t:divide', 'premium'], ['t:measure', 'premium'], ['t:boundary', 'premium'],   // v7.67 çizim
+  ['t:stretch', 'premium'], ['t:join', 'premium'], ['t:matchprop', 'premium'],                                 // v7.67 düzenleme
   // --- özellikler, katman, renk, geri alma
   ['props', 'premium'], ['layer', 'premium'], ['color', 'premium'], ['undo', 'premium'], ['redo', 'premium'],
   ['layeredit', 'premium'],              // katmanın kendisini düzenleme ve silme

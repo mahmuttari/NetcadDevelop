@@ -29,6 +29,7 @@ export const S = {
   // araçlar
   mode: 'view', measure: [], snap: null, snapModes: new Set(['end', 'mid', 'cen', 'int', 'ins', 'node']), selected: null,
   track: { pts: [] },           // nesne yakalama izleme (OTRACK): edinilmiş iz noktaları [{ key, p, kind }] — geometri otrack.js, edinme app.js
+  hideObj: new Set(), isoObj: null,   // HIDEOBJECTS / ISOLATEOBJECTS: gizlenen anahtarlar · izolasyonda görünen anahtar kümesi (görünüm durumu, çizim değişmez)
   compare: null,                // { prims, tree, stats }
   notesOn: false, noteTool: 'select', noteColor: '#ff3b30',
   geo: new GeoRef(), gps: { on: false, follow: false, lon: null, lat: null, acc: 0, heading: null, t: 0 },

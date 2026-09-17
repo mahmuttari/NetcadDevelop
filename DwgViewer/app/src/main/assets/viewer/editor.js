@@ -92,7 +92,7 @@ const TABS = [
     { cap: 'grpMeasure', items: [T('t:dist', 'i-dist', 'Mesafe', 'Distance', 'Noktalar arası mesafe, ΔX/ΔY, açı', 'Distance between points'), T('t:area', 'i-area', 'Alan', 'Area', 'Kapalı alan ve çevre', 'Closed area and perimeter'), T('t:angle', 'i-angle', 'Açı', 'Angle', 'Üç noktayla açı', 'Angle by three points'), T('t:radius', 'i-radius', 'Yarıçap', 'Radius', 'Daire / yay yarıçapı', 'Circle / arc radius'), T('t:coord', 'i-coord', 'Koordinat', 'Coordinate', 'Noktanın koordinatını okur', 'Read point coordinates'), T('t:fillarea', 'i-fill', 'Dolgu alanı', 'Fill area', 'Kapalı alanın içine dokunun; alan, çevre ve dönüşümler', 'Tap inside a closed area for its area and perimeter'), T('t:ident', 'i-ident', 'Akıllı ölçüm', 'Smart measure', 'Nesneye dokunun: türüne göre boy, alan, yarıçap ya da hacim', 'Tap an object: length, area, radius or volume by its type'), T('profile', 'i-profile', 'Profil', 'Profile', 'Kot / eğim profili', 'Elevation / slope profile')] },
     { cap: 'grpHelpers', items: [T('osnap', 'i-snap', 'Yakalama', 'Osnap', 'Nesne yakalamayı açar / kapatır', 'Toggle object snap'), T('osnapset', 'i-sliders', 'Yakalama ayarları', 'Osnap settings', 'Yakalama kipleri (14 AutoCAD kipi), bir kerelik yakalama, açıklık', 'Object snap modes (all 14 AutoCAD modes), one-shot overrides, aperture'), T('otrack', 'i-otrack', 'Yakalama izi', 'Osnap tracking', 'Yakalama noktasında bekleyince iz noktası (+) alınır; imleç yatay / düşey yollara ve kesişimlere oturur (F11)', 'Pause over a snap point to acquire a tracking point (+); the cursor snaps to alignment paths and intersections (F11)'), T('grid', 'i-grid', 'Izgara', 'Grid'), T('crosshair', 'i-crosshair', 'Artı imleç', 'Crosshair')] } ] },
   { id: 'draw', i18n: 'tabDraw', icon: 'i-pen', groups: [
-    { cap: 'grpDraw2', items: [T('t:line', 'i-line', 'Çizgi', 'Line', 'İki nokta ya da @uzunluk<açı', 'Two points or @length<angle'), T('t:pline', 'i-pline', 'Polyline', 'Polyline', 'Çok köşeli çizgi; Bitir / Kapat', 'Multi-vertex line'), T('t:rect', 'i-rect', 'Dikdörtgen', 'Rectangle'), T('t:circle', 'i-circle', 'Daire', 'Circle', 'Merkez + yarıçap', 'Center + radius'), T('t:arc3', 'i-arc', 'Yay', 'Arc', 'Üç noktadan yay', 'Three-point arc'), T('t:point', 'i-point', 'Nokta', 'Point'), T('t:text', 'i-text', 'Yazı', 'Text', 'Konum, metin ve yükseklik', 'Position, text and height')] },
+    { cap: 'grpDraw2', items: [T('t:line', 'i-line', 'Çizgi', 'Line', 'İki nokta ya da @uzunluk<açı', 'Two points or @length<angle'), T('t:pline', 'i-pline', 'Polyline', 'Polyline', 'Çok köşeli çizgi; Bitir / Kapat', 'Multi-vertex line'), T('t:rect', 'i-rect', 'Dikdörtgen', 'Rectangle'), T('t:circle', 'i-circle', 'Daire', 'Circle', 'Merkez + yarıçap', 'Center + radius'), T('t:arc3', 'i-arc', 'Yay', 'Arc', 'Üç noktadan yay', 'Three-point arc'), T('t:polygon', 'i-polygon', 'Çokgen', 'Polygon', 'Kenar sayısı, merkez ve yarıçap; çembere iç teğet', 'Sides, center and radius; inscribed in a circle'), T('t:point', 'i-point', 'Nokta', 'Point'), T('t:divide', 'i-divide', 'Böl', 'Divide', 'Yolu eşit parçaya böler, bölme yerlerine nokta koyar', 'Places points at equal divisions of a path'), T('t:measure', 'i-measurepts', 'Aralıkla', 'Measure', 'Yol boyunca sabit aralıkla nokta koyar (dokunulan uçtan başlar)', 'Places points at a fixed spacing along a path (from the tapped end)'), T('t:boundary', 'i-boundary', 'Sınır', 'Boundary', 'Kapalı nesnenin sınırını yeni bir polyline olarak kopyalar', 'Copies the outline of a closed object as a new polyline'), T('t:text', 'i-text', 'Yazı', 'Text', 'Konum, metin ve yükseklik', 'Position, text and height')] },
     { cap: 'grpDraw3', items: [T('t:pline3d', 'i-pline3d', '3B Polyline', '3D Polyline', 'x,y,z köşeli çizgi', 'Vertices with z'), T('t:face3d', 'i-face', '3B Yüzey', '3D Face', 'Üç / dört köşeli yüzey', 'Three / four vertex face')] },
     { cap: 'grpCur', items: [T('layer', 'i-layers', 'Katman', 'Layer', 'Geçerli katman ve yeni katman', 'Current layer'), T('color', 'i-palette', 'Renk', 'Color', 'Geçerli renk (ACI)', 'Current color')] },
     { cap: 'grpHist', items: [T('undo', 'i-undo', 'Geri al', 'Undo'), T('redo', 'i-redo', 'Yinele', 'Redo')] } ] },
@@ -102,10 +102,10 @@ const TABS = [
     { cap: 'grpCur', items: [T('layer', 'i-layers', 'Katman', 'Layer'), T('color', 'i-palette', 'Renk', 'Color')] },
     { cap: 'grpHist', items: [T('undo', 'i-undo', 'Geri al', 'Undo'), T('redo', 'i-redo', 'Yinele', 'Redo')] } ] },
   { id: 'edit', i18n: 'tabEdit', icon: 'i-select', groups: [
-    { cap: 'grpSel', items: [T('t:select', 'i-select', 'Seç', 'Select', 'Dokunarak seçim; Tümü düğmesiyle hepsi', 'Tap to select'), T('props', 'i-props', 'Özellikler', 'Properties', 'Seçimin katmanı ve rengi', 'Layer and color of the selection'), T('grips', 'i-grips', 'Köşe tutamakları', 'Vertex grips', 'Açıkken dokunulan nesne seçilir; yolun her köşesi ayrı ayrı sürüklenir', 'When on, tapping selects the object; drag each vertex of the path')] },
-    { cap: 'grpXform', items: [T('t:move', 'i-move', 'Taşı', 'Move'), T('t:copy', 'i-copyobj', 'Kopyala', 'Copy'), T('t:rotate', 'i-rotate', 'Döndür', 'Rotate'), T('t:scale', 'i-scale', 'Ölçekle', 'Scale'), T('t:mirror', 'i-mirror', 'Aynala', 'Mirror'), T('t:offset', 'i-offset', 'Ofset', 'Offset', 'Önce Ekran mı Ölçü mü: geçiş noktası ya da yazılan mesafe, sonra nesne', 'Asks Screen or Measure first: through point or typed distance, then the object')] },
-    { cap: 'grpModify', items: [T('t:del', 'i-erase', 'Sil', 'Delete'), T('t:setz', 'i-z', 'Kot ata', 'Set Z', 'Seçime Z kotu atar', 'Assign elevation'), T('t:edittext', 'i-edittext', 'Yazı düzenle', 'Edit text'), T('t:array', 'i-array', 'Dizi', 'Array', 'Dikdörtgen ya da kutupsal artımlı kopya', 'Rectangular or polar incremental copy'), T('t:thick', 'i-thick', 'Kalınlık', 'Thickness', '2B nesneye yükseklik vererek 3B gövde üretir', 'Extrude 2D objects into 3D bodies'), T('t:explode', 'i-explode', 'Patlat', 'Explode', 'Blok yerleştirmesini parçalarına ayırır', 'Break a block insertion into its parts'), T('t:textsize', 'i-textsize', 'Yazı yüksekliği', 'Text height', 'Seçili yazıların yüksekliğini değiştirir', 'Change the height of selected texts'), T('t:attr', 'i-attr', 'Öznitelik', 'Attributes', 'Blok özniteliklerini düzenler', 'Edit block attributes'), T('findrep', 'i-findrep', 'Bul-değiştir', 'Find & replace', 'Çizimdeki yazılarda toplu değiştirme', 'Bulk replace across drawing texts'), T('t:trim', 'i-trim', 'Buda', 'Trim', 'Önce Ekran mı Ölçü mü: kesici kenar + parça, ya da yazılan boy kadar kısalt', 'Asks Screen or Measure first: cutting edge + piece, or cut a typed length off the end'), T('t:extend', 'i-extend', 'Uzat', 'Extend', 'Önce Ekran mı Ölçü mü: sınır + uç, ya da yazılan boy kadar uzat', 'Asks Screen or Measure first: boundary + end, or add a typed length to the end'), T('t:fillet', 'i-fillet', 'Kavis', 'Fillet', 'Önce Ekran mı Ölçü mü: yayın geçeceği nokta ya da yazılan yarıçap, sonra iki doğru', 'Asks Screen or Measure first: where the arc passes or a typed radius, then two lines'), T('t:chamfer', 'i-chamfer', 'Pah', 'Chamfer', 'Önce Ekran mı Ölçü mü: pahın geçeceği nokta ya da yazılan mesafe, sonra iki doğru', 'Asks Screen or Measure first: where the chamfer passes or a typed distance, then two lines')] },
-    { cap: 'grpBlock', items: [T('blocklib', 'i-block', 'Blok kütüphanesi', 'Block library', 'Seçimden blok oluştur, kaydet, çizime ekle', 'Create, save and insert blocks'), T('copyclip', 'i-copy', 'Panoya kopyala', 'Copy to clipboard', 'Seçimi panoya alır; başka çizimde yapıştırılır', 'Copy the selection for pasting into another drawing'), T('pasteclip', 'i-paste', 'Panodan yapıştır', 'Paste', 'Panodaki nesneleri bu çizime ekler', 'Paste clipboard objects into this drawing')] },
+    { cap: 'grpSel', items: [T('t:select', 'i-select', 'Seç', 'Select', 'Dokunarak seçim; Tümü düğmesiyle hepsi', 'Tap to select'), T('props', 'i-props', 'Özellikler', 'Properties', 'Seçimin katmanı ve rengi', 'Layer and color of the selection'), T('grips', 'i-grips', 'Köşe tutamakları', 'Vertex grips', 'Açıkken dokunulan nesne seçilir; yolun her köşesi ayrı ayrı sürüklenir', 'When on, tapping selects the object; drag each vertex of the path'), T('selectsimilar', 'i-similar', 'Benzerini seç', 'Select similar', 'Seçimle aynı tür ve katmandaki bütün nesneleri seçime ekler', 'Adds every object of the same type and layer as the selection'), T('hideobj', 'i-hideobj', 'Gizle', 'Hide objects', 'Seçili nesneleri görünümden kaldırır; çizim değişmez', 'Hides the selected objects; the drawing is not changed'), T('isoobj', 'i-isoobj', 'İzole et', 'Isolate objects', 'Yalnız seçili nesneleri gösterir', 'Shows only the selected objects'), T('unisoobj', 'i-showobj', 'Hepsini göster', 'Show all', 'Gizlenen ve izole edilen nesneleri geri getirir', 'Shows hidden and isolated objects again')] },
+    { cap: 'grpXform', items: [T('t:move', 'i-move', 'Taşı', 'Move'), T('t:copy', 'i-copyobj', 'Kopyala', 'Copy'), T('t:rotate', 'i-rotate', 'Döndür', 'Rotate'), T('t:scale', 'i-scale', 'Ölçekle', 'Scale'), T('t:mirror', 'i-mirror', 'Aynala', 'Mirror'), T('t:stretch', 'i-stretch', 'Esnet', 'Stretch', 'Kesen pencerenin içindeki köşeler taşınır, dışındakiler yerinde kalır', 'Vertices inside the crossing window move, the rest stay'), T('t:offset', 'i-offset', 'Ofset', 'Offset', 'Önce Ekran mı Ölçü mü: geçiş noktası ya da yazılan mesafe, sonra nesne', 'Asks Screen or Measure first: through point or typed distance, then the object')] },
+    { cap: 'grpModify', items: [T('t:del', 'i-erase', 'Sil', 'Delete'), T('t:setz', 'i-z', 'Kot ata', 'Set Z', 'Seçime Z kotu atar', 'Assign elevation'), T('t:edittext', 'i-edittext', 'Yazı düzenle', 'Edit text'), T('t:array', 'i-array', 'Dizi', 'Array', 'Dikdörtgen ya da kutupsal artımlı kopya', 'Rectangular or polar incremental copy'), T('t:thick', 'i-thick', 'Kalınlık', 'Thickness', '2B nesneye yükseklik vererek 3B gövde üretir', 'Extrude 2D objects into 3D bodies'), T('t:explode', 'i-explode', 'Patlat', 'Explode', 'Blok yerleştirmesini parçalarına ayırır', 'Break a block insertion into its parts'), T('t:join', 'i-join', 'Birleştir', 'Join', 'Uçları değen çizgi, yay ve polyline\'ları tek polyline yapar', 'Joins touching lines, arcs and polylines into one polyline'), T('t:matchprop', 'i-matchprop', 'Özellik eşle', 'Match properties', 'Kaynak nesnenin katman, renk ve çizgi tipini hedeflere kopyalar', 'Copies layer, colour and linetype from a source to targets'), T('t:textsize', 'i-textsize', 'Yazı yüksekliği', 'Text height', 'Seçili yazıların yüksekliğini değiştirir', 'Change the height of selected texts'), T('t:attr', 'i-attr', 'Öznitelik', 'Attributes', 'Blok özniteliklerini düzenler', 'Edit block attributes'), T('findrep', 'i-findrep', 'Bul-değiştir', 'Find & replace', 'Çizimdeki yazılarda toplu değiştirme', 'Bulk replace across drawing texts'), T('t:trim', 'i-trim', 'Buda', 'Trim', 'Önce Ekran mı Ölçü mü: kesici kenar + parça, ya da yazılan boy kadar kısalt', 'Asks Screen or Measure first: cutting edge + piece, or cut a typed length off the end'), T('t:extend', 'i-extend', 'Uzat', 'Extend', 'Önce Ekran mı Ölçü mü: sınır + uç, ya da yazılan boy kadar uzat', 'Asks Screen or Measure first: boundary + end, or add a typed length to the end'), T('t:fillet', 'i-fillet', 'Kavis', 'Fillet', 'Önce Ekran mı Ölçü mü: yayın geçeceği nokta ya da yazılan yarıçap, sonra iki doğru', 'Asks Screen or Measure first: where the arc passes or a typed radius, then two lines'), T('t:chamfer', 'i-chamfer', 'Pah', 'Chamfer', 'Önce Ekran mı Ölçü mü: pahın geçeceği nokta ya da yazılan mesafe, sonra iki doğru', 'Asks Screen or Measure first: where the chamfer passes or a typed distance, then two lines')] },
+    { cap: 'grpBlock', items: [T('blocklib', 'i-block', 'Blok kütüphanesi', 'Block library', 'Seçimden blok oluştur, kaydet, çizime ekle', 'Create, save and insert blocks'), T('copyclip', 'i-copy', 'Panoya kopyala', 'Copy to clipboard', 'Seçimi panoya alır; başka çizimde yapıştırılır', 'Copy the selection for pasting into another drawing'), T('cutclip', 'i-cut', 'Kes', 'Cut', 'Seçimi panoya alır ve siler', 'Copies the selection to the clipboard and erases it'), T('pasteclip', 'i-paste', 'Panodan yapıştır', 'Paste', 'Panodaki nesneleri bu çizime ekler', 'Paste clipboard objects into this drawing')] },
     { cap: 'grpHist', items: [T('undo', 'i-undo', 'Geri al', 'Undo'), T('redo', 'i-redo', 'Yinele', 'Redo')] } ] },
   { id: '3d', i18n: 'tab3d', icon: 'i-cube', groups: [
     { cap: 'grpView3', items: [T('3d', 'i-3d', '3B aç/kapat', '3D on/off', 'Tek parmak döndürür, iki parmak kaydırır / yakınlaştırır', 'One finger orbits, two fingers pan / zoom'), T('fit3', 'i-fit', 'Sığdır', 'Fit'), T('v:iso', 'i-iso', 'İzometrik', 'Isometric'), T('v:top', 'i-top', 'Üst', 'Top'), T('v:front', 'i-front', 'Ön', 'Front'), T('v:left', 'i-left', 'Sol', 'Left'), T('v:right', 'i-right', 'Sağ', 'Right'), T('v:back', 'i-back', 'Arka', 'Back'), T('v:bottom', 'i-bottom', 'Alt', 'Bottom')] },
@@ -148,6 +148,8 @@ registerTiles();
 const tileLabel = (act) => { const it = TILE[act]; return it ? tt('tl_' + act, it.tr) : act; };
 const tileHint = (act) => { const it = TILE[act]; return it ? tt('th_' + act, it.htr) : ''; };
 const ICON = (id) => `<svg class="ic" aria-hidden="true"><use href="#${id}"/></svg>`;
+/** Nesne gizleme / izolasyon durumu (app.js S.hideObj / S.isoObj): gizlenen nesne görünür sayılmaz */
+const objShown = (p) => !(S.hideObj && S.hideObj.size && S.hideObj.has(p.key)) && !(S.isoObj && !S.isoObj.has(p.key));
 
 // ---------------------------------------------------------------------------------
 // Başlatma
@@ -179,8 +181,9 @@ export function initEditor(a) {
     fmt,
     copy: (t) => api.copyText(t),
     lonLat: (x, y) => S.geo.active ? S.geo.toLonLat(x, y) : null,
-    visiblePrims: () => S.prims.filter(p => !(S.layers.get(p.lay) && !S.layers.get(p.lay).visible)),
-    selectable: () => S.prims.filter(p => { const l = S.layers.get(p.lay); return !(l && (!l.visible || l.locked)); }),   // bölge seçimi: görünür ve kilitsiz katmanlar
+    // Gizlenen / izole dışı nesne (HIDEOBJECTS, ISOLATEOBJECTS) çizilmez: bölge seçimi, kapalı alan arama, tümünü seç ve grup da onu görmez
+    visiblePrims: () => S.prims.filter(p => !(S.layers.get(p.lay) && !S.layers.get(p.lay).visible) && objShown(p)),
+    selectable: () => S.prims.filter(p => { const l = S.layers.get(p.lay); return !(l && (!l.visible || l.locked)) && objShown(p); }),   // bölge seçimi: görünür ve kilitsiz katmanlar
     allPrims: () => (S.scene ? S.scene.layouts[0].prims : []),
     trType: (x) => tt('ety_' + x, x),               // DXF tür adının yerelleşmiş karşılığı (yoksa adın kendisi)
     hatchPattern: () => ed.curPattern,              // çizilecek taramanın deseni (SOLID varsayılan)
@@ -383,6 +386,7 @@ function refreshTiles() {
     on.lw = !!S.lw; on.mono = S.colorMode === 'mono'; on.ltype = S.show.ltype; on.grid = S.grid.on; on.crosshair = S.crosshair !== 'off'; on.rulers = !!S.rulers; on.fade = S.fade.on;
     on.osnap = S.snapModes && S.snapModes.size > 0; on['3d'] = ed.is3D(); on.grips = !!ui.grips; on.cmdline = ui.cmdLine !== false; on.ortho = !!(S.desk && S.desk.ortho); on.polar = !!(S.desk && S.desk.polar);
     try { on.otrack = !!(api && api.osnap && api.osnap.opt().otrack); } catch (_) { on.otrack = false; }   // nesne yakalama izleme (F11) karosu
+    on.unisoobj = !!(S.hideObj && (S.hideObj.size > 0 || !!S.isoObj));   // gizli / izole nesne varken "Hepsini göster" karosu yanar
   }
   if (v3) { const o = v3.opts; on.grid3 = o.grid; on.axes3 = o.axes; on.cube3 = o.cube; on.hud3 = o.hud; on.light3 = o.light; on.turn3 = o.turntable; on.persp = v3.cam.persp; on.clip3 = !!o.clip; on.shadow3 = o.shadow; on.sil3 = !!v3._styleFx().silhouette; on.edges3 = !!v3._styleFx().edges; }
   document.querySelectorAll('#toolbar [data-act]').forEach(b => { const k = b.dataset.act; if (k in on) { b.classList.toggle('on', !!on[k]); b.setAttribute('aria-pressed', String(!!on[k])); } if (!FREE.has(k) && !HIST.has(k)) b.disabled = has(k) ? !(S && S.hasDoc) : false; });
@@ -554,6 +558,11 @@ function act(name, btn) {
     case 'osnap': toggleOsnap(); break;
     case 'osnapset': api.osnap.openDialog(); break;
     case 'otrack': api.osnap.toggleTrack(); syncQuick(); refreshTiles(); api.drawOverlay(); break;
+    case 'selectsimilar': selectSimilar(); break;
+    case 'cutclip': if (!ed.sel.size) { api.toast(t('selEmpty')); break; } api.action('cutclip'); break;
+    case 'hideobj': hideObjects(false); break;
+    case 'isoobj': hideObjects(true); break;
+    case 'unisoobj': showAllObjects(); break;
     // --- komut satırından gelen AutoCAD karşılıkları (karosu yok)
     case 'regen': S.cacheValid = false; api.requestRender(); if (ed.is3D() && v3) v3.render(); break;
     case 'selectall': if (!needModel()) return; if (ed.is3D()) exit3D(); if (tools.active !== 'select') { tools.start('select'); markActive('t:select'); } tools.selectAll(); break;
@@ -636,6 +645,30 @@ function toggleGrips() {
 }
 /** F3 / durum çubuğu / şerit karosu: tek kaynak osnap.toggle (liste saklanır, açılınca geri gelir) */
 function toggleOsnap() { api.osnap.toggle(); syncQuick(); refreshTiles(); }
+/** SELECTSIMILAR / QSELECT: seçimdeki her nesneyle aynı TÜR ve KATMANdaki görünür nesneler seçime eklenir */
+function selectSimilar() {
+  if (!needModel()) return;
+  if (!ed.sel.size) { api.toast(t('noSel')); return; }
+  const key = (p) => ((p.info && p.info.t) || p.et || ('k' + p.k)) + '|' + p.lay;
+  const want = new Set([...ed.sel].map(key));
+  let n = 0;
+  for (const p of S.prims) { if (p.k === 4 || p.inf || ed.sel.has(p) || !want.has(key(p))) continue; if (typeof api.primVisible === 'function' && !api.primVisible(p)) continue; ed.sel.add(p); n++; }
+  api.drawOverlay(); refreshTiles();
+  api.toast(t('selSimilarN').replace('%s', String(n)), 1600);
+  if (n) haptic('snap');
+}
+/** HIDEOBJECTS / ISOLATEOBJECTS: görünüm durumu (çizim değişmez); ileti geri alma düğmesi taşır */
+function hideObjects(isolate) {
+  if (!needModel()) return;
+  if (!ed.sel.size) { api.toast(t('noSel')); return; }
+  const keys = [...ed.sel].map(p => p.key);
+  call(api.hideObjects, keys, isolate);
+  ed.sel.clear();
+  refreshTiles(); api.drawOverlay();
+  api.toast(t(isolate ? 'isolatedN' : 'hiddenN').replace('%s', String(keys.length)), { ms: 5000, action: { label: t('undoAction'), fn: () => showAllObjects() } });
+  haptic('toggle');
+}
+function showAllObjects() { call(api.showAllObjects); refreshTiles(); api.drawOverlay(); api.toast(t('shownAll'), 1400); }
 /** app.js kipleri değiştirdiğinde (ayar kutusu, çip şeridi, -OSNAP) durum çubuğu ve karolar tazelenir */
 ed.snapChanged = () => { syncQuick(); refreshTiles(); syncSnapOnce(); };
 /** Gezinme yakalaması için: çalışan aracın son noktası (dik / teğet / paralel bunu ister) */
@@ -792,8 +825,11 @@ function showSuggest(text) {
 function runCommand(text) {
   const raw = String(text || '').trim();
   if (!raw) return false;
-  const c = acadResolve(raw);
-  if (!c) { api.toast(t('cmdUnknown').replace('%s', raw.toUpperCase()), 2200); return false; }
+  // "Z W", "ZOOM P" gibi seçenekli yazım: ilk sözcük komut, gerisi seçenek. Yalnız ZOOM seçenek alır; ötekilerde fazlalık yok sayılır.
+  const sp = raw.search(/\s/);
+  const head = sp > 0 ? raw.slice(0, sp) : raw, arg = sp > 0 ? raw.slice(sp + 1).trim() : '';
+  const c = acadResolve(head);
+  if (!c) { api.toast(t('cmdUnknown').replace('%s', head.toUpperCase()), 2200); return false; }
   /*
    * Tanınan ama bulunmayan AutoCAD komutu: "bilinmeyen" denmez, bulunmadığı ve varsa en yakın
    * karşılığı söylenir. Komut geçmişine de "son komut"a da girmez — yinelenecek bir şey yok.
@@ -805,10 +841,22 @@ function runCommand(text) {
   closeSuggest();
   // AutoCAD'deki gibi '-' öneki komut satırı sürümünü ister: -LAYER (ve -LA) pencere açmaz,
   // seçenekleri sorar. Öteki komutlarda '-' yalnız öneki düşürülmüş ad olarak kabul edilir.
-  if (c.id === 'layers' && /^-/.test(raw.replace(/^['_]+/, ''))) { layerCli(); return true; }
-  if (c.id === 'osnapset' && /^-/.test(raw.replace(/^['_]+/, ''))) { osnapCli(); return true; }
+  if (c.id === 'layers' && /^-/.test(head.replace(/^['_]+/, ''))) { layerCli(); return true; }
+  if (c.id === 'osnapset' && /^-/.test(head.replace(/^['_]+/, ''))) { osnapCli(); return true; }
+  if (c.id === 'extents' && arg) { zoomOption(arg); return true; }
   act(c.id);
   return true;
+}
+/** ZOOM seçenekleri (AutoCAD): W pencere · P önceki · E / A sınırlar · O seçili nesneler · 2X / 0.5X ölçek */
+function zoomOption(arg) {
+  const a = String(arg).trim().toUpperCase();
+  if (/^(W|WINDOW)$/.test(a)) { call(api.zoomWindow); return; }
+  if (/^(P|PREVIOUS)$/.test(a)) { if (api.viewHistory) api.viewHistory.back(); return; }
+  if (/^(E|EXTENTS|A|ALL)$/.test(a)) { api.zoomExtents(); return; }
+  if (/^(O|OBJECT)$/.test(a)) { if (!ed.sel.size) { api.toast(t('noSel')); return; } call(api.fitPrims, [...ed.sel]); return; }
+  const m = a.match(/^(\d*\.?\d+)X?$/);
+  if (m && parseFloat(m[1]) > 0) { call(api.zoomBy, parseFloat(m[1])); return; }
+  api.toast(t('zoomBadOpt'), 2400);
 }
 function bindCmdBar() {
   { const ob = $('cmdOrtho'); if (ob && !ob.dataset.bound) { ob.dataset.bound = '1'; ob.addEventListener('click', () => toggleOrtho()); } }   // giriş satırındaki Ortho düğmesi (odak vermez: klavye açılmasın)
@@ -954,8 +1002,8 @@ function showProps() {
  * araçları seçimi koruyarak başlar ve doğrudan taban noktasını sorar; renk / çizgi tipi / katman
  * tek dokunuşla uygulanır ve tek geri alma adımı üretir.
  */
-const SEL_MENU = [['del', 'i-erase'], ['copy', 'i-copyobj'], ['move', 'i-move'], ['block', 'i-block'], ['rotate', 'i-rotate'], ['mirror', 'i-mirror'], ['scale', 'i-scale'], ['color', 'i-palette'], ['ltype', 'i-ltype'], ['layer', 'i-layers'], ['props', 'i-props'], ['clear', 'i-close']];
-const selMenuLabel = (id) => ({ block: t('selMakeBlock'), color: t('color'), ltype: t('ltype'), layer: t('selChangeLayer'), clear: t('selClear'), props: tileLabel('props'), dimedit: t('dimSelMenu') }[id] || tileLabel('t:' + id));
+const SEL_MENU = [['del', 'i-erase'], ['copy', 'i-copyobj'], ['move', 'i-move'], ['block', 'i-block'], ['rotate', 'i-rotate'], ['mirror', 'i-mirror'], ['scale', 'i-scale'], ['color', 'i-palette'], ['ltype', 'i-ltype'], ['layer', 'i-layers'], ['props', 'i-props'], ['similar', 'i-similar'], ['hide', 'i-hideobj'], ['iso', 'i-isoobj'], ['cut', 'i-cut'], ['clear', 'i-close']];
+const selMenuLabel = (id) => ({ block: t('selMakeBlock'), color: t('color'), ltype: t('ltype'), layer: t('selChangeLayer'), clear: t('selClear'), props: tileLabel('props'), dimedit: t('dimSelMenu'), similar: t('selSimilar'), hide: t('selHideObj'), iso: t('selIsoObj'), cut: tileLabel('cutclip') }[id] || tileLabel('t:' + id));
 const selDimPrim = () => [...ed.sel].find(p => p.info && p.info.t === 'DIMENSION' && (p.info.gid || p.info.dim));
 function selMenu() {
   if (!ed.sel.size) { api.toast(t('selEmpty')); return; }
@@ -1007,6 +1055,10 @@ function selAction(id) {
       break;
     }
     case 'props': showProps(); break;
+    case 'similar': selectSimilar(); break;
+    case 'hide': hideObjects(false); break;
+    case 'iso': hideObjects(true); break;
+    case 'cut': act('cutclip'); break;
     case 'dimedit': { const p = selDimPrim(); if (!p) { api.toast(t('notDim')); return; } if (!gate('t:dimedit')) return; void tools.editDim(p); break; }
     case 'clear': if (tools.running && tools.active === 'select') { tools.cancel(); markActive(null); } ed.sel.clear(); api.drawOverlay(); break;
     default: break;

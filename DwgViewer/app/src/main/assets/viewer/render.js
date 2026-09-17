@@ -147,6 +147,9 @@ const isDim = (p) => DIM_TYPES[p.et] === 1 || (p.info != null && p.info.t === 'D
 /** Görünürlük süzgeçleri (katman hariç): display.primVisible bunun üstüne katmanı ekler */
 export function passFilters(p) {
   if (p.tri) return false;                       // katı model üçgenleri yalnız 3B'de
+  // HIDEOBJECTS / ISOLATEOBJECTS: görünüm durumu; primVisible bunun üstüne kurulduğu için gizlenen nesne dokunuşla da seçilemez
+  if (S.hideObj && S.hideObj.size && S.hideObj.has(p.key)) return false;
+  if (S.isoObj && !S.isoObj.has(p.key)) return false;
   const sh = S.show;
   switch (p.k) {
     case 1: if (!sh.text) return false; if (!sh.attrib && (p.et === 'ATTRIB' || p.et === 'ATTDEF')) return false; break;
