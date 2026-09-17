@@ -1,4 +1,4 @@
-// Pickbox imlecinin ekran görüntüleri (v7.57): nesne isteminde küçük kare (+ fare gezinmesinde
+// Pickbox imlecinin ekran görüntüleri (v7.57 / v7.58): nesne isteminde küçük kare (+ fare gezinmesinde
 // nesne vurgusu), nokta isteminde artı imleç ve yakalama işareti. Kare küçük olduğu için imlecin
 // çevresi kırpılarak da basılır.
 // Kullanım: PLAYWRIGHT_PKG=<node_modules> node tools/shot_pickbox.mjs [çıktı] [örnekler]
@@ -56,6 +56,24 @@ await arac('t:line');
 await page.mouse.move(vpb.x + a[0] + 2, vpb.y + a[1] + 2); await page.waitForTimeout(300);
 await page.screenshot({ path: `${out}/pickbox_5_nokta_istemi.png` });
 await yakin('pickbox_6_arti_yakin', a, 130);
+await page.mouse.move(vpb.x + vpb.width - 4, vpb.y + vpb.height - 4); await page.waitForTimeout(200);   // fare kenara: gezinen imleç kalksın
+// 4) Parmakla nişan alma (v7.58): çizgi aracında uzun basış, parmak dikdörtgenin köşesine sürüklenir; büyüteç üstte
+const dokun = (type, x, y) => ev(([t, x, y]) => { const vp = document.getElementById('viewport'), r = vp.getBoundingClientRect(); vp.dispatchEvent(new PointerEvent(t, { pointerId: 5, pointerType: 'touch', isPrimary: true, bubbles: true, cancelable: true, clientX: r.left + x, clientY: r.top + y, button: t === 'pointerdown' ? 0 : -1, buttons: t === 'pointerup' ? 0 : 1 })); }, [type, x, y]);
+await ev(() => { document.getElementById('toast').hidden = true; });
+const k = await scr(600, 520);                                    // dikdörtgenin sağ üst köşesi
+await dokun('pointerdown', k[0] + 40, k[1] + 60); await page.waitForTimeout(720);
+await dokun('pointermove', k[0] + 20, k[1] + 30); await dokun('pointermove', k[0] + 4, k[1] + 5); await page.waitForTimeout(250);
+await page.screenshot({ path: `${out}/pickbox_7_nisan_buyutec.png` });
+await dokun('pointerup', k[0] + 4, k[1] + 5); await page.waitForTimeout(300);
+await page.screenshot({ path: `${out}/pickbox_8_nisan_sonuc.png` });
+// 5) Nesne isteminde nişan: Seç aracı, parmak dairenin üstünde — büyüteçte kare ve nesne adı
+await arac('t:select');
+const m = await scr(760, 470);                                    // dairenin tepe noktası
+// Seç aracında boş yerden basış örtük pencereyi başlatır; nişan almak için parmak NESNENİN üstüne basar
+await dokun('pointerdown', m[0], m[1] + 2); await page.waitForTimeout(720);
+await dokun('pointermove', m[0] - 8, m[1] + 6); await dokun('pointermove', m[0] - 14, m[1] + 12); await page.waitForTimeout(250);
+await page.screenshot({ path: `${out}/pickbox_9_nisan_nesne.png` });
+await dokun('pointerup', m[0], m[1] + 2); await page.waitForTimeout(300);
 
 for (const f of fs.readdirSync(out)) console.log('yazıldı', `${out}/${f}`);
 await browser.close(); try { srv.close && srv.close(); } catch (_) { /* geç */ }

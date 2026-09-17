@@ -137,6 +137,8 @@ Bu yedisi v7.28 ile kapandı; **birinci öbekte açık madde kalmadı**. Ayrınt
 | Ekran / Ölçü sorusu: ötele, kavis, pah, buda, uzat nesne seçilmeden önce değerin ekrandan mı yazarak mı geleceğini sorar; buda / uzat Ölçü kipi = LENGTHEN DElta (v7.57) | komut çubuğu ▸ Ekran / Ölçü düğmeleri | var olan araçların kademesi (yeni yetenek değil) |
 | AutoCAD örtük penceresi: Seç aracında boş yerden sürükleme, soldan sağa mavi pencere / sağdan sola yeşil kesen, etiketli (v7.57) | Seç aracı, dokunma kipi | ücretsiz (seçim) |
 | Pickbox imleci: nesne isteminde küçük kare + nesne vurgusu, yakalama kapalı; nokta isteminde artı imleç + yakalama (v7.57) | bütün düzenleme araçları, Seç aracı | ücretsiz (imleç davranışı) |
+| Pickbox yarı boy (6 px) + kareye değmeyen artı kolları; tek imleç kuralı (kalem gezinirken son dokunuş imleci çizilmez) (v7.58) | bütün araçlar | ücretsiz (imleç davranışı) |
+| Parmakla nişan alma: araç / ölçü çalışırken uzun basıp sürükleme, imleç parmağın altında, 2× büyüteç üstte, bırakınca dokunuş (v7.58) | dokunmatik, araç çalışırken | ücretsiz (dokunma doğruluğu) |
 | Ölçümü çizime işaretleme | Açıklama ▸ Ölçümü işle | premium |
 | Revizyon bulutu | Açıklama ▸ Revizyon bulutu | premium |
 | Numaralandırma (balon, artan) | Açıklama ▸ Numaralandır | premium |

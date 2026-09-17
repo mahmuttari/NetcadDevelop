@@ -406,15 +406,23 @@ function drawRulers(c, fg) {
  * dokunmadan önce görür. Eldivende tolerans büyür, kare de onunla büyür.
  */
 function pickingObject() { return !!edCall('pickingObject'); }
-function pickBoxR() { return Math.round(TOL.pick * Math.max(1, uiPrefs().fontScale || 1)); }
-/** Pickbox: çift çizgili kare — koyu da açık da olsa çizimin üstünde okunur */
-function drawPickBox(c, x, y, fg) {
-  const r = pickBoxR(), X = Math.round(x) + 0.5, Y = Math.round(y) + 0.5;
+/** Kare yarı boyu: seçim toleransının YARISI (AutoCAD PICKBOX 3 ≈ 6 px). Parmak toleransı geniş kalır, imleç küçük. */
+function pickBoxR() { return Math.max(4, Math.round(TOL.pick / 2 * Math.max(1, uiPrefs().fontScale || 1))); }
+/*
+ * Pickbox — AutoCAD imleci: küçük kare + kareye DEĞMEYEN artı kolları (kare içi boş kalır, altındaki
+ * nesne görünür). Kollar "Artı imleç" ayarına uyar: Kapalı → yalnız kare · Küçük → kısa kollar ·
+ * Tam ekran → kenara kadar. Çift çizgi (halo + çizgi) koyu zeminde de açık zeminde de okunur.
+ * k: büyütme (büyüteç içinde 2).
+ */
+function drawPickBox(c, x, y, fg, k = 1) {
+  const r = pickBoxR() * k, X = Math.round(x) + 0.5, Y = Math.round(y) + 0.5;
+  const gap = r + 3 * k, arm = S.crosshair === 'full' ? Math.max(S.W, S.H) : S.crosshair === 'off' ? 0 : 12 * k;
+  const kollar = () => { c.beginPath(); c.moveTo(X - gap, Y); c.lineTo(X - gap - arm, Y); c.moveTo(X + gap, Y); c.lineTo(X + gap + arm, Y); c.moveTo(X, Y - gap); c.lineTo(X, Y - gap - arm); c.moveTo(X, Y + gap); c.lineTo(X, Y + gap + arm); c.stroke(); };
   c.save(); c.setLineDash([]);
   c.strokeStyle = S.dark ? 'rgba(0,0,0,.55)' : 'rgba(255,255,255,.8)'; c.lineWidth = 3;
-  c.strokeRect(X - r, Y - r, r * 2, r * 2);
+  c.strokeRect(X - r, Y - r, r * 2, r * 2); if (arm && S.crosshair !== 'full') kollar();
   c.strokeStyle = fg; c.lineWidth = 1; c.globalAlpha = 0.95;
-  c.strokeRect(X - r, Y - r, r * 2, r * 2);
+  c.strokeRect(X - r, Y - r, r * 2, r * 2); if (arm) { if (S.crosshair === 'full') c.globalAlpha = 0.5; kollar(); }
   c.restore();
 }
 /** Karenin altındaki nesnenin kesik çizgiyle vurgulanması (AutoCAD rollover): hangisi seçilecek belli olsun */
@@ -429,6 +437,7 @@ function drawRollover(c, p) {
 /** Artı imleç: araç ya da ölçü modu çalışırken son dokunma/yakalama noktasında */
 function drawCrosshair(c, fg) {
   if (!S.lastPoint) return;
+  if (penHover && penHover.w) return;   // TEK imleç: kalem / fare / parmak gezinirken canlı imleç odur, son dokunuşta ikinci bir kare durmaz
   const running = (editor.tools && editor.tools.running) || S.mode === 'measure' || S.mode === 'profile';
   if (!running) return;
   const s = toScreen(S.lastPoint[0], S.lastPoint[1]);
@@ -466,6 +475,7 @@ function drawPenHover(c, fg) {
     const hit = pick(penHover.w, TOL.pick / S.view.scale);
     if (hit) drawRollover(c, hit);
     drawPickBox(c, penHover.sx, penHover.sy, fg);
+    if (penHover.aim) drawLoupe(c, fg);
     return;
   }
   const sn = penHover.snap;
@@ -484,19 +494,77 @@ function drawPenHover(c, fg) {
     c.strokeStyle = acc; c.fillStyle = acc; c.lineWidth = 2;
     Osnap.drawMarker(c, s[0], s[1], sn.kind, 7);
   }
-  const p = sn ? sn.p : penHover.w;
-  const txt = fmt(p[0]) + ' ; ' + fmt(p[1]) + (sn ? '  ' + String(sn.kind || '').toUpperCase() : '');
-  c.font = '11px system-ui, sans-serif'; c.textBaseline = 'bottom'; c.textAlign = 'left';
-  const w = c.measureText(txt).width + 10;
-  // Kutu imlecin sağına sığmıyorsa soluna geçer; ekran kenarında yazı kırpılmasın.
-  const bx = s[0] + 14 + w > S.W ? s[0] - 14 - w : s[0] + 14;
-  c.fillStyle = S.dark ? 'rgba(20,26,34,.88)' : 'rgba(255,255,255,.88)';
-  c.fillRect(bx, s[1] - 24, w, 18);
-  c.fillStyle = sn ? acc : fg; c.fillText(txt, bx + 5, s[1] - 8);
+  // Koordinat kutusu imlecin yanında; parmakla nişan alırken parmağın altında kalacağından o zaman
+  // büyütecin altına yazılır (drawLoupe).
+  if (!penHover.aim) {
+    const p = sn ? sn.p : penHover.w;
+    const txt = fmt(p[0]) + ' ; ' + fmt(p[1]) + (sn ? '  ' + String(sn.kind || '').toUpperCase() : '');
+    c.font = '11px system-ui, sans-serif'; c.textBaseline = 'bottom'; c.textAlign = 'left';
+    const w = c.measureText(txt).width + 10;
+    // Kutu imlecin sağına sığmıyorsa soluna geçer; ekran kenarında yazı kırpılmasın.
+    const bx = s[0] + 14 + w > S.W ? s[0] - 14 - w : s[0] + 14;
+    c.fillStyle = S.dark ? 'rgba(20,26,34,.88)' : 'rgba(255,255,255,.88)';
+    c.fillRect(bx, s[1] - 24, w, 18);
+    c.fillStyle = sn ? acc : fg; c.fillText(txt, bx + 5, s[1] - 8);
+  }
   c.restore();
+  if (penHover.aim) drawLoupe(c, fg);
   // Boştayken (çalışan komut yok) AutoCAD imleci artı + pickbox'tır: bir sonraki dokunuş nokta değil
   // NESNE seçer. Kare imlecin kendi yerinde durur, yakalanan noktada değil.
   if (!(editor.tools && editor.tools.running) && S.mode !== 'measure' && S.mode !== 'profile' && !S.notesOn) drawPickBox(c, penHover.sx, penHover.sy, fg);
+}
+/*
+ * BÜYÜTEÇ — parmakla nişan alırken (araç çalışırken uzun basıp sürükleme) imleç parmağın altında
+ * kalır; büyüteç parmağın üstünde imlecin çevresini 2 kat büyütür: yakalanan nokta, kare ve koordinat
+ * GÖRÜLEREK bırakılır. Kaynak ana tuvaldir (cv), kaplama değil — çizim ne ise o büyütülür. Büyüteç
+ * yakalanan noktaya ortalanır (varsa), yoksa parmağa; üstte yer yoksa parmağın altına iner.
+ */
+/** Büyütecin yeri: parmağın üstünde (yer yoksa altında), ekran içinde ve sağdaki zoom düğmelerinin (#navFabs) altında kalmadan */
+function loupeGeom(h) {
+  const fs = uiPrefs().fontScale || 1, R = Math.round(60 * fs), gap = Math.round(34 * fs);
+  let cx = h.sx, cy = h.sy - R - gap;
+  if (cy - R < 4) cy = h.sy + R + gap;
+  cx = Math.max(R + 4, Math.min(S.W - R - 4, cx));
+  const nav = $('navFabs');
+  if (nav && !nav.hidden) {
+    const a = nav.getBoundingClientRect(), v = vp.getBoundingClientRect();
+    const nl = a.left - v.left, nt = a.top - v.top, nb = a.bottom - v.top;
+    if (a.width > 0 && cx + R > nl - 4 && cy + R > nt && cy - R < nb) cx = Math.max(R + 4, nl - 6 - R);
+  }
+  return { cx, cy, R };
+}
+function drawLoupe(c, fg) {
+  const h = penHover, fs = uiPrefs().fontScale || 1, acc = S.selColor || '#ff9f0a';
+  const Z = 2, { cx, cy, R } = loupeGeom(h);
+  const sn = h.snap, p = sn ? toScreen(sn.p[0], sn.p[1]) : [h.sx, h.sy];
+  const d = S.dpr, src = R / Z;
+  c.save();
+  c.beginPath(); c.arc(cx, cy, R, 0, TAU); c.closePath();
+  c.fillStyle = S.dark ? '#141a22' : '#ffffff'; c.fill();
+  c.clip();
+  try { c.drawImage(cv, (p[0] - src) * d, (p[1] - src) * d, src * 2 * d, src * 2 * d, cx - R, cy - R, R * 2, R * 2); } catch (_) { /* tuval boşsa büyüteç boş kalır */ }
+  // merkezde imleç: nesne isteminde kare (2 kat: çizimdeki kareyle aynı alanı kapsar), nokta isteminde artı ve yakalama glifi
+  if (pickingObject()) drawPickBox(c, cx, cy, fg, Z);
+  else {
+    c.setLineDash([]); c.lineWidth = 1; c.strokeStyle = fg; c.globalAlpha = 0.7;
+    c.beginPath(); c.moveTo(cx - R, cy + 0.5); c.lineTo(cx + R, cy + 0.5); c.moveTo(cx + 0.5, cy - R); c.lineTo(cx + 0.5, cy + R); c.stroke();
+    c.globalAlpha = 1;
+    if (sn) { c.strokeStyle = acc; c.fillStyle = acc; c.lineWidth = 2.5; Osnap.drawMarker(c, cx, cy, sn.kind, 12); }
+  }
+  c.restore();
+  c.save();
+  c.beginPath(); c.arc(cx, cy, R, 0, TAU); c.lineWidth = 2; c.strokeStyle = acc; c.globalAlpha = 0.9; c.stroke(); c.globalAlpha = 1;
+  // etiket büyütecin altında: nokta isteminde koordinat (+ yakalama kipi), nesne isteminde altındaki nesnenin türü ve katmanı
+  let txt = '';
+  if (pickingObject()) { const hit = pick(h.w, TOL.pick / S.view.scale); if (hit) txt = trType(hit.info ? hit.info.t : hit.et) + ' \u00b7 ' + hit.lay; }
+  else { const q = sn ? sn.p : h.w; txt = fmt(q[0]) + ' ; ' + fmt(q[1]) + (sn ? '  ' + Osnap.abbrOf(sn.kind) : ''); }
+  if (txt) {
+    c.font = `${Math.round(11 * fs)}px system-ui, sans-serif`; c.textBaseline = 'top'; c.textAlign = 'center';
+    const w = c.measureText(txt).width + 12, ly = cy + R + 6, th = Math.round(18 * fs);
+    c.fillStyle = S.dark ? 'rgba(20,26,34,.9)' : 'rgba(255,255,255,.9)'; c.fillRect(cx - w / 2, ly, w, th);
+    c.fillStyle = sn ? acc : fg; c.fillText(txt, cx, ly + 3);
+  }
+  c.restore();
 }
 function label(c, text, x, y) {
   c.font = 'bold 12px sans-serif';
@@ -607,7 +675,8 @@ const touchIds = () => [...pointers.entries()].filter(([, p]) => p.pt === 'touch
 function dropTouches(ids) {
   if (!ids || !ids.length) return;
   for (const id of ids) { pointers.delete(id); try { vp.releasePointerCapture(id); } catch (_) { /* yakalama yoksa önemsiz */ } }
-  if (pointers.size === 0 || (gesture && gesture.type === 'pinch')) { gesture = null; S.gestureActive = false; }
+  if (pointers.size === 0 || (gesture && (gesture.type === 'pinch' || gesture.type === 'aim'))) { gesture = null; S.gestureActive = false; }
+  if (penHover && penHover.aim) penClearHover();
   if (noteDraft) { noteDraft = null; drawOverlay(); }
   S.pen.drop = palm.dropped;
 }
@@ -653,6 +722,8 @@ vp.addEventListener('pointerdown', (ev) => {
   // Yakalama başarısız olabilir (işaretçi çoktan bırakılmışsa NotFoundError atar); jest yine
   // yürümelidir, yakalama yalnız parmağın öğeden çıkmasına karşı bir kolaylıktır.
   try { vp.setPointerCapture(ev.pointerId); } catch (_) { /* yakalama yoksa jest yine çalışır */ }
+  // Son giren aygıt kazanır: parmak inince fareden / kalemden kalan gezinen imleç kalkar (tek imleç kuralı)
+  if (ev.pointerType === 'touch' && penHover && !penHover.aim) penClearHover();
   pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY, pt: ev.pointerType, kind: penKind });
   if (pointers.size === 1) gestureView0 = { ...S.view, li: S.layoutIndex };
   closeMenu(); clearLong();
@@ -686,10 +757,14 @@ vp.addEventListener('pointerdown', (ev) => {
     } else {
       gesture = { type: 'pan', x0: ev.clientX, y0: ev.clientY, view: { ...S.view }, moved: false, t0: now, navOnly };
       const canLong = !navOnly && !(editor.tools && editor.tools.running) && S.mode === 'view' && !S.notesOn && !editor.is3D();
+      // Parmakla nişan alma: araç ya da ölçü çalışırken (menünün olmadığı yerde) uzun basış imleci parmağa bağlar
+      const canAim = !canLong && !navOnly && ev.pointerType === 'touch' && ((editor.tools && editor.tools.running) || S.mode === 'measure' || S.mode === 'profile') && !S.notesOn && !editor.is3D();
       if (canLong) longTimer = setTimeout(() => { longTimer = 0; if (gesture && gesture.type === 'pan' && !gesture.moved && pointers.size === 1) { gesture.longFired = true; haptic('long'); longPressMenu(sx, sy); } }, TOL.long);
+      else if (canAim) longTimer = setTimeout(() => { longTimer = 0; if (gesture && gesture.type === 'pan' && !gesture.moved && pointers.size === 1) { gesture = { type: 'aim' }; haptic('long'); aimMove(sx, sy); } }, TOL.long);
     }
   } else if (arr.length === 2) {
     noteDraft = null; clearLong();
+    if (penHover && penHover.aim) penClearHover();   // nişan alırken ikinci parmak: yakınlaştırmaya geçilir, imleç bırakılır
     const d = Math.hypot(arr[0].x - arr[1].x, arr[0].y - arr[1].y);
     const r = vp.getBoundingClientRect();
     gesture = { type: 'pinch', d0: d, mid0: [(arr[0].x + arr[1].x) / 2 - r.left, (arr[0].y + arr[1].y) / 2 - r.top], view: { ...S.view }, moved: true, t0: performance.now(), start: arr.map(p => ({ x: p.x, y: p.y })), maxMove: 0 };
@@ -712,6 +787,8 @@ vp.addEventListener('pointermove', (ev) => {
   if (!gesture) return;
   if (gesture.type === 'gizmo') {
     edCall('gizmoMove', sx, sy);
+  } else if (gesture.type === 'aim') {
+    aimMove(sx, sy);   // parmak imleci sürükler; kaydırma yok
   } else if (gesture.type === 'erase') {
     gesture.sx = sx; gesture.sy = sy;   // silgi sürüklenebilir: bırakışta son noktadaki nesne silinir
   } else if (gesture.type === 'note' && noteDraft) {
@@ -765,6 +842,18 @@ function penHoverMove(sx, sy, ev) {
   const tilt = fare ? null : Pen.tiltOf(ev);
   penHover = { sx, sy, tilt, snap: penHover ? penHover.snap : null, w: null, fare };
   S.pen.tilt = tilt;
+  hoverTick();
+}
+/*
+ * PARMAKLA NİŞAN ALMA. Parmağın havada konumu yoktur; araç çalışırken UZUN BASIP sürüklemek imleci
+ * parmağa bağlar: imleç parmağın altında, büyüteç üstünde gider, bırakınca dokunuş imlecin durduğu
+ * yere işlenir. Gezinen kalem ucuyla aynı imleç ve aynı yakalama yolu kullanılır (penHover.aim).
+ */
+function aimMove(sx, sy) {
+  penHover = { sx, sy, tilt: null, snap: penHover ? penHover.snap : null, w: null, aim: true };
+  hoverTick();
+}
+function hoverTick() {
   if (penHoverRaf) return;
   penHoverRaf = requestAnimationFrame(() => {
     penHoverRaf = 0;
@@ -841,6 +930,13 @@ function endPointer(ev) {
       if (noteDraft.type === 'pen' ? noteDraft.pts.length > 2 : Math.hypot(a[0] - b[0], a[1] - b[1]) > 4) addNote(noteDraft);
     }
     noteDraft = null; gesture = null; S.gestureActive = false; drawOverlay(); return;
+  }
+  if (gesture && gesture.type === 'aim') {
+    const h = penHover; gesture = null; S.gestureActive = false;
+    penClearHover();
+    if (ev.type === 'pointerup' && h) { lastTap = 0; lastTapPos = null; void onTap(h.sx, h.sy); }   // iptalde (pointercancel) dokunuş yok
+    if (pointers.size === 0) { gestureView0 = null; requestRender(); }
+    return;
   }
   if (gesture && gesture.type === 'gizmo') {
     edCall('gizmoUp', ev.type === 'pointerup');
@@ -3767,7 +3863,7 @@ window.dwgApp = { osnap: Osnap, loadCurrent, onFilePicked, onLocation, onBack, o
   __cadLoad: (pct, file) => setLoadingCad(pct, file), setLoading, cancelLoading,
   // İmleç ve yakalama durumu (bkz. tools/test_pickbox.mjs): nesne istemi mi, kare kaç piksel,
   // o noktada yakalama ne buluyor (nesne isteminde null olmalıdır)
-  __pickbox: () => ({ on: pickingObject(), r: pickBoxR(), tol: TOL.pick }),
+  __pickbox: () => ({ on: pickingObject(), r: pickBoxR(), tol: TOL.pick, hover: penHover ? { sx: penHover.sx, sy: penHover.sy, aim: !!penHover.aim, snap: penHover.snap ? penHover.snap.kind : null } : null, loupe: penHover && penHover.aim ? loupeGeom(penHover) : null }),
   __snapAt: (x, y, o) => { const sn = findSnap([x, y], o || {}); return sn ? { kind: sn.kind, p: sn.p.slice(0, 2) } : null; },
   // Açılış kestirimcisinin sınanabilir parçaları (bkz. tools/test_ilerleme.mjs)
   __band: (v) => bandOf(v), __tahminTaban: (n, mb) => tahminTaban(n, mb),
