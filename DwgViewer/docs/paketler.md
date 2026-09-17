@@ -147,6 +147,7 @@ Bu yedisi v7.28 ile kapandı; **birinci öbekte açık madde kalmadı**. Ayrınt
 | Tutamaklar %75 boyuta indi; dokunma yarıçapı aynı (v7.64) | seçim kutusu, köşe tutamakları | var olan yeteneklerin kademesi |
 | Doğrudan uzaklık girişi: Çizgi / Polyline'da kutudaki sayı kadar dokunulan yönde ilerleme (AutoCAD direct distance entry) (v7.65) | Çiz ▸ Çizgi, Polyline | var olan araçların kademesi |
 | Köşe tutamağı sürüklenirken başka nesnelerin yakalama noktalarına oturur; sürüklemede işaret; kendi eski yerine yapışmaz (v7.65) | Düzenle ▸ Köşe tutamakları | premium (grips) |
+| Çoklu seçimde köşe tutamakları: seçili bütün yolların düğümleri, çakışan köşeler birlikte (tek geri alma), 100 nesne / 400 düğüm sınırı, nesne başına 200'ü aşan yol atlanır (v7.69) | Düzenle ▸ Köşe tutamakları | premium (grips) |
 | Nesne yakalama izleme (AutoCAD OTRACK, F11): yakalama noktasında bekleyince iz noktası (+), yatay / düşey (kutupsalda açılı) hizalama yolları ve kesişimleri, ortho kilidiyle kesişim, İz noktası (TT) düğmesi Ortho'nun yanında, Yakalama izi karosu (v7.66) | Ölçü ▸ Yakalama izi, Ekran ▸ Yakalama izi, komut çubuğu | var olan yakalamanın kademesi (kalemle gezinme premium) |
 | Çokgen (POLYGON), Böl (DIVIDE), Aralıkla (MEASURE), Sınır (BOUNDARY) (v7.67) | Çiz ▸ Çokgen, Böl, Aralıkla, Sınır | premium |
 | Esnet (STRETCH, kesen pencere içindeki köşeler), Birleştir (JOIN), Özellik eşle (MATCHPROP) (v7.67) | Düzenle ▸ Esnet, Birleştir, Özellik eşle | premium |
@@ -268,7 +269,7 @@ tarama:
 | Uzatma | `t:extend` | premium | Sınıra, sonra uzatılacak uca dokunulur; sınırlı kesişim yoksa kenarın sonsuz doğrusuna düşülür |
 | Kavis | `t:fillet` | premium | İki doğruya dokunulup yarıçap yazılır; aynı polyline'da yay yolun İÇİNE girer |
 | Pah | `t:chamfer` | premium | İki doğruya dokunulup mesafe yazılır |
-| Köşe tutamakları | `grips` | premium | Seçili yolun her düğümü tek tek sürüklenir; bırakış yakalamaya oturur |
+| Köşe tutamakları | `grips` | premium | Seçili yolların (çoklu seçimde de) her düğümü sürüklenir, çakışan köşeler birlikte; bırakış yakalamaya oturur |
 | Katman düzenleme | `layeredit` | premium | Katman yöneticisi (AutoCAD Layer Properties Manager düzeni): ad, renk (ACI ızgarası), çizgi tipi, kalınlık, açık / donuk / kilitli hücre içinde; silme nesneleriyle birlikte tek geri-al adımı; `-LAYER` komut satırı |
 | Tarama deseni | `hatchpat` | premium | ANSI31/32/33/37, NET, LINE, DOTS, CROSS, EARTH, GRAVEL |
 

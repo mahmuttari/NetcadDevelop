@@ -1161,7 +1161,7 @@ function findSnap(w, o = {}) {
   const prev = o.prev || (S.mode === 'measure' || S.mode === 'profile' ? (S.measure.length ? S.measure[S.measure.length - 1] : null) : null);
   let cands = candidates(w, tol);
   if (opt.ignoreHatch) cands = cands.filter(p => !(p.info && p.info.t === 'HATCH'));
-  if (o.skip) cands = cands.filter(p => p !== o.skip);   // sürüklenen nesnenin kendisi (kendi eski köşesine yapışmasın)
+  if (o.skip) { const sk = o.skip instanceof Set ? o.skip : new Set(Array.isArray(o.skip) ? o.skip : [o.skip]); cands = cands.filter(p => !sk.has(p)); }   // sürüklenen nesne(ler): kendi eski köşesine yapışmasın (çoklu seçimde çakışan köşeyi taşıyan bütün yollar)
   let sn = null;
   if (modes.size) {
     const wide = modes.has('par') && prev ? candidates(w, tol * 40).filter(p => p.k === 0).slice(0, 300) : null;

@@ -102,7 +102,7 @@ const TABS = [
     { cap: 'grpCur', items: [T('layer', 'i-layers', 'Katman', 'Layer'), T('color', 'i-palette', 'Renk', 'Color')] },
     { cap: 'grpHist', items: [T('undo', 'i-undo', 'Geri al', 'Undo'), T('redo', 'i-redo', 'Yinele', 'Redo')] } ] },
   { id: 'edit', i18n: 'tabEdit', icon: 'i-select', groups: [
-    { cap: 'grpSel', items: [T('t:select', 'i-select', 'Seç', 'Select', 'Dokunarak seçim; Tümü düğmesiyle hepsi', 'Tap to select'), T('props', 'i-props', 'Özellikler', 'Properties', 'Seçimin katmanı ve rengi', 'Layer and color of the selection'), T('grips', 'i-grips', 'Köşe tutamakları', 'Vertex grips', 'Açıkken dokunulan nesne seçilir; yolun her köşesi ayrı ayrı sürüklenir', 'When on, tapping selects the object; drag each vertex of the path'), T('selectsimilar', 'i-similar', 'Benzerini seç', 'Select similar', 'Seçimle aynı tür ve katmandaki bütün nesneleri seçime ekler', 'Adds every object of the same type and layer as the selection'), T('hideobj', 'i-hideobj', 'Gizle', 'Hide objects', 'Seçili nesneleri görünümden kaldırır; çizim değişmez', 'Hides the selected objects; the drawing is not changed'), T('isoobj', 'i-isoobj', 'İzole et', 'Isolate objects', 'Yalnız seçili nesneleri gösterir', 'Shows only the selected objects'), T('unisoobj', 'i-showobj', 'Hepsini göster', 'Show all', 'Gizlenen ve izole edilen nesneleri geri getirir', 'Shows hidden and isolated objects again')] },
+    { cap: 'grpSel', items: [T('t:select', 'i-select', 'Seç', 'Select', 'Dokunarak seçim; Tümü düğmesiyle hepsi', 'Tap to select'), T('props', 'i-props', 'Özellikler', 'Properties', 'Seçimin katmanı ve rengi', 'Layer and color of the selection'), T('grips', 'i-grips', 'Köşe tutamakları', 'Vertex grips', 'Açıkken dokunulan nesne seçilir; seçili yolların her köşesi ayrı ayrı sürüklenir, çakışan köşeler birlikte gider', 'When on, tapping selects the object; drag any vertex of the selected paths, coincident vertices move together'), T('selectsimilar', 'i-similar', 'Benzerini seç', 'Select similar', 'Seçimle aynı tür ve katmandaki bütün nesneleri seçime ekler', 'Adds every object of the same type and layer as the selection'), T('hideobj', 'i-hideobj', 'Gizle', 'Hide objects', 'Seçili nesneleri görünümden kaldırır; çizim değişmez', 'Hides the selected objects; the drawing is not changed'), T('isoobj', 'i-isoobj', 'İzole et', 'Isolate objects', 'Yalnız seçili nesneleri gösterir', 'Shows only the selected objects'), T('unisoobj', 'i-showobj', 'Hepsini göster', 'Show all', 'Gizlenen ve izole edilen nesneleri geri getirir', 'Shows hidden and isolated objects again')] },
     { cap: 'grpXform', items: [T('t:move', 'i-move', 'Taşı', 'Move'), T('t:copy', 'i-copyobj', 'Kopyala', 'Copy'), T('t:rotate', 'i-rotate', 'Döndür', 'Rotate'), T('t:scale', 'i-scale', 'Ölçekle', 'Scale'), T('t:mirror', 'i-mirror', 'Aynala', 'Mirror'), T('t:stretch', 'i-stretch', 'Esnet', 'Stretch', 'Kesen pencerenin içindeki köşeler taşınır, dışındakiler yerinde kalır', 'Vertices inside the crossing window move, the rest stay'), T('t:offset', 'i-offset', 'Ofset', 'Offset', 'Önce Ekran mı Ölçü mü: geçiş noktası ya da yazılan mesafe, sonra nesne', 'Asks Screen or Measure first: through point or typed distance, then the object')] },
     { cap: 'grpModify', items: [T('t:del', 'i-erase', 'Sil', 'Delete'), T('t:setz', 'i-z', 'Kot ata', 'Set Z', 'Seçime Z kotu atar', 'Assign elevation'), T('t:edittext', 'i-edittext', 'Yazı düzenle', 'Edit text'), T('t:array', 'i-array', 'Dizi', 'Array', 'Dikdörtgen, kutupsal (merkez dokunuşla) ya da yol boyunca artımlı kopya; kat artımı', 'Rectangular, polar (tapped center) or along-a-path incremental copy; Z increment'), T('t:thick', 'i-thick', 'Kalınlık', 'Thickness', '2B nesneye yükseklik vererek 3B gövde üretir', 'Extrude 2D objects into 3D bodies'), T('t:explode', 'i-explode', 'Patlat', 'Explode', 'Blok yerleştirmesini parçalarına ayırır', 'Break a block insertion into its parts'), T('t:join', 'i-join', 'Birleştir', 'Join', 'Uçları değen çizgi, yay ve polyline\'ları tek polyline yapar', 'Joins touching lines, arcs and polylines into one polyline'), T('t:matchprop', 'i-matchprop', 'Özellik eşle', 'Match properties', 'Kaynak nesnenin katman, renk ve çizgi tipini hedeflere kopyalar', 'Copies layer, colour and linetype from a source to targets'), T('t:textsize', 'i-textsize', 'Yazı yüksekliği', 'Text height', 'Seçili yazıların yüksekliğini değiştirir', 'Change the height of selected texts'), T('t:attr', 'i-attr', 'Öznitelik', 'Attributes', 'Blok özniteliklerini düzenler', 'Edit block attributes'), T('findrep', 'i-findrep', 'Bul-değiştir', 'Find & replace', 'Çizimdeki yazılarda toplu değiştirme', 'Bulk replace across drawing texts'), T('t:trim', 'i-trim', 'Buda', 'Trim', 'Önce Ekran mı Ölçü mü: kesici kenar + parça, ya da yazılan boy kadar kısalt', 'Asks Screen or Measure first: cutting edge + piece, or cut a typed length off the end'), T('t:extend', 'i-extend', 'Uzat', 'Extend', 'Önce Ekran mı Ölçü mü: sınır + uç, ya da yazılan boy kadar uzat', 'Asks Screen or Measure first: boundary + end, or add a typed length to the end'), T('t:fillet', 'i-fillet', 'Kavis', 'Fillet', 'Önce Ekran mı Ölçü mü: yayın geçeceği nokta ya da yazılan yarıçap, sonra iki doğru', 'Asks Screen or Measure first: where the arc passes or a typed radius, then two lines'), T('t:chamfer', 'i-chamfer', 'Pah', 'Chamfer', 'Önce Ekran mı Ölçü mü: pahın geçeceği nokta ya da yazılan mesafe, sonra iki doğru', 'Asks Screen or Measure first: where the chamfer passes or a typed distance, then two lines')] },
     { cap: 'grpBlock', items: [T('blocklib', 'i-block', 'Blok kütüphanesi', 'Block library', 'Seçimden blok oluştur, kaydet, çizime ekle', 'Create, save and insert blocks'), T('copyclip', 'i-copy', 'Panoya kopyala', 'Copy to clipboard', 'Seçimi panoya alır; başka çizimde yapıştırılır', 'Copy the selection for pasting into another drawing'), T('cutclip', 'i-cut', 'Kes', 'Cut', 'Seçimi panoya alır ve siler', 'Copies the selection to the clipboard and erases it'), T('pasteclip', 'i-paste', 'Panodan yapıştır', 'Paste', 'Panodaki nesneleri bu çizime ekler', 'Paste clipboard objects into this drawing')] },
@@ -630,18 +630,17 @@ function layerSet(names, durum) {
 /** app.js için: aynı toplu işlem (katman panelindeki ampul / kar tanesi / kilit sütunları) */
 ed.layerSet = (names, durum) => layerSet(names, durum);
 /*
- * Köşe tutamaklarını açar / kapar. Açıldığında tek bir yol seçiliyse düğümler belirir; düğüm
- * sayısı sınırı aşıyorsa tutamak çizilmez ve kullanıcıya nedeni söylenir — sessizce hiçbir şey
- * olmaması "bozuk" gibi görünür.
+ * Köşe tutamaklarını açar / kapar. Açıldığında seçili yolların düğümleri belirir (çoklu seçimde de);
+ * sınır aşılıyorsa tutamak çizilmez ve kullanıcıya nedeni söylenir — sessizce hiçbir şey olmaması
+ * "bozuk" gibi görünür.
  */
 function toggleGrips() {
   ui.grips = !ui.grips;
   applyUi(); haptic('toggle'); refreshTiles(); api.drawOverlay();
   if (ui.grips && ed.sel.size && [...ed.sel].every(p => p.info && p.info.t === 'DIMENSION')) { api.toast(t('gripsDim'), 2600); return; }
-  if (ui.grips && ed.sel.size === 1) {
-    const p = [...ed.sel][0];
-    if (p && p.k === 0 && !Gz.vertsOf(p).length) api.toast(t('gripsTooMany'), 2200);
-  }
+  // seçimde yol var ama düğüm çizilemiyor: nesne başına 200 / toplam 400 düğüm ya da 100 nesne sınırı. Sınırın kendisine
+  // bakılır (gizmoVertLayout araç çalışırken / 3B'de / kutu kapalıyken de null döner; o durumlarda bu ileti yanlış olurdu)
+  if (ui.grips && [...ed.sel].some(p => p.k === 0 && !(p.info && p.info.t === 'DIMENSION')) && !Gz.vertsOfAll(ed.sel).length) { api.toast(t('gripsTooMany'), 2600); return; }
   api.toast(ui.grips ? t('gripsOnMsg') : t('gripsOffMsg'), 1200);
 }
 /** F3 / durum çubuğu / şerit karosu: tek kaynak osnap.toggle (liste saklanır, açılınca geri gelir) */
@@ -1133,18 +1132,18 @@ function gizmoLayout() {
  * Köşe (düğüm) tutamakları. VARSAYILAN KAPALIDIR: bir polyline'ın düğümleri çoğu zaman sınır
  * kutusunun köşeleriyle çakışır (dikdörtgende birebir), açık bırakılırsa kutuyla ölçekleme
  * yapılamaz hâle gelir. Kullanıcı karodan açtığında düğüm önceliği kazanır.
- * Yalnız TEK bir yol ilkeli seçiliyken görünür; çoklu seçimde hangi yolun düğümü olduğu
- * anlaşılmaz ve tutamaklar birbirine girer.
+ * ÇOKLU SEÇİMDE de görünür (v7.69, AutoCAD gibi): seçili bütün yolların düğümleri tek listededir,
+ * her düğüm ilkelini taşır; ölçü parçaları dışarıda kalır (tanımı bozulur, "Ölçüyü düzenle" ile değişir).
+ * Sınır: toplam 400 düğüm ya da 100 seçili nesne (AutoCAD GRIPOBJLIMIT) aşılırsa hiç tutamak çizilmez, kutu
+ * tutamağı kalır; nesne başına 200'ü aşan yol atlanır, ötekilerin tutamağı kalır. Hiç tutamak kalmıyorsa karo
+ * açılırken nedeni söylenir. Daire / yay düğüm almaz (başlangıç noktasını taşımak yayı bozardı).
  */
 function gizmoVertLayout() {
-  if (!ui.grips || !gizmoOn() || ed.sel.size !== 1) return null;
-  const p = [...ed.sel][0];
-  if (!p || p.k !== 0) return null;
-  if (p.info && p.info.t === 'DIMENSION') return null;   // ölçü parçası tutamakla bükülmez: tanımı bozulur, "Ölçüyü düzenle" ile değişir
-  const vs = Gz.vertsOf(p);
-  if (!vs.length) return null;
-  const VL = Gz.layoutVerts(vs, toScreen, { fs: ui.fontScale, glove: ui.glove });
-  return VL ? { p, vs, VL } : null;
+  if (!ui.grips || !gizmoOn() || !ed.sel.size) return null;
+  const verts = Gz.vertsOfAll(ed.sel);
+  if (!verts.length) return null;
+  const VL = Gz.layoutVerts(verts, toScreen, { fs: ui.fontScale, glove: ui.glove });
+  return VL ? { verts, VL } : null;
 }
 /*
  * BÖLGE SEÇİMİ SÜRÜKLEMESİ. Seç aracı pencere ya da çokgen kipindeyken tek parmak kaydırmaz,
@@ -1236,8 +1235,15 @@ ed.gizmoDown = (sx, sy, o = {}) => {
   const kind = Gz.hit(sx, sy, L, G && G.VL); if (!kind) return false;
   if (!gate(Gz.needOf(kind))) return true;   // yetki yoksa jest yine yutulur: kutu açıldı
   if (String(kind).startsWith('v:')) {
-    const vi = +kind.slice(2);
-    giz = { kind, vi, prim: G.p, ops0: G.p.ops.map(o => o.slice()), w0: toWorld(sx, sy), p: null, m: null, info: null, sn: null };
+    // Çoklu seçimde AYNI noktadaki düğümler (birleşen duvarların ortak köşesi gibi) birlikte gider: AutoCAD'de bunun için
+    // Shift ile birden çok tutamak "sıcak" yapılır, dokunmatikte Shift yok — ortak köşe tek parmakla taşınır. Bir yolun
+    // kendi çakışan düğümleri (kapalı polyline'ın başı / sonu) de birlikte gider.
+    const vi = +kind.slice(2), v = G.verts[vi]; if (!v) return true;
+    const bb = Gz.boxOf(ed.sel), ext = bb ? Math.max(bb[2] - bb[0], bb[3] - bb[1], 1e-9) : 1;
+    const act = Gz.coincidentOf(G.verts, vi, ext * 1e-6);   // JOIN'in "uçları değiyor" payıyla aynı: göze bitişik köşe birlikte gider
+    const moves = new Map();
+    for (const j of act) { const q = G.verts[j]; if (!moves.has(q.p)) moves.set(q.p, { prim: q.p, ops0: q.p.ops.map(o => o.slice()), idx: [] }); moves.get(q.p).idx.push(q.i); }
+    giz = { kind, vi, oi: v.i, act, tol: ext * 1e-6, prim: v.p, ops0: v.p.ops.map(o => o.slice()), moves: [...moves.values()], w0: toWorld(sx, sy), p: null, m: null, info: null, sn: null };
     haptic('snap');
     return true;
   }
@@ -1258,12 +1264,17 @@ ed.gizmoMove = (sx, sy) => {
     // Tutamak sürüklemesi NOKTA işidir: yakalama orada çalışır (uç / orta / merkez / kesişim…), açıklık 1,5 kat.
     // Sürüklenen köşenin KENDİ eski yeri yakalanmaz (elde tutulan düğüm oraya geri yapışırdı); nesnenin öteki
     // köşeleri yine hedef olur. Sürükleme boyunca işaret çizilir (overlay): nereye oturacağı görülür.
-    const w = toWorld(sx, sy), o0 = giz.ops0[giz.vi];
+    const w = toWorld(sx, sy), o0 = giz.ops0[giz.oi];
+    // "eski yer": sürüklenen düğümün VE onunla birlikte giden çakışan düğümlerin eski konumları, çakışma payıyla aynı payda
+    const eskiler = giz.moves.flatMap(m => m.idx.map(i => m.ops0[i])), tol = Math.max(1e-9, giz.tol || 0);
+    const eski = (q) => eskiler.some(o => Math.hypot(q[0] - o[1], q[1] - o[2]) <= tol);
     let sn = api.snapPeek ? api.snapPeek(w, { grip: true }) : null;
-    if (sn && Math.hypot(sn.p[0] - o0[1], sn.p[1] - o0[2]) < 1e-9) sn = api.snapPeek(w, { grip: true, skip: giz.prim });
+    if (sn && eski(sn.p)) sn = api.snapPeek(w, { grip: true, skip: giz.prim });                                   // kendi öteki köşeleri hedef kalır
+    if (sn && eski(sn.p)) sn = api.snapPeek(w, { grip: true, skip: new Set(giz.moves.map(m => m.prim)) });   // çakışan köşeyi taşıyan yolların hepsi atlanır: başka nesnenin ucu yine bulunur
+    if (sn && eski(sn.p)) sn = null;   // yine eski yer: yapışma
     const q = sn ? sn.p : w;
     giz.p = [q[0], q[1]]; giz.sn = sn || null;
-    giz.info = { tip: 'vertex', dx: q[0] - giz.ops0[giz.vi][1], dy: q[1] - giz.ops0[giz.vi][2] };
+    giz.info = { tip: 'vertex', dx: q[0] - o0[1], dy: q[1] - o0[2] };
     api.drawOverlay();
     return true;
   }
@@ -1282,9 +1293,10 @@ ed.gizmoUp = (commit) => {
   const g = giz; giz = null;
   if (!g) return false;
   if (g.vi != null) {
-    const kip = g.p && (Math.abs(g.p[0] - g.ops0[g.vi][1]) > 0 || Math.abs(g.p[1] - g.ops0[g.vi][2]) > 0);
+    const kip = g.p && (Math.abs(g.p[0] - g.ops0[g.oi][1]) > 0 || Math.abs(g.p[1] - g.ops0[g.oi][2]) > 0);
     if (commit && kip && doc) {
-      doc.run({ op: 'reshape', items: [{ key: g.prim.key, ops: Gz.movedOps(g.ops0, g.vi, g.p[0], g.p[1]) }] });
+      // çakışan köşeler birlikte: her ilkel için taşınmış ops, tek 'reshape' adımı (tek geri alma)
+      doc.run({ op: 'reshape', items: g.moves.map(m => ({ key: m.prim.key, ops: Gz.movedOpsMany(m.ops0, m.idx, g.p[0], g.p[1]) })) });
       refreshUndo(); api.requestRender(); haptic('toggle');
     }
     api.drawOverlay();
@@ -1319,10 +1331,11 @@ export function overlay(c) {
     // Düğüm sürüklenirken matris YOKTUR (tek köşeyi taşımak afin değildir): o ilkel, taşınmış
     // ops'uyla çizilir. Önizleme ile bırakışta işlenen komut aynı Gz.movedOps'tan gelir.
     const surukVi = giz && giz.vi != null && giz.p ? giz : null;
+    const tasinan = surukVi ? new Map(surukVi.moves.map(m => [m.prim, Gz.movedOpsMany(m.ops0, m.idx, surukVi.p[0], surukVi.p[1])])) : null;   // çakışan köşeleri taşınan her yol önizlemede de taşınmış çizilir
     for (const p of ed.sel) {
       if (p.k === 0) {
         c.beginPath();
-        api.tracePath(c, surukVi && surukVi.prim === p ? Gz.movedOps(surukVi.ops0, surukVi.vi, surukVi.p[0], surukVi.p[1]) : p.ops);
+        api.tracePath(c, tasinan && tasinan.has(p) ? tasinan.get(p) : p.ops);
         if (p.closed) c.closePath();
         c.stroke();
       } else api.strokeWorldRect(c, p.bb);
@@ -1332,7 +1345,7 @@ export function overlay(c) {
     if (L) {
       Gz.draw(c, L, { line: acc, fill: bgColor(), ink: acc }, { fs: ui.fontScale });
       const G = gizmoVertLayout();
-      if (G) Gz.drawVerts(c, G.VL, { line: acc, fill: bgColor(), ink: acc }, { fs: ui.fontScale, active: giz && giz.vi != null ? giz.vi : -1 });
+      if (G) Gz.drawVerts(c, G.VL, { line: acc, fill: bgColor(), ink: acc }, { fs: ui.fontScale, active: giz && giz.vi != null ? (giz.act || [giz.vi]) : -1 });
       // Köşe sürüklenirken yakalama işareti (dokunuş işaretiyle aynı glif ve renk): neye oturacağı görülsün
       if (giz && giz.vi != null && giz.sn && api.osnap) {
         const s = toScreen(giz.sn.p[0], giz.sn.p[1]);
@@ -1931,8 +1944,8 @@ ed.gripTap = (hit) => {
   api.drawOverlay();
   return true;
 };
-/** Sınama: seçili tek yolun tutamak sayısı (kip kapalıysa ya da yol yoksa 0) ve ekran konumları */
-ed.gripInfo = () => { const G = gizmoVertLayout(); return G ? { n: G.vs.length, pts: G.VL.pts.map(q => q.slice(0, 2)), r: G.VL.r, hitR: G.VL.hitR } : { n: 0, pts: [] }; };
+/** Sınama: seçili yolların tutamak sayısı (kip kapalıysa ya da yol yoksa 0), ekran konumları, yol anahtarları, nesne sayısı ve sıcak dizinler */
+ed.gripInfo = () => { const G = gizmoVertLayout(); return G ? { n: G.verts.length, pts: G.VL.pts.map(q => q.slice(0, 2)), keys: G.verts.map(v => v.p.key), r: G.VL.r, hitR: G.VL.hitR, objs: new Set(G.verts.map(v => v.p)).size, act: giz && giz.act ? giz.act.slice() : null } : { n: 0, pts: [], keys: [], objs: 0, act: null }; };
 /** Sınama: seçim kutusu tutamaklarının ekran konumları (taşı / döndür) ve isabet yarıçapı; kutu yoksa null */
 ed.gizmoInfo = () => { const L = gizmoLayout(); return L ? { move: L.pts.move.slice(0, 2), rot: L.pts.rot.slice(0, 2), hitR: L.hitR, grip: L.grip, busy: ed.gizmoBusy(), sn: giz && giz.sn ? giz.sn.kind : null, p: giz && giz.p ? giz.p.slice() : null } : null; };
 ed.setCurLayer = (name) => { if (!name || !S.layers.has(name)) return false; ed.curLayer = name; updateLayerButton(); return true; };

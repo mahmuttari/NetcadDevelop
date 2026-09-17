@@ -97,7 +97,7 @@ export function hit(sx, sy, L, VL) {
       const d = Math.hypot(sx - VL.pts[i][0], sy - VL.pts[i][1]);
       if (d <= ed) { ed = d; en = i; }
     }
-    if (en >= 0) return 'v:' + VL.verts[en].i;
+    if (en >= 0) return 'v:' + en;   // birleşik düğüm dizini (çoklu seçimde birden çok yolun düğümleri tek listededir)
   }
   for (const k of CORNERS) if (near(L.pts[k], L.hitR)) return k;
   if (!L.tiny) for (const k of EDGES) if (near(L.pts[k], L.hitR)) return k;
@@ -111,12 +111,39 @@ export function hit(sx, sy, L, VL) {
  * limit aşılırsa BOŞ dizi döner — binlerce düğümlü bir polyline ekranı tutamakla doldurur ve
  * hiçbiri isabetle tutulamaz; çağıran kullanıcıya 'gripsTooMany' der.
  */
+/** Çoklu seçimde tutamak sınırları: AutoCAD GRIPOBJLIMIT (100 nesne) ve toplam düğüm (400) — aşılırsa tutamak çizilmez, kutu tutamağı kalır */
+export const GRIP_OBJ_LIMIT = 100, GRIP_VERT_LIMIT = 400;
+/**
+ * Seçili yolların düğümleri TEK listede; her düğüm ilkelini (p) taşır. Toplam 400 düğüm ya da 100 nesne aşılırsa BOŞ dizi
+ * döner; nesne başına 200'ü aşan yol atlanır (çağıran, liste boşsa 'gripsTooMany' der). Ölçü parçaları dışarıda kalır (tanımı bozulur).
+ */
+export function vertsOfAll(prims) {
+  const all = [...prims];
+  if (all.length > GRIP_OBJ_LIMIT) return [];   // AutoCAD GRIPOBJLIMIT gibi seçimin TAMAMI sayılır (yazı, nokta, blok dâhil)
+  const list = all.filter(p => p && p.k === 0 && !(p.info && p.info.t === 'DIMENSION'));
+  if (!list.length) return [];
+  const out = [];
+  for (const p of list) {
+    const vs = vertsOf(p);   // nesne başına 200'ü aşan yol ATLANIR: ötekilerin tutamağı kalır (tek başına seçiliyse liste boş kalır, çağıran söyler)
+    for (const v of vs) { v.p = p; out.push(v); }
+    if (out.length > GRIP_VERT_LIMIT) return [];
+  }
+  return out;
+}
+/** vi. düğümle aynı noktadaki düğümlerin dizinleri (kendisi dâhil): seçili yolların çakışan köşeleri birlikte sürüklenir */
+export function coincidentOf(verts, vi, tol = 1e-9) {
+  const v = verts[vi]; if (!v) return [];
+  const out = [];
+  for (let i = 0; i < verts.length; i++) { const q = verts[i]; if (Math.hypot(q.x - v.x, q.y - v.y) <= tol) out.push(i); }
+  return out;
+}
 export function vertsOf(prim, limit = 200) {
   if (!prim || prim.k !== 0 || !Array.isArray(prim.ops)) return [];
   const out = [];
   for (let i = 0; i < prim.ops.length; i++) {
-    const o = prim.ops[i];
+    const o = prim.ops[i], nx = prim.ops[i + 1];
     if (o[0] !== 0 && o[0] !== 1) continue;
+    if (nx && (nx[0] === 2 || nx[0] === -2 || nx[0] === 3)) continue;   // yayın / elipsin başlangıç düğümü: taşınsa yay yerinde kalır, araya sahte çizgi girer (daire ve yay tutamak almaz)
     out.push({ i, x: o[1], y: o[2], z: typeof o[3] === 'number' && isFinite(o[3]) ? o[3] : 0 });
     if (out.length > limit) return [];
   }
@@ -152,17 +179,23 @@ export function movedOps(ops, i, x, y) {
   n[i] = [n[i][0], x, y, typeof n[i][3] === 'number' && isFinite(n[i][3]) ? n[i][3] : 0];
   return n;
 }
+/** Birden çok düğümü (aynı yolun çakışan / seçilen köşeleri) aynı (x, y)'ye taşınmış ops kopyası */
+export function movedOpsMany(ops, idxs, x, y) {
+  let n = ops;
+  for (const i of idxs || []) n = movedOps(n, i, x, y);
+  return n === ops ? ops.map(o => o.slice()) : n;
+}
 
 /** Düğüm tutamaklarını çizer: küçük dolu kareler, sürüklenen düğüm içi boş. */
 export function drawVerts(c, VL, col, opts = {}) {
   if (!VL || !VL.pts.length) return;
   const line = col.line || '#ff9f0a', fill = col.fill || '#101820';
-  const aktif = opts.active == null ? -1 : opts.active;
+  const act = opts.active, aktif = (i) => (Array.isArray(act) ? act.includes(i) : act != null && i === act);   // birleşik dizin; çakışan köşelerin hepsi içi boş çizilir
   c.save();
   c.lineWidth = Math.max(1.4, 1.8 * (opts.fs || 1));
   for (let i = 0; i < VL.pts.length; i++) {
     const p = VL.pts[i], r = VL.r;
-    c.fillStyle = VL.verts[i].i === aktif ? fill : line;
+    c.fillStyle = aktif(i) ? fill : line;
     c.strokeStyle = line;
     c.beginPath(); c.rect(p[0] - r, p[1] - r, r * 2, r * 2); c.fill(); c.stroke();
   }
