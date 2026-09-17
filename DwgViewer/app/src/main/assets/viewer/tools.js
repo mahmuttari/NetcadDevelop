@@ -10,7 +10,7 @@
  *   fmt(v)   units()     unitToM()   trackClear() (nokta belirlenince edinilmiş iz noktaları silinir)
  * Nokta girişi: dokunma (yakalamalı) ya da yazılı: "x,y" | "x,y,z" | "@dx,dy" | "@L<açı"
  */
-import { TAU, flatten, polyArea, pathLength, pathLength3, segDist, opsBBox, enclosingPrim, segmentsOf, segAt, trimPath, extendPath, lengthenPath, filletCorner, chamferCorner, cornerAt, segIntersect, pointInPoly, pathPointsAt } from './geom.js';
+import { TAU, flatten, polyArea, pathLength, pathLength3, segDist, opsBBox, enclosingPrim, segmentsOf, segAt, trimPath, extendPath, lengthenPath, filletCorner, chamferCorner, cornerAt, segIntersect, pointInPoly, pathPointsAt, pathFramesAt } from './geom.js';
 import { newId, offsetPoints } from './edit.js';
 import { t, addStrings } from './i18n.js';
 import { askText, askForm } from './dialog.js';
@@ -64,7 +64,10 @@ export const TOOLS = {
   balloon: { name: 'Numaralandırma', en: 'Numbering', steps: ['Balon konumunu seçin (numara artarak sürer)'], stepsEn: ['Pick the balloon position (the number keeps increasing)'] },
   hatch: { name: 'Tarama', en: 'Hatch', steps: ['Doldurulacak kapalı alanın içine dokunun'], stepsEn: ['Tap inside the closed area to fill'] },
   // düzenleme
-  array: { name: 'Dizi', en: 'Array', steps: ['Nesneleri seçin · Bitir'], stepsEn: ['Select objects · Finish'] },
+  array: { name: 'Dizi', en: 'Array', steps: ['Nesneleri seçin · Bitir', 'Dizi türünü seçin'], stepsEn: ['Select objects · Finish', 'Choose the array type'] },
+  arrayrect: { name: 'Dikdörtgen dizi', en: 'Rectangular array', steps: ['Nesneleri seçin · Bitir', 'Sütun, satır ve aralıkları yazın'], stepsEn: ['Select objects · Finish', 'Type columns, rows and spacing'] },
+  arraypolar: { name: 'Kutupsal dizi', en: 'Polar array', steps: ['Nesneleri seçin · Bitir', 'Dizinin merkez noktasını seçin'], stepsEn: ['Select objects · Finish', 'Pick the center point of the array'] },
+  arraypath: { name: 'Yol dizisi', en: 'Path array', steps: ['Nesneleri seçin · Bitir', 'Yola dokunun (dizi dokunulan uçtan başlar)'], stepsEn: ['Select objects · Finish', 'Tap the path (the array starts at the tapped end)'] },
   thick: { name: 'Kalınlık', en: 'Thickness', steps: ['Nesneleri seçin · Bitir', 'Yüksekliği yazın'], stepsEn: ['Select objects · Finish', 'Type the height'] },
   textsize: { name: 'Yazı yüksekliği', en: 'Text height', steps: ['Yazıları seçin · Bitir', 'Yüksekliği yazın'], stepsEn: ['Select texts · Finish', 'Type the height'] },
   explode: { name: 'Patlat', en: 'Explode', steps: ['Blok yerleştirmesine dokunun'], stepsEn: ['Tap a block insertion'] },
@@ -98,7 +101,9 @@ const toolName = (k) => t('tool_' + k);
 const toolStep = (k, i) => t(`tstep_${k}_${i}`);
 /** Ölçü kipinin adımı (stepsVal); araçta Ölçü adımı yoksa Ekran adımı */
 const toolStepVal = (k, i) => (TOOLS[k] && TOOLS[k].stepsVal && TOOLS[k].stepsVal.length ? t(`tstep_${k}_v${i}`) : toolStep(k, i));
-const SELECT_TOOLS = new Set(['move', 'copy', 'rotate', 'scale', 'mirror', 'del', 'setz', 'array', 'thick', 'textsize', 'stretch', 'join']);
+const SELECT_TOOLS = new Set(['move', 'copy', 'rotate', 'scale', 'mirror', 'del', 'setz', 'array', 'arrayrect', 'arraypolar', 'arraypath', 'thick', 'textsize', 'stretch', 'join']);
+/** Dizi ailesi (AutoCAD ARRAY, ARRAYRECT, ARRAYPOLAR, ARRAYPATH): seçim bitince tür / merkez / yol adımına geçer */
+const ARRAY_TOOLS = new Set(['array', 'arrayrect', 'arraypolar', 'arraypath']);
 /*
  * EKRAN / ÖLÇÜ SORAN ARAÇLAR. Değer isteyen düzenleme araçları nesne seçilmeden ÖNCE sorar:
  * Ekran → değer çizimde dokunarak verilir (ötelede geçiş noktası, kavis / pahta yayın geçeceği nokta,
@@ -118,7 +123,7 @@ const LEN_RE = /^[-+]?\d+(\.\d+)?$/;
 /** Sayı girişi bekleyen araçlar ve hangi adımda beklediği — TEK kaynak (say / typed / tap buraya bakar) */
 const NUMBER_STEP = { circle: 1, rotate: 2, scale: 2, setz: 1, thick: 1, textsize: 1, polygon: 2, divide: 1, measure: 1 };
 /** Nokta değil NESNE (ya da kapalı alan) seçilerek çalışan araçlar */
-const OBJECT_TOOLS = new Set(['radius', 'edittext', 'dimedit', 'dimr', 'dimd', 'explode', 'attr', 'hatch', 'fillarea', 'ident', 'trim', 'extend', 'fillet', 'chamfer', 'offset', 'divide', 'measure', 'matchprop', 'boundary']);
+const OBJECT_TOOLS = new Set(['radius', 'edittext', 'dimedit', 'dimr', 'dimd', 'explode', 'attr', 'hatch', 'fillarea', 'ident', 'trim', 'extend', 'fillet', 'chamfer', 'offset', 'divide', 'measure', 'matchprop', 'boundary', 'arraypath']);
 /** Çok noktalı ölçülendirme / açıklama araçları: taslakları çizgi olarak gösterilir */
 const PATH_TOOLS = new Set(['dim', 'dimh', 'dimv', 'dima', 'leader', 'cloud']);
 /** Sonraki numara: sayıysa artar, harfle bitiyorsa harf ilerler ("A1"→"A2", "B"→"C") */
@@ -205,6 +210,7 @@ export class ToolManager {
     }
     if (name === 'select') this.selecting = true;
     if (name === 'stretch') this.selMode = 'box';   // AutoCAD STRETCH pencere ister: seçim doğrudan kutu kipinde başlar (sağdan sola = kesen)
+    if (ARRAY_TOOLS.has(name) && !this.selecting) { void this.arrayNext(); return; }   // seçim hazırsa dizi hemen sorar: tür / merkez / yol
     this.say();
   }
   cancel(silent) {
@@ -461,7 +467,7 @@ export class ToolManager {
   async objectTap(w) {
     const A = this.api, act = this.active;
     if (act === 'hatch' || act === 'fillarea' || act === 'boundary') { await this.regionTap(w); return; }
-    if (act === 'divide' || act === 'measure') { this.pathTap(w); return; }
+    if (act === 'divide' || act === 'measure' || act === 'arraypath') { this.pathTap(w); return; }
     if (act === 'matchprop') { this.matchTap(w); return; }
     if ((act === 'trim' || act === 'extend') && this.mode === 'value') { this.lengthTap(w); return; }
     if (act === 'trim' || act === 'extend') { await this.cutTap(w); return; }
@@ -1030,33 +1036,103 @@ export class ToolManager {
     A.toast(String(this.balloonNext));
     this.balloonNext = nextLabel(this.balloonNext);
   }
-  /** Dizi (artımlı kopya): seçim bittiğinde sayı kutusu açılır, bütün kopyalar tek komutta oluşur */
-  async runArray() {
+  /** Dizi: seçim bitince tür sorulur (ARRAY) ya da doğrudan türün kendi adımına geçilir (ARRAYRECT: form · ARRAYPOLAR: merkez · ARRAYPATH: yol) */
+  async arrayNext() {
     const A = this.api;
+    if (!A.sel.size) { A.toast(t('selEmpty')); this.cancel(); return; }
+    if (this.active === 'array') {
+      this.step = 1; this.say();
+      const r = await askForm(toolName('array'), [{ id: 'kind', label: t('arrayKind'), type: 'select', value: this.lastVal.arrayKind || 'rect', options: [['rect', t('arrayRect')], ['polar', t('arrayPolar')], ['path', t('arrayPath')]] }], { ok: t('ok'), hint: t('arrayKindHint') });
+      if (!r) { this.cancel(); return; }
+      if (this.active !== 'array') return;   // form açıkken araç değişti
+      this.lastVal.arrayKind = r.kind === 'polar' || r.kind === 'path' ? r.kind : 'rect';
+      this.active = 'array' + this.lastVal.arrayKind;
+    }
+    if (this.active === 'arrayrect') { await this.runArray({}); return; }
+    this.step = 1; this.say(); A.overlay();
+  }
+  /*
+   * Dizi (AutoCAD ARRAY ailesi): bütün kopyalar TEK komutta oluşur, tek geri almayla kalkar.
+   *   Dikdörtgen: sütun × satır, X / Y aralığı.  Kutupsal: DOKUNULAN merkez, kopya sayısı, toplam açı, kopyalar dönsün.
+   *   Yol: dokunulan yol boyunca sayıyla (yol eşit bölünür, iki uçta da öge) ya da aralıkla (sığdığı kadar); kopyalar yola
+   *        döner (ilk ögenin yönüne göre); KAYNAK NESNE yolun dokunulan ucuna taşınır — AutoCAD'de de ilk öge yolun başındadır.
+   *   Z artımı (kat): her kopya bir öncekinden o kadar yukarıda — 3DARRAY'in düzlemdeki karşılığı. Uygulanan sayı / açı / yöntem /
+   *   hizalama / Z artımı tür başına hatırlanır; aralıklar her seferinde seçimin boyutundan önerilir.
+   */
+  async runArray(opt = {}) {
+    const A = this.api;
+    const kind = this.active === 'arraypolar' ? 'polar' : this.active === 'arraypath' ? 'path' : 'rect';
     const keys = [...A.sel].map(q => q.key);
     if (!keys.length) { A.toast(t('selEmpty')); this.cancel(); return; }
     const bb = [...A.sel].reduce((acc, q) => [Math.min(acc[0], q.bb[0]), Math.min(acc[1], q.bb[1]), Math.max(acc[2], q.bb[2]), Math.max(acc[3], q.bb[3])], [Infinity, Infinity, -Infinity, -Infinity]);
     const w = isFinite(bb[0]) ? Math.max(bb[2] - bb[0], 1e-6) : 1, h = isFinite(bb[1]) ? Math.max(bb[3] - bb[1], 1e-6) : 1;
-    const res = await askForm(t('arrayTitle'), [
-      { id: 'kind', label: t('arrayKind'), type: 'select', value: 'rect', options: [['rect', t('arrayRect')], ['polar', t('arrayPolar')]] },
-      { id: 'nx', label: t('arrayCols'), type: 'number', value: 3 },
-      { id: 'ny', label: t('arrayRows'), type: 'number', value: 1 },
-      { id: 'dx', label: t('arrayDx'), type: 'number', value: Math.round(w * 1.2 * 1000) / 1000 },
-      { id: 'dy', label: t('arrayDy'), type: 'number', value: Math.round(h * 1.2 * 1000) / 1000 },
-      { id: 'n', label: t('arrayCount'), type: 'number', value: 6 },
-      { id: 'total', label: t('arrayAngle'), type: 'number', value: 360 },
-      { id: 'rotate', label: t('arrayRotate'), type: 'check', value: true },
-    ], { ok: t('apply'), hint: t('arrayHint') });
+    const base = isFinite(bb[0]) ? [(bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2] : [0, 0];
+    const last = this.lastVal['array:' + kind] || {};   // tür başına hatırlanan sayı / açı / yöntem / hizalama / Z artımı (aralıklar seçimden önerilir)
+    const r3 = (v) => Math.round(v * 1000) / 1000;
+    const dzF = { id: 'dz', label: t('arrayDz'), type: 'number', value: last.dz || 0 };
+    const fields = kind === 'rect' ? [
+      { id: 'nx', label: t('arrayCols'), type: 'number', value: last.nx || 3 },
+      { id: 'ny', label: t('arrayRows'), type: 'number', value: last.ny || 1 },
+      { id: 'dx', label: t('arrayDx'), type: 'number', value: r3(w * 1.2) },
+      { id: 'dy', label: t('arrayDy'), type: 'number', value: r3(h * 1.2) }, dzF]
+      : kind === 'polar' ? [
+        { id: 'n', label: t('arrayCount'), type: 'number', value: last.n || 6 },
+        { id: 'total', label: t('arrayAngle'), type: 'number', value: last.total || 360 },
+        { id: 'rotate', label: t('arrayRotate'), type: 'check', value: last.rotate !== false }, dzF]
+        : [
+          { id: 'method', label: t('arrayMethod'), type: 'select', value: last.method === 'spacing' ? 'spacing' : 'count', options: [['count', t('arrayByCount')], ['spacing', t('arrayBySpacing')]] },
+          { id: 'n', label: t('arrayCount'), type: 'number', value: last.n || 6 },
+          { id: 'd', label: t('arraySpacing'), type: 'number', value: r3(Math.max(w, h) * 1.2) },
+          { id: 'align', label: t('arrayAlign'), type: 'check', value: last.align !== false }, dzF];
+    const res = await askForm(toolName(this.active), fields, { ok: t('apply'), hint: t(kind === 'path' ? 'arrayPathHint' : 'arrayHint') });
     if (!res) { this.cancel(); return; }
-    const prm = res.kind === 'polar'
-      ? { n: res.n, total: res.total, rotate: res.rotate, center: [(bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2], base: [(bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2] }
-      : { nx: res.nx, ny: res.ny, dx: res.dx, dy: res.dy };
-    const items = arrayItems(res.kind === 'polar' ? 'polar' : 'rect', prm).map(it => ({ ...it, newKeys: keys.map(() => newId()) }));
-    if (!items.length) { A.toast(t('arrayNone')); this.cancel(); return; }
-    if (items.length * keys.length > 20000) { A.toast(t('arrayTooMany')); this.cancel(); return; }
-    if (A.run({ op: 'array', keys, items })) A.toast(t('arrayDone') + ' \u00b7 ' + (items.length + 1));
+    const dz = isFinite(res.dz) ? res.dz : 0;
+    const CAP = 20000;   // kopya sınırı (kaynak hariç)
+    // Geçersiz değer: dikdörtgen kapanır (formu yeniden açacak adım yok); kutupsal merkez, yol ise yol yeniden istenir
+    const retry = () => { if (kind === 'rect') { this.cancel(); return; } this.pts = []; this.step = 1; this.say(); A.overlay(); };
+    let items, cmds;
+    if (kind === 'path') {
+      const path = opt.path; if (!path || !path.pts || path.pts.length < 2) { this.cancel(); return; }
+      let L = 0; for (let i = 1; i < path.pts.length; i++) L += Math.hypot(path.pts[i][0] - path.pts[i - 1][0], path.pts[i][1] - path.pts[i - 1][1]);
+      // Kapalı yolda son nokta başlangıçtır: öge oraya konmaz (AutoCAD kapalı yolu n eşit aralığa böler, 12 cıvata 12 ayrı yerde)
+      const closed = !!path.closed, dists = [];
+      if (res.method === 'spacing') {
+        if (!(res.d > 0)) { A.toast(t('numberExpected')); retry(); return; }
+        if (Math.floor(L / res.d) * keys.length > CAP) { A.toast(t('arrayTooMany')); retry(); return; }
+        for (let d = 0; closed ? d < L - 1e-9 : d <= L + 1e-9; d += res.d) dists.push(d);
+      } else {
+        const n = Math.round(res.n);
+        if (!(n >= 2)) { A.toast(t('arrayMin2')); retry(); return; }
+        if ((n - 1) * keys.length > CAP) { A.toast(t('arrayTooMany')); retry(); return; }
+        for (let i = 0; i < n; i++) dists.push(L * i / (closed ? n : n - 1));
+      }
+      const frames = pathFramesAt(path.pts, dists);
+      if (frames.length < 2) { A.toast(t('arrayNone')); retry(); return; }
+      // Ögeler yolun kotuna oturur (AutoCAD yol dizisi 3B yolu izler): kaynağın kotu ile yolun kotu arasındaki fark her ögeye eklenir
+      const src0 = [...A.sel][0], o0 = src0 && src0.ops && src0.ops[0];
+      const srcZ = o0 && isFinite(o0[3]) ? o0[3] : (src0 && isFinite(src0.z) ? src0.z : 0);
+      const lift = (isFinite(path.z) ? path.z : 0) - srcZ;
+      items = arrayItems('path', { frames, base, align: res.align, dz });
+      for (const it of items) it.dz = (it.dz || 0) + lift;
+      const first = items.shift();
+      cmds = [{ op: 'array', keys, items: items.map(it => ({ ...it, newKeys: keys.map(() => newId()) })) }, { op: 'xform', keys, m: first.m, dz: first.dz || 0 }];
+    } else {
+      const want = kind === 'polar' ? Math.round(res.n) : Math.round(res.nx) * Math.round(res.ny);
+      if ((want - 1) * keys.length > CAP) { A.toast(t('arrayTooMany')); retry(); return; }   // sınır, dizi üretilmeden denetlenir (1e8 öge belleği bitirirdi)
+      const prm = kind === 'polar'
+        ? { n: res.n, total: res.total, rotate: res.rotate, center: opt.center || base, base, dz }
+        : { nx: res.nx, ny: res.ny, dx: res.dx, dy: res.dy, dz };
+      items = arrayItems(kind, prm).map(it => ({ ...it, newKeys: keys.map(() => newId()) }));
+      cmds = [{ op: 'array', keys, items }];
+    }
+    if (!items.length) { A.toast(t('arrayNone')); retry(); return; }
+    if (items.length * keys.length > CAP) { A.toast(t('arrayTooMany')); retry(); return; }
+    if (!A.run(cmds.length === 1 ? cmds[0] : { op: 'group', cmds })) { A.toast(t('error')); this.cancel(); return; }
+    this.lastVal['array:' + kind] = { ...last, ...res };   // yalnız uygulanan değerler hatırlanır; reddedilen değer öntanımlı olmaz
     A.render();
-    this.done();
+    A.toast(t('arrayDone') + ' \u00b7 ' + (items.length + 1), 2200);
+    this.pts = []; this.step = 0; A.sel.clear();
+    this.cancel();
   }
   onNumber(v) {
     const A = this.api;
@@ -1148,6 +1224,7 @@ export class ToolManager {
       }
       case 'leader': case 'cloud': this.step = 1; break;
       case 'balloon': { await this.makeBalloon(p); this.pts = []; break; }
+      case 'arraypolar': if (n === 1) void this.runArray({ center: p }); break;   // dokunulan merkez (AutoCAD "Specify center point of array")
       case 'move': case 'copy': case 'rotate': case 'scale': case 'mirror': case 'stretch': await this.modifyPoint(); break;
       case 'offset': this.pts = []; await this.offsetPoint(p); return;
       case 'fillet': case 'chamfer': this.pts = []; await this.cornerPoint(p); return;
@@ -1204,7 +1281,7 @@ export class ToolManager {
       this.selecting = false;
       if (this.active === 'select') { this.cancel(); return; }
       if (this.active === 'del') { A.run({ op: 'delete', keys: [...A.sel].map(p => p.key) }); A.render(); A.toast(t('deleted')); this.done(); return; }
-      if (this.active === 'array') { void this.runArray(); return; }
+      if (ARRAY_TOOLS.has(this.active)) { void this.arrayNext(); return; }
       if (this.active === 'join') { this.runJoin(); return; }
       this.step = 1; this.say(); return;
     }
@@ -1300,11 +1377,12 @@ export class ToolManager {
     if (p.closed && pts.length > 1) pts.push([pts[0][0], pts[0][1]]);
     if (pts.length < 2) { A.toast(t('notPath')); return; }
     const d0 = Math.hypot(w[0] - pts[0][0], w[1] - pts[0][1]), d1 = Math.hypot(w[0] - pts[pts.length - 1][0], w[1] - pts[pts.length - 1][1]);
-    if (this.active === 'measure' && !p.closed && d1 < d0) pts.reverse();
+    if ((this.active === 'measure' || this.active === 'arraypath') && !p.closed && d1 < d0) pts.reverse();   // dokunulan uçtan başlar
     const z = (p.ops[0] && typeof p.ops[0][3] === 'number' && isFinite(p.ops[0][3])) ? p.ops[0][3] : 0;
     this.c1 = { key: p.key, pts, z, closed: !!p.closed };
     this.draft = { segs: pts.slice(1).map((q, i) => [[pts[i][0], pts[i][1], z], [q[0], q[1], z]]), keep: true };
     this.step = 1; this.say(); A.overlay();
+    if (this.active === 'arraypath') void this.runArray({ path: this.c1 });   // yol seçildi: sayı / aralık formu
   }
   /*
    * DIVIDE: n eşit parça → n−1 iç nokta (kapalı yolda n nokta, başlangıç köşesi dâhil).

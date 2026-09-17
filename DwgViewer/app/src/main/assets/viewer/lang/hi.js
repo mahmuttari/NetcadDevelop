@@ -302,7 +302,7 @@ export default {
   arrayCount: 'प्रतियों की संख्या',
   arrayAngle: 'कुल कोण (°)',
   arrayRotate: 'प्रतियाँ घुमाएँ',
-  arrayHint: 'आयताकार सरणी में स्तंभ/पंक्ति और अंतराल, ध्रुवीय सरणी में प्रतियों की संख्या और कुल कोण काम आते हैं।',
+  arrayHint: 'आयताकार: कॉलम / पंक्तियाँ और अंतराल · ध्रुवीय: संख्या और कुल कोण · Z वृद्धि हर प्रति को एक तल ऊपर उठाती है',
   arrayNone: 'सरणी खाली रह गई',
   arrayTooMany: 'प्रतियों की संख्या बहुत अधिक है',
   arrayDone: 'सरणी बनाई गई',
@@ -488,7 +488,7 @@ export default {
   tl_markdim: 'माप अंकित करें',
   th_markdim: 'अंतिम माप को ड्रॉइंग पर लिखता है',
   'tl_t:array': 'सरणी',
-  'th_t:array': 'आयताकार या ध्रुवीय क्रमिक प्रतिलिपि',
+  'th_t:array': 'आयताकार, ध्रुवीय (छुआ केंद्र) या पथ पर प्रतियाँ; Z वृद्धि',
   'tl_t:thick': 'मोटाई',
   'th_t:thick': '2D वस्तुओं को ऊँचाई देकर 3D पिंड बनाता है',
   'tl_t:explode': 'विखंडन',
@@ -547,4 +547,6 @@ export default {
   th_polar: 'बिंदु को कोण वृद्धि पर बिठाता है (F10)',
   // v7.67 — sık kullanılan AutoCAD komutları: çokgen, böl, aralıkla, birleştir, özellik eşle, esnet, sınır, benzerini seç, gizle / izole et, kes
   tool_polygon: 'बहुभुज', tstep_polygon_0: 'भुजाओं की संख्या लिखें (3-1024)', tstep_polygon_1: 'केंद्र चुनें', tstep_polygon_2: 'शीर्ष चुनें या त्रिज्या लिखें', tool_divide: 'विभाजित', tstep_divide_0: 'विभाजित करने वाले पथ को छुएँ', tstep_divide_1: 'खंडों की संख्या लिखें', tool_measure: 'अंतराल बिंदु', tstep_measure_0: 'पथ को छुएँ (बिंदु छुए गए सिरे से शुरू होते हैं)', tstep_measure_1: 'अंतराल लिखें', tool_join: 'जोड़ें', tstep_join_0: 'छूते सिरों वाले पथ चुनें · समाप्त', tool_matchprop: 'गुण मिलाएँ', tstep_matchprop_0: 'स्रोत ऑब्जेक्ट को छुएँ', tstep_matchprop_1: 'लक्ष्य ऑब्जेक्ट छुएँ (दोहराता है) · समाप्त', tool_stretch: 'खींचें', tstep_stretch_0: 'क्रॉसिंग विंडो से चुनें (दाएँ से बाएँ खींचें) · समाप्त', tstep_stretch_1: 'आधार बिंदु', tstep_stretch_2: 'लक्ष्य बिंदु (या @dx,dy)', tool_boundary: 'सीमा', tstep_boundary_0: 'बंद क्षेत्र के अंदर छुएँ (दोहराता है)', 'th_t:polygon': 'भुजाएँ, केंद्र और त्रिज्या; वृत्त में अंतर्लिखित', 'th_t:divide': 'पथ को समान भागों में बाँटकर बिंदु रखता है', 'th_t:measure': 'पथ पर निश्चित अंतराल से बिंदु रखता है (छुए गए सिरे से)', 'th_t:boundary': 'बंद ऑब्जेक्ट की रूपरेखा को नई पॉलीलाइन के रूप में कॉपी करता है', tl_selectsimilar: 'समान चुनें', th_selectsimilar: 'समान प्रकार और लेयर के सभी ऑब्जेक्ट चयन में जोड़ता है', tl_hideobj: 'छिपाएँ', th_hideobj: 'चयनित ऑब्जेक्ट छिपाता है; ड्राइंग नहीं बदलती', tl_isoobj: 'अलग करें', th_isoobj: 'केवल चयनित ऑब्जेक्ट दिखाता है', tl_unisoobj: 'सब दिखाएँ', th_unisoobj: 'छिपे और अलग किए ऑब्जेक्ट वापस लाता है', 'th_t:stretch': 'क्रॉसिंग विंडो के अंदर के शीर्ष हिलते हैं, बाकी वहीं रहते हैं', 'th_t:join': 'छूती रेखाओं, चापों और पॉलीलाइनों को एक पॉलीलाइन बनाता है', 'th_t:matchprop': 'स्रोत की लेयर, रंग और लाइन प्रकार लक्ष्यों पर कॉपी करता है', tl_cutclip: 'काटें', th_cutclip: 'चयन को क्लिपबोर्ड पर लेकर मिटाता है', polygonSides: 'भुजाओं की संख्या 3 और 1024 के बीच होनी चाहिए', divideMin: 'कम से कम 2 खंड', spacingTooLong: 'अंतराल पथ से लंबा है', pointsPlaced: '%s बिंदु रखे गए', joinDone: '%s टुकड़े एक पॉलीलाइन बने', joinNone: 'छूते सिरों वाले दो पथ नहीं मिले', joinLeft: '%s टुकड़े जुड़े नहीं (सिरे नहीं छूते)', matchSource: 'स्रोत लिया गया: %s', boundaryAdded: 'सीमा पॉलीलाइन जोड़ी गई', selSimilarN: '%s समान ऑब्जेक्ट चयन में जोड़े गए', hiddenN: '%s ऑब्जेक्ट छिपाए गए', isolatedN: '%s ऑब्जेक्ट अलग किए गए', shownAll: 'सभी ऑब्जेक्ट दिखाए जा रहे हैं', cutDone: 'काटा गया: %s ऑब्जेक्ट क्लिपबोर्ड पर', stretchNone: 'विंडो के अंदर कोई शीर्ष नहीं', zoomBadOpt: 'ZOOM विकल्प: W, P, E, A, O या 2X', 'tl_t:polygon': 'बहुभुज', 'tl_t:divide': 'विभाजित', 'tl_t:measure': 'अंतराल बिंदु', 'tl_t:boundary': 'सीमा', 'tl_t:stretch': 'खींचें', 'tl_t:join': 'जोड़ें', 'tl_t:matchprop': 'गुण मिलाएँ', typeCount: 'खंडों की संख्या लिखें', typeSpacing: 'अंतराल लिखें', selSimilar: 'समान चुनें', selHideObj: 'छिपाएँ', selIsoObj: 'अलग करें',
+  // v7.68 — dizi ailesi: dikdörtgen / kutupsal (merkez dokunuşla) / yol dizisi, kat artımı
+  tool_arrayrect: 'आयताकार सरणी', tstep_arrayrect_0: 'ऑब्जेक्ट चुनें · समाप्त', tstep_arrayrect_1: 'कॉलम, पंक्तियाँ और अंतराल लिखें', tool_arraypolar: 'ध्रुवीय सरणी', tstep_arraypolar_0: 'ऑब्जेक्ट चुनें · समाप्त', tstep_arraypolar_1: 'सरणी का केंद्र चुनें', tool_arraypath: 'पथ सरणी', tstep_arraypath_0: 'ऑब्जेक्ट चुनें · समाप्त', tstep_arraypath_1: 'पथ पर टैप करें (सरणी छुए गए सिरे से शुरू होती है)', tstep_array_1: 'सरणी का प्रकार चुनें', arrayPath: 'पथ', arrayKindHint: 'आयताकार: कॉलम / पंक्तियाँ · ध्रुवीय: केंद्र टैप करें · पथ: पथ टैप करें', arrayMethod: 'व्यवस्था', arrayByCount: 'संख्या से (पथ समान बँटता है)', arrayBySpacing: 'अंतराल से (जितने समाएँ)', arraySpacing: 'अंतराल', arrayAlign: 'प्रतियाँ पथ के साथ संरेखित करें', arrayDz: 'तल वृद्धि (Z)', arrayPathHint: 'पहला आइटम पथ के छुए गए सिरे पर है; स्रोत ऑब्जेक्ट वहाँ चला जाता है। संख्या से: दोनों सिरों पर आइटम।', arrayMin2: 'कम से कम 2 आइटम',
 };

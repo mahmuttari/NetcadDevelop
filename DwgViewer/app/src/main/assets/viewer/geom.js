@@ -240,6 +240,26 @@ export function pathPointsAt(pts, dists) {
   }
   return out;
 }
+/**
+ * Yol üzerinde verilen uzaklıklardaki noktalar ve o noktadaki yol yönü (radyan): yol dizisi (ARRAYPATH) için.
+ * Köşeye düşen nokta SONRAKİ parçanın yönünü alır, yolun sonu son parçanın yönünü. Uzaklık yolu aşarsa atlanır.
+ */
+export function pathFramesAt(pts, dists) {
+  const out = [];
+  if (!Array.isArray(pts) || pts.length < 2) return out;
+  const cum = [0];
+  for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  const L = cum[cum.length - 1];
+  for (const d of dists) {
+    if (!(d >= 0) || d > L + 1e-9) continue;
+    let i = 1; while (i < cum.length - 1 && cum[i] <= d + 1e-9) i++;
+    const seg = cum[i] - cum[i - 1];
+    const t = seg > 0 ? Math.max(0, Math.min(1, (d - cum[i - 1]) / seg)) : 0;
+    let k = i; while (k > 1 && cum[k] - cum[k - 1] <= 1e-12) k--;   // sıfır boylu son parça (yinelenen köşe): yön önceki gerçek parçadan
+    out.push({ p: [pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * t, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * t], ang: Math.atan2(pts[k][1] - pts[k - 1][1], pts[k][0] - pts[k - 1][0]) });
+  }
+  return out;
+}
 export function polyArea(pts) {
   let a = 0;
   for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) a += (pts[j][0] + pts[i][0]) * (pts[j][1] - pts[i][1]);

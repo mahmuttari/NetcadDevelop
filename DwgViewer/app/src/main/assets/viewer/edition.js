@@ -128,7 +128,9 @@ export const FEATURE_TIER = new Map([
 ]);
 
 /** Özelliğin istediği basamak ('free' kısıtsız demektir) */
-export const need = (id) => FEATURE_TIER.get(String(id)) || 'free';
+/** Bir özelliğin alt biçimleri ana özelliğin basamağını taşır (dizi türleri → Dizi); dökümde ayrı satır açmaz, sayaç değişmez */
+const TIER_PARENT = new Map([['t:arrayrect', 't:array'], ['t:arraypolar', 't:array'], ['t:arraypath', 't:array']]);
+export const need = (id) => FEATURE_TIER.get(String(id)) || FEATURE_TIER.get(TIER_PARENT.get(String(id))) || 'free';
 /** Basamak yetiyor mu? (kutu açmaz) */
 export const has = (id) => rank(tier()) >= rank(need(id));
 /** Geriye dönük ad: "çizim ve düzenleme açık mı" anlamında kullanılıyordu */

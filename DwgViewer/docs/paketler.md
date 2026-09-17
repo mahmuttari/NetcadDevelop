@@ -155,7 +155,7 @@ Bu yedisi v7.28 ile kapandı; **birinci öbekte açık madde kalmadı**. Ayrınt
 | Ölçümü çizime işaretleme | Açıklama ▸ Ölçümü işle | premium |
 | Revizyon bulutu | Açıklama ▸ Revizyon bulutu | premium |
 | Numaralandırma (balon, artan) | Açıklama ▸ Numaralandır | premium |
-| Artımlı kopya (dikdörtgen + kutupsal dizi) | Düzenle ▸ Dizi | premium |
+| Artımlı kopya: dikdörtgen, kutupsal (merkez dokunuşla) ve yol dizisi (ARRAYPATH: sayıyla / aralıkla, kopyalar yola döner), kat artımı (Z); ARRAYRECT / ARRAYPOLAR / ARRAYPATH doğrudan (v7.68) | Düzenle ▸ Dizi, komut satırı | premium (dizi türleri Dizi'nin basamağını taşır) |
 | Yazı yüksekliğini değiştirme | Düzenle ▸ Yazı yüksekliği | premium |
 | Çizimde bul-değiştir | Düzenle ▸ Bul-değiştir | premium |
 | Öznitelik düzenleme | Düzenle ▸ Öznitelik | premium |

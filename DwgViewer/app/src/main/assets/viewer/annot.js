@@ -208,6 +208,16 @@ export function balloonEnts(center, text, o) {
  */
 export function arrayItems(kind, prm) {
   const out = [];
+  if (kind === 'path') {
+    // Yol dizisi: çerçeveler { p, ang } (geom.pathFramesAt). 0. öge yolun başıdır — çağıran kaynağı oraya taşır, ötekiler kopyadır.
+    // align: kopya, yolun o noktadaki yönüne İLK çerçeveye göre döner (AutoCAD: hizalama ilk ögenin yönüne göredir); taban noktası çevresinde.
+    const frames = prm.frames || [], b = prm.base || [0, 0];
+    frames.forEach((f, i) => {
+      const a = prm.align === false || !frames.length ? 0 : f.ang - frames[0].ang, cs = Math.cos(a), sn = Math.sin(a);
+      out.push({ m: [cs, sn, -sn, cs, f.p[0] - cs * b[0] + sn * b[1], f.p[1] - sn * b[0] - cs * b[1]], dz: (prm.dz || 0) * i });
+    });
+    return out;
+  }
   if (kind === 'polar') {
     const n = Math.max(2, Math.round(prm.n || 2));
     const total = (prm.total == null ? 360 : prm.total) * D2R;

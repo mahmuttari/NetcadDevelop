@@ -66,7 +66,7 @@ const TAP = 1e-3;   // dokunuşla girilen noktalar ekran pikseline yuvarlanır: 
   ok('1a "Ölçüyü düzenle" karosu ölçülendirme grubunda', r.tile && r.label === 'Ölçüyü düzenle', J([r.tile, r.label]));
   ok('1b t:dimedit Premium', r.tier === 'premium', String(r.tier));
   ok('1c DIMEDIT ve DED komutu araca bağlı', r.ded === 't:dimedit' && r.dimedit === 't:dimedit', J([r.ded, r.dimedit]));
-  ok('1d komut tablosu: 487 kayıt = 175 AutoCAD + 31 özgü + 281 bulunmayan; 731 ad', r.st.total === 487 && r.st.acad === 175 && r.st.ext === 31 && r.st.known === 281 && r.st.names === 731, J(r.st));
+  ok('1d komut tablosu: 487 kayıt = 180 AutoCAD + 31 özgü + 276 bulunmayan; 731 ad', r.st.total === 487 && r.st.acad === 180 && r.st.ext === 31 && r.st.known === 276 && r.st.names === 731, J(r.st));
 }
 
 // ---- 2. Doğrusal ölçü tanım taşır -------------------------------------------------------------------

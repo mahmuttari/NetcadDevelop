@@ -302,7 +302,7 @@ export default {
   arrayCount: '복사본 수',
   arrayAngle: '전체 각도 (°)',
   arrayRotate: '항목 회전',
-  arrayHint: '직사각형 배열은 행·열과 간격을, 원형 배열은 복사본 수와 전체 각도를 사용합니다.',
+  arrayHint: '직사각형: 열 / 행과 간격 · 원형: 개수와 전체 각도 · Z 증분은 복사본마다 한 층씩 올림',
   arrayNone: '배열이 비었습니다',
   arrayTooMany: '복사본이 너무 많습니다',
   arrayDone: '배열을 만들었습니다',
@@ -488,7 +488,7 @@ export default {
   tl_markdim: '측정값 기입',
   th_markdim: '마지막 측정 결과를 도면에 주석으로 씁니다',
   'tl_t:array': '배열',
-  'th_t:array': '직사각형 또는 원형으로 반복 복사',
+  'th_t:array': '직사각형, 원형(탭한 중심) 또는 경로를 따라 복사; Z 증분',
   'tl_t:thick': '두께',
   'th_t:thick': '2D 객체에 높이를 주어 3D 본체를 만듭니다',
   'tl_t:explode': '분해',
@@ -547,4 +547,6 @@ export default {
   th_polar: '점을 각도 증분에 맞춥니다 (F10)',
   // v7.67 — sık kullanılan AutoCAD komutları: çokgen, böl, aralıkla, birleştir, özellik eşle, esnet, sınır, benzerini seç, gizle / izole et, kes
   tool_polygon: '다각형', tstep_polygon_0: '변의 수 입력 (3-1024)', tstep_polygon_1: '중심 선택', tstep_polygon_2: '꼭짓점 선택 또는 반지름 입력', tool_divide: '등분할', tstep_divide_0: '등분할 경로를 탭', tstep_divide_1: '분할 수 입력', tool_measure: '길이분할', tstep_measure_0: '경로를 탭 (탭한 끝에서 점 시작)', tstep_measure_1: '간격 입력', tool_join: '결합', tstep_join_0: '끝이 맞닿은 경로 선택 · 완료', tool_matchprop: '특성 일치', tstep_matchprop_0: '원본 객체를 탭', tstep_matchprop_1: '대상 객체를 탭 (반복) · 완료', tool_stretch: '신축', tstep_stretch_0: '걸침 윈도우로 선택 (오른쪽에서 왼쪽으로 드래그) · 완료', tstep_stretch_1: '기준점', tstep_stretch_2: '대상점 (또는 @dx,dy)', tool_boundary: '경계', tstep_boundary_0: '닫힌 영역 안을 탭 (반복)', 'th_t:polygon': '변 수, 중심, 반지름. 원에 내접', 'th_t:divide': '경로를 등분하고 점 배치', 'th_t:measure': '경로를 따라 일정 간격으로 점 배치 (탭한 끝부터)', 'th_t:boundary': '닫힌 객체의 윤곽을 새 폴리선으로 복사', tl_selectsimilar: '유사 선택', th_selectsimilar: '같은 유형과 도면층의 모든 객체를 선택에 추가', tl_hideobj: '숨기기', th_hideobj: '선택 객체를 숨김. 도면은 변경되지 않음', tl_isoobj: '고립', th_isoobj: '선택 객체만 표시', tl_unisoobj: '모두 표시', th_unisoobj: '숨김·고립된 객체를 복원', 'th_t:stretch': '걸침 윈도우 안의 꼭짓점만 이동', 'th_t:join': '맞닿은 선·호·폴리선을 하나의 폴리선으로', 'th_t:matchprop': '원본의 도면층·색상·선종류를 대상에 복사', tl_cutclip: '잘라내기', th_cutclip: '선택을 클립보드에 넣고 삭제', polygonSides: '변의 수는 3~1024 사이여야 합니다', divideMin: '최소 2등분', spacingTooLong: '간격이 경로보다 깁니다', pointsPlaced: '점 %s개 배치', joinDone: '%s개를 하나의 폴리선으로 결합', joinNone: '끝이 맞닿은 두 경로가 없습니다', joinLeft: '%s개는 제외됨 (끝이 맞닿지 않음)', matchSource: '원본 가져옴: %s', boundaryAdded: '경계 폴리선 추가됨', selSimilarN: '유사 객체 %s개를 선택에 추가', hiddenN: '객체 %s개 숨김', isolatedN: '객체 %s개 고립', shownAll: '모든 객체 표시', cutDone: '잘라냄: 객체 %s개 클립보드에', stretchNone: '윈도우 안에 꼭짓점이 없습니다', zoomBadOpt: 'ZOOM 옵션: W, P, E, A, O 또는 2X', 'tl_t:polygon': '다각형', 'tl_t:divide': '등분할', 'tl_t:measure': '길이분할', 'tl_t:boundary': '경계', 'tl_t:stretch': '신축', 'tl_t:join': '결합', 'tl_t:matchprop': '특성 일치', typeCount: '분할 수 입력', typeSpacing: '간격 입력', selSimilar: '유사 선택', selHideObj: '숨기기', selIsoObj: '고립',
+  // v7.68 — dizi ailesi: dikdörtgen / kutupsal (merkez dokunuşla) / yol dizisi, kat artımı
+  tool_arrayrect: '직사각형 배열', tstep_arrayrect_0: '객체 선택 · 완료', tstep_arrayrect_1: '열, 행, 간격 입력', tool_arraypolar: '원형 배열', tstep_arraypolar_0: '객체 선택 · 완료', tstep_arraypolar_1: '배열의 중심점 선택', tool_arraypath: '경로 배열', tstep_arraypath_0: '객체 선택 · 완료', tstep_arraypath_1: '경로를 탭 (탭한 끝에서 배열 시작)', tstep_array_1: '배열 유형 선택', arrayPath: '경로', arrayKindHint: '직사각형: 열 / 행 · 원형: 중심 탭 · 경로: 경로 탭', arrayMethod: '배치', arrayByCount: '개수로 (경로 등분)', arrayBySpacing: '간격으로 (들어가는 만큼)', arraySpacing: '간격', arrayAlign: '복사본을 경로에 정렬', arrayDz: '층 증분 (Z)', arrayPathHint: '첫 항목은 탭한 경로 끝에 놓이며 원본 객체가 그곳으로 이동합니다. 개수 지정 시 양 끝에 항목이 놓입니다.', arrayMin2: '최소 2개',
 };

@@ -301,7 +301,7 @@ export default {
   arrayCount: 'عدد النسخ',
   arrayAngle: 'الزاوية الكلية (°)',
   arrayRotate: 'تدوير النسخ',
-  arrayHint: 'المصفوفة المستطيلة تستخدم الأعمدة والصفوف والتباعد، والقطبية تستخدم عدد النسخ والزاوية الكلية.',
+  arrayHint: 'مستطيلة: أعمدة / صفوف ومسافات · قطبية: عدد وزاوية كلية · زيادة Z ترفع كل نسخة مستوى',
   arrayNone: 'جاءت المصفوفة فارغة',
   arrayTooMany: 'عدد النسخ كبير جدًا',
   arrayDone: 'أُنشئت المصفوفة',
@@ -487,7 +487,7 @@ export default {
   tl_markdim: 'تدوين القياس',
   th_markdim: 'يكتب نتيجة آخر قياس على الرسم',
   'tl_t:array': 'مصفوفة',
-  'th_t:array': 'نسخ متكرر مستطيل أو قطبي',
+  'th_t:array': 'نسخ مستطيلة أو قطبية (مركز ملموس) أو على مسار؛ زيادة Z',
   'tl_t:thick': 'سماكة',
   'th_t:thick': 'يبثق الكائنات ثنائية الأبعاد إلى أجسام مجسّمة',
   'tl_t:explode': 'تفكيك',
@@ -546,4 +546,6 @@ export default {
   th_polar: 'يثبّت النقطة على خطوة زاوية (F10)',
   // v7.67 — sık kullanılan AutoCAD komutları: çokgen, böl, aralıkla, birleştir, özellik eşle, esnet, sınır, benzerini seç, gizle / izole et, kes
   tool_polygon: 'مضلع', tstep_polygon_0: 'اكتب عدد الأضلاع (3-1024)', tstep_polygon_1: 'حدد المركز', tstep_polygon_2: 'حدد رأسًا أو اكتب نصف القطر', tool_divide: 'تقسيم', tstep_divide_0: 'المس المسار المراد تقسيمه', tstep_divide_1: 'اكتب عدد الأجزاء', tool_measure: 'قياس (نقاط)', tstep_measure_0: 'المس المسار (تبدأ النقاط من الطرف الملموس)', tstep_measure_1: 'اكتب المسافة الفاصلة', tool_join: 'ضم', tstep_join_0: 'حدد مسارات تتلامس أطرافها · إنهاء', tool_matchprop: 'مطابقة الخصائص', tstep_matchprop_0: 'المس الكائن المصدر', tstep_matchprop_1: 'المس الكائنات الهدف (يتكرر) · إنهاء', tool_stretch: 'تمديد', tstep_stretch_0: 'حدد بنافذة متقاطعة (اسحب من اليمين إلى اليسار) · إنهاء', tstep_stretch_1: 'نقطة الأساس', tstep_stretch_2: 'نقطة الهدف (أو @dx,dy)', tool_boundary: 'حدود', tstep_boundary_0: 'المس داخل المنطقة المغلقة (يتكرر)', 'th_t:polygon': 'عدد الأضلاع والمركز ونصف القطر؛ داخل دائرة', 'th_t:divide': 'يقسم المسار إلى أجزاء متساوية ويضع نقاطًا', 'th_t:measure': 'يضع نقاطًا بمسافة ثابتة على طول المسار (من الطرف الملموس)', 'th_t:boundary': 'ينسخ حدود كائن مغلق كخط متعدد جديد', tl_selectsimilar: 'تحديد المتشابه', th_selectsimilar: 'يضيف إلى التحديد كل الكائنات من النوع والطبقة نفسها', tl_hideobj: 'إخفاء', th_hideobj: 'يخفي الكائنات المحددة؛ الرسم لا يتغير', tl_isoobj: 'عزل', th_isoobj: 'يعرض الكائنات المحددة فقط', tl_unisoobj: 'إظهار الكل', th_unisoobj: 'يعيد الكائنات المخفية والمعزولة', 'th_t:stretch': 'تتحرك الرؤوس داخل النافذة المتقاطعة والباقي يبقى', 'th_t:join': 'يضم الخطوط والأقواس والخطوط المتعددة المتلامسة في خط واحد', 'th_t:matchprop': 'ينسخ الطبقة واللون ونوع الخط من المصدر إلى الأهداف', tl_cutclip: 'قص', th_cutclip: 'ينسخ التحديد إلى الحافظة ويحذفه', polygonSides: 'يجب أن يكون عدد الأضلاع بين 3 و1024', divideMin: 'جزءان على الأقل', spacingTooLong: 'المسافة الفاصلة أطول من المسار', pointsPlaced: 'تم وضع %s نقطة', joinDone: 'تم ضم %s أجزاء في خط متعدد واحد', joinNone: 'لا يوجد مساران تتلامس أطرافهما', joinLeft: '%s أجزاء لم تُضم (الأطراف لا تتلامس)', matchSource: 'تم أخذ المصدر: %s', boundaryAdded: 'تمت إضافة خط الحدود', selSimilarN: 'تمت إضافة %s كائنات متشابهة إلى التحديد', hiddenN: 'تم إخفاء %s كائنات', isolatedN: 'تم عزل %s كائنات', shownAll: 'يتم عرض كل الكائنات', cutDone: 'تم القص: %s كائنات في الحافظة', stretchNone: 'لا توجد رؤوس داخل النافذة', zoomBadOpt: 'خيار ZOOM: W أو P أو E أو A أو O أو 2X', 'tl_t:polygon': 'مضلع', 'tl_t:divide': 'تقسيم', 'tl_t:measure': 'قياس (نقاط)', 'tl_t:boundary': 'حدود', 'tl_t:stretch': 'تمديد', 'tl_t:join': 'ضم', 'tl_t:matchprop': 'مطابقة الخصائص', typeCount: 'اكتب عدد الأجزاء', typeSpacing: 'اكتب المسافة الفاصلة', selSimilar: 'تحديد المتشابه', selHideObj: 'إخفاء', selIsoObj: 'عزل',
+  // v7.68 — dizi ailesi: dikdörtgen / kutupsal (merkez dokunuşla) / yol dizisi, kat artımı
+  tool_arrayrect: 'مصفوفة مستطيلة', tstep_arrayrect_0: 'حدد الكائنات · إنهاء', tstep_arrayrect_1: 'اكتب الأعمدة والصفوف والمسافات', tool_arraypolar: 'مصفوفة قطبية', tstep_arraypolar_0: 'حدد الكائنات · إنهاء', tstep_arraypolar_1: 'حدد مركز المصفوفة', tool_arraypath: 'مصفوفة على مسار', tstep_arraypath_0: 'حدد الكائنات · إنهاء', tstep_arraypath_1: 'المس المسار (تبدأ المصفوفة من الطرف الملموس)', tstep_array_1: 'اختر نوع المصفوفة', arrayPath: 'مسار', arrayKindHint: 'مستطيلة: أعمدة / صفوف · قطبية: المس المركز · مسار: المس المسار', arrayMethod: 'التوزيع', arrayByCount: 'بالعدد (يقسم المسار بالتساوي)', arrayBySpacing: 'بالمسافة (بقدر ما يتسع)', arraySpacing: 'المسافة', arrayAlign: 'محاذاة النسخ مع المسار', arrayDz: 'زيادة المستوى (Z)', arrayPathHint: 'العنصر الأول عند الطرف الملموس من المسار؛ ينقل الكائن المصدر إليه. بالعدد: عناصر عند الطرفين.', arrayMin2: 'عنصران على الأقل',
 };

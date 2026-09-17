@@ -302,7 +302,7 @@ export default {
   arrayCount: '項目数',
   arrayAngle: '全体角度 (°)',
   arrayRotate: '項目を回転',
-  arrayHint: '矩形配列は列・行と間隔、円形配列は項目数と全体角度を使います。',
+  arrayHint: '矩形状: 列 / 行と間隔 · 円形状: 個数と全角度 · Z増分は各コピーを1階ずつ上げる',
   arrayNone: '配列が空になりました',
   arrayTooMany: '項目数が多すぎます',
   arrayDone: '配列を作成しました',
@@ -488,7 +488,7 @@ export default {
   tl_markdim: '計測を記入',
   th_markdim: '最後の計測結果を注記として図面に書きます',
   'tl_t:array': '配列複写',
-  'th_t:array': '矩形または円形に複写します',
+  'th_t:array': '矩形状・円形状（中心をタップ）・パス沿いに複写、階の増分',
   'tl_t:thick': '厚さ',
   'th_t:thick': '2D オブジェクトに高さを与えて 3D にします',
   'tl_t:explode': '分解',
@@ -547,4 +547,6 @@ export default {
   th_polar: '点を角度の増分にスナップします (F10)',
   // v7.67 — sık kullanılan AutoCAD komutları: çokgen, böl, aralıkla, birleştir, özellik eşle, esnet, sınır, benzerini seç, gizle / izole et, kes
   tool_polygon: 'ポリゴン', tstep_polygon_0: '辺の数を入力 (3-1024)', tstep_polygon_1: '中心を選択', tstep_polygon_2: '頂点を選択するか半径を入力', tool_divide: 'ディバイダ', tstep_divide_0: '分割するパスをタップ', tstep_divide_1: '分割数を入力', tool_measure: 'メジャー', tstep_measure_0: 'パスをタップ（タップした端から点を配置）', tstep_measure_1: '間隔を入力', tool_join: '結合', tstep_join_0: '端が接するパスを選択 · 完了', tool_matchprop: 'プロパティコピー', tstep_matchprop_0: '元のオブジェクトをタップ', tstep_matchprop_1: '対象オブジェクトをタップ（繰り返し）· 完了', tool_stretch: 'ストレッチ', tstep_stretch_0: '交差窓で選択（右から左へドラッグ）· 完了', tstep_stretch_1: '基点', tstep_stretch_2: '目標点（または @dx,dy）', tool_boundary: '境界', tstep_boundary_0: '閉じた領域の内側をタップ（繰り返し）', 'th_t:polygon': '辺数・中心・半径。円に内接', 'th_t:divide': 'パスを等分し点を配置', 'th_t:measure': 'パスに沿って一定間隔で点を配置（タップした端から）', 'th_t:boundary': '閉じたオブジェクトの輪郭を新しいポリラインとしてコピー', tl_selectsimilar: '類似を選択', th_selectsimilar: '同じ種類と画層のオブジェクトをすべて選択に追加', tl_hideobj: '非表示', th_hideobj: '選択オブジェクトを非表示。図面は変わりません', tl_isoobj: '分離表示', th_isoobj: '選択オブジェクトだけを表示', tl_unisoobj: 'すべて表示', th_unisoobj: '非表示・分離したオブジェクトを戻す', 'th_t:stretch': '交差窓内の頂点だけが移動', 'th_t:join': '接する線・円弧・ポリラインを1本のポリラインに', 'th_t:matchprop': '元の画層・色・線種を対象にコピー', tl_cutclip: '切り取り', th_cutclip: '選択をクリップボードに入れて削除', polygonSides: '辺の数は 3〜1024', divideMin: '最低 2 分割', spacingTooLong: '間隔がパスより長い', pointsPlaced: '%s 点を配置', joinDone: '%s 個を1本のポリラインに結合', joinNone: '端が接する2本のパスがありません', joinLeft: '%s 個は結合されず（端が接していない）', matchSource: '元を取得: %s', boundaryAdded: '境界ポリラインを追加', selSimilarN: '類似オブジェクト %s 個を選択に追加', hiddenN: '%s 個を非表示', isolatedN: '%s 個を分離表示', shownAll: 'すべてのオブジェクトを表示', cutDone: '切り取り: %s 個をクリップボードへ', stretchNone: '窓の中に頂点がありません', zoomBadOpt: 'ZOOM オプション: W, P, E, A, O, 2X', 'tl_t:polygon': 'ポリゴン', 'tl_t:divide': 'ディバイダ', 'tl_t:measure': 'メジャー', 'tl_t:boundary': '境界', 'tl_t:stretch': 'ストレッチ', 'tl_t:join': '結合', 'tl_t:matchprop': 'プロパティコピー', typeCount: '分割数を入力', typeSpacing: '間隔を入力', selSimilar: '類似を選択', selHideObj: '非表示', selIsoObj: '分離表示',
+  // v7.68 — dizi ailesi: dikdörtgen / kutupsal (merkez dokunuşla) / yol dizisi, kat artımı
+  tool_arrayrect: '矩形状配列', tstep_arrayrect_0: 'オブジェクトを選択 · 完了', tstep_arrayrect_1: '列数・行数・間隔を入力', tool_arraypolar: '円形状配列', tstep_arraypolar_0: 'オブジェクトを選択 · 完了', tstep_arraypolar_1: '配列の中心点を選択', tool_arraypath: 'パス配列', tstep_arraypath_0: 'オブジェクトを選択 · 完了', tstep_arraypath_1: 'パスをタップ（タップした端から配列）', tstep_array_1: '配列の種類を選択', arrayPath: 'パス', arrayKindHint: '矩形状: 列 / 行 · 円形状: 中心をタップ · パス: パスをタップ', arrayMethod: '配置方法', arrayByCount: '個数で（パスを等分）', arrayBySpacing: '間隔で（収まる数だけ）', arraySpacing: '間隔', arrayAlign: 'コピーをパスに沿って回転', arrayDz: '階の増分 (Z)', arrayPathHint: '最初の要素はタップしたパスの端に置かれ、元のオブジェクトはそこへ移動します。個数指定では両端に要素が置かれます。', arrayMin2: '2つ以上',
 };
