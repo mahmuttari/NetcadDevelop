@@ -77,7 +77,7 @@ await zoom([0, 0, 800, 600]);
   const beklenen = [];
   for (const p of [[200, 200], [400, 200], [400, 400], [200, 400]]) beklenen.push(await scr(p[0], p[1]));
   const yerinde = d.grip.pts.length === 4 && d.grip.pts.every((q, i) => Math.hypot(q[0] - beklenen[i][0], q[1] - beklenen[i][1]) < 1.5);
-  ok('2b kip açıkken dokunuş nesneyi SEÇER: seçim 1 (tu_0), vurgu yok, bilgi paneli kapalı, rozet görünür, 4 köşede tutamak (ekran konumları birebir)', d.sel === 1 && d.selKeys[0] === 'tu_0' && d.selected === null && d.info === true && d.badge === false && d.grip.n === 4 && yerinde, J({ d, beklenen }));
+  ok('2b kip açıkken dokunuş nesneyi SEÇER: seçim 1 (tu_0), vurgu yok, bilgi paneli kapalı, rozet görünür, 4 köşede tutamak (ekran konumları birebir)', d.sel === 1 && d.selKeys[0] === 'tu_0' && d.selected === null && d.info === true && d.badge === false && d.grip.n === 4 && yerinde && d.grip.r === 5 && d.grip.hitR === 20, J({ d, beklenen }));   // v7.64: kare yarı kenarı 7 → 5 (%75), isabet yarıçapı aynı
   await page.screenshot({ path: `${out}/tutamak_secili.png` });
   // 3. köşe (400,400) → (500,450): tutamağa basıp sürükle
   const g = d.grip.pts[2], hedef = await scr(500, 450);

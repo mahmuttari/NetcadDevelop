@@ -52,7 +52,9 @@ export function layout(bb, ts, opts = {}) {
   if (!bb) return null;
   const fs = opts.fs || 1, glove = !!opts.glove;
   const a = ts(bb[0], bb[1]), b = ts(bb[2], bb[3]);
-  const grip = Math.round((glove ? 13 : 11) * fs);          // karenin yarı kenarı
+  // Karenin yarı kenarı: v7.64'te kullanıcının isteğiyle eskisinin %75'i (11 → 8, eldivende 13 → 10); dokunma yarıçapı
+  // DEĞİŞMEDİ — küçülen görünürlüktür, hedef değil: parmak yine 44+ px alandan tutar.
+  const grip = Math.round((glove ? 13 : 11) * 0.75 * fs);
   const hitR = Math.round((glove ? 26 : 22) * fs);          // dokunma yarıçapı (44+ px hedef)
   let x0 = Math.min(a[0], b[0]), x1 = Math.max(a[0], b[0]);
   let y0 = Math.min(a[1], b[1]), y1 = Math.max(a[1], b[1]);
@@ -132,7 +134,7 @@ export function layoutVerts(verts, ts, opts = {}) {
   return {
     verts,
     pts: verts.map(v => ts(v.x, v.y)),
-    r: Math.round((glove ? 9 : 7) * fs),
+    r: Math.round((glove ? 9 : 7) * 0.75 * fs),             // köşe tutamağı yarı kenarı: eskisinin %75'i (7 → 5, eldivende 9 → 7); isabet yarıçapı aynı
     hitR: Math.round((glove ? 24 : 20) * fs),
   };
 }

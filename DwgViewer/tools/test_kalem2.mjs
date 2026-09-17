@@ -105,7 +105,7 @@ await zoom([0, 0, 800, 600]);
 {
   await sec('k2_1');
   const g = await gizmo();
-  ok('3a seçim kutusu tutamakları var (taşı / döndür), jest boşta', !!g && g.busy === false, J(g));
+  ok('3a seçim kutusu tutamakları var (taşı / döndür), jest boşta; kare yarı kenarı 8 px (v7.64: %75), isabet 22 px aynı', !!g && g.busy === false && g.grip === 8 && g.hitR === 22, J(g));
   const bb0 = (await primOf('k2_1')).bb;
   await parmak('pointerdown', g.move[0], g.move[1]); await bekle(60);
   await parmak('pointermove', g.move[0] + 20, g.move[1] + 5); await bekle(60);

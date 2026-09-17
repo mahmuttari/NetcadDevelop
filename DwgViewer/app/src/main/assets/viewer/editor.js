@@ -1855,7 +1855,7 @@ ed.gripTap = (hit) => {
 /** Sınama: seçili tek yolun tutamak sayısı (kip kapalıysa ya da yol yoksa 0) ve ekran konumları */
 ed.gripInfo = () => { const G = gizmoVertLayout(); return G ? { n: G.vs.length, pts: G.VL.pts.map(q => q.slice(0, 2)), r: G.VL.r, hitR: G.VL.hitR } : { n: 0, pts: [] }; };
 /** Sınama: seçim kutusu tutamaklarının ekran konumları (taşı / döndür) ve isabet yarıçapı; kutu yoksa null */
-ed.gizmoInfo = () => { const L = gizmoLayout(); return L ? { move: L.pts.move.slice(0, 2), rot: L.pts.rot.slice(0, 2), hitR: L.hitR, busy: ed.gizmoBusy() } : null; };
+ed.gizmoInfo = () => { const L = gizmoLayout(); return L ? { move: L.pts.move.slice(0, 2), rot: L.pts.rot.slice(0, 2), hitR: L.hitR, grip: L.grip, busy: ed.gizmoBusy() } : null; };
 ed.setCurLayer = (name) => { if (!name || !S.layers.has(name)) return false; ed.curLayer = name; updateLayerButton(); return true; };
 ed.openTab = (id) => { if ($('toolbar').classList.contains('collapsed')) collapse(false); setTab(id); };
 ed.collapse = (on) => collapse(!!on);
