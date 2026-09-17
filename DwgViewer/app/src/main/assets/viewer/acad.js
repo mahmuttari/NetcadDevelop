@@ -76,13 +76,13 @@ export const COMMANDS = [
   T('ROTATE', 't:rotate', ['RO'], 'Rotate'),
   T('SCALE', 't:scale', ['SC'], 'Scale'),
   T('MIRROR', 't:mirror', ['MI'], 'Mirror'),
-  T('OFFSET', 't:offset', ['O'], 'Offset'),
+  T('OFFSET', 't:offset', ['O'], 'Offset', { note: 'asks Screen or Measure first: Screen = through point, Measure = typed distance' }),
   T('ARRAY', 't:array', ['AR'], 'Array'),
   T('ERASE', 't:del', ['E'], 'Erase'),
-  T('TRIM', 't:trim', ['TR'], 'Trim'),
-  T('EXTEND', 't:extend', ['EX'], 'Extend'),
-  T('FILLET', 't:fillet', ['F'], 'Fillet'),
-  T('CHAMFER', 't:chamfer', ['CHA'], 'Chamfer'),
+  T('TRIM', 't:trim', ['TR'], 'Trim', { note: 'asks Screen or Measure first: Screen = cutting edge, Measure = cut a typed length off the tapped end (LENGTHEN DElta)' }),
+  T('EXTEND', 't:extend', ['EX'], 'Extend', { note: 'asks Screen or Measure first: Screen = boundary, Measure = add a typed length to the tapped end (LENGTHEN DElta)' }),
+  T('FILLET', 't:fillet', ['F'], 'Fillet', { note: 'asks Screen or Measure first: Screen = tap where the arc should pass, Measure = radius first' }),
+  T('CHAMFER', 't:chamfer', ['CHA'], 'Chamfer', { note: 'asks Screen or Measure first: Screen = tap where the chamfer should pass, Measure = equal distance first' }),
   T('EXPLODE', 't:explode', ['X'], 'Explode'),
   T('TEXTEDIT', 't:edittext', ['ED', 'DDEDIT'], 'Edit text'),
   T('MTEDIT', 't:edittext', [], 'Edit multiline text', { syn: true }),
@@ -257,7 +257,7 @@ export const COMMANDS = [
   T('MESHOUT', 'mesh3d', [], 'Export OBJ / STL', { ext: true, noRepeat: true }),
   T('SAVEDELTA', 'savedelta', [], 'Save changes only', { ext: true }),
   T('MARKDIM', 'markdim', [], 'Mark measurement', { ext: true }),
-  T('CROSSHAIR', 'crosshair', [], 'Crosshair', { ext: true, noRepeat: true, note: 'AutoCAD: the CURSORSIZE variable' }),
+  T('CROSSHAIR', 'crosshair', [], 'Crosshair', { ext: true, noRepeat: true, note: 'AutoCAD: the CURSORSIZE variable. The pickbox (PICKBOX) is separate and always on: at an object prompt the crosshair is replaced by a small square and object snap is suppressed.' }),
   T('DRIVE', 'drive', [], 'Google Drive', { ext: true, noRepeat: true }),
 
   // =============================================================================================
@@ -305,7 +305,7 @@ export const COMMANDS = [
 
   // --- değiştirme
   NA('STRETCH', ['S'], 'Stretch', 'move single vertices with GRIPS'),
-  NA('LENGTHEN', ['LEN'], 'Lengthen', 'use EXTEND or GRIPS'),
+  NA('LENGTHEN', ['LEN'], 'Lengthen', 'DElta: TRIM / EXTEND in Measure mode (typed length)'),
   NA('BREAK', ['BR'], 'Break', 'TRIM removes a piece between two edges'),
   NA('BREAKATPOINT', [], 'Break at point'),
   NA('JOIN', ['J'], 'Join'),

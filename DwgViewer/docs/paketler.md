@@ -134,6 +134,9 @@ Bu yedisi v7.28 ile kapandı; **birinci öbekte açık madde kalmadı**. Ayrınt
 |---|---|---|
 | Ölçülendirme: doğrusal, yatay, düşey, yarıçap, çap, açı | Açıklama sekmesi ▸ Ölçülendirme | premium |
 | Ölçü özelliklerini düzenleme (yazı, yükseklik, ok, ondalık, ön / son ek, çarpan, uzatma) — dosyadan gelen ölçüler dâhil (v7.56) | Açıklama ▸ Ölçüyü düzenle · seçim menüsü ▸ Ölçü özellikleri · `DIMEDIT` | premium |
+| Ekran / Ölçü sorusu: ötele, kavis, pah, buda, uzat nesne seçilmeden önce değerin ekrandan mı yazarak mı geleceğini sorar; buda / uzat Ölçü kipi = LENGTHEN DElta (v7.57) | komut çubuğu ▸ Ekran / Ölçü düğmeleri | var olan araçların kademesi (yeni yetenek değil) |
+| AutoCAD örtük penceresi: Seç aracında boş yerden sürükleme, soldan sağa mavi pencere / sağdan sola yeşil kesen, etiketli (v7.57) | Seç aracı, dokunma kipi | ücretsiz (seçim) |
+| Pickbox imleci: nesne isteminde küçük kare + nesne vurgusu, yakalama kapalı; nokta isteminde artı imleç + yakalama (v7.57) | bütün düzenleme araçları, Seç aracı | ücretsiz (imleç davranışı) |
 | Ölçümü çizime işaretleme | Açıklama ▸ Ölçümü işle | premium |
 | Revizyon bulutu | Açıklama ▸ Revizyon bulutu | premium |
 | Numaralandırma (balon, artan) | Açıklama ▸ Numaralandır | premium |

@@ -703,6 +703,41 @@ export function chamferCorner(p0, c, p1, d0, d1) {
 }
 
 /**
+ * Yolun bir ucunu VERİLEN BOY kadar uzatır (delta > 0) ya da kısaltır (delta < 0) — AutoCAD
+ * LENGTHEN'in DElta seçeneği. Uç, dokunulan noktaya (w) yakın olandır. Yalnız düz işlemlerden
+ * (moveTo / lineTo) oluşan AÇIK yollarda çalışır: yaylı ya da kapalı yolda null döner.
+ * Kısaltma birden çok düğümü yutabilir (150 birim, 100'lük iki segmentten birini tamamen alır,
+ * ötekinden 50 keser); yol boyundan uzun kısaltmada null döner.
+ * → { ops, at:'start'|'end', delta } ya da null
+ */
+export function lengthenPath(ops, closed, w, delta) {
+  if (closed || !Array.isArray(ops) || ops.length < 2 || !isFinite(delta) || delta === 0) return null;
+  if (!ops.every(o => Array.isArray(o) && (o[0] === 0 || o[0] === 1))) return null;
+  const first = ops[0], last = ops[ops.length - 1];
+  const atEnd = Math.hypot(w[0] - last[1], w[1] - last[2]) <= Math.hypot(w[0] - first[1], w[1] - first[2]);
+  // her zaman SON uçta çalışılır: baştan istenirse düğüm sırası çevrilir, sonra geri çevrilir
+  const rev = (L) => L.slice().reverse().map((o, i) => [i ? 1 : 0, o[1], o[2], o[3]]);
+  let V = atEnd ? ops.map(o => o.slice()) : rev(ops);
+  if (delta > 0) {
+    const a = V[V.length - 2], b = V[V.length - 1];
+    const L = Math.hypot(b[1] - a[1], b[2] - a[2]);
+    if (L < 1e-12) return null;
+    const ux = (b[1] - a[1]) / L, uy = (b[2] - a[2]) / L;
+    V[V.length - 1] = [1, b[1] + ux * delta, b[2] + uy * delta, b[3]];
+  } else {
+    let rem = -delta;
+    while (V.length >= 2) {
+      const a = V[V.length - 2], b = V[V.length - 1];
+      const L = Math.hypot(b[1] - a[1], b[2] - a[2]);
+      if (rem < L - 1e-9) { const ux = (b[1] - a[1]) / L, uy = (b[2] - a[2]) / L; V[V.length - 1] = [1, b[1] - ux * rem, b[2] - uy * rem, b[3]]; rem = 0; break; }
+      rem -= L; V.pop();
+    }
+    if (rem > 1e-9 || V.length < 2) return null;
+  }
+  return { ops: atEnd ? V : rev(V), at: atEnd ? 'end' : 'start', delta };
+}
+
+/**
  * İki dokunuşun tarif ettiği köşeyi çözer.
  * → { kind:'same'|'two', i, j, c, p0, p1 } ya da null
  * kind 'same': aynı ilkelde ARDIŞIK iki segment — ortak köşe zaten vardır, kavis içeri girer.

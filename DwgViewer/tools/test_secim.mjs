@@ -92,6 +92,61 @@ const box = async (x0, y0, x1, y1) => [await scr(x0, y0), await scr(x1, y1)];   
   await ev(() => window.dwgApp.editor.selAction('clear')); await bekle();
 }
 {
+  // AutoCAD'in ÖRTÜK PENCERESİ (v7.57): dokunma kipinde boş yerden sürüklemek kutu seçer — düğmeye gerek yok.
+  // Soldan sağa mavi pencere (içindekiler), sağdan sola yeşil kesen (dokunanlar); etiket işaretçinin yanında.
+  await ev(() => window.dwgApp.editor.act('t:select')); await bekle();
+  const [a, b2] = await box(P.bb[0] - w * 0.2, P.bb[3] + h * 0.2, P.bb[2] + w * 0.2, P.bb[1] - h * 0.2);
+  const prompt = await ev(() => document.getElementById('cmdText').textContent);
+  ok('9a dokunma kipinin istemi örtük pencereyi söyler (→ pencere, ← kesen)', (await sel()).mode === 'tap' && /→ pencere/.test(prompt) && /← kesen/.test(prompt), prompt);
+  // sürükleme ortasında kutunun kipi okunur: soldan sağa → pencere (crossing false), örtük
+  const orta = await ev(([a, b]) => {
+    const vp = document.getElementById('viewport'), r = vp.getBoundingClientRect();
+    const mk = (type, p) => new PointerEvent(type, { pointerId: 5, pointerType: 'touch', isPrimary: true, bubbles: true, cancelable: true, clientX: r.left + p[0], clientY: r.top + p[1], button: 0, buttons: type === 'pointerup' ? 0 : 1 });
+    vp.dispatchEvent(mk('pointerdown', a)); vp.dispatchEvent(mk('pointermove', [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2])); vp.dispatchEvent(mk('pointermove', b));
+    const st = window.dwgApp.editor.selDragState();
+    vp.dispatchEvent(mk('pointerup', b));
+    return st;
+  }, [a, b2]);
+  await bekle(260);
+  const s1 = await sel();
+  ok('9b boş yerden soldan sağa sürükleme: örtük PENCERE (mavi, kesen değil) → hedef seçildi', orta && orta.implied && orta.mode === 'box' && orta.crossing === false && s1.keys.includes(P.key) && s1.mode === 'tap', J({ orta, s1 }));
+  await ev(() => { window.dwgApp.editor.sel.clear(); window.dwgApp.editor.tools.say(); });
+  const [c, d2] = await box(P.bb[0] - w * 0.2, P.bb[3] + h * 0.2, P.bb[0] + w * 0.5, P.bb[1] - h * 0.2);   // sol yarı
+  const orta2 = await ev(([a, b]) => {
+    const vp = document.getElementById('viewport'), r = vp.getBoundingClientRect();
+    const mk = (type, p) => new PointerEvent(type, { pointerId: 5, pointerType: 'touch', isPrimary: true, bubbles: true, cancelable: true, clientX: r.left + p[0], clientY: r.top + p[1], button: 0, buttons: type === 'pointerup' ? 0 : 1 });
+    vp.dispatchEvent(mk('pointerdown', b)); vp.dispatchEvent(mk('pointermove', [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2])); vp.dispatchEvent(mk('pointermove', a));
+    const st = window.dwgApp.editor.selDragState();
+    vp.dispatchEvent(mk('pointerup', a));
+    return st;
+  }, [c, d2]);
+  await bekle(260);
+  const s2 = await sel();
+  ok('9c boş yerden sağdan sola yarım kutu: örtük KESEN (yeşil) → dokunan çizgi seçildi', orta2 && orta2.implied && orta2.crossing === true && s2.keys.includes(P.key), J({ orta2, s2 }));
+  await ev(() => { window.dwgApp.editor.sel.clear(); window.dwgApp.editor.tools.say(); });
+  // nesnenin üstünden başlayan sürükleme kutu DEĞİLDİR (dokunmak nesneyi seçer, sürüklemek kaydırır)
+  const uz = await scr((P.bb[0] + P.bb[2]) / 2, (P.bb[1] + P.bb[3]) / 2);
+  const orta3 = await ev(([p, b]) => {
+    const vp = document.getElementById('viewport'), r = vp.getBoundingClientRect();
+    const mk = (type, q) => new PointerEvent(type, { pointerId: 5, pointerType: 'touch', isPrimary: true, bubbles: true, cancelable: true, clientX: r.left + q[0], clientY: r.top + q[1], button: 0, buttons: type === 'pointerup' ? 0 : 1 });
+    vp.dispatchEvent(mk('pointerdown', p)); vp.dispatchEvent(mk('pointermove', [p[0] + 40, p[1] + 40])); vp.dispatchEvent(mk('pointermove', b));
+    const st = window.dwgApp.editor.selDragState();
+    vp.dispatchEvent(mk('pointercancel', b));
+    return st;
+  }, [uz, b2]);
+  await bekle(200);
+  ok('9d nesnenin üstünden başlayan sürükleme örtük kutu açmaz (kaydırma kalır)', orta3 === null, J(orta3));
+  // boş yere yalnız dokunmak bir şey seçmez ve kutu bırakmaz
+  await ev(() => window.dwgApp.editor.sel.clear());
+  await drag([a, a]);
+  const s4 = await sel();
+  ok('9e boş yere yalnız dokunmak seçim yapmaz, kutu kalmaz', s4.n === 0 && (await ev(() => window.dwgApp.editor.selDragState())) === null, J(s4));
+  const renk = await ev(async () => { const E = await import('./editor.js'); return E.SEL_COLORS; });
+  ok('9f renkler AutoCAD düzeni: pencere mavi, kesen yeşil', renk && renk.window === '#4da3ff' && renk.crossing === '#3ddc84', J(renk));
+  ok('9g dokunma kipinin istemi kısa kalır (çubuk < 100 px)', (await ev(() => document.getElementById('cmdBar').getBoundingClientRect().height)) < 100);
+  await ev(() => window.dwgApp.editor.tools.cancel()); await ev(() => window.dwgApp.editor.sel.clear()); await bekle();
+}
+{
   // çokgen (lasso)
   await ev(() => window.dwgApp.editor.act('t:select')); await bekle(); await klik('#cmdBtns [data-cmd="sellasso"]');
   ok('10 Çokgen kipi', (await sel()).mode === 'lasso' && /Çokgen/.test(await ev(() => document.getElementById('cmdText').textContent)));

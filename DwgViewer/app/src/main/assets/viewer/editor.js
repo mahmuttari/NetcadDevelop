@@ -103,8 +103,8 @@ const TABS = [
     { cap: 'grpHist', items: [T('undo', 'i-undo', 'Geri al', 'Undo'), T('redo', 'i-redo', 'Yinele', 'Redo')] } ] },
   { id: 'edit', i18n: 'tabEdit', icon: 'i-select', groups: [
     { cap: 'grpSel', items: [T('t:select', 'i-select', 'Seç', 'Select', 'Dokunarak seçim; Tümü düğmesiyle hepsi', 'Tap to select'), T('props', 'i-props', 'Özellikler', 'Properties', 'Seçimin katmanı ve rengi', 'Layer and color of the selection'), T('grips', 'i-grips', 'Köşe tutamakları', 'Vertex grips', 'Seçili yolun her köşesini ayrı ayrı sürükleyin', 'Drag each vertex of the selected path')] },
-    { cap: 'grpXform', items: [T('t:move', 'i-move', 'Taşı', 'Move'), T('t:copy', 'i-copyobj', 'Kopyala', 'Copy'), T('t:rotate', 'i-rotate', 'Döndür', 'Rotate'), T('t:scale', 'i-scale', 'Ölçekle', 'Scale'), T('t:mirror', 'i-mirror', 'Aynala', 'Mirror'), T('t:offset', 'i-offset', 'Ofset', 'Offset')] },
-    { cap: 'grpModify', items: [T('t:del', 'i-erase', 'Sil', 'Delete'), T('t:setz', 'i-z', 'Kot ata', 'Set Z', 'Seçime Z kotu atar', 'Assign elevation'), T('t:edittext', 'i-edittext', 'Yazı düzenle', 'Edit text'), T('t:array', 'i-array', 'Dizi', 'Array', 'Dikdörtgen ya da kutupsal artımlı kopya', 'Rectangular or polar incremental copy'), T('t:thick', 'i-thick', 'Kalınlık', 'Thickness', '2B nesneye yükseklik vererek 3B gövde üretir', 'Extrude 2D objects into 3D bodies'), T('t:explode', 'i-explode', 'Patlat', 'Explode', 'Blok yerleştirmesini parçalarına ayırır', 'Break a block insertion into its parts'), T('t:textsize', 'i-textsize', 'Yazı yüksekliği', 'Text height', 'Seçili yazıların yüksekliğini değiştirir', 'Change the height of selected texts'), T('t:attr', 'i-attr', 'Öznitelik', 'Attributes', 'Blok özniteliklerini düzenler', 'Edit block attributes'), T('findrep', 'i-findrep', 'Bul-değiştir', 'Find & replace', 'Çizimdeki yazılarda toplu değiştirme', 'Bulk replace across drawing texts'), T('t:trim', 'i-trim', 'Buda', 'Trim', 'Kesici kenara, sonra atılacak parçaya dokunun', 'Tap the cutting edge, then the piece to remove'), T('t:extend', 'i-extend', 'Uzat', 'Extend', 'Sınıra, sonra uzatılacak uca dokunun', 'Tap the boundary, then the end to extend'), T('t:fillet', 'i-fillet', 'Kavis', 'Fillet', 'İki doğruya dokunun, yarıçapı yazın', 'Tap two lines and type the radius'), T('t:chamfer', 'i-chamfer', 'Pah', 'Chamfer', 'İki doğruya dokunun, mesafeyi yazın', 'Tap two lines and type the distance')] },
+    { cap: 'grpXform', items: [T('t:move', 'i-move', 'Taşı', 'Move'), T('t:copy', 'i-copyobj', 'Kopyala', 'Copy'), T('t:rotate', 'i-rotate', 'Döndür', 'Rotate'), T('t:scale', 'i-scale', 'Ölçekle', 'Scale'), T('t:mirror', 'i-mirror', 'Aynala', 'Mirror'), T('t:offset', 'i-offset', 'Ofset', 'Offset', 'Önce Ekran mı Ölçü mü: geçiş noktası ya da yazılan mesafe, sonra nesne', 'Asks Screen or Measure first: through point or typed distance, then the object')] },
+    { cap: 'grpModify', items: [T('t:del', 'i-erase', 'Sil', 'Delete'), T('t:setz', 'i-z', 'Kot ata', 'Set Z', 'Seçime Z kotu atar', 'Assign elevation'), T('t:edittext', 'i-edittext', 'Yazı düzenle', 'Edit text'), T('t:array', 'i-array', 'Dizi', 'Array', 'Dikdörtgen ya da kutupsal artımlı kopya', 'Rectangular or polar incremental copy'), T('t:thick', 'i-thick', 'Kalınlık', 'Thickness', '2B nesneye yükseklik vererek 3B gövde üretir', 'Extrude 2D objects into 3D bodies'), T('t:explode', 'i-explode', 'Patlat', 'Explode', 'Blok yerleştirmesini parçalarına ayırır', 'Break a block insertion into its parts'), T('t:textsize', 'i-textsize', 'Yazı yüksekliği', 'Text height', 'Seçili yazıların yüksekliğini değiştirir', 'Change the height of selected texts'), T('t:attr', 'i-attr', 'Öznitelik', 'Attributes', 'Blok özniteliklerini düzenler', 'Edit block attributes'), T('findrep', 'i-findrep', 'Bul-değiştir', 'Find & replace', 'Çizimdeki yazılarda toplu değiştirme', 'Bulk replace across drawing texts'), T('t:trim', 'i-trim', 'Buda', 'Trim', 'Önce Ekran mı Ölçü mü: kesici kenar + parça, ya da yazılan boy kadar kısalt', 'Asks Screen or Measure first: cutting edge + piece, or cut a typed length off the end'), T('t:extend', 'i-extend', 'Uzat', 'Extend', 'Önce Ekran mı Ölçü mü: sınır + uç, ya da yazılan boy kadar uzat', 'Asks Screen or Measure first: boundary + end, or add a typed length to the end'), T('t:fillet', 'i-fillet', 'Kavis', 'Fillet', 'Önce Ekran mı Ölçü mü: yayın geçeceği nokta ya da yazılan yarıçap, sonra iki doğru', 'Asks Screen or Measure first: where the arc passes or a typed radius, then two lines'), T('t:chamfer', 'i-chamfer', 'Pah', 'Chamfer', 'Önce Ekran mı Ölçü mü: pahın geçeceği nokta ya da yazılan mesafe, sonra iki doğru', 'Asks Screen or Measure first: where the chamfer passes or a typed distance, then two lines')] },
     { cap: 'grpBlock', items: [T('blocklib', 'i-block', 'Blok kütüphanesi', 'Block library', 'Seçimden blok oluştur, kaydet, çizime ekle', 'Create, save and insert blocks'), T('copyclip', 'i-copy', 'Panoya kopyala', 'Copy to clipboard', 'Seçimi panoya alır; başka çizimde yapıştırılır', 'Copy the selection for pasting into another drawing'), T('pasteclip', 'i-paste', 'Panodan yapıştır', 'Paste', 'Panodaki nesneleri bu çizime ekler', 'Paste clipboard objects into this drawing')] },
     { cap: 'grpHist', items: [T('undo', 'i-undo', 'Geri al', 'Undo'), T('redo', 'i-redo', 'Yinele', 'Redo')] } ] },
   { id: '3d', i18n: 'tab3d', icon: 'i-cube', groups: [
@@ -203,6 +203,7 @@ export function initEditor(a) {
 // ---------------------------------------------------------------------------------
 export function onScene() {
   ed.sel.clear(); tools.cancel(true); showPrompt(null);
+  if (tools.lastVal) tools.lastVal = {};   // Ekran / Ölçü araçlarının son değerleri çizim birimindedir: yeni dosyada bayat kalmasın
   const model = S.scene.layouts[0];
   const counts = new Map();
   for (const L of S.scene.layouts) for (const p of L.prims) { const h = (p.info && p.info.h) || 'x'; const n = counts.get(h) || 0; counts.set(h, n + 1); p.key = h + '#' + n; }
@@ -687,18 +688,21 @@ function renderMode() {
 // ---------------------------------------------------------------------------------
 // Komut satırı
 // ---------------------------------------------------------------------------------
-const BTN = { finish: ['finishBtn', () => tools.finish()], close: ['close', () => tools.close()], back: ['backBtn', () => tools.back()], selall: ['layersAll', () => tools.selectAll()], selbox: ['selBoxBtn', () => tools.setSelMode('box')], sellasso: ['selLassoBtn', () => tools.setSelMode('lasso')], cancel: ['cancelBtn', () => { tools.cancel(); markActive(null); ed.sel.clear(); api.drawOverlay(); }] };
+const BTN = { finish: ['finishBtn', () => tools.finish()], close: ['close', () => tools.close()], back: ['backBtn', () => tools.back()], selall: ['layersAll', () => tools.selectAll()], selbox: ['selBoxBtn', () => tools.setSelMode('box')], sellasso: ['selLassoBtn', () => tools.setSelMode('lasso')],
+  // Ekran / Ölçü: değer isteyen düzenleme araçlarının kipi (ötele, kavis, pah, buda, uzat); araç boyunca görünür, seçili olan vurgulu
+  modescreen: ['modeScreenBtn', () => tools.setMode('screen')], modevalue: ['modeValueBtn', () => tools.setMode('value')],
+  cancel: ['cancelBtn', () => { tools.cancel(); markActive(null); ed.sel.clear(); api.drawOverlay(); }] };
 /*
  * Komut çubuğu düğmesi: SVG simge + etiket. Çeviri metinlerinin başındaki ince Unicode imleri
  * (✓ ↶ ✕) atılır; simgeyi yazı tipi değil SVG çizer, böylece her dilde aynı dolgunlukta görünür.
  * Bitir birincil (vurgu renkli) düğmedir: çubuğun onay eylemi odur.
  */
-const CMD_ICON = { finish: 'i-check', close: 'i-closepath', back: 'i-undo', selall: 'i-selectall', cancel: 'i-close', selbox: 'i-selbox', sellasso: 'i-lasso' };
+const CMD_ICON = { finish: 'i-check', close: 'i-closepath', back: 'i-undo', selall: 'i-selectall', cancel: 'i-close', selbox: 'i-selbox', sellasso: 'i-lasso', modescreen: 'i-crosshair', modevalue: 'i-ruler' };
 const CMD_ICON_ONLY = new Set(['selbox', 'sellasso']);   // yalnız simge: beş düğme 412 px'te tek satıra sığsın; ad başlık / aria-label'da
 function cmdBtnHtml(attr, k, label) {
   const lbl = String(label == null ? '' : label).replace(/^[✓↶✕⟲←]+\s*/, '');
   const ic = CMD_ICON[k];
-  const on = !!tools && ((k === 'selbox' && tools.selMode === 'box') || (k === 'sellasso' && tools.selMode === 'lasso'));
+  const on = !!tools && ((k === 'selbox' && tools.selMode === 'box') || (k === 'sellasso' && tools.selMode === 'lasso') || (k === 'modescreen' && tools.mode === 'screen') || (k === 'modevalue' && tools.mode === 'value'));
   const cls = k === 'finish' ? 'primary' : (CMD_ICON_ONLY.has(k) ? 'icon' + (on ? ' on' : '') : (on ? 'on' : ''));
   const svg = ic ? `<svg class="ic" aria-hidden="true"><use href="#${ic}"/></svg>` : '';
   if (CMD_ICON_ONLY.has(k)) return `<button type="button" ${attr}="${k}" class="${cls}" title="${esc(lbl)}" aria-label="${esc(lbl)}" aria-pressed="${on}">${svg}</button>`;
@@ -815,7 +819,7 @@ function bindCmdBar() {
     // BOŞTA: yazılan bir komut adıdır. Boş Enter son komutu yineler (AutoCAD'deki gibi).
     if (cmdIdle) { inp.value = ''; const metin = v.trim() || cmdLast; if (metin) runCommand(metin); return; }
     if (cmdSeq) { inp.value = ''; cmdSeqInput(v); return; }   // komut satırı sırası (-LAYER): boş Enter da bir cevaptır
-    if (!v) return;
+    if (!v) { if (!ed.m3 && tools.active && tools.enterEmpty) tools.enterEmpty(); return; }   // değer isteminde boş Enter <öntanımlı> değeri alır
     inp.value = '';
     if (ed.m3) { if (!gate('3:' + ed.m3.name)) return; typed3D(v); }
     else {
@@ -1091,17 +1095,40 @@ function finishSelDrag(d) {
   api.toast(n ? `${n} ${t('selectedN')}` : t('selRegionNone'), 1400);
   if (n) haptic('snap');
 }
+/*
+ * Bölge seçimi çizimi — AutoCAD renkleri: soldan sağa PENCERE mavi ve düz kenarlı (yalnız içindekiler),
+ * sağdan sola KESEN yeşil ve kesik kenarlı (dokunanlar da). Yön ilk yatay hareketten belli olur; belli olana
+ * kadar pencere renginde çizilir. İşaretçinin yanında kipin adı yazar ki telefonda renk tek ipucu olmasın.
+ */
+export const SEL_COLORS = { window: '#4da3ff', crossing: '#3ddc84' };
 function drawSelDrag(c) {
   const d = selDrag; if (!d) return;
-  const crossing = d.crossing === true, col = crossing ? '#3ddc84' : '#4da3ff';
+  const crossing = d.crossing === true, col = crossing ? SEL_COLORS.crossing : SEL_COLORS.window;
+  const moved = Math.abs(d.x1 - d.x0) >= 6 || Math.abs(d.y1 - d.y0) >= 6 || d.pts.length > 2;
+  if (!moved) return;
   c.save(); c.lineWidth = 1.5; c.strokeStyle = col; c.fillStyle = col; c.globalAlpha = 1;
   if (crossing) c.setLineDash([6, 4]); else c.setLineDash([]);
   c.beginPath();
   if (d.mode === 'box') c.rect(Math.min(d.x0, d.x1), Math.min(d.y0, d.y1), Math.abs(d.x1 - d.x0), Math.abs(d.y1 - d.y0));
   else { d.pts.forEach((p, i) => (i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]))); c.closePath(); }
-  c.globalAlpha = 0.14; c.fill(); c.globalAlpha = 1; c.stroke();
+  c.globalAlpha = 0.18; c.fill(); c.globalAlpha = 1; c.stroke();
+  // etiket: işaretçinin sağ üstünde, kutunun rengiyle; kenara taşarsa içeri alınır
+  const lbl = crossing ? t('selCrossingLbl') : t('selWindowLbl');
+  c.setLineDash([]); c.font = `bold ${Math.round(12 * (ui.fontScale || 1))}px system-ui, sans-serif`; c.textBaseline = 'bottom';
+  const tw = c.measureText(lbl).width + 10, th = 18 * (ui.fontScale || 1);
+  const lx = Math.min(S.W - tw - 4, Math.max(4, d.x1 + 14)), ly = Math.max(th + 4, d.y1 - 10);
+  c.globalAlpha = 0.9; c.fillRect(lx, ly - th, tw, th); c.globalAlpha = 1;
+  c.fillStyle = '#0b1020'; c.fillText(lbl, lx + 5, ly - 3);
   c.restore();
 }
+/** Sınama ve durum çubuğu için: süren bölge seçiminin kipi ({ mode, crossing, implied }) ya da null */
+ed.selDragState = () => (selDrag ? { mode: selDrag.mode, crossing: selDrag.crossing, implied: !!selDrag.implied } : null);
+/*
+ * Çalışan araç şu an NESNE mi seçiyor (AutoCAD "Select objects:")? app.js imleci ve yakalamayı buna
+ * bakarak seçer: nesne isteminde küçük kare (pickbox) çizilir ve yakalama aranmaz. Bölge sürüklemesi
+ * de nesne seçimidir — kutu çizilirken yakalama işaretinin belirmesi anlamsızdır.
+ */
+ed.pickingObject = () => !!(selDrag || (tools && tools.running && tools.pickingObject()));
 /** Seçim rozeti: seçimin sol üst köşesinde sayı + kalem; dokununca seçim menüsü (Sil, Taşı, Renk…) */
 function updateSelBadge() {
   const el = $('selBadge'); if (!el) return;
@@ -1118,6 +1145,16 @@ function updateSelBadge() {
 /** İşaretçi bir tutamağa indi mi? true dönerse app.js kaydırma/dokunma yapmaz. */
 ed.gizmoDown = (sx, sy) => {
   if (selDragArmed()) { selDrag = { mode: tools.selMode, pts: [[sx, sy]], x0: sx, y0: sy, x1: sx, y1: sy, crossing: null }; return true; }
+  /*
+   * AutoCAD'in ÖRTÜK PENCERESİ: seçim aşamasında (Seç aracı ya da Taşı / Sil gibi araçların nesne seçimi)
+   * BOŞ yere basıp sürüklemek kutu seçer — soldan sağa mavi pencere (içindekiler), sağdan sola yeşil kesen
+   * (dokunanlar). Nesneye dokunmak onu seçer, iki parmak kaydırır. Parmak kıpırdamadan kalkarsa bu bir dokunuştur
+   * ve olağan dokunma yoluna verilir (boş yere dokunmak zaten bir şey seçmez).
+   */
+  if (tools && tools.running && tools.selecting && tools.selMode === 'tap' && !ed.is3D() && !api.pick(toWorld(sx, sy))) {
+    selDrag = { mode: 'box', implied: true, pts: [[sx, sy]], x0: sx, y0: sy, x1: sx, y1: sy, crossing: null };
+    return true;
+  }
   const L = gizmoLayout(); if (!L) return false;
   const G = gizmoVertLayout();
   const kind = Gz.hit(sx, sy, L, G && G.VL); if (!kind) return false;
@@ -1142,7 +1179,7 @@ ed.gizmoMove = (sx, sy) => {
   if (!giz) return false;
   if (giz.vi != null) {
     // Bırakma noktası yakalamaya oturur: düğüm bir başka çizginin ucuna TAM denk gelsin diye.
-    const w = toWorld(sx, sy), sn = api.snapPeek ? api.snapPeek(w) : api.snap(w), q = sn ? sn.p : w;
+    const w = toWorld(sx, sy), sn = api.snapPeek ? api.snapPeek(w, { grip: true }) : api.snap(w), q = sn ? sn.p : w;   // tutamak sürüklemesi NOKTA işidir: yakalama orada çalışır
     giz.p = [q[0], q[1]];
     giz.info = { tip: 'vertex', dx: q[0] - giz.ops0[giz.vi][1], dy: q[1] - giz.ops0[giz.vi][2] };
     api.drawOverlay();
@@ -1155,7 +1192,11 @@ ed.gizmoMove = (sx, sy) => {
 };
 /** commit=false ise (pointercancel) değişiklik atılır */
 ed.gizmoUp = (commit) => {
-  if (selDrag) { const d = selDrag; selDrag = null; if (commit) finishSelDrag(d); api.drawOverlay(); return true; }
+  if (selDrag) {
+    const d = selDrag; selDrag = null;
+    if (commit) { if (d.implied && Math.abs(d.x1 - d.x0) < 6 && Math.abs(d.y1 - d.y0) < 6) tap(toWorld(d.x0, d.y0), d.x0, d.y0); else finishSelDrag(d); }
+    api.drawOverlay(); return true;
+  }
   const g = giz; giz = null;
   if (!g) return false;
   if (g.vi != null) {
@@ -1931,7 +1972,7 @@ ed.key = (ev) => {
   if ((ev.ctrlKey || ev.metaKey) && (k === 'z' || k === 'Z')) { if (ev.shiftKey) act('redo'); else act('undo'); return true; }
   if ((ev.ctrlKey || ev.metaKey) && (k === 'y' || k === 'Y')) { act('redo'); return true; }
   if ((k === 'Delete' || k === 'Backspace') && ed.sel.size && doc && !tools.running) { if (!gate('t:del')) return true; doc.run({ op: 'delete', keys: [...ed.sel].map(p => p.key) }); ed.sel.clear(); refreshUndo(); api.requestRender(); if (ed.is3D()) { refresh3D(); render3D(); } api.toast(t('deleted')); return true; }
-  if (k === 'Enter' && tools.running) { tools.finish(); return true; }
+  if (k === 'Enter' && tools.running) { if (!(tools.enterEmpty && tools.enterEmpty())) tools.finish(); return true; }   // Ekran / Ölçü araçlarında boş Enter son değeri alır
   // Boş Enter / boşluk son komutu yineler (AutoCAD). Araç çalışırken yukarıdaki dal bitirir.
   if ((k === 'Enter' || k === ' ') && deskAktif() && cmdLast) { ed.cmdRepeat(); return true; }
   return false;

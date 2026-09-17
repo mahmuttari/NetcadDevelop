@@ -319,7 +319,7 @@ function drawOverlay() {
   }
   // Dokunuşla yakalanan nokta kısa süre işaretli kalır (AutoCAD'in AutoSnap işareti): parmak kalkınca
   // kullanıcı neyin yakalandığını görsün. Her kipte (çizim, ölçü, düzenleme) aynı işaret.
-  if (S.snapFlash && S.snapFlash.until > performance.now() && !(S.mode === 'measure' && S.snap)) drawSnapMark(c, S.snapFlash, '#3ddc84');
+  if (S.snapFlash && S.snapFlash.until > performance.now() && !(S.mode === 'measure' && S.snap) && !pickingObject()) drawSnapMark(c, S.snapFlash, '#3ddc84');
   if (S.gps.on && S.gps.lat != null && S.geo.active && S.scene.layouts[S.layoutIndex].isModel) {
     const d = S.geo.toDrawing(S.gps.lon, S.gps.lat);
     if (d) {
@@ -397,12 +397,46 @@ function drawRulers(c, fg) {
   if (S.lastPoint) { const s = toScreen(S.lastPoint[0], S.lastPoint[1]); c.fillStyle = '#f5b342'; c.fillRect(s[0] - 1, 0, 2, H); c.fillRect(0, s[1] - 1, H, 2); }
   c.globalAlpha = 1;
 }
+/*
+ * İMLEÇ — AutoCAD'in üç hâli aynen alınmıştır:
+ *   NOKTA istemi (çizim, taban noktası, ötele tarafı…) → artı imleç, nesne yakalama ÇALIŞIR
+ *   NESNE istemi ("Select objects:")                   → küçük kare (pickbox), yakalama ÇALIŞMAZ
+ *   boşta (komut yok)                                  → artı + pickbox (sonraki dokunuş nesne seçer)
+ * Karenin yarı boyu gerçek seçim toleransıdır (TOL.pick): kare neyin üstündeyse o seçilir, kullanıcı
+ * dokunmadan önce görür. Eldivende tolerans büyür, kare de onunla büyür.
+ */
+function pickingObject() { return !!edCall('pickingObject'); }
+function pickBoxR() { return Math.round(TOL.pick * Math.max(1, uiPrefs().fontScale || 1)); }
+/** Pickbox: çift çizgili kare — koyu da açık da olsa çizimin üstünde okunur */
+function drawPickBox(c, x, y, fg) {
+  const r = pickBoxR(), X = Math.round(x) + 0.5, Y = Math.round(y) + 0.5;
+  c.save(); c.setLineDash([]);
+  c.strokeStyle = S.dark ? 'rgba(0,0,0,.55)' : 'rgba(255,255,255,.8)'; c.lineWidth = 3;
+  c.strokeRect(X - r, Y - r, r * 2, r * 2);
+  c.strokeStyle = fg; c.lineWidth = 1; c.globalAlpha = 0.95;
+  c.strokeRect(X - r, Y - r, r * 2, r * 2);
+  c.restore();
+}
+/** Karenin altındaki nesnenin kesik çizgiyle vurgulanması (AutoCAD rollover): hangisi seçilecek belli olsun */
+function drawRollover(c, p) {
+  c.save(); worldTransform(c);
+  c.strokeStyle = S.selColor || '#ff9f0a'; c.lineWidth = 1.8 / S.view.scale; c.globalAlpha = 0.85;
+  c.setLineDash([6 / S.view.scale, 4 / S.view.scale]);
+  if (p.k === 0) { c.beginPath(); tracePath(c, p.ops); if (p.closed) c.closePath(); c.stroke(); }
+  else strokeWorldRect(c, p.bb);
+  c.restore(); c.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);
+}
 /** Artı imleç: araç ya da ölçü modu çalışırken son dokunma/yakalama noktasında */
 function drawCrosshair(c, fg) {
-  if (S.crosshair === 'off' || !S.lastPoint) return;
+  if (!S.lastPoint) return;
   const running = (editor.tools && editor.tools.running) || S.mode === 'measure' || S.mode === 'profile';
   if (!running) return;
   const s = toScreen(S.lastPoint[0], S.lastPoint[1]);
+  // Nesne seçiliyor: artı yok, kare var. Dokunmatikte imleç parmağı izlemez; kare son dokunuşta
+  // durur ve seçimin ne kadar yakınından tuttuğunu gösterir. Ayardaki "Artı imleç: Kapalı" kareyi
+  // kapatmaz — AutoCAD'de de CURSORSIZE ile PICKBOX ayrı değişkenlerdir.
+  if (pickingObject()) { drawPickBox(c, s[0], s[1], fg); return; }
+  if (S.crosshair === 'off') return;
   c.strokeStyle = fg; c.lineWidth = 1; c.setLineDash([]); c.globalAlpha = 0.5;
   c.beginPath();
   if (S.crosshair === 'full') { c.moveTo(0, s[1] + 0.5); c.lineTo(S.W, s[1] + 0.5); c.moveTo(s[0] + 0.5, 0); c.lineTo(s[0] + 0.5, S.H); }
@@ -426,6 +460,14 @@ function drawSnapMark(c, sn, col) {
 }
 function drawPenHover(c, fg) {
   if (!penHover || !penHover.w) return;
+  // Nesne isteminde yakalama aranmaz (findSnap boş döner): imleç karedir ve karenin altındaki nesne
+  // vurgulanır. Koordinat kutusu da çıkmaz — seçilen bir nokta değil, bir NESNEdir.
+  if (pickingObject()) {
+    const hit = pick(penHover.w, TOL.pick / S.view.scale);
+    if (hit) drawRollover(c, hit);
+    drawPickBox(c, penHover.sx, penHover.sy, fg);
+    return;
+  }
   const sn = penHover.snap;
   const s = sn ? toScreen(sn.p[0], sn.p[1]) : [penHover.sx, penHover.sy];
   const acc = S.selColor || '#ff9f0a';
@@ -452,6 +494,9 @@ function drawPenHover(c, fg) {
   c.fillRect(bx, s[1] - 24, w, 18);
   c.fillStyle = sn ? acc : fg; c.fillText(txt, bx + 5, s[1] - 8);
   c.restore();
+  // Boştayken (çalışan komut yok) AutoCAD imleci artı + pickbox'tır: bir sonraki dokunuş nokta değil
+  // NESNE seçer. Kare imlecin kendi yerinde durur, yakalanan noktada değil.
+  if (!(editor.tools && editor.tools.running) && S.mode !== 'measure' && S.mode !== 'profile' && !S.notesOn) drawPickBox(c, penHover.sx, penHover.sy, fg);
 }
 function label(c, text, x, y) {
   c.font = 'bold 12px sans-serif';
@@ -900,6 +945,9 @@ function pick(w, tol) {
  * taramaları yoksayma, Z yerine geçerli kot, yakalama izi.
  */
 function findSnap(w, o = {}) {
+  // AutoCAD'de yakalama YALNIZ nokta isteminde çalışır: "Select objects:" isteminde işaret çıkmaz,
+  // imleç pickbox olur. Tutamak (grip) sürüklemesi nokta işidir; o muaftır ({ grip: true }).
+  if (!o.grip && pickingObject()) return null;
   const opt = Osnap.opt();
   const tol = (opt.aperture > 0 ? opt.aperture : TOL.snap) / S.view.scale;
   const modes = o.once ? new Set([o.once]) : S.snapModes;
@@ -3717,6 +3765,10 @@ window.dwgApp = { osnap: Osnap, loadCurrent, onFilePicked, onLocation, onBack, o
     toast('GPS: ' + m, perm && openSet ? { ms: 8000, action: { label: tt('settings', 'Ayarlar'), fn: openSet } } : undefined); },
   // sınama tutamağı: aşamalı açılış görselini gerçek dosya açmadan yüzde yüzde sürer
   __cadLoad: (pct, file) => setLoadingCad(pct, file), setLoading, cancelLoading,
+  // İmleç ve yakalama durumu (bkz. tools/test_pickbox.mjs): nesne istemi mi, kare kaç piksel,
+  // o noktada yakalama ne buluyor (nesne isteminde null olmalıdır)
+  __pickbox: () => ({ on: pickingObject(), r: pickBoxR(), tol: TOL.pick }),
+  __snapAt: (x, y, o) => { const sn = findSnap([x, y], o || {}); return sn ? { kind: sn.kind, p: sn.p.slice(0, 2) } : null; },
   // Açılış kestirimcisinin sınanabilir parçaları (bkz. tools/test_ilerleme.mjs)
   __band: (v) => bandOf(v), __tahminTaban: (n, mb) => tahminTaban(n, mb),
   __bantBeklenen: (b) => bantBeklenenMs(b), __olcek: () => acilisOlcek(),

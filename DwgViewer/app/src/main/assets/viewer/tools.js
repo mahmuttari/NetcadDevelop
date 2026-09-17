@@ -10,7 +10,7 @@
  *   fmt(v)   units()     unitToM()
  * Nokta girişi: dokunma (yakalamalı) ya da yazılı: "x,y" | "x,y,z" | "@dx,dy" | "@L<açı"
  */
-import { TAU, flatten, polyArea, pathLength, pathLength3, segDist, opsBBox, enclosingPrim, segmentsOf, segAt, trimPath, extendPath, filletCorner, chamferCorner, cornerAt, segIntersect, pointInPoly } from './geom.js';
+import { TAU, flatten, polyArea, pathLength, pathLength3, segDist, opsBBox, enclosingPrim, segmentsOf, segAt, trimPath, extendPath, lengthenPath, filletCorner, chamferCorner, cornerAt, segIntersect, pointInPoly } from './geom.js';
 import { newId, offsetPoints } from './edit.js';
 import { t, addStrings } from './i18n.js';
 import { askText, askConfirm, askForm } from './dialog.js';
@@ -32,13 +32,14 @@ export const TOOLS = {
   pline3d: { name: '3B Polyline', en: '3D Polyline', steps: ['Birinci noktayı seçin (kot sorulur)', 'Sonraki noktayı seçin · Bitir'], stepsEn: ['Pick the first point (elevation is asked)', 'Pick the next point · Finish'] },
   face3d: { name: '3B Yüzey', en: '3D Face', steps: ['1. köşe', '2. köşe', '3. köşe', '4. köşe (isteğe bağlı) · Bitir'], stepsEn: ['Vertex 1', 'Vertex 2', 'Vertex 3', 'Vertex 4 (optional) · Finish'] },
   // düzenleme
-  select: { name: 'Seç', en: 'Select', steps: ['Nesnelere dokunun (ekle/çıkar) · Bitir'], stepsEn: ['Tap objects (add/remove) · Finish'] },
+  select: { name: 'Seç', en: 'Select', steps: ['Dokun · sürükle → pencere ← kesen'], stepsEn: ['Tap · drag → window ← crossing'] },   // tek satır: komut çubuğu iki satırı aşmasın
   move: { name: 'Taşı', en: 'Move', steps: ['Nesneleri seçin · Bitir', 'Taban noktası', 'Hedef nokta (ya da @dx,dy)'], stepsEn: ['Select objects · Finish', 'Base point', 'Target point (or @dx,dy)'] },
   copy: { name: 'Kopyala', en: 'Copy', steps: ['Nesneleri seçin · Bitir', 'Taban noktası', 'Hedef nokta (yineler) · Bitir'], stepsEn: ['Select objects · Finish', 'Base point', 'Target point (repeats) · Finish'] },
   rotate: { name: 'Döndür', en: 'Rotate', steps: ['Nesneleri seçin · Bitir', 'Dönme merkezi', 'Açıyı yazın (°) ya da ikinci noktayı seçin'], stepsEn: ['Select objects · Finish', 'Rotation center', 'Type the angle (°) or pick a second point'] },
   scale: { name: 'Ölçekle', en: 'Scale', steps: ['Nesneleri seçin · Bitir', 'Taban noktası', 'Çarpanı yazın'], stepsEn: ['Select objects · Finish', 'Base point', 'Type the factor'] },
   mirror: { name: 'Aynala', en: 'Mirror', steps: ['Nesneleri seçin · Bitir', 'Ayna çizgisi 1. nokta', 'Ayna çizgisi 2. nokta'], stepsEn: ['Select objects · Finish', 'Mirror line point 1', 'Mirror line point 2'] },
-  offset: { name: 'Ofset', en: 'Offset', steps: ['Nesneleri seçin · Bitir', 'Mesafeyi yazın', 'Tarafı seçin (nokta)'], stepsEn: ['Select objects · Finish', 'Type the distance', 'Pick the side (point)'] },
+  // Ekran / Ölçü soran araçlar (MODE_TOOLS): steps Ekran kipinin, stepsVal Ölçü kipinin adımlarıdır (tstep_<ad>_v<i>)
+  offset: { name: 'Ofset', en: 'Offset', steps: ['Nesneye dokunun', 'Geçiş noktasına dokunun (kopya buradan geçer)'], stepsEn: ['Tap the object', 'Tap the through point (the copy passes through it)'], stepsVal: ['Nesneye dokunun', 'Tarafı seçin (nokta)'], stepsValEn: ['Tap the object', 'Pick the side (point)'] },
   del: { name: 'Sil', en: 'Delete', steps: ['Nesneleri seçin · Bitir'], stepsEn: ['Select objects · Finish'] },
   setz: { name: 'Kot ata', en: 'Set Z', steps: ['Nesneleri seçin · Bitir', 'Kotu (Z) yazın'], stepsEn: ['Select objects · Finish', 'Type the elevation (Z)'] },
   edittext: { name: 'Yazı düzenle', en: 'Edit text', steps: ['Yazıya dokunun'], stepsEn: ['Tap the text'] },
@@ -68,17 +69,17 @@ export const TOOLS = {
   textsize: { name: 'Yazı yüksekliği', en: 'Text height', steps: ['Yazıları seçin · Bitir', 'Yüksekliği yazın'], stepsEn: ['Select texts · Finish', 'Type the height'] },
   explode: { name: 'Patlat', en: 'Explode', steps: ['Blok yerleştirmesine dokunun'], stepsEn: ['Tap a block insertion'] },
   attr: { name: 'Öznitelik düzenle', en: 'Edit attributes', steps: ['Blok yerleştirmesine dokunun'], stepsEn: ['Tap a block insertion'] },
-  trim: { name: 'Buda', en: 'Trim', steps: ['Kesici kenara dokunun', 'Atılacak parçaya dokunun (sürer)'], stepsEn: ['Tap the cutting edge', 'Tap the piece to remove (repeats)'] },
-  extend: { name: 'Uzat', en: 'Extend', steps: ['Sınıra dokunun', 'Uzatılacak uca dokunun (sürer)'], stepsEn: ['Tap the boundary', 'Tap the end to extend (repeats)'] },
-  fillet: { name: 'Kavis', en: 'Fillet', steps: ['Birinci doğruya dokunun', 'İkinci doğruya dokunun'], stepsEn: ['Tap the first line', 'Tap the second line'] },
-  chamfer: { name: 'Pah', en: 'Chamfer', steps: ['Birinci doğruya dokunun', 'İkinci doğruya dokunun'], stepsEn: ['Tap the first line', 'Tap the second line'] },
+  trim: { name: 'Buda', en: 'Trim', steps: ['Kesici kenara dokunun', 'Atılacak parçaya dokunun (sürer)'], stepsEn: ['Tap the cutting edge', 'Tap the piece to remove (repeats)'], stepsVal: ['Kısaltılacak uca dokunun (sürer)'], stepsValEn: ['Tap the end to shorten (repeats)'] },
+  extend: { name: 'Uzat', en: 'Extend', steps: ['Sınıra dokunun', 'Uzatılacak uca dokunun (sürer)'], stepsEn: ['Tap the boundary', 'Tap the end to extend (repeats)'], stepsVal: ['Uzatılacak uca dokunun (sürer)'], stepsValEn: ['Tap the end to lengthen (repeats)'] },
+  fillet: { name: 'Kavis', en: 'Fillet', steps: ['Birinci doğruya dokunun', 'İkinci doğruya dokunun', 'Kavisin geçeceği noktaya dokunun · ya da yarıçapı yazın'], stepsEn: ['Tap the first line', 'Tap the second line', 'Tap where the arc should pass · or type the radius'], stepsVal: ['Birinci doğruya dokunun', 'İkinci doğruya dokunun'], stepsValEn: ['Tap the first line', 'Tap the second line'] },
+  chamfer: { name: 'Pah', en: 'Chamfer', steps: ['Birinci doğruya dokunun', 'İkinci doğruya dokunun', 'Pahın geçeceği noktaya dokunun · ya da mesafeyi yazın'], stepsEn: ['Tap the first line', 'Tap the second line', 'Tap where the chamfer should pass · or type the distance'], stepsVal: ['Birinci doğruya dokunun', 'İkinci doğruya dokunun'], stepsValEn: ['Tap the first line', 'Tap the second line'] },
 };
 /*
  * İngilizce arayüzde araç adı AutoCAD komut adıdır (LINE, TRIM, ERASE…): hedef kullanıcı
  * AutoCAD kaslıdır ve "Delete" yazan bir düğmeyi ERASE ile bağdaştırmakta zorlanır. Ad tek
  * kaynaktan, acad.js'ten gelir; burada yazılmaz. Türkçe ad olduğu gibi kalır.
  */
-{ const tr = {}, en = {}; for (const [k, d] of Object.entries(TOOLS)) { tr['tool_' + k] = d.name; en['tool_' + k] = cmdOf('t:' + k) || d.en || d.name; d.steps.forEach((st, i) => { tr[`tstep_${k}_${i}`] = st; en[`tstep_${k}_${i}`] = (d.stepsEn && d.stepsEn[i]) || st; }); } addStrings(tr, en); }
+{ const tr = {}, en = {}; for (const [k, d] of Object.entries(TOOLS)) { tr['tool_' + k] = d.name; en['tool_' + k] = cmdOf('t:' + k) || d.en || d.name; d.steps.forEach((st, i) => { tr[`tstep_${k}_${i}`] = st; en[`tstep_${k}_${i}`] = (d.stepsEn && d.stepsEn[i]) || st; }); (d.stepsVal || []).forEach((st, i) => { tr[`tstep_${k}_v${i}`] = st; en[`tstep_${k}_v${i}`] = (d.stepsValEn && d.stepsValEn[i]) || st; }); } addStrings(tr, en); }
 /*
  * Araç kimliklerinin listesi. acad.js'teki AutoCAD komut tablosu bu adlara bağlanır; yanlış
  * yazılmış bir kimlik sessizce hiçbir şey yapmaz, o yüzden sınama ikisini burada karşılaştırır
@@ -87,11 +88,21 @@ export const TOOLS = {
 export const TOOL_IDS = Object.keys(TOOLS);
 const toolName = (k) => t('tool_' + k);
 const toolStep = (k, i) => t(`tstep_${k}_${i}`);
-const SELECT_TOOLS = new Set(['move', 'copy', 'rotate', 'scale', 'mirror', 'offset', 'del', 'setz', 'array', 'thick', 'textsize']);
+/** Ölçü kipinin adımı (stepsVal); araçta Ölçü adımı yoksa Ekran adımı */
+const toolStepVal = (k, i) => (TOOLS[k] && TOOLS[k].stepsVal && TOOLS[k].stepsVal.length ? t(`tstep_${k}_v${i}`) : toolStep(k, i));
+const SELECT_TOOLS = new Set(['move', 'copy', 'rotate', 'scale', 'mirror', 'del', 'setz', 'array', 'thick', 'textsize']);
+/*
+ * EKRAN / ÖLÇÜ SORAN ARAÇLAR. Değer isteyen düzenleme araçları nesne seçilmeden ÖNCE sorar:
+ * Ekran → değer çizimde dokunarak verilir (ötelede geçiş noktası, kavis / pahta yayın geçeceği nokta,
+ * buda / uzatta kesici kenar ya da sınır); Ölçü → değer önce yazılır, sonra nesne seçilir. Dokunmak
+ * Ekran'ı, sayı yazmak Ölçü'yü seçmiş sayılır — soru akışı kesmez. Değer: Ölçü kipinde istenen sayının
+ * istem anahtarı. Buda / uzatta Ölçü kipi AutoCAD LENGTHEN DElta'sıdır (yazılan boy kadar kısalt / uzat).
+ */
+const MODE_TOOLS = { offset: 'typeDist', fillet: 'filletRadius', chamfer: 'chamferDist', trim: 'trimLen', extend: 'extendLen' };
 /** Sayı girişi bekleyen araçlar ve hangi adımda beklediği — TEK kaynak (say / typed / tap buraya bakar) */
-const NUMBER_STEP = { circle: 1, rotate: 2, scale: 2, offset: 1, setz: 1, thick: 1, textsize: 1 };
+const NUMBER_STEP = { circle: 1, rotate: 2, scale: 2, setz: 1, thick: 1, textsize: 1 };
 /** Nokta değil NESNE (ya da kapalı alan) seçilerek çalışan araçlar */
-const OBJECT_TOOLS = new Set(['radius', 'edittext', 'dimedit', 'dimr', 'dimd', 'explode', 'attr', 'hatch', 'fillarea', 'ident', 'trim', 'extend', 'fillet', 'chamfer']);
+const OBJECT_TOOLS = new Set(['radius', 'edittext', 'dimedit', 'dimr', 'dimd', 'explode', 'attr', 'hatch', 'fillarea', 'ident', 'trim', 'extend', 'fillet', 'chamfer', 'offset']);
 /** Çok noktalı ölçülendirme / açıklama araçları: taslakları çizgi olarak gösterilir */
 const PATH_TOOLS = new Set(['dim', 'dimh', 'dimv', 'dima', 'leader', 'cloud']);
 /** Sonraki numara: sayıysa artar, harfle bitiyorsa harf ilerler ("A1"→"A2", "B"→"C") */
@@ -154,6 +165,9 @@ export class ToolManager {
     this.number = null;
     this.draft = null;   // kaplama için önizleme: { segs:[[p,q]…], pts:[…], circle:{c,r}, text }
     this.results = [];
+    this.mode = null;    // Ekran / Ölçü soran araçlarda seçilen kip: null (sorulmadı) · 'screen' · 'value'
+    this.val = null;     // Ölçü kipinde yazılan değer
+    this.lastVal = {};   // araç başına son değer: bir sonraki istemde <öntanımlı> olarak sunulur, boş Enter onu alır
   }
   get running() { return !!this.active; }
 
@@ -162,7 +176,7 @@ export class ToolManager {
     if (!def) return;
     this.cancel(true);
     this.active = name; this.pts = []; this.step = 0; this.draft = null; this.results = []; this.balloonNext = null;
-    this.cut = null; this.c1 = null; this.selMode = 'tap';
+    this.cut = null; this.c1 = null; this.corner = null; this.selMode = 'tap'; this.mode = null; this.val = null;
     if (SELECT_TOOLS.has(name)) {
       this.selecting = this.api.sel.size === 0;
       if (!this.selecting) { this.step = 1; }
@@ -172,13 +186,27 @@ export class ToolManager {
   }
   cancel(silent) {
     if (this.active && this.active !== 'select' && this.pts.length && ['pline', 'pline3d', 'face3d', 'area', 'cloud'].includes(this.active)) this.finish();
-    this.active = null; this.pts = []; this.step = 0; this.draft = null; this.selecting = false; this.cut = null; this.c1 = null; this.selMode = 'tap';
+    this.active = null; this.pts = []; this.step = 0; this.draft = null; this.selecting = false; this.cut = null; this.c1 = null; this.corner = null; this.selMode = 'tap'; this.mode = null; this.val = null;
     if (!silent) { this.api.prompt(null); this.api.overlay(); }
   }
   say() {
     const def = TOOLS[this.active];
     if (!def) return;
     let text = toolName(this.active) + ': ';
+    if (MODE_TOOLS[this.active]) {
+      // Ekran / Ölçü sorusu → (Ölçü ise) değer istemi → aracın kendi adımları. Kip düğmeleri araç boyunca kalır.
+      const last = this.lastVal[this.active];
+      const hint = last != null ? ` <${this.api.fmt(last)}>` : '';
+      if (!this.mode) text += t('modeAsk') + hint;
+      else if (this.mode === 'value' && this.val == null) text += t(MODE_TOOLS[this.active]) + hint;
+      else if (this.mode === 'value') text += toolStepVal(this.active, Math.min(this.step, (def.stepsVal || def.steps).length - 1));
+      else text += toolStep(this.active, Math.min(this.step, def.steps.length - 1));
+      // giriş alanı: soruda ve değer isteminde sayı; kavis / pahın nokta adımında sayı (yarıçap) — koordinat da yazılabilir;
+      // ötelenin geçiş / taraf noktasında koordinat (sayı yazılırsa mesafe olur)
+      const num = !this.mode || (this.mode === 'value' && this.val == null) || (this.wantsPoint() && this.active !== 'offset');
+      this.api.prompt(text, { input: num ? 'number' : 'point', buttons: ['modescreen', 'modevalue', 'cancel'] });
+      return;
+    }
     if (this.selecting) text += (this.selMode === 'box' ? t('selBoxHint') : this.selMode === 'lasso' ? t('selLassoHint') : toolStep(this.active, 0)) + `  [${this.api.sel.size} ${t('selCount')}]`;
     else text += toolStep(this.active, Math.min(this.step, def.steps.length - 1));
     const wantsNumber = NUMBER_STEP[this.active] != null && this.step === NUMBER_STEP[this.active] && !this.selecting;
@@ -197,6 +225,23 @@ export class ToolManager {
     const s = String(text).trim().replace(/,/g, (m, i, str) => (str.indexOf(',') !== str.lastIndexOf(',') || /\d,\d{1,3}$/.test(str) && !/,.*,/.test(str) && false) ? ',' : ',');
     if (!s) return;
     if (this.selecting) return;
+    if (MODE_TOOLS[this.active]) {
+      // Tek sayı yazmak her adımda değeri verir: soruda Ölçü'yü seçer, değer isteminde değeri alır, sonraki adımlarda
+      // değeri değiştirir. Kavis / pahın Ekran kipindeki üçüncü adımında yazılan sayı doğrudan yarıçap / mesafedir;
+      // ötelede taraf noktası beklenirken yazılan sayı mesafeyi değiştirir, seçili nesne bırakılmaz.
+      // Soruda ve değer isteminde ondalık virgül de sayıdır ("12,5"); nokta ya da nesne beklenen adımlarda virgül
+      // koordinat ayracıdır ("500,360" bir noktadır), sayı yalnız tam sayı ya da ondalık noktayla yazılır.
+      const askingValue = !this.mode || (this.mode === 'value' && this.val == null);
+      if (askingValue ? /^[-+]?\d+([.,]\d+)?$/.test(s) : /^[-+]?\d+(\.\d+)?$/.test(s)) {
+        const v = parseFloat(s.replace(',', '.'));
+        if (!(v > 0)) { this.api.toast(t('numberExpected')); return; }
+        if (this.mode === 'screen' && this.wantsPoint() && (this.active === 'fillet' || this.active === 'chamfer')) { this.lastVal[this.active] = v; void this.cornerApply(v); return; }
+        if (this.active === 'offset' && this.step === 1 && this.c1) { this.mode = 'value'; this.val = v; this.lastVal.offset = v; this.say(); return; }
+        this.setValue(v);
+        return;
+      }
+      if (!this.mode || (this.mode === 'value' && this.val == null)) { this.api.toast(t('numberExpected')); return; }   // soruda / değer isteminde sayı dışı giriş
+    }
     if (NUMBER_STEP[this.active] != null && this.step === NUMBER_STEP[this.active]) {
       const v = parseFloat(s.replace(',', '.'));
       if (!isFinite(v)) { this.api.toast(t('numberExpected')); return; }
@@ -244,14 +289,18 @@ export class ToolManager {
       }
       return true;
     }
-    if (OBJECT_TOOLS.has(this.active)) { void this.objectTap(w); return true; }
+    if (MODE_TOOLS[this.active]) {
+      if (!this.mode) { this.mode = 'screen'; this.say(); }                                   // dokunmak Ekran'ı seçer
+      else if (this.mode === 'value' && this.val == null) { this.api.toast(t('modeTypeFirst')); return true; }
+    }
+    if (OBJECT_TOOLS.has(this.active) && !this.wantsPoint()) { void this.objectTap(w); return true; }
     // Önceki nokta dik / teğet / paralel / uzantı kipleri içindir; iki dokunuşlu geçersiz kılmalar
     // (M2P, FROM, TK) ilk dokunuşta { pending } döner ve o dokunuş nokta sayılmaz.
     const sn = this.api.snap(w, { prev: this.pts.length ? this.pts[this.pts.length - 1] : (this.last || null) });
     if (sn && sn.pending) { this.api.overlay(); return true; }
     const p = sn ? [sn.p[0], sn.p[1], sn.p[2] != null ? sn.p[2] : 0] : [w[0], w[1], 0];
     if (NUMBER_STEP[this.active] === this.step) {
-      const need = { scale: 'typeFactor', setz: 'typeZ', offset: 'typeDist', thick: 'typeHeight', textsize: 'typeHeight' }[this.active];
+      const need = { scale: 'typeFactor', setz: 'typeZ', thick: 'typeHeight', textsize: 'typeHeight' }[this.active];
       if (need) { this.api.toast(t(need)); return true; }
     }
     void this.point(p, sn);
@@ -336,8 +385,10 @@ export class ToolManager {
   async objectTap(w) {
     const A = this.api, act = this.active;
     if (act === 'hatch' || act === 'fillarea') { await this.regionTap(w); return; }
+    if ((act === 'trim' || act === 'extend') && this.mode === 'value') { this.lengthTap(w); return; }
     if (act === 'trim' || act === 'extend') { await this.cutTap(w); return; }
     if (act === 'fillet' || act === 'chamfer') { await this.cornerTap(w); return; }
+    if (act === 'offset') { this.offsetTap(w); return; }
     const p = A.pick(w);
     if (!p) { A.toast(t('noObject')); return; }
     if (act === 'ident') { this.identify(p); return; }
@@ -450,21 +501,40 @@ export class ToolManager {
     const ayni = p.key === c1.key;
     const k = cornerAt(ayni ? p.ops : c1.ops, ayni ? p.closed : c1.closed, c1.w, p.ops, p.closed, w);
     if (!k) { A.toast(t('filletFail')); return; }
-    const varsayilan = A.textHeight() * 2;
-    let r0, r1;
-    if (act === 'fillet') {
-      const v = await askText(t('filletRadius'), String(this.lastR != null ? this.lastR : A.fmt(varsayilan)), { type: 'number' });
-      if (v === null) { this.cancel(); return; }
-      r0 = parseFloat(String(v).replace(',', '.'));
-      if (!(r0 > 0)) { A.toast(t('numberExpected')); return; }
-      this.lastR = r0;
-    } else {
-      const v = await askText(t('chamferDist'), String(this.lastD != null ? this.lastD : A.fmt(varsayilan)), { type: 'number' });
-      if (v === null) { this.cancel(); return; }
-      r0 = r1 = parseFloat(String(v).replace(',', '.'));
-      if (!(r0 > 0)) { A.toast(t('numberExpected')); return; }
-      this.lastD = r0;
-    }
+    this.corner = { k, p: { key: p.key, ops: p.ops, closed: p.closed } };
+    if (this.mode === 'value') { await this.cornerApply(this.val); return; }
+    // Ekran: yarıçap / mesafe üçüncü dokunuştan (ya da o adımda yazılan sayıdan) gelir
+    this.step = 2; this.say(); A.overlay();
+  }
+  /**
+   * Ekran kipinde kavis / pah değeri dokunulan noktadan: nokta köşenin açıortayına izdüşürülür (d).
+   * Kavis yayının orta noktası açıortayda köşeden r·(1/sin φ − 1) uzaktadır (φ = yarım açı) → r = d·sin φ / (1 − sin φ).
+   * Eşit mesafeli pah kenarının ortası köşeden x·cos φ uzaktadır → x = d / cos φ.
+   * Köşenin gerisine dokunulursa (d ≤ 0) değer kurulamaz.
+   */
+  async cornerPoint(pt) {
+    const A = this.api, k = this.corner && this.corner.k;
+    if (!k) { this.step = 0; this.say(); return; }
+    const u0 = [k.p0[0] - k.c[0], k.p0[1] - k.c[1]], u1 = [k.p1[0] - k.c[0], k.p1[1] - k.c[1]];
+    const l0 = Math.hypot(u0[0], u0[1]), l1 = Math.hypot(u1[0], u1[1]);
+    if (!(l0 > 1e-12) || !(l1 > 1e-12)) { A.toast(t('filletFail')); return; }
+    const a0 = [u0[0] / l0, u0[1] / l0], a1 = [u1[0] / l1, u1[1] / l1];
+    const bis = [a0[0] + a1[0], a0[1] + a1[1]], lb = Math.hypot(bis[0], bis[1]);
+    if (!(lb > 1e-9)) { A.toast(t('filletFail')); return; }
+    const phi = Math.acos(Math.max(-1, Math.min(1, a0[0] * a1[0] + a0[1] * a1[1]))) / 2;
+    const d = ((pt[0] - k.c[0]) * bis[0] + (pt[1] - k.c[1]) * bis[1]) / lb;
+    const sp = Math.sin(phi), cp = Math.cos(phi);
+    const v = this.active === 'fillet' ? (sp < 1 - 1e-9 ? d * sp / (1 - sp) : 0) : (cp > 1e-9 ? d / cp : 0);
+    if (!(d > 1e-9) || !(v > 0)) { A.toast(t('cornerBehind')); return; }
+    this.lastVal[this.active] = v;
+    await this.cornerApply(v);
+  }
+  /** Kavis / pahı kurar ve uygular (her iki kipin ortak sonu) */
+  async cornerApply(r0) {
+    const A = this.api, act = this.active, c1 = this.c1, k = this.corner && this.corner.k, p = this.corner && this.corner.p;
+    if (!c1 || !k || !p) { this.step = 0; this.say(); return; }
+    if (!(r0 > 0)) { A.toast(t('numberExpected')); return; }
+    const r1 = r0;
     const g = act === 'fillet' ? filletCorner(k.p0, k.c, k.p1, r0) : chamferCorner(k.p0, k.c, k.p1, r0, r1);
     if (!g) { A.toast(t('filletFail')); return; }
     const z = (p.ops[0] && p.ops[0][3]) || 0;
@@ -507,7 +577,90 @@ export class ToolManager {
         { op: 'add', ents: [{ id: newId(), type: 'PATH', ops: ekOps, closed: false, layer: c1.lay || A.layer(), color: c1.ci }] },
       ] });
     }
-    if (ok) { A.render(); this.done(); } else A.toast(t('error'));
+    if (ok) { A.render(); A.toast(toolName(act) + ' ' + t('applied') + ' \u00b7 ' + A.fmt(r0)); this.c1 = null; this.corner = null; this.draft = null; this.step = 0; this.say(); A.overlay(); }
+    else A.toast(t('error'));
+  }
+  /*
+   * Ötele. Ekran: nesneye dokun, sonra kopyanın GEÇECEĞİ noktaya dokun — mesafe o noktanın nesneye uzaklığı,
+   * taraf noktanın tarafıdır (AutoCAD OFFSET "Through"). Ölçü: yazılan mesafe, nesne, taraf noktası.
+   * Araç aynı değerle sürer; Vazgeç bitirir.
+   */
+  offsetTap(w) {
+    const A = this.api;
+    const p = A.pick(w);
+    if (!p) { A.toast(t('noObject')); return; }
+    if (p.k !== 0 || !p.ops || p.ops.length < 2) { A.toast(t('notPath')); return; }
+    const { segs } = segmentsOf(p);
+    this.c1 = { key: p.key, ops: p.ops, closed: !!p.closed, lay: p.lay, ci: (p.info && p.info.ci != null) ? p.info.ci : 256 };
+    this.draft = { segs: segs.map(q => [[q[0], q[1], 0], [q[2], q[3], 0]]), keep: true };
+    this.step = 1; this.say(); A.overlay();
+  }
+  async offsetPoint(pt) {
+    const A = this.api, c1 = this.c1;
+    if (!c1) { this.step = 0; this.say(); return; }
+    const pts = flatten(c1.ops).map(q => [q[0], q[1], 0]);
+    const distTo = (arr, cl) => { let m = Infinity; for (let i = 1; i < arr.length; i++) m = Math.min(m, segDist(pt[0], pt[1], arr[i - 1][0], arr[i - 1][1], arr[i][0], arr[i][1])); if (cl && arr.length > 2) m = Math.min(m, segDist(pt[0], pt[1], arr[arr.length - 1][0], arr[arr.length - 1][1], arr[0][0], arr[0][1])); return m; };
+    const d = this.mode === 'value' ? Math.abs(this.val || 0) : distTo(pts, c1.closed);
+    if (!(d > 1e-9)) { A.toast(t('offsetFail')); return; }
+    const o1 = offsetPoints(pts, d, c1.closed), o2 = offsetPoints(pts, -d, c1.closed);
+    if (!o1 || !o2) { A.toast(t('offsetFail')); return; }
+    const pick = distTo(o1, c1.closed) < distTo(o2, c1.closed) ? o1 : o2;
+    const ent = { type: pts.length === 2 ? 'LINE' : 'LWPOLYLINE', pts: pick, closed: c1.closed, layer: c1.lay, color: c1.ci, id: newId() };
+    if (A.run({ op: 'add', ents: [ent] })) { this.lastVal.offset = d; A.toast(toolName('offset') + ' ' + t('applied') + ' \u00b7 ' + A.fmt(d)); } else A.toast(t('offsetFail'));
+    A.render();
+    this.c1 = null; this.draft = null; this.step = 0; this.say(); A.overlay();
+  }
+  /** Buda / uzat, Ölçü kipi: dokunulan uç yazılan boy kadar kısalır (buda) ya da uzar (uzat) — LENGTHEN DElta */
+  lengthTap(w) {
+    const A = this.api, act = this.active;
+    const p = A.pick(w);
+    if (!p) { A.toast(t('noObject')); return; }
+    if (p.k !== 0 || !p.ops || p.ops.length < 2) { A.toast(t('notPath')); return; }
+    const L = Math.abs(this.val || 0);
+    const r = lengthenPath(p.ops, !!p.closed, w, act === 'trim' ? -L : L);
+    if (!r) { A.toast(t(p.closed || !p.ops.every(o => o[0] === 0 || o[0] === 1) ? 'lenClosed' : 'lenTooLong')); return; }
+    if (A.run({ op: 'reshape', items: [{ key: p.key, ops: r.ops, closed: false }] })) { A.render(); A.toast(toolName(act) + ' ' + t('applied') + ' \u00b7 ' + A.fmt(L)); }
+    else A.toast(t('error'));
+  }
+  /** Kip araçlarında nokta (nesne değil) beklenen adım: ötelede geçiş / taraf noktası, kavis / pahta Ekran kipinin üçüncü dokunuşu */
+  wantsPoint() {
+    if (this.active === 'offset') return this.step === 1 && !!this.c1;
+    if (this.active === 'fillet' || this.active === 'chamfer') return this.mode === 'screen' && this.step === 2 && !!this.corner;
+    return false;
+  }
+  /*
+   * AutoCAD'in "Select objects:" istemi. Bu adımda NESNE seçilir, nokta değil — ve AutoCAD'de bu iki
+   * istemin İMLECİ de YAKALAMASI da farklıdır: nokta isteminde artı imleç çıkar ve nesne yakalama
+   * (osnap) çalışır; nesne isteminde imleç küçük bir kareye (pickbox) döner ve yakalama hiç çalışmaz.
+   * Yakalamanın orada bir anlamı yoktur: kullanıcı bir uç noktaya oturmuyor, bir nesneye dokunuyordur;
+   * işaret hem gereksiz yere ekranı doldurur hem de dokunulan yeri kaydırıyormuş izlenimi verir.
+   * app.js yakalamayı ve imleci buna bakarak seçer (findSnap / drawCrosshair / drawPenHover).
+   */
+  pickingObject() {
+    if (!this.running) return false;
+    if (this.selecting) return true;                                   // Seç aracı ve Taşı / Sil / Döndür… araçlarının seçim aşaması
+    return OBJECT_TOOLS.has(this.active) && !this.wantsPoint();        // Buda, Uzat, Kavis, Pah, Ötele, Patlat, Yazı düzenle…
+  }
+  /** Ekran / Ölçü düğmesi. Kip değişince araç nesne seçimine döner; Ölçü seçilince değer (yeniden) istenir. */
+  setMode(m) {
+    if (!MODE_TOOLS[this.active]) return;
+    this.mode = m === 'value' ? 'value' : 'screen';
+    this.val = null; this.step = 0; this.pts = []; this.cut = null; this.c1 = null; this.corner = null; this.draft = null;
+    this.say(); this.api.overlay();
+  }
+  /** Ölçü kipinde yazılan değer */
+  setValue(v) {
+    this.mode = 'value'; this.val = v; this.lastVal[this.active] = v;
+    this.step = 0; this.pts = []; this.cut = null; this.c1 = null; this.corner = null; this.draft = null;
+    this.say(); this.api.overlay();
+  }
+  /** Boş Enter: değer isteminde son değer öntanımlıdır (AutoCAD <öntanımlı>); tüketildiyse true */
+  enterEmpty() {
+    if (!MODE_TOOLS[this.active]) return false;
+    const last = this.lastVal[this.active];
+    if ((!this.mode || (this.mode === 'value' && this.val == null)) && last > 0) { this.setValue(last); return true; }
+    if (this.mode === 'screen' && this.wantsPoint() && last > 0) { if (this.active === 'fillet' || this.active === 'chamfer') { void this.cornerApply(last); return true; } }
+    return false;
   }
 
   /** Kapalı alana dokunma: tarama ekler ya da alanı ölçer */
@@ -825,7 +978,6 @@ export class ToolManager {
       case 'rotate': { const c = this.pts[0]; this.xform(rotM(c, v * D2R)); this.done(); break; }
       case 'scale': { const c = this.pts[0]; if (!(v > 0)) { A.toast(t('factorPositive')); return; } this.xform([v, 0, 0, v, c[0] * (1 - v), c[1] * (1 - v)]); this.done(); break; }
       case 'setz': { A.run({ op: 'setz', keys: [...A.sel].map(p => p.key), z: v }); A.toast(t('zSet') + ': ' + A.fmt(v)); this.done(); break; }
-      case 'offset': { this.number = v; this.step = 2; this.say(); break; }
       case 'thick': {
         if (!isFinite(v) || v === 0) { A.toast(t('numberExpected')); return; }
         const ents = [];
@@ -905,7 +1057,9 @@ export class ToolManager {
       }
       case 'leader': case 'cloud': this.step = 1; break;
       case 'balloon': { await this.makeBalloon(p); this.pts = []; break; }
-      case 'move': case 'copy': case 'rotate': case 'scale': case 'mirror': case 'offset': await this.modifyPoint(); break;
+      case 'move': case 'copy': case 'rotate': case 'scale': case 'mirror': await this.modifyPoint(); break;
+      case 'offset': this.pts = []; await this.offsetPoint(p); return;
+      case 'fillet': case 'chamfer': this.pts = []; await this.cornerPoint(p); return;
       case 'dist': this.step = 1; this.showDist(); break;
       case 'angle': if (n === 3) { const [v, a, b] = this.pts; const ang = Math.abs(angDiff(Math.atan2(a[1] - v[1], a[0] - v[0]), Math.atan2(b[1] - v[1], b[0] - v[0]))) * R2D; A.result([[t('angle'), A.fmt(ang, 2) + '°'], [t('supplement'), A.fmt(360 - ang, 2) + '°'], [t('arm1'), A.fmt(Math.hypot(a[0] - v[0], a[1] - v[1])) + A.units()], [t('arm2'), A.fmt(Math.hypot(b[0] - v[0], b[1] - v[1])) + A.units()]]); this.draft = { segs: [[v, a], [v, b]], pts: this.pts.slice() }; this.pts = []; this.step = 0; } else this.step = n; break;
       case 'coord': {
@@ -930,21 +1084,6 @@ export class ToolManager {
     if (this.active === 'copy' && n >= 2) { const a = this.pts[0], b = this.pts[n - 1]; const keys = [...A.sel].map(p => p.key); A.run({ op: 'copy', keys, newKeys: keys.map(() => newId()), m: [1, 0, 0, 1, b[0] - a[0], b[1] - a[1]], dz: (b[2] || 0) - (a[2] || 0) }); A.render(); this.step = 2; return; }
     if (this.active === 'rotate' && n === 2) { const [c, q] = this.pts; this.xform(rotM(c, Math.atan2(q[1] - c[1], q[0] - c[0]))); this.done(); return; }
     if (this.active === 'mirror' && n === 2) { const [a, b] = this.pts; const keys = [...A.sel].map(p => p.key); const m = mirrorM(a, b); const keep = await askConfirm(t('keepOriginals')); if (keep) A.run({ op: 'copy', keys, newKeys: keys.map(() => newId()), m }); else A.run({ op: 'xform', keys, m }); A.render(); this.done(); return; }
-    if (this.active === 'offset' && this.step === 2) {
-      const side = this.pts[n - 1]; const d = Math.abs(this.number || 0);
-      const ents = [];
-      for (const p of A.sel) {
-        if (p.k !== 0) continue;
-        const pts = flatten(p.ops).map((q, i) => [q[0], q[1], 0]);
-        const o1 = offsetPoints(pts, d, p.closed), o2 = offsetPoints(pts, -d, p.closed);
-        if (!o1 || !o2) continue;
-        const dist = (arr) => Math.min(...arr.map((q, i) => i ? segDist(side[0], side[1], arr[i - 1][0], arr[i - 1][1], q[0], q[1]) : Infinity));
-        const pick = dist(o1) < dist(o2) ? o1 : o2;
-        ents.push({ type: pts.length === 2 ? 'LINE' : 'LWPOLYLINE', pts: pick, closed: p.closed, layer: p.lay, color: p.info && p.info.ci != null ? p.info.ci : 256, id: newId() });
-      }
-      if (ents.length) A.run({ op: 'add', ents }); else A.toast(t('offsetFail'));
-      A.render(); this.done(); return;
-    }
     this.step = Math.min(n + 1, TOOLS[this.active].steps.length - 1);
   }
   xform(m, dz = 0) { const keys = [...this.api.sel].map(p => p.key); if (!keys.length) return; this.api.run({ op: 'xform', keys, m, dz }); this.api.render(); }
@@ -958,6 +1097,7 @@ export class ToolManager {
   /** Bitir düğmesi */
   finish() {
     const A = this.api;
+    if (MODE_TOOLS[this.active]) { if (!this.enterEmpty()) this.say(); return; }   // Bitir / Enter: son değeri alır; kesici ve ilk doğru önizlemesi silinmez
     if (this.selecting) {
       if (!A.sel.size) { A.toast(t('selEmpty')); return; }
       this.selecting = false;
@@ -1025,7 +1165,7 @@ export class ToolManager {
     else if (this.active === 'rect' && pts.length === 1) this.draft = { pts: pts.slice() };
     else if (this.active === 'circle' && pts.length === 1) this.draft = { pts: pts.slice() };
     else if (this.active === 'arc3') this.draft = { pts: pts.slice(), segs: pts.slice(1).map((q, i) => [pts[i], q]) };
-    else if (['move', 'copy', 'rotate', 'scale', 'offset'].includes(this.active)) this.draft = { pts: pts.slice() };
+    else if (['move', 'copy', 'rotate', 'scale'].includes(this.active)) this.draft = { pts: pts.slice() };
     else if (this.active === 'angle' || this.active === 'dima') this.draft = { pts: pts.slice(), segs: pts.slice(1).map(q => [pts[0], q]) };
   }
   showDist() {

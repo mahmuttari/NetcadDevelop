@@ -54,7 +54,7 @@ await setLang('en');
   await tab('edit'); await page.click('#toolbar [data-act="t:select"]'); await page.waitForTimeout(150);
   const cmd = (await page.locator('#cmdText').innerText()) + ' | ' + (await page.locator('#cmdBtns').innerText());
   // İngilizce arayüzde araç adı AutoCAD komut adıdır (v7.50): "Select" değil "SELECT".
-  ok('1h komut satırı EN', /^SELECT: Tap objects .*\[0 selected\]/.test(cmd) && /Finish/.test(cmd) && /Cancel/.test(cmd) && !TRc.test(cmd), cmd);
+  ok('1h komut satırı EN', /^SELECT: Tap .*window .*crossing \[0 selected\]/.test(cmd) && /Finish/.test(cmd) && /Cancel/.test(cmd) && !TRc.test(cmd), cmd);
   await page.click('#cmdBtns [data-cmd="cancel"]');
   await tab('display'); await page.click('#toolbar .tb-row[data-for="display"] [data-act="hatch"]'); await page.waitForTimeout(100);
   const toast = await page.locator('#toast .tx').innerText();

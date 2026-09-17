@@ -80,9 +80,22 @@ const yak = (a, b, e = 1e-6) => Math.abs(a - b) < e;
       boyUc: G.pathLength3(G.trimPath([[0, 0, 0, 0], [1, 10, 0, 0]], false, [[5, -5, 5, 5]], [8, 0]).parts[0].ops, false),
       boyOrta: G.trimPath([[0, 0, 0, 0], [1, 10, 0, 0]], false, [[3, -5, 3, 5], [7, -5, 7, 5]], [5, 0]).parts.map(p => G.pathLength3(p.ops, false)),
       boyUzat: G.pathLength3(G.extendPath([[0, 0, 0, 0], [1, 4, 0, 0]], false, [[10, -5, 10, 5]], [4, 0]).ops, false),
+      // boyla kısaltma / uzatma (LENGTHEN DElta): uç dokunulan noktaya yakın olandır
+      lenUzat: G.lengthenPath([[0, 0, 0, 0], [1, 10, 0, 0]], false, [9, 0], 4),
+      lenKisalt: G.lengthenPath([[0, 0, 0, 0], [1, 10, 0, 0]], false, [9, 0], -3),
+      lenBas: G.lengthenPath([[0, 0, 0, 0], [1, 10, 0, 0]], false, [1, 0], -3),
+      lenDugumYutar: G.lengthenPath([[0, 0, 0, 0], [1, 10, 0, 0], [1, 10, 10, 0]], false, [10, 9], -15),
+      lenUzun: G.lengthenPath([[0, 0, 0, 0], [1, 10, 0, 0]], false, [9, 0], -12),
+      lenKapali: G.lengthenPath(rect, true, [5, 0], 3),
+      lenYay: G.lengthenPath([[0, 0, 0, 0], [2, 5, 0, 5, Math.PI, 0, 0]], false, [10, 0], 3),
     };
   });
   ok('1a segIntersect: sınırlı kipte kesişim YOK (yakalamanın int kipi sahte kesişim üretmesin)', g.sinirli === null, JSON.stringify(g.sinirli));
+  ok('1L1 lengthenPath +4: son uç [10,0] → [14,0]', g.lenUzat && g.lenUzat.at === 'end' && yak(g.lenUzat.ops[1][1], 14) && yak(g.lenUzat.ops[1][2], 0), JSON.stringify(g.lenUzat));
+  ok('1L2 lengthenPath −3: son uç [7,0]', g.lenKisalt && yak(g.lenKisalt.ops[1][1], 7), JSON.stringify(g.lenKisalt));
+  ok('1L3 başa yakın dokunuş baş ucu kısaltır: [3,0]–[10,0]', g.lenBas && g.lenBas.at === 'start' && yak(g.lenBas.ops[0][1], 3) && g.lenBas.ops[0][0] === 0 && yak(g.lenBas.ops[1][1], 10), JSON.stringify(g.lenBas));
+  ok('1L4 kısaltma düğüm yutar: 15 birim, 10\'luk son segmenti alır + 5 keser → [0,0]–[5,0]', g.lenDugumYutar && g.lenDugumYutar.ops.length === 2 && yak(g.lenDugumYutar.ops[1][1], 5) && yak(g.lenDugumYutar.ops[1][2], 0), JSON.stringify(g.lenDugumYutar));
+  ok('1L5 yoldan uzun kısaltma, kapalı yol ve yaylı yol null', g.lenUzun === null && g.lenKapali === null && g.lenYay === null, JSON.stringify([g.lenUzun, g.lenKapali, g.lenYay]));
   ok('1a2 segIntersect(inf=true) parçaların uzantısında kesişir', g.sonsuz && yak(g.sonsuz[0], 5) && yak(g.sonsuz[1], 0), JSON.stringify(g.sonsuz));
   ok('1a3 iki argümanlı eski davranış bozulmadı', g.icinde && yak(g.icinde[0], 5) && yak(g.icinde[1], 0), JSON.stringify(g.icinde));
   ok('1b segAt dokunulan segmentin dizinini ve oranını verir', g.segAt && g.segAt.i === 2 && yak(g.segAt.t, 0.3), JSON.stringify(g.segAt));
@@ -235,8 +248,12 @@ await page.click('#toolbar [data-tab="edit"]');
   const ids = await ekle([{ type: 'LWPOLYLINE', pts: [[200, 200, 0], [700, 200, 0], [700, 600, 0]], closed: false }]);
   await zoom([100, 100, 800, 700]);
   const n0 = await count(), u0 = await undoLen();
-  await queueAnswers(page, '100');
   await page.click('#toolbar [data-act="t:fillet"]');
+  // Ekran / Ölçü sorusu (v7.57): Ölçü seçilir, yarıçap ÖNCE yazılır, sonra iki doğruya dokunulur
+  const soru = await ev(() => ({ text: document.getElementById('cmdText').textContent, ekran: !!document.querySelector('#cmdBtns [data-cmd="modescreen"]'), olcu: !!document.querySelector('#cmdBtns [data-cmd="modevalue"]') }));
+  ok('12- kavis önce Ekran mı Ölçü mü diye sorar (iki düğme)', /Ekran mı, Ölçü mü/.test(soru.text) && soru.ekran && soru.olcu, JSON.stringify(soru));
+  await page.click('#cmdBtns [data-cmd="modevalue"]'); await page.waitForTimeout(120);
+  await ev(() => window.dwgApp.editor.tools.typed('100'));
   await tapWorld(400, 200);
   await tapWorld(700, 400);
   await page.waitForTimeout(250);
@@ -248,6 +265,7 @@ await page.click('#toolbar [data-tab="edit"]');
   ok('12d tek reshape komutu', (await undoLen()) === u0 + 1 && (await sonOp()) === 'reshape', String(await sonOp()));
   ok('12e yay içeren ops → ent PATH\'e çevrildi (blok/pano bayat kalmasın)', p.entType === 'PATH', String(p.entType));
   await shot('bd_fillet_ayni');
+  await page.click('#cmdBtns [data-cmd="cancel"]');
   await sil(ids);
 }
 
@@ -261,8 +279,9 @@ await page.click('#toolbar [data-tab="edit"]');
   ]);
   await zoom([100, 100, 800, 700]);
   const n0 = await count(), u0 = await undoLen();
-  await queueAnswers(page, '80');
   await page.click('#toolbar [data-act="t:fillet"]');
+  await page.click('#cmdBtns [data-cmd="modevalue"]'); await page.waitForTimeout(120);
+  await ev(() => window.dwgApp.editor.tools.typed('80'));
   await tapWorld(400, 200);
   await tapWorld(700, 500);
   await page.waitForTimeout(250);
@@ -276,6 +295,7 @@ await page.click('#toolbar [data-tab="edit"]');
   await shot('bd_fillet_iki');
   await ev(() => window.dwgApp.editor.doc.undo()); await page.waitForTimeout(120);
   ok('13e tek geri al yayı da uçları da eski hâline döndürür', (await count()) === n0, `${await count()}`);
+  await page.click('#cmdBtns [data-cmd="cancel"]');
   await sil(ids);
 }
 
@@ -286,8 +306,9 @@ await page.click('#toolbar [data-tab="edit"]');
   const ids = await ekle([{ type: 'LWPOLYLINE', pts: [[200, 200, 0], [700, 200, 0], [700, 600, 0]], closed: false }]);
   await zoom([100, 100, 800, 700]);
   const n0 = await count(), u0 = await undoLen();
-  await queueAnswers(page, '100');
   await page.click('#toolbar [data-act="t:chamfer"]');
+  await page.click('#cmdBtns [data-cmd="modevalue"]'); await page.waitForTimeout(120);
+  await ev(() => window.dwgApp.editor.tools.typed('100'));
   await tapWorld(400, 200);
   await tapWorld(700, 400);
   await page.waitForTimeout(250);
@@ -298,6 +319,7 @@ await page.click('#toolbar [data-tab="edit"]');
   ok('14c tek reshape komutu', (await undoLen()) === u0 + 1 && (await sonOp()) === 'reshape', String(await sonOp()));
   ok('14d düz ops → ent LWPOLYLINE olarak kaldı', p.entType === 'LWPOLYLINE', String(p.entType));
   await shot('bd_chamfer');
+  await page.click('#cmdBtns [data-cmd="cancel"]');
   await sil(ids);
 }
 
