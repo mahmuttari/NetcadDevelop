@@ -35,7 +35,7 @@ export const ONCE_ONLY = [
   { id: 'tk', abbr: 'TK', key: 'osTk', names: ['TK', 'TT', 'TRACK', 'TRACKING'] },
   { id: 'non', abbr: 'NON', key: 'osNon', names: ['NON', 'NONE'] },
 ];
-export const DEFAULT_MODES = ['end', 'mid', 'cen', 'int', 'ins', 'node'];
+export const DEFAULT_MODES = ['end', 'mid', 'cen', 'int', 'ext', 'ins', 'node'];   // EXT AutoCAD'in varsayılan OSMODE'unda da (4133) vardır: uzantı yolları
 export const OPT_DEFAULTS = { aperture: 18, ignoreHatch: false, zElev: false, otrack: true };   // otrack: AutoCAD'de de açık gelir (AUTOSNAP bit 16)
 const BY_ID = new Map([...MODES, ...ONCE_ONLY].map(m => [m.id, m]));
 const BY_NAME = new Map();

@@ -108,12 +108,12 @@ const pts = () => ev(() => window.dwgApp.editor.tools.pts.map(p => p.slice(0, 2)
 const dil = (l) => ev(async (x) => { const I = await import('./i18n.js'); const r = I.setLang(x); I.applyI18n(); window.dwgApp.getSettings().lang = x; window.dwgApp.osnap.renderBar(document.getElementById('snapBar')); window.dispatchEvent(new CustomEvent('dwg:lang', { detail: { lang: r } })); }, l);
 
 {
-  ok('B1 varsayılan kipler END MID CEN INT INS NOD', (await modes()) === 'cen,end,ins,int,mid,node', await modes());
+  ok('B1 varsayılan kipler END MID CEN INT EXT INS NOD (EXT AutoCAD OSMODE 4133 gibi)', (await modes()) === 'cen,end,ext,ins,int,mid,node', await modes());
   await ev(() => window.dwgApp.editor.act('osnapset')); await bekle(200);
   const d = await doc();
   const kart = await ev(() => ({ n: document.querySelectorAll('#osGrid .os-card').length, once: document.querySelectorAll('#osOnce .os-card').length, on: [...document.querySelectorAll('#osGrid .os-card.on')].map(b => b.dataset.os).sort().join(','), svg: document.querySelectorAll('#osGrid .os-card svg').length, adlar: [...document.querySelectorAll('#osGrid .os-card span')].map(s => s.textContent).slice(0, 4).join('|'), master: document.querySelector('input[data-key="osMaster"]').checked, ap: (document.querySelector('.seg[data-key="osAperture"] button.on') || {}).dataset }));
   ok('B2 ayar kutusu "Nesne yakalama": 14 kip kartı + 18 bir kerelik kart, her kartta glif', d.acik && d.baslik === 'Nesne yakalama' && kart.n === 14 && kart.once === 18 && kart.svg === 14, J({ d, kart }));
-  ok('B3 açık kipler kartta vurgulu, ana anahtar açık, açıklık Orta', kart.on === 'cen,end,ins,int,mid,node' && kart.master === true && kart.ap && kart.ap.val === '18', J(kart));
+  ok('B3 açık kipler kartta vurgulu, ana anahtar açık, açıklık Orta', kart.on === 'cen,end,ext,ins,int,mid,node' && kart.master === true && kart.ap && kart.ap.val === '18', J(kart));
   ok('B4 kart adları Türkçe (Uç nokta | Orta nokta | Merkez | Geometrik merkez)', kart.adlar === 'Uç nokta|Orta nokta|Merkez|Geometrik merkez', kart.adlar);
   await shot('osnap_kutu');
   await klik('#osGrid [data-os="qua"]');
@@ -125,11 +125,11 @@ const dil = (l) => ev(async (x) => { const I = await import('./i18n.js'); const 
   await klik('[data-os-clear]');
   ok('B8 Tümünü temizle → 0 ve ana anahtar kapanır', (await ev(() => window.dwgApp.state.snapModes.size)) === 0 && (await ev(() => document.querySelector('input[data-key="osMaster"]').checked)) === false);
   await klik('[data-os-default]');
-  ok('B9 Varsayılan → 6 kip', (await modes()) === 'cen,end,ins,int,mid,node');
+  ok('B9 Varsayılan → 7 kip', (await modes()) === 'cen,end,ext,ins,int,mid,node');
   await ev(() => { const i = document.querySelector('input[data-key="osMaster"]'); i.checked = false; i.dispatchEvent(new Event('change', { bubbles: true })); }); await bekle();
   ok('B10 ana anahtar kapatınca kipler boşalır (F3 ile aynı)', (await ev(() => window.dwgApp.state.snapModes.size)) === 0);
   await ev(() => { const i = document.querySelector('input[data-key="osMaster"]'); i.checked = true; i.dispatchEvent(new Event('change', { bubbles: true })); }); await bekle();
-  ok('B11 yeniden açınca liste geri gelir', (await modes()) === 'cen,end,ins,int,mid,node', await modes());
+  ok('B11 yeniden açınca liste geri gelir', (await modes()) === 'cen,end,ext,ins,int,mid,node', await modes());
   await ev(() => { document.querySelector('.seg[data-key="osAperture"] [data-val="26"]').click(); }); await bekle();
   await ev(() => { const i = document.querySelector('input[data-key="osIgnoreHatch"]'); i.checked = true; i.dispatchEvent(new Event('change', { bubbles: true })); }); await bekle();
   const kayit = await ev(() => JSON.parse(localStorage.getItem('settings')).snapOpt);
@@ -141,7 +141,7 @@ const dil = (l) => ev(async (x) => { const I = await import('./i18n.js'); const 
   // ölçü panelindeki çip şeridi
   await ev(() => window.dwgApp.setMode('measure')); await bekle(200);
   const c = await ev(() => ({ n: document.querySelectorAll('#snapBar .os-chip').length, gear: !!document.querySelector('#snapBar .os-gear'), on: [...document.querySelectorAll('#snapBar .os-chip.on')].map(b => b.dataset.os).sort().join(','), eski: document.querySelectorAll('#snapBar input[type=checkbox]').length, per: document.querySelector('#snapBar [data-os="per"]').textContent.trim() }));
-  ok('B13 çip şeridi: dişli + 14 kip, açık olanlar vurgulu, eski onay kutuları yok', c.n === 15 && c.gear && c.on === 'cen,end,ins,int,mid,node' && c.eski === 0 && c.per === 'PER', J(c));
+  ok('B13 çip şeridi: dişli + 14 kip, açık olanlar vurgulu, eski onay kutuları yok', c.n === 15 && c.gear && c.on === 'cen,end,ext,ins,int,mid,node' && c.eski === 0 && c.per === 'PER', J(c));
   await klik('#snapBar [data-os="per"]');
   ok('B14 çipe dokunmak kipi açar ve çip vurgulanır', (await modes()).includes('per') && (await ev(() => document.querySelector('#snapBar [data-os="per"]').classList.contains('on'))));
   await klik('#snapBar [data-os="per"]');
@@ -154,7 +154,7 @@ const dil = (l) => ev(async (x) => { const I = await import('./i18n.js'); const 
   await ev(() => window.dwgApp.editor.act('osnap')); await bekle();
   const kapali = await ev(() => ({ n: window.dwgApp.state.snapModes.size, st: document.querySelector('#stQuick [data-quick="osnap"]').classList.contains('on') }));
   await ev(() => window.dwgApp.editor.act('osnap')); await bekle();
-  ok('B16 F3 (osnap eylemi) kapatır ve durum çubuğu düğmesi söner; yeniden açınca liste döner', kapali.n === 0 && !kapali.st && (await modes()) === 'cen,end,ins,int,mid,node', J(kapali));
+  ok('B16 F3 (osnap eylemi) kapatır ve durum çubuğu düğmesi söner; yeniden açınca liste döner', kapali.n === 0 && !kapali.st && (await modes()) === 'cen,end,ext,ins,int,mid,node', J(kapali));
   await temizle(); await ev(() => window.dwgApp.editor.act('otrack')); await bekle();
   const tr1 = await ev(() => ({ on: window.dwgApp.osnap.opt().otrack }));
   const t1 = await toast();
@@ -174,7 +174,7 @@ const dil = (l) => ev(async (x) => { const I = await import('./i18n.js'); const 
   // -OSNAP komut satırı
   let b = await bar(); if (!b.text) { await ev(() => window.dwgApp.editor.act('cmdline')); await bekle(); }
   await yaz('-os'); await gir(); b = await bar();
-  ok('B20 "-OS": kip listesi istemi, geçerli liste öneri olarak', b.seq && /^Yakalama kipleri/.test(b.text) && b.ph === 'END,MID,CEN,INT,INS,NOD', J(b));
+  ok('B20 "-OS": kip listesi istemi, geçerli liste öneri olarak', b.seq && /^Yakalama kipleri/.test(b.text) && b.ph === 'END,MID,CEN,INT,EXT,INS,NOD', J(b));
   await temizle(); await yaz('end, mid,bozuk'); await gir();
   ok('B21 "end, mid,bozuk" → END+MID kurulur, tanınmayan ad bildirilir, sıra biter', (await modes()) === 'end,mid' && !(await bar()).seq, await modes());
   await yaz('-osnap'); await gir(); await yaz('none'); await gir();

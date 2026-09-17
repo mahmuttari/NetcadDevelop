@@ -423,14 +423,26 @@ const PICK3 = [['vertex', 'pick3Vertex'], ['surface', 'pick3Surface'], ['auto', 
  * kalmalıdır: eski davranış (düz dolgu) hiçbir ayara dokunmayan kullanıcı için değişmez.
  * Desen adları geom.HATCH_PATTERNS'ten gelir — tek tanım, tek çizici.
  */
+/** Desen önizlemesi (SVG, 44 px): desen kendi çizicisinden (geom.hatchLines) geçer; en sık çizgi aralığı 7 px olacak ölçekte */
+function patSvg(G, name) {
+  const S = 44;
+  if (name === 'SOLID') return `<svg viewBox="0 0 ${S} ${S}" aria-hidden="true"><rect x="1" y="1" width="${S - 2}" height="${S - 2}" fill="currentColor" opacity=".85"/></svg>`;
+  const d1 = G.patternDefs(name, 1); if (!d1.length) return '';
+  const offs = d1.map(d => Math.hypot(d.offset.x, d.offset.y)).filter(v => v > 1e-9);
+  const sc = 7 / (offs.length ? Math.min(...offs) : 1);
+  const r = G.hatchLines([[[0, 0], [S, 0], [S, S], [0, S]]], G.patternDefs(name, sc), { maxSeg: 3000, maxWork: 2e5 });
+  let lines = '';
+  if (r && r.ops) for (let i = 0; i + 1 < r.ops.length; i += 2) { const a = r.ops[i], b = r.ops[i + 1]; lines += `<line x1="${a[1].toFixed(1)}" y1="${(S - a[2]).toFixed(1)}" x2="${b[1].toFixed(1)}" y2="${(S - b[2]).toFixed(1)}"/>`; }
+  return `<svg viewBox="0 0 ${S} ${S}" aria-hidden="true" stroke="currentColor" stroke-width="1" fill="none"><rect x=".5" y=".5" width="${S - 1}" height="${S - 1}" opacity=".35"/>${lines}</svg>`;
+}
 async function hatchPatPop() {
   if (!gate('t:hatch')) return;
   const G = await import('./geom.js');
   const adlar = Object.keys(G.HATCH_PATTERNS);
   const cur = ed.curPattern || { name: 'SOLID', scale: 1, angle: 0 };
   const r = await askForm(t('hatchPatTitle'), [
-    { id: 'name', label: tileLabel('hatchpat'), type: 'select', value: cur.name,
-      options: adlar.map(n => [n, n === 'SOLID' ? t('patSolid') : n]) },
+    { id: 'name', label: tileLabel('hatchpat'), type: 'grid', value: cur.name,   // kartlı liste: her desenin önizlemesi görünür
+      options: adlar.map(n => [n, n === 'SOLID' ? t('patSolid') : n, patSvg(G, n)]) },
     { id: 'scale', label: t('hatchScale'), type: 'number', value: String(cur.scale) },
     { id: 'angle', label: t('hatchAngle'), type: 'number', value: String(cur.angle) },
   ], { ok: t('ok') });
@@ -981,18 +993,35 @@ function pickColor() {
   $('docBody').onclick = (ev) => { const b = ev.target.closest('[data-ci]'); if (b) { ed.curColor = Number(b.dataset.ci); api.hide('docPanel'); api.toast(t('color') + ': ' + (ed.curColor === 256 ? t('fromLayerLc') : ed.curColor)); } };
   $('eCiOk').onclick = () => { const c = parseInt($('eCi').value, 10); if (c >= 1 && c <= 255) { ed.curColor = c; api.hide('docPanel'); } };
 }
-function showProps() {
+/*
+ * ÖZELLİKLER. AutoCAD'in Properties paletindeki nesne türü listesi gibi: "Tümü (5)", "Çizgi (3)", "Daire (2)" … Bir tür
+ * seçilince seçim o türe DARALIR (öteki nesneler bırakılır; tutamak ve rozet de daralır), değişiklik yalnız onlara
+ * uygulanır; "Tümü" seçimi geri getirir. Uygulandıktan sonra daraltılmış seçim kalır — kullanıcı türleri ayırmıştır.
+ */
+function showProps(all) {
   if (!needModel()) return;
   if (!ed.sel.size) { api.toast(t('selectFirstQ')); return; }
+  const tam = all || [...ed.sel];
+  const typeOf = (p) => (p.info && p.info.t) || p.et || ('k' + p.k);
+  const counts = new Map(); for (const p of tam) counts.set(typeOf(p), (counts.get(typeOf(p)) || 0) + 1);
+  const cur = ed.sel.size === tam.length ? '' : typeOf([...ed.sel][0]);
   const first = [...ed.sel][0];
-  api.openDoc(`${t('propsTitle')} (${ed.sel.size} ${t('objectsN')})`, api.kv([[t('layer'), layerSelectHtml('pLayer', first.lay), 1], [t('color'), colorSwatches(first.info ? first.info.ci : 256), 1],
+  const tur = `<select id="pType"><option value=""${cur === '' ? ' selected' : ''}>${esc(t('selAllTypes'))} (${tam.length})</option>${[...counts].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0]))).map(([k, n]) => `<option value="${esc(k)}"${k === cur ? ' selected' : ''}>${esc(tt('ety_' + k, k))} (${n})</option>`).join('')}</select>`;
+  api.openDoc(`${t('propsTitle')} (${ed.sel.size} ${t('objectsN')})`, api.kv([[t('selType'), tur, 1], [t('layer'), layerSelectHtml('pLayer', first.lay), 1], [t('color'), colorSwatches(first.info ? first.info.ci : 256), 1],
     [`<div class="full btns"><button class="btn primary small" id="pOk">${esc(t('apply'))}</button></div>`]]));
   let ci = null;
   $('docBody').onclick = (ev) => { const b = ev.target.closest('[data-ci]'); if (b) { ci = Number(b.dataset.ci); document.querySelectorAll('#docBody [data-ci]').forEach(x => x.classList.toggle('active', x === b)); } };
+  $('pType').onchange = () => {
+    const v = $('pType').value;
+    const keep = v ? tam.filter(p => typeOf(p) === v) : tam;
+    ed.sel.clear(); for (const p of keep) ed.sel.add(p);
+    api.drawOverlay(); refreshTiles(); haptic('toggle');
+    showProps(tam);   // pencere daraltılmış seçimle yeniden kurulur (başlık, katman ve renk ilk nesneden)
+  };
   $('pOk').onclick = () => {
     const cmd = { op: 'props', keys: [...ed.sel].map(p => p.key), layer: $('pLayer').value };
     if (ci != null) cmd.color = ci;
-    doc.run(cmd); refreshUndo(); api.requestRender(); api.hide('docPanel'); api.toast(t('propsApplied'));
+    doc.run(cmd); refreshUndo(); api.requestRender(); api.drawOverlay(); api.hide('docPanel'); api.toast(t('propsApplied'));
   };
 }
 

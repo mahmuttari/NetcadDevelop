@@ -3,7 +3,7 @@
  * Çözümleme worker.js'te, geometri geom.js'te, çizim render.js'te.
  */
 import { S, toWorld, toScreen, fitView, zoomAtScreen, visibleRect, UNITS, UNIT_TO_M, fmt, fmtUnit, store, clampPrec, PREC_MIN, PREC_MAX } from './state.js';
-import { RTree, snapPoint, primDist, flatten, pathLength, pathLength3, polyArea, meshMetrics, TAU } from './geom.js';
+import { RTree, snapPoint, primDist, flatten, pathLength, pathLength3, polyArea, meshMetrics, TAU, segmentsOf, segIntersect } from './geom.js';
 import { FG, ACI, primSignature } from './scene.js';
 import { drawFrame, rgbCss, bgColor, fgColor, tracePath, renderRegion, gridState, niceStep, worldTransform as renderWorldTransform, worldOrigin } from './render.js';
 import * as D from './display.js';
@@ -481,10 +481,34 @@ let dwell = null, dwellTimer = 0;
 const TRK_SKIP = new Set(['nea', 'ext', 'par', 'trk', 'tk']);   // kayan / türetilmiş noktalar edinilmez: sabit bir nokta değildir
 function trackClear() { if (S.track.pts.length) { S.track.pts = []; drawOverlay(); } trackDwell(null); }
 /** Noktayı edinir ya da (addOnly değilse ve zaten varsa) bırakır; en çok 7 nokta (otrack.js). → eklendi mi */
+/*
+ * Edinilen noktanın UZANTI geometrisi (AutoCAD Extension): noktada biten doğru parçalarının dışa doğrultuları ve ucu
+ * olduğu yayların çemberleri. Nokta bir köşeyse (polyline) iki doğrultu çıkar; parçanın öteki ucundan bu uca doğru
+ * yön, uçtan dışarı devam eder — parçanın kendisi nesnedir, oraya yakalama bakar. Adayalar noktanın çevresinden alınır.
+ */
+function trackGeo(p) {
+  const eps = Math.max(1e-9, (TOL.snap / S.view.scale) * 0.05), dirs = [], arcs = [];
+  const near = (x, y) => Math.hypot(x - p[0], y - p[1]) <= eps;
+  for (const q of candidates(p, eps)) {
+    if (q.k !== 0 || !q.ops) continue;
+    let sg; try { sg = segmentsOf(q); } catch (_) { continue; }
+    for (const s of sg.segs) {
+      const a = [s[0], s[1]], b = [s[2], s[3]], L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 1e-9) continue;
+      if (near(b[0], b[1])) dirs.push(Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI);
+      if (near(a[0], a[1])) dirs.push(Math.atan2(a[1] - b[1], a[0] - b[0]) * 180 / Math.PI);
+    }
+    for (const o of sg.arcs) {
+      const cx = o[1], cy = o[2], r = o[3];
+      if (!(r > 0)) continue;
+      if (near(cx + r * Math.cos(o[4]), cy + r * Math.sin(o[4])) || near(cx + r * Math.cos(o[5]), cy + r * Math.sin(o[5]))) arcs.push({ c: [cx, cy], r });
+    }
+  }
+  return { dirs, arcs };
+}
 function trackToggle(p, kind, addOnly) {
   const cur = S.track.pts;
   if (addOnly && cur.some(q => q.key === Trk.keyOf(p))) return false;
-  const r = Trk.toggle(cur, p, kind);
+  const r = Trk.toggle(cur, p, kind, trackGeo(p));
   S.track.pts = r.list;
   haptic('snap');
   drawOverlay();
@@ -516,7 +540,28 @@ function trackAlign(w, tol, o) {
       if (L > 1e-9) lock = { base: [base[0], base[1]], dir: [dx / L, dy / L] };
     }
   }
-  return Trk.align(pts, w, tol, Trk.angles(!!d.polar, d.polarStep), lock);
+  return Trk.align(pts, w, tol, Trk.angles(!!d.polar, d.polarStep), lock, { ext: S.snapModes.has('ext') });   // uzantı yolları AutoCAD'deki gibi EXT kipine bağlı
+}
+/*
+ * GENİŞLETİLMİŞ KESİŞİM (AutoCAD extended intersection): tek bir yol üstündeyken o yolun imleç yakınında gerçek bir
+ * nesne parçasını kestiği nokta — INT (ya da APP) kipi açıkken. Çember yolları için alınmaz.
+ */
+function trackObjCross(tr, w, tol, cands) {
+  if (!tr || tr.cross || !tr.paths || tr.paths.length !== 1 || tr.paths[0].arc || !(S.snapModes.has('int') || S.snapModes.has('app'))) return tr;
+  const p = tr.paths[0], reach = Math.hypot(w[0] - p.pt[0], w[1] - p.pt[1]) + tol * 4;
+  const ray = [p.pt[0], p.pt[1], p.pt[0] + p.dx * reach, p.pt[1] + p.dy * reach];
+  let best = null;
+  for (const q of cands) {
+    if (q.k !== 0 || !q.ops) continue;
+    let sg; try { sg = segmentsOf(q); } catch (_) { continue; }
+    for (const s of sg.segs) {
+      const X = segIntersect(ray, s); if (!X) continue;
+      const dw = Math.hypot(X[0] - w[0], X[1] - w[1]);
+      if (dw <= tol && Math.hypot(X[0] - p.pt[0], X[1] - p.pt[1]) > tol && (!best || dw < best.dw)) best = { X, dw };
+    }
+  }
+  if (!best) return tr;
+  return { ...tr, p: best.X, cross: true, obj: true, paths: [{ ...p, dist: Math.hypot(best.X[0] - p.pt[0], best.X[1] - p.pt[1]) }] };
 }
 /** Edinilmiş iz noktaları: küçük artı (AutoCAD'in "+" işareti), yalnız nokta isteminde */
 function drawTrack(c) {
@@ -535,13 +580,21 @@ function drawTrackPaths(c, tr, col, alpha) {
   const dirS = (pt, dx, dy) => { const a = toScreen(pt[0], pt[1]), b = toScreen(pt[0] + dx, pt[1] + dy); const vx = b[0] - a[0], vy = b[1] - a[1], n = Math.hypot(vx, vy) || 1; return [a, vx / n, vy / n]; };
   c.save(); c.strokeStyle = col; c.lineWidth = 1; c.setLineDash([5, 4]); c.globalAlpha = alpha == null ? 0.8 : alpha;
   c.beginPath();
-  for (const p of tr.paths) { const [a, ux, uy] = dirS(p.pt, p.dx, p.dy); c.moveTo(a[0] - ux * L, a[1] - uy * L); c.lineTo(a[0] + ux * L, a[1] + uy * L); }
+  for (const p of tr.paths) {
+    if (p.arc) { const s = toScreen(p.arc.c[0], p.arc.c[1]), r = Math.min(p.arc.r * S.view.scale, 1e5); c.moveTo(s[0] + r, s[1]); c.arc(s[0], s[1], r, 0, TAU); continue; }   // yayın çemberi (uzantı)
+    const [a, ux, uy] = dirS(p.pt, p.dx, p.dy);
+    if (p.ext) { c.moveTo(a[0], a[1]); c.lineTo(a[0] + ux * L, a[1] + uy * L); continue; }   // uzantı yolu yalnız uçtan dışarı (AutoCAD)
+    c.moveTo(a[0] - ux * L, a[1] - uy * L); c.lineTo(a[0] + ux * L, a[1] + uy * L);
+  }
   if (tr.lockLine) { const [a, ux, uy] = dirS(tr.lockLine.base, tr.lockLine.dir[0], tr.lockLine.dir[1]); c.moveTo(a[0] - ux * L, a[1] - uy * L); c.lineTo(a[0] + ux * L, a[1] + uy * L); }
   c.stroke();
   c.restore();
 }
 /** İpucu metni (AutoCAD "Endpoint: 245.3 < 0°"): yolun kipi, edinilmiş noktadan uzaklık, yolun açısı; kesişimde iki yol */
-function trkText(tr) { return tr.paths.map(p => Osnap.abbrOf(p.kind) + ' ' + fmt(p.dist) + ' < ' + fmt(p.deg, 0) + '°').join(' · '); }
+function trkText(tr) {
+  const one = (p) => (p.ext ? Osnap.abbrOf('ext') : Osnap.abbrOf(p.kind)) + ' ' + fmt(p.dist) + (p.deg == null ? '' : ' < ' + fmt(p.deg, 0) + '°');
+  return tr.paths.map(one).join(' · ') + (tr.obj ? ' × ' + Osnap.abbrOf('int') : '');   // uzantı yolu EXT; nesneyle genişletilmiş kesişim × INT
+}
 function drawPenHover(c, fg) {
   if (!penHover || !penHover.w) return;
   // Nesne isteminde yakalama aranmaz (findSnap boş döner): imleç karedir ve karenin altındaki nesne
@@ -1170,7 +1223,7 @@ function findSnap(w, o = {}) {
   // NESNE YAKALAMA İZLEME (OTRACK): edinilmiş iz noktalarından geçen hizalama yolları ve kesişimleri (otrack.js);
   // nesne yakalaması (en yakın dışında) her zaman izi yener — kullanıcı belirli bir noktaya oturmak istemiştir.
   if (S.track.pts.length && (!sn || sn.kind === 'nea')) {
-    const tr = trackAlign(w, tol, { ...o, prev });
+    const tr = trackObjCross(trackAlign(w, tol, { ...o, prev }), w, tol, cands);
     if (tr && (!sn || Math.hypot(tr.p[0] - w[0], tr.p[1] - w[1]) < Math.hypot(sn.p[0] - w[0], sn.p[1] - w[1]))) sn = { p: [tr.p[0], tr.p[1], undefined], kind: 'trk', trk: tr };
   }
   if (sn && opt.zElev) sn.p[2] = 0;
@@ -3988,7 +4041,7 @@ window.dwgApp = { osnap: Osnap, loadCurrent, onFilePicked, onLocation, onBack, o
   __pickbox: () => ({ on: pickingObject(), r: pickBoxR(), tol: TOL.pick, hover: penHover ? { sx: penHover.sx, sy: penHover.sy, aim: !!penHover.aim, snap: penHover.snap ? penHover.snap.kind : null } : null, loupe: penHover && penHover.aim ? loupeGeom(penHover) : null }),
   __snapAt: (x, y, o) => { const sn = findSnap([x, y], o || {}); return sn ? { kind: sn.kind, p: sn.p.slice(0, 2) } : null; },
   // Nesne yakalama izleme (bkz. tools/test_izleme.mjs): açık mı, edinilmiş noktalar, süren bekleme, gezinen imlecin oturduğu yol
-  __track: () => { const h = penHover && penHover.snap && penHover.snap.trk ? penHover.snap.trk : null; return { on: !!Osnap.opt().otrack, pts: S.track.pts.map(q => ({ p: q.p.slice(), kind: q.kind })), dwell: dwell ? dwell.key : null, hover: h ? { p: penHover.snap.p.slice(0, 2), cross: !!h.cross, lock: !!h.lock, n: h.paths.length, text: trkText(h) } : null }; },
+  __track: () => { const h = penHover && penHover.snap && penHover.snap.trk ? penHover.snap.trk : null; return { on: !!Osnap.opt().otrack, pts: S.track.pts.map(q => ({ p: q.p.slice(), kind: q.kind, dirs: (q.dirs || []).slice(), arcs: (q.arcs || []).map(a => ({ c: a.c.slice(), r: a.r })) })), dwell: dwell ? dwell.key : null, hover: h ? { p: penHover.snap.p.slice(0, 2), cross: !!h.cross, lock: !!h.lock, obj: !!h.obj, n: h.paths.length, ext: h.paths.map(p => !!p.ext), arc: h.paths.map(p => !!p.arc), text: trkText(h) } : null }; },
   __trackAdd: (x, y, kind) => trackToggle([x, y], kind || 'end', true), __trackClear: () => trackClear(),
   // Açılış kestirimcisinin sınanabilir parçaları (bkz. tools/test_ilerleme.mjs)
   __band: (v) => bandOf(v), __tahminTaban: (n, mb) => tahminTaban(n, mb),

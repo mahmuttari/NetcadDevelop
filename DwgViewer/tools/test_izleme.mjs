@@ -179,7 +179,8 @@ await zoom([50000, 50000, 51000, 51000]);
   await ev(() => window.dwgApp.__trackAdd(50300, 50100, 'end'));
   await gez(50504, 50296);
   const h = await hover();
-  ok('6a kutupsal 45° açık, imleç (50504,50296): (50300,50100) noktasının 45° yolu → x−50300 = y−50100, ipucu "< 45°"', !!h.tr && !h.tr.cross && yak(h.tr.p[0] - 50300, h.tr.p[1] - 50100, 1e-6) && /< 45°$/.test(h.tr.text), J(h.tr));
+  // v7.70: yol imlecin yanında örnek dosyanın bir çizgisini kesiyorsa INT açıkken oraya oturur (AutoCAD genişletilmiş kesişim, "× INT"); nokta yine 45° yolunda
+  ok('6a kutupsal 45° açık, imleç (50504,50296): (50300,50100) noktasının 45° yolu → x−50300 = y−50100, ipucu "< 45°" (yolu kesen nesne varsa × INT)', !!h.tr && (!h.tr.cross || h.tr.obj) && yak(h.tr.p[0] - 50300, h.tr.p[1] - 50100, 1e-6) && /< 45°( × INT)?$/.test(h.tr.text), J(h.tr));
   await ev(() => { window.dwgApp.editor.act('polar'); window.dwgApp.state.desk.polarStep = 15; }); await bekle(120);
   await gez(50504, 50296);
   const h2 = await hover();

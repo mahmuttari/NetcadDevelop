@@ -10,7 +10,7 @@
  *   fmt(v)   units()     unitToM()   trackClear() (nokta belirlenince edinilmiş iz noktaları silinir)
  * Nokta girişi: dokunma (yakalamalı) ya da yazılı: "x,y" | "x,y,z" | "@dx,dy" | "@L<açı"
  */
-import { TAU, flatten, polyArea, pathLength, pathLength3, segDist, opsBBox, enclosingPrim, segmentsOf, segAt, trimPath, extendPath, lengthenPath, filletCorner, chamferCorner, cornerAt, segIntersect, pointInPoly, pathPointsAt, pathFramesAt } from './geom.js';
+import { TAU, flatten, polyArea, pathLength, pathLength3, segDist, opsBBox, enclosingPrim, segmentsOf, segAt, trimPath, extendPath, lengthenPath, filletCorner, chamferCorner, cornerAt, segIntersect, pointInPoly, pathPointsAt, pathFramesAt, traceBoundary } from './geom.js';
 import { newId, offsetPoints } from './edit.js';
 import { t, addStrings } from './i18n.js';
 import { askText, askForm } from './dialog.js';
@@ -751,13 +751,16 @@ export class ToolManager {
   /** Kapalı alana dokunma: tarama ekler ya da alanı ölçer */
   async regionTap(w) {
     const A = this.api;
-    const reg = enclosingPrim(A.visiblePrims(), w[0], w[1]);
+    // AutoCAD gibi: alan tek bir kapalı nesne olmak zorunda değil — ayrı çizgi / yay / polyline parçalarından oluşan kapalı
+    // alan (kesişimlerde bölünmüş düzlemsel çizgenin noktayı içeren en küçük yüzü) izlenir; bulunamazsa tek kapalı nesne
+    const vis = A.visiblePrims();
+    const reg = traceBoundary(vis, w[0], w[1]) || enclosingPrim(vis, w[0], w[1]);
     if (!reg) { A.toast(t('noRegion')); return; }
     const u = A.units(), k = A.unitToM() || 1;
-    const z = (reg.prim.ops[0] && reg.prim.ops[0][3]) || 0;
+    const z = reg.prim ? ((reg.prim.ops[0] && reg.prim.ops[0][3]) || 0) : 0;
     const pts = reg.pts.map(q => [q[0], q[1], z]);
     if (this.active === 'fillarea') {
-      const per = pathLength3(reg.prim.ops, true);
+      const per = reg.prim ? pathLength3(reg.prim.ops, true) : reg.pts.reduce((acc, q, i, arr) => { const n = arr[(i + 1) % arr.length]; return acc + Math.hypot(n[0] - q[0], n[1] - q[1]); }, 0);
       const rows = [[t('area'), A.fmt(reg.area) + (u ? u + '\u00b2' : '')], [t('perimeter'), A.fmt(per) + u], [t('cornersN'), pts.length]];
       if (k !== 1) rows.push([t('areaM2'), A.fmt(reg.area * k * k, 2) + ' m\u00b2'], [t('areaDa'), A.fmt(reg.area * k * k / 1000, 3) + ' da']);
       else rows.push([t('areaDa'), A.fmt(reg.area / 1000, 3) + ' da'], [t('areaHa'), A.fmt(reg.area / 10000, 4) + ' ha']);

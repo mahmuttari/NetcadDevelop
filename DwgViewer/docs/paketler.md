@@ -148,6 +148,10 @@ Bu yedisi v7.28 ile kapandı; **birinci öbekte açık madde kalmadı**. Ayrınt
 | Doğrudan uzaklık girişi: Çizgi / Polyline'da kutudaki sayı kadar dokunulan yönde ilerleme (AutoCAD direct distance entry) (v7.65) | Çiz ▸ Çizgi, Polyline | var olan araçların kademesi |
 | Köşe tutamağı sürüklenirken başka nesnelerin yakalama noktalarına oturur; sürüklemede işaret; kendi eski yerine yapışmaz (v7.65) | Düzenle ▸ Köşe tutamakları | premium (grips) |
 | Çoklu seçimde köşe tutamakları: seçili bütün yolların düğümleri, çakışan köşeler birlikte (tek geri alma), 100 nesne / 400 düğüm sınırı, nesne başına 200'ü aşan yol atlanır (v7.69) | Düzenle ▸ Köşe tutamakları | premium (grips) |
+| İzlemede uzantı yolları: çizgi doğrultusu, yay çemberi, iki uzantının kesişimi, genişletilmiş kesişim; EXT kipine bağlı, EXT varsayılan (v7.70) | Ölçü ▸ Yakalama izi, yakalama ayarları | var olan yakalamanın kademesi |
+| Tarama / Sınır / Dolgu alanı ayrı çizgi, yay ve polyline parçalarından kapalı alanı bulur (en küçük yüz) (v7.70) | Çiz ▸ Tarama, Sınır; Ölçü ▸ Dolgu alanı | aracın kendi kademesi |
+| Desen seçicide her desenin SVG önizlemesi (kartlı liste) (v7.70) | Çiz ▸ Desen | premium (hatchpat) |
+| Özellikler'de nesne türü süzgeci: Tümü / Çizgi (3) / Daire (2), seçim türe daralır (v7.70) | Düzenle ▸ Özellikler, seçim menüsü | premium (props) |
 | Nesne yakalama izleme (AutoCAD OTRACK, F11): yakalama noktasında bekleyince iz noktası (+), yatay / düşey (kutupsalda açılı) hizalama yolları ve kesişimleri, ortho kilidiyle kesişim, İz noktası (TT) düğmesi Ortho'nun yanında, Yakalama izi karosu (v7.66) | Ölçü ▸ Yakalama izi, Ekran ▸ Yakalama izi, komut çubuğu | var olan yakalamanın kademesi (kalemle gezinme premium) |
 | Çokgen (POLYGON), Böl (DIVIDE), Aralıkla (MEASURE), Sınır (BOUNDARY) (v7.67) | Çiz ▸ Çokgen, Böl, Aralıkla, Sınır | premium |
 | Esnet (STRETCH, kesen pencere içindeki köşeler), Birleştir (JOIN), Özellik eşle (MATCHPROP) (v7.67) | Düzenle ▸ Esnet, Birleştir, Özellik eşle | premium |

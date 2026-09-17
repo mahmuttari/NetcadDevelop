@@ -1462,6 +1462,98 @@ export function extrudeMesh(prof, h, closed = true, cap = true) {
  * bir odanın içine dokunulduğunda bütün bina değil oda bulunsun.
  * Dönüş: { prim, pts, area } ya da null.
  */
+/*
+ * KAPALI ALAN İZİ (AutoCAD BOUNDARY / HATCH "iç nokta seç"): ayrı çizgi, yay ve polyline PARÇALARINDAN oluşan kapalı
+ * alanı bulur — tek bir kapalı nesne şart değildir. Parçalar karşılıklı kesişimlerinde bölünür, düzlemsel çizge kurulur,
+ * noktadan sağa atılan ışının ilk kestiği kenardan başlanıp yüzün SOL tarafı izlenir (her düğümde gelen yönün tersinden
+ * saat yönünde ilk kenar); böylece noktayı içeren en küçük yüz çıkar. Çıkmaz uçlar (sarkan çizgiler) atılır. Noktaya en
+ * yakın ilkellerden en çok maxSeg parça alınır; tarama dolguları ve desen çizgileri sayılmaz. → { pts (saat yönünün
+ * tersi), area, prim: null } ya da null.
+ */
+export function traceBoundary(prims, x, y, opt = {}) {
+  const MAXSEG = opt.maxSeg || 2000;
+  const list = [];
+  for (const p of prims) {
+    if (!p || p.k !== 0 || !p.ops || !p.bb || !isFinite(p.bb[0]) || p.fill || (p.info && p.info.t === 'HATCH')) continue;
+    const d = Math.max(0, p.bb[0] - x, x - p.bb[2]) + Math.max(0, p.bb[1] - y, y - p.bb[3]);
+    list.push({ p, d });
+  }
+  list.sort((a, b) => a.d - b.d);
+  const segs = []; let ext = 1;
+  for (const { p } of list) {
+    const pts = flatten(p.ops); const n = pts.length;
+    if (n < 2) continue;
+    for (let i = 1; i < n; i++) if (pts[i][0] !== pts[i - 1][0] || pts[i][1] !== pts[i - 1][1]) segs.push([pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1]]);
+    if (p.closed && (pts[0][0] !== pts[n - 1][0] || pts[0][1] !== pts[n - 1][1])) segs.push([pts[n - 1][0], pts[n - 1][1], pts[0][0], pts[0][1]]);
+    ext = Math.max(ext, Math.abs(p.bb[0] - x), Math.abs(p.bb[2] - x), Math.abs(p.bb[1] - y), Math.abs(p.bb[3] - y));
+    if (segs.length >= MAXSEG) break;
+  }
+  if (segs.length < 3) return null;
+  const eps = Math.max(1e-9, ext * 1e-7);
+  const paramOn = (s, X) => { const dx = s[2] - s[0], dy = s[3] - s[1], L2 = dx * dx + dy * dy; return L2 > 0 ? ((X[0] - s[0]) * dx + (X[1] - s[1]) * dy) / L2 : 0; };
+  const cuts = segs.map(() => [0, 1]);
+  for (let i = 0; i < segs.length; i++) {
+    const a = segs[i], ax0 = Math.min(a[0], a[2]) - eps, ax1 = Math.max(a[0], a[2]) + eps, ay0 = Math.min(a[1], a[3]) - eps, ay1 = Math.max(a[1], a[3]) + eps;
+    for (let j = i + 1; j < segs.length; j++) {
+      const b = segs[j];
+      if (Math.max(b[0], b[2]) < ax0 || Math.min(b[0], b[2]) > ax1 || Math.max(b[1], b[3]) < ay0 || Math.min(b[1], b[3]) > ay1) continue;
+      const X = segIntersect(a, b); if (!X) continue;
+      cuts[i].push(paramOn(a, X)); cuts[j].push(paramOn(b, X));
+    }
+  }
+  const nodes = new Map(), pos = [], adj = [], edges = [], seen = new Set();
+  const nodeOf = (px, py) => { const k = Math.round(px / eps) + ',' + Math.round(py / eps); let id = nodes.get(k); if (id == null) { id = pos.length; nodes.set(k, id); pos.push([px, py]); adj.push([]); } return id; };
+  segs.forEach((sg, i) => {
+    const ts = cuts[i].sort((a, b) => a - b); let prev = null;
+    for (const t of ts) {
+      const tt = Math.max(0, Math.min(1, t)), n = nodeOf(sg[0] + (sg[2] - sg[0]) * tt, sg[1] + (sg[3] - sg[1]) * tt);
+      if (prev != null && n !== prev) { const k = Math.min(prev, n) + '-' + Math.max(prev, n); if (!seen.has(k)) { seen.add(k); const e = edges.length; edges.push([prev, n]); adj[prev].push(e); adj[n].push(e); } }
+      prev = n;
+    }
+  });
+  let best = null;
+  for (let e = 0; e < edges.length; e++) {
+    const [a, b] = edges[e], A = pos[a], B = pos[b];
+    if ((A[1] > y) === (B[1] > y)) continue;
+    const xi = A[0] + (y - A[1]) * (B[0] - A[0]) / (B[1] - A[1]);
+    if (xi > x + eps && (!best || xi < best.xi)) best = { e, xi };
+  }
+  if (!best) return null;
+  let [u, v] = edges[best.e];
+  if ((pos[v][0] - pos[u][0]) * (y - pos[u][1]) - (pos[v][1] - pos[u][1]) * (x - pos[u][0]) < 0) [u, v] = [v, u];   // nokta kenarın solunda
+  const start = u, startNext = v, ids = [];
+  let cur = u, nxt = v, guard = edges.length * 2 + 8;
+  while (guard-- > 0) {
+    ids.push(cur);
+    const back = Math.atan2(pos[cur][1] - pos[nxt][1], pos[cur][0] - pos[nxt][0]);   // nxt düğümünde gelen yönün tersi
+    let pick = null, pickD = Infinity;
+    for (const e of adj[nxt]) {
+      const [a, b] = edges[e], w = a === nxt ? b : a;
+      if (w === cur && adj[nxt].length > 1) continue;
+      const ang = Math.atan2(pos[w][1] - pos[nxt][1], pos[w][0] - pos[nxt][0]);
+      let d = ((back - ang) % TAU + TAU) % TAU; if (d < 1e-12) d = TAU;   // saat yönünde ilk kenar
+      if (d < pickD) { pickD = d; pick = w; }
+    }
+    if (pick == null) return null;
+    cur = nxt; nxt = pick;
+    if (cur === start && nxt === startNext) break;
+  }
+  if (guard <= 0) return null;
+  // sarkan uçlar (a → b → a) atılır
+  let changed = true;
+  while (changed && ids.length > 2) { changed = false; for (let i = 0; i < ids.length; i++) { const a = ids[(i + ids.length - 1) % ids.length], c = ids[(i + 1) % ids.length]; if (a === c) { ids.splice(i, 1); ids.splice(i % ids.length, 1); changed = true; break; } } }
+  let pts = ids.map(i => pos[i]);
+  // doğrusal ara düğümler (T kavşağı, kesişimle bölünmüş kenar) atılır: sınır polyline'ı yalnız gerçek köşeleri taşır
+  for (let k = 0; k < pts.length && pts.length > 3; k++) {
+    const a = pts[(k + pts.length - 1) % pts.length], b = pts[k], c = pts[(k + 1) % pts.length];
+    const cr = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]), L = Math.hypot(c[0] - a[0], c[1] - a[1]) || 1;
+    if (Math.abs(cr) / L <= eps * 10 && ((b[0] - a[0]) * (c[0] - b[0]) + (b[1] - a[1]) * (c[1] - b[1])) > 0) { pts.splice(k, 1); k = -1; }
+  }
+  if (pts.length < 3 || !pointInPoly(pts, x, y)) return null;
+  const area = Math.abs(polyArea(pts));
+  if (!(area > 0)) return null;
+  return { pts, area, prim: null };
+}
 export function enclosingPrim(prims, x, y) {
   let best = null, bestArea = Infinity;
   for (const p of prims) {

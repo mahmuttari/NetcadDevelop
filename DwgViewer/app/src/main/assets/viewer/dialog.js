@@ -59,6 +59,7 @@ function open(kind, label, fieldHtml, o) {
   const d = el();
   $('askLabel').textContent = label || '';
   $('askField').innerHTML = fieldHtml || '';
+  d.querySelectorAll('.ask-grid').forEach(g => { g.onclick = (ev) => { const b = ev.target.closest('.ask-cell'); if (!b) return; g.querySelectorAll('.ask-cell').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', String(x === b)); }); }; });
   $('askOk').textContent = o.ok || t('ok');
   $('askNo').textContent = o.cancel || t('cancel');
   d.classList.toggle('confirm', kind === 'confirm');
@@ -109,6 +110,8 @@ export function askForm(label, fields, opts = {}) {
   const row = (f) => {
     const id = 'askF_' + f.id;
     if (f.type === 'check') return `<label class="chk"><input type="checkbox" id="${id}" data-f="${escA(f.id)}" ${f.value ? 'checked' : ''}> ${escA(f.label)}</label>`;
+    // Kartlı seçim: her seçenek [değer, ad, html] — html önizlemedir (tarama deseni gibi); dokunuş kartı seçer
+    if (f.type === 'grid') return `<div class="ask-row ask-row-grid"><span class="ask-lb">${escA(f.label)}</span><div class="ask-grid" id="${id}" data-f="${escA(f.id)}" role="radiogroup">${(f.options || []).map(([v, t2, html]) => `<button type="button" class="ask-cell${String(v) === String(f.value) ? ' on' : ''}" data-v="${escA(v)}" role="radio" aria-checked="${String(v) === String(f.value)}" title="${escA(t2)}">${html || ''}<span>${escA(t2)}</span></button>`).join('')}</div></div>`;
     let inp;
     if (f.type === 'select') inp = `<select id="${id}" data-f="${escA(f.id)}">${(f.options || []).map(([v, t2]) => `<option value="${escA(v)}"${String(v) === String(f.value) ? ' selected' : ''}>${escA(t2)}</option>`).join('')}</select>`;
     else inp = `<input id="${id}" data-f="${escA(f.id)}" type="text"${f.type === 'number' ? ' inputmode="decimal"' : ''} value="${escA(f.value == null ? '' : f.value)}" autocomplete="off">`;
@@ -124,6 +127,7 @@ export function askForm(label, fields, opts = {}) {
       const el = document.getElementById('askF_' + f.id);
       if (!el) { out[f.id] = f.value; continue; }
       if (f.type === 'check') out[f.id] = !!el.checked;
+      else if (f.type === 'grid') { const on = el.querySelector('.ask-cell.on'); out[f.id] = on ? on.dataset.v : f.value; }
       else if (f.type === 'number') { const n = parseFloat(String(el.value).replace(',', '.')); out[f.id] = isFinite(n) ? n : (f.value == null ? 0 : f.value); }
       else out[f.id] = el.value;
     }
