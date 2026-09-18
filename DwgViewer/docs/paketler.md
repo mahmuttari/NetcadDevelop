@@ -153,6 +153,7 @@ Bu yedisi v7.28 ile kapandı; **birinci öbekte açık madde kalmadı**. Ayrınt
 | Desen seçicide her desenin SVG önizlemesi (kartlı liste) (v7.70) | Çiz ▸ Desen | premium (hatchpat) |
 | Özellikler'de nesne türü süzgeci: Tümü / Çizgi (3) / Daire (2), seçim türe daralır (v7.70) | Düzenle ▸ Özellikler, seçim menüsü | premium (props) |
 | Dinamik okuma: çizim yaparken taban noktadan imlece uzaklık ve açı, lastik bant (v7.71) | imleç etiketi, büyüteç | var olan aracın kademesi |
+| Çizgi uzantısı yönünde izleme yakalaması dokunuşla: taban noktanın (son nokta) parçası ucundaysa uzantısı edinme gerekmeden yol (EXT kipine bağlı) (v7.73) | bütün nokta istemleri; Ölçü ▸ Yakalama izi | ücretsiz (otrack) |
 | Blok yap / Blok ekle (ölçek, dönüş, öznitelik formu, MINSERT) / Bloklar paneli (yeniden adlandır, değiştir, kütüphaneye, WBLOCK, PURGE) / NCOPY / BASE (v7.72) | Düzenle ▸ Blok yap, Blok ekle, Bloklar, Blok içinden kopya, Taban; seçim menüsü ▸ Blok | premium (t:block, t:insert, blocks, t:ncopy, t:base) |
 | Blok düzenleyici (BEDIT / BSAVE / BCLOSE) ve yerinde düzenleme (REFEDIT / REFCLOSE, solgun arka plan) (v7.72) | Düzenle ▸ Blok düzenle, Yerinde düzenle; seçim menüsü ▸ Blok düzenle | premium (t:bedit, t:refedit) |
 | Öznitelik tanımı (ATTDEF), ATTSYNC, BATTMAN, ATTDISP (v7.72) | Düzenle ▸ Öznitelik tanımı; komut satırı | premium (t:attdef; düzenleme t:attr) |

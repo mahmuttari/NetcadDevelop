@@ -505,6 +505,24 @@ function trackGeo(p) {
   }
   return { dirs, arcs };
 }
+/*
+ * ÖRTÜK UZANTI (v7.73): aracın TABAN noktası (son alınan nokta; ölçümde önceki nokta) bir parçanın ucuysa o parçanın
+ * uzantısı edinme gerekmeden yoldur. Masaüstünde AutoCAD kullanıcısı ucun üstünde bekleyip edinir; dokunmatikte
+ * bekleme yoktur, uca dokunup çizgiyi kendi doğrultusunda sürdürmek istenir. Yalnız EXT kipi açıkken; nokta zaten
+ * edinilmişse (TT ya da bekleme) o kayıt esastır, örtük olan eklenmez. Geometri taban ve ağaç değişmedikçe önbellekte.
+ */
+let baseExt = null;
+function trackBase(prev) {
+  if (!S.snapModes.has('ext')) return null;
+  const base = prev || edCall('lastToolPoint');
+  if (!base || !isFinite(base[0]) || !isFinite(base[1])) return null;
+  const key = Trk.keyOf(base);
+  if (S.track.pts.some(q => q.key === key)) return null;
+  if (!baseExt || baseExt.key !== key || baseExt.tree !== S.tree || baseExt.n !== S.prims.length) baseExt = { key, tree: S.tree, n: S.prims.length, geo: trackGeo(base) };
+  const g = baseExt.geo;
+  if (!g.dirs.length && !g.arcs.length) return null;
+  return { key: 'base:' + key, p: [base[0], base[1]], kind: 'end', dirs: g.dirs, arcs: g.arcs, extOnly: true, implicit: true };
+}
 function trackToggle(p, kind, addOnly) {
   const cur = S.track.pts;
   if (addOnly && cur.some(q => q.key === Trk.keyOf(p))) return false;
@@ -529,7 +547,7 @@ function trackDwell(sn) {
  * (tools.kisitla); o zaman yalnız yolun kilit doğrusunu kestiği nokta alınır — "şu uçla aynı hizada bitecek çizgi".
  */
 function trackAlign(w, tol, o) {
-  const pts = S.track.pts; if (!pts.length) return null;
+  const pts = o.imp ? S.track.pts.concat([o.imp]) : S.track.pts; if (!pts.length) return null;   // o.imp: örtük taban uzantısı (trackBase)
   const d = S.desk;
   let lock = null;
   if ((d.ortho || d.polar) && !o.grip && S.mode === 'view' && editor.tools && editor.tools.running) {
@@ -1249,8 +1267,9 @@ function findSnap(w, o = {}) {
   }
   // NESNE YAKALAMA İZLEME (OTRACK): edinilmiş iz noktalarından geçen hizalama yolları ve kesişimleri (otrack.js);
   // nesne yakalaması (en yakın dışında) her zaman izi yener — kullanıcı belirli bir noktaya oturmak istemiştir.
-  if (S.track.pts.length && (!sn || sn.kind === 'nea')) {
-    const tr = trackObjCross(trackAlign(w, tol, { ...o, prev }), w, tol, cands);
+  const imp = modes.has('ext') && !o.grip ? trackBase(prev) : null;   // taban noktanın örtük uzantı yolları (v7.73)
+  if ((S.track.pts.length || imp) && (!sn || sn.kind === 'nea')) {
+    const tr = trackObjCross(trackAlign(w, tol, { ...o, prev, imp }), w, tol, cands);
     if (tr && (!sn || Math.hypot(tr.p[0] - w[0], tr.p[1] - w[1]) < Math.hypot(sn.p[0] - w[0], sn.p[1] - w[1]))) sn = { p: [tr.p[0], tr.p[1], undefined], kind: 'trk', trk: tr };
   }
   if (sn && opt.zElev) sn.p[2] = 0;
@@ -4200,6 +4219,7 @@ window.dwgApp = { osnap: Osnap, loadCurrent, onFilePicked, onLocation, onBack, o
   // Nesne yakalama izleme (bkz. tools/test_izleme.mjs): açık mı, edinilmiş noktalar, süren bekleme, gezinen imlecin oturduğu yol
   __track: () => { const h = penHover && penHover.snap && penHover.snap.trk ? penHover.snap.trk : null; return { on: !!Osnap.opt().otrack, pts: S.track.pts.map(q => ({ p: q.p.slice(), kind: q.kind, dirs: (q.dirs || []).slice(), arcs: (q.arcs || []).map(a => ({ c: a.c.slice(), r: a.r })) })), dwell: dwell ? dwell.key : null, hover: h ? { p: penHover.snap.p.slice(0, 2), cross: !!h.cross, lock: !!h.lock, obj: !!h.obj, n: h.paths.length, ext: h.paths.map(p => !!p.ext), arc: h.paths.map(p => !!p.arc), text: trkText(h) } : null }; },
   __trackAdd: (x, y, kind) => trackToggle([x, y], kind || 'end', true), __trackClear: () => trackClear(),
+  __trackBase: () => { const b = trackBase(edCall('lastToolPoint')); return b ? { p: b.p.slice(), dirs: b.dirs.slice(), arcs: b.arcs.map(a => ({ c: a.c.slice(), r: a.r })) } : null; },
   __xattach: (buf, name) => xattachLoad(buf, name), __xrefs: () => (S.scene && S.scene.xrefs ? S.scene.xrefs.map(x => ({ name: x.name, loaded: !!x.loaded, unloaded: !!x.unloaded, attached: !!x.attached, keys: (x.keys || []).length, clip: x.clip ? x.clip.slice() : null, cached: !!x.prims, buf: !!x.buf })) : []), __xclip: (name, rect) => xrefClip(name, rect), __xrefBind: (name) => xrefBind((S.scene.xrefs || []).find(x => x.name === name)),
   __hoverLabel: () => (penHover && penHover.w ? { text: hoverLabel(penHover.snap, penHover.q, penHover.w), base: hoverBase(), ...(function () { const p = penHover.snap ? penHover.snap.p : (penHover.q || penHover.w); const r = hoverReadout(p); return { L: r.L, deg: r.deg }; }()) } : null),
   // Açılış kestirimcisinin sınanabilir parçaları (bkz. tools/test_ilerleme.mjs)

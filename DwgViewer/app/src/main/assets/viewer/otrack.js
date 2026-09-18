@@ -18,6 +18,11 @@
  *    o parçanın DOĞRULTUSU da yoldur — uçtan dışarı doğru (parçanın kendisi nesnedir, oraya yakalama bakar);
  *    bir yayın ucuysa yayın çemberi yoldur. Açılı bir çizginin uzantısı, iki uzantının kesişimi, uzantı ile
  *    çemberin kesişimi böyle bulunur. AutoCAD'de olduğu gibi yalnız EXT kipi açıkken (opt.ext).
+ *  - ÖRTÜK UZANTI (v7.73, dokunmatik): aracın taban noktası (son alınan nokta) bir parçanın ucuysa o parçanın
+ *    uzantısı EDİNME GEREKMEDEN yoldur — masaüstünde imleç ucun üstünde bekleyip edinir, dokunmatikte bekleme
+ *    yoktur; "çizgiyi kendi doğrultusunda sürdür" dokunuşla da olsun diye. Böyle bir nokta extOnly: true ile
+ *    listeye girer; yalnız uzantı (doğrultu / çember) yolları vardır, dik / kutupsal yolları yoktur — onlar
+ *    kutupsal izlemenin işidir, taban noktadan geçen yatay / düşey yol edinilmeden çıkmaz.
  *  - Uzaklıklar DÜNYA biriminde alınır; açıklık (px) çağıran tarafından ölçeğe bölünüp verilir.
  */
 
@@ -123,7 +128,7 @@ export function align(list, w, tol, angs, lock, opt) {
     const A = q.p, vx = w[0] - A[0], vy = w[1] - A[1];
     if (Math.hypot(vx, vy) < 1e-12) continue;   // imleç noktanın tam üstünde: yol seçilemez, yakalama zaten oradadır
     const dirs = ext && q.dirs && q.dirs.length ? q.dirs.map(a => ({ deg: a, th: a * Math.PI / 180, ext: true })) : [];
-    for (const a of rad.concat(dirs)) {
+    for (const a of (q.extOnly ? dirs : rad.concat(dirs))) {   // örtük taban noktası: yalnız uzantı yolları
       const dx = temiz(Math.cos(a.th)), dy = temiz(Math.sin(a.th));
       const along = vx * dx + vy * dy;
       if (along < 0) continue;                    // noktanın gerisi: karşı açının önüdür, orada sayılır (uzantı yalnız dışa doğru)
