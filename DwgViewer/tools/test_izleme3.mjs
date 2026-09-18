@@ -103,9 +103,10 @@ ok('0 ortam: EXT ve izleme açık, ortho / kutupsal kapalı, açıklık 18 px', 
   ok('2b uzantı yalnız uçtan DIŞARI: parçanın kendi üstündeki imleç uzantı yolu vermez (yakalama yoksa null)', !sg || sg.kind !== 'trk', J(sg));
   await ev(() => window.dwgApp.osnap.setModes(['end', 'mid', 'cen', 'int', 'ins', 'node']));
   const T = [P2[0] + 200 * U[0] + 8 * V[0], P2[1] + 200 * U[1] + 8 * V[1]];
-  ok('2c EXT kipi kapalıyken örtük uzantı yok (AutoCAD: uzantı EXT yakalamasına bağlı)', (await base()) === null && (await snapAt(T[0], T[1])) === null, J([await base(), await snapAt(T[0], T[1])]));
+  ok('2c EXT yakalama kipi kapalıyken de örtük uzantı var (v7.74: uzantı izi EXT kipine bağlı değil)', !!(await base()) && (await snapAt(T[0], T[1])).kind === 'trk', J([await base(), await snapAt(T[0], T[1])]));
   await ev(() => window.dwgApp.osnap.setModes(['end', 'mid', 'cen', 'int', 'ext', 'ins', 'node']));
-  ok('2d EXT geri gelince yol yeniden var', !!(await base()) && (await snapAt(T[0], T[1])).kind === 'trk', '');
+  await ev(() => window.dwgApp.osnap.toggleTrack());
+  ok('2d yakalama izi (F11) kapalıyken örtük uzantı yok; açılınca yeniden var', (await base()) === null && (await snapAt(T[0], T[1])) === null && (await ev(() => { window.dwgApp.osnap.toggleTrack(); return !!window.dwgApp.__trackBase(); })), J([await base()]));
   await iptal();
   await arac('t:line');
   await tapWorld(X0 + 600, Y0 + 100);   // boş yer: hiçbir parçanın ucu değil
@@ -207,6 +208,20 @@ ok('0 ortam: EXT ve izleme açık, ortho / kutupsal kapalı, açıklık 18 px', 
   ok('6d ortho kilidi (+x) × düşey uzantı (x = P2+300) → kesişim (P2+300, P2y), kilit', hX && hX.lock && yak(hX.p[0], P2[0] + 300, 1e-6) && yak(hX.p[1], P2[1], 1e-6), J(hX));
   await iptal(); await undo();
   await ev(() => { window.dwgApp.state.desk.polar = false; window.dwgApp.state.desk.ortho = false; });
+}
+
+// ---------------------------------------------------------------------------------
+// 7 · ayar taşıması: v7.70 öncesi kaydedilmiş yakalama listesinde EXT yok → bir kez eklenir; kullanıcı sonradan kapattıysa dokunulmaz
+// ---------------------------------------------------------------------------------
+{
+  await ev(() => { const st = JSON.parse(localStorage.getItem('settings') || '{}'); st.snap = ['end', 'mid', 'cen', 'int', 'ins', 'node']; delete st.snapExt; localStorage.setItem('settings', JSON.stringify(st)); });
+  await page.reload(); await page.waitForSelector('#btnOpen2'); await bekle(300);
+  const m1 = await ev(() => ({ modes: [...window.dwgApp.state.snapModes].sort().join(','), flag: JSON.parse(localStorage.getItem('settings') || '{}').snapExt }));
+  ok('7a eski ayar listesine EXT bir kez eklendi, bayrak yazıldı', /(^|,)ext(,|$)/.test(m1.modes) && m1.flag === true, J(m1));
+  await ev(() => { const st = JSON.parse(localStorage.getItem('settings') || '{}'); st.snap = ['end', 'mid']; st.snapExt = true; localStorage.setItem('settings', JSON.stringify(st)); });
+  await page.reload(); await page.waitForSelector('#btnOpen2'); await bekle(300);
+  const m2 = await ev(() => [...window.dwgApp.state.snapModes].sort().join(','));
+  ok('7b bayrak varken kullanıcının EXT\'siz listesine dokunulmaz', m2 === 'end,mid', m2);
 }
 
 await browser.close();

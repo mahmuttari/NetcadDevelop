@@ -118,16 +118,22 @@ const modes = () => ev(() => [...window.dwgApp.state.snapModes].sort().join(',')
   const h5 = (await track()).hover;
   ok('1i yatay çizginin uzantısı çemberi (760,420)\'de keser', h5 && h5.cross && yak(h5.p[0], 760, 1e-6) && yak(h5.p[1], 420, 1e-6), J(h5));
   await page.screenshot({ path: `${out}/uzanti_cember.png` });
-  // EXT kapalı: uzantı yolu yok
+  // EXT kapalıyken de edinilmiş noktanın uzantı yolu VAR (v7.74: uzantı izi EXT kipine değil yakalama izine bağlı — eski ayarlarda
+  // EXT kapalı kaldığından kullanıcı uzantı izini göremiyordu); yakalama izi (F11) kapatılınca edinilmiş noktalar düşer, yol kalmaz
   await iptal(); await arac('t:line');
   await ev(() => window.dwgApp.osnap.setModes(['end', 'int']));
   await ev(() => window.dwgApp.__trackAdd(300, 250, 'end'));
   await gez(503, 398);
   const h6 = (await track()).hover;
-  ok('1j EXT kipi kapalıyken açılı uzantı yolu yok (AutoCAD: uzantı EXT yakalamasına bağlı)', h6 === null, J(h6));
+  ok('1j EXT kipi kapalıyken de açılı uzantı yolu var (izleme yolu EXT yakalamasından bağımsız)', h6 && h6.ext[0] === true && yak(h6.p[1] - 250, (h6.p[0] - 300) * 0.75, 1e-6), J(h6));
   await ev(() => window.dwgApp.osnap.setModes(window.dwgApp.osnap.DEFAULT_MODES));
   await gez(503, 398);
-  ok('1k varsayılan kipler geri gelince uzantı yolu yeniden var', (await track()).hover !== null);
+  ok('1k varsayılan kipler geri gelince uzantı yolu yine var', (await track()).hover !== null);
+  await ev(() => window.dwgApp.osnap.toggleTrack());
+  await gez(503, 398);
+  const t7 = await track();
+  ok('1l yakalama izi kapatılınca edinilmiş noktalar düşer, uzantı yolu kalmaz', !t7.on && t7.pts.length === 0 && t7.hover === null, J(t7));
+  await ev(() => window.dwgApp.osnap.toggleTrack());
   await iptal();
 }
 

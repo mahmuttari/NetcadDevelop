@@ -32,7 +32,7 @@ export const S = {
   desk: { mouse: false, ortho: false, polar: false, polarStep: 15 },
   curLayerName: '0', glove: false,
   // araçlar
-  mode: 'view', measure: [], snap: null, snapModes: new Set(['end', 'mid', 'cen', 'int', 'ins', 'node']), selected: null,
+  mode: 'view', measure: [], snap: null, snapModes: new Set(['end', 'mid', 'cen', 'int', 'ext', 'ins', 'node']), selected: null,
   track: { pts: [] },           // nesne yakalama izleme (OTRACK): edinilmiş iz noktaları [{ key, p, kind }] — geometri otrack.js, edinme app.js
   hideObj: new Set(), isoObj: null,   // HIDEOBJECTS / ISOLATEOBJECTS: gizlenen anahtarlar · izolasyonda görünen anahtar kümesi (görünüm durumu, çizim değişmez)
   compare: null,                // { prims, tree, stats }

@@ -98,6 +98,10 @@ function applySettings() {
   }
   settings.dark = S.dark; settings.lwScale = S.lwScale; settings.opacity = S.basemap.opacity; settings.display = { ...(settings.display || {}), ...D.snapshot() };
   S.prec = clampPrec(settings.prec); S.precPad = !!settings.precPad;
+  if (!settings.snapExt) {   // v7.70 öncesi kaydedilmiş yakalama listesinde EXT yoktu (AutoCAD varsayılanı 4133'te vardır): bir kez eklenir
+    if (Array.isArray(settings.snap) && settings.snap.length && !settings.snap.includes('ext')) settings.snap.push('ext');
+    settings.snapExt = true; saveSettings();
+  }
   S.snapModes = new Set((settings.snap || []).filter(m => Osnap.MODES.some(x => x.id === m)));
   Osnap.renderBar($('snapBar'));
 }
@@ -513,7 +517,7 @@ function trackGeo(p) {
  */
 let baseExt = null;
 function trackBase(prev) {
-  if (!S.snapModes.has('ext')) return null;
+  if (!Osnap.opt().otrack) return null;   // yakalama izi (F11) kapalıysa örtük uzantı da yok; EXT kipine bağlı değil (v7.74)
   const base = prev || edCall('lastToolPoint');
   if (!base || !isFinite(base[0]) || !isFinite(base[1])) return null;
   const key = Trk.keyOf(base);
@@ -548,7 +552,10 @@ function trackDwell(sn) {
  */
 function trackAlign(w, tol, o) {
   const pts = o.imp ? S.track.pts.concat([o.imp]) : S.track.pts; if (!pts.length) return null;   // o.imp: örtük taban uzantısı (trackBase)
-  const d = S.desk, opt = { ext: S.snapModes.has('ext') }, angs = Trk.angles(!!d.polar, d.polarStep);   // uzantı yolları AutoCAD'deki gibi EXT kipine bağlı
+  // Uzantı yolları (doğrultu / çember) EXT yakalama kipine BAĞLI DEĞİLDİR (v7.74): edinilmiş noktanın uzantısı, kullanıcı o noktayı
+  // bilerek edindiği için her zaman yoldur; EXT kipi yalnız geom.js'in edinmesiz uzantı yakalamasını yönetir. (v7.70–v7.73'te EXT
+  // kapalıyken yol çıkmıyordu; v7.70 öncesi kaydedilmiş ayarlarda EXT kapalı kaldığından kullanıcı uzantı izini hiç göremedi.)
+  const d = S.desk, opt = { ext: true }, angs = Trk.angles(!!d.polar, d.polarStep);
   let lock = null;
   if ((d.ortho || d.polar) && !o.grip && S.mode === 'view' && editor.tools && editor.tools.running) {
     const base = o.prev || edCall('lastToolPoint');
@@ -1271,7 +1278,7 @@ function findSnap(w, o = {}) {
   }
   // NESNE YAKALAMA İZLEME (OTRACK): edinilmiş iz noktalarından geçen hizalama yolları ve kesişimleri (otrack.js);
   // nesne yakalaması (en yakın dışında) her zaman izi yener — kullanıcı belirli bir noktaya oturmak istemiştir.
-  const imp = modes.has('ext') && !o.grip ? trackBase(prev) : null;   // taban noktanın örtük uzantı yolları (v7.73)
+  const imp = !o.grip && !o.once ? trackBase(prev) : null;   // taban noktanın örtük uzantı yolları (v7.73); bir kerelik kipte istenen kip esastır
   if ((S.track.pts.length || imp) && (!sn || sn.kind === 'nea')) {
     const tr = trackObjCross(trackAlign(w, tol, { ...o, prev, imp }), w, tol, cands);
     if (tr && (!sn || Math.hypot(tr.p[0] - w[0], tr.p[1] - w[1]) < Math.hypot(sn.p[0] - w[0], sn.p[1] - w[1]))) sn = { p: [tr.p[0], tr.p[1], undefined], kind: 'trk', trk: tr };
