@@ -284,7 +284,7 @@ export default {
   attrEdit: '属性を編集',
   exploded: '分解しました',
   noRegion: '閉じた領域が見つかりません',
-  hatchAdded: 'ハッチングを追加しました', hatchPatTitle: 'ハッチングパターン', hatchScale: 'パターン尺度', autoWord: '自動', cmdHideBtn: 'コマンドラインを隠す', cmdHidden: 'コマンドラインを隠しました · %s で戻せます', hudHidden: '情報行を隠しました · %s で戻せます', hatchFromFile: 'ファイルのパターン', hatchFail_sinir: '境界が見つかりません: このハッチは再作成できません', hatchFail_desen: 'このパターンはファイル固有です。アプリに対応するものがないため、そのまま保持しました', hatchFail_deger: '尺度と角度は数値でなければなりません (尺度はゼロより大きい)', hatchFail_uretim: 'ハッチを作成できませんでした', hatchFail_yogun: 'どの尺度でもパターンがこの領域に収まりません。塗りつぶしを適用しました', hatchAutoScale: '尺度を自動的に %s にしました', hatchAngle: 'パターン角度 (°)', patSolid: 'べた塗り', tl_hatchpat: 'パターン', th_hatchpat: '新規ハッチングのパターン・尺度・角度',
+  hatchAdded: 'ハッチングを追加しました', hatchPatTitle: 'ハッチングパターン', hatchScale: 'パターン尺度', autoWord: '自動', need2d: '%s は2Dビューで作図します · 2Dに切り替えました', cmdHideBtn: 'コマンドラインを隠す', cmdHidden: 'コマンドラインを隠しました · %s で戻せます', hudHidden: '情報行を隠しました · %s で戻せます', hatchFromFile: 'ファイルのパターン', hatchFail_sinir: '境界が見つかりません: このハッチは再作成できません', hatchFail_desen: 'このパターンはファイル固有です。アプリに対応するものがないため、そのまま保持しました', hatchFail_deger: '尺度と角度は数値でなければなりません (尺度はゼロより大きい)', hatchFail_uretim: 'ハッチを作成できませんでした', hatchFail_yogun: 'どの尺度でもパターンがこの領域に収まりません。塗りつぶしを適用しました', hatchAutoScale: '尺度を自動的に %s にしました', hatchAngle: 'パターン角度 (°)', patSolid: 'べた塗り', tl_hatchpat: 'パターン', th_hatchpat: '新規ハッチングのパターン・尺度・角度',
   dimFail: '寸法を作成できませんでした',
   balloonStart: '開始番号',
   leaderPrompt: '引出線の文字',

@@ -34,6 +34,7 @@ await page.screenshot({ path: `${out}/e_3d_iso.png` });
 await page.click('#toolbar [data-act="v:top"]'); await page.waitForTimeout(200); await page.screenshot({ path: `${out}/e_3d_top.png` });
 await page.click('#toolbar [data-act="v:iso"]'); await page.waitForTimeout(200);
 // 3B mesafe: ekranda görünen ilk iki köşe (B1 hattının iki ucu, z 52.4 / 51.9)
+await page.click('#toolbar [data-tab="draw"]'); await page.waitForTimeout(250);   // v7.80: 3B araçları Çiz şeridindedir
 await page.click('#toolbar [data-act="3:dist"]');
 const vs = await page.evaluate(() => { const v = window.dwgApp.editor.view3d(); const W = v.cv.clientWidth, H = v.cv.clientHeight; const seen = new Set(); const out = []; for (const a of v.vertices) { const s = v.project(a[0], a[1], a[2]); const k = Math.round(s[0]) + ',' + Math.round(s[1]); if (s[0] > 40 && s[0] < W - 40 && s[1] > 60 && s[1] < H - 60 && !seen.has(k)) { seen.add(k); out.push(s); } if (out.length === 2) break; } return out; });
 ok('3a iki köşe ekranda bulundu', vs.length === 2, JSON.stringify(vs.map(s => s.slice(0, 2).map(Math.round))));
@@ -97,6 +98,55 @@ await page.screenshot({ path: `${out}/e_2d_after.png` });
     return { hud: v.opts.hud };
   });
   ok('8c karo bilgi satırını geri getirir', h3.hud === true, JSON.stringify(h3));
+}
+
+// ---------------------------------------------------------------------------------
+// 9 · v7.80: 3B'de Çiz şeridi 3B araçlarını gösterir — çizmeye kalkışınca görünüm değişmez
+// ---------------------------------------------------------------------------------
+{
+  const g1 = await page.evaluate(async () => {
+    const E = window.dwgApp.editor;
+    if (!E.is3D()) { E.act('3d'); await new Promise(r => setTimeout(r, 700)); }
+    E.act('tab:draw'); await new Promise(r => setTimeout(r, 250));
+    const row = document.querySelector('#toolbar .tb-row[data-for="draw"]');
+    const k = row ? [...row.querySelectorAll('[data-act]')].map(b => b.dataset.act) : [];
+    return { uc: E.is3D(), karolar: k, ikiB: k.filter(a => a.startsWith('t:')), ucB: k.filter(a => a.startsWith('3:')) };
+  });
+  ok('9a 3B\'de Çiz şeridinde HİÇ 2B çizim aracı yok (kaza ile görünüm değişmez)', g1.uc === true && g1.ikiB.length === 0, JSON.stringify(g1));
+  ok('9b 3B\'de Çiz şeridi 3B araçlarını gösterir (3B Polyline, açıklama, kot…)', g1.ucB.includes('3:pline') && g1.ucB.length >= 5, JSON.stringify(g1));
+
+  const g2 = await page.evaluate(async () => {
+    const E = window.dwgApp.editor;
+    const once = E.is3D();
+    E.act('t:line'); await new Promise(r => setTimeout(r, 400));   // komut satırından yazılmış gibi
+    const el = document.getElementById('toast');
+    const r = { onceUc: once, sonraUc: E.is3D(), arac: E.tools.active,
+      ileti: el && !el.hidden ? (el.querySelector('.tx') || el).textContent : '' };
+    if (E.tools.running) E.tools.cancel();
+    return r;
+  });
+  ok('9c 3B\'de 2B komutu yazılırsa araç başlar ama geçiş SESSİZ değildir', g2.onceUc === true && g2.sonraUc === false && g2.arac === 'line' && g2.ileti.length > 10, JSON.stringify(g2));
+
+  const g3 = await page.evaluate(async () => {
+    const row = document.querySelector('#toolbar .tb-row[data-for="draw"]');
+    const k = row ? [...row.querySelectorAll('[data-act]')].map(b => b.dataset.act) : [];
+    return { ikiB: k.filter(a => a.startsWith('t:')).length };
+  });
+  ok('9d 2B\'ye dönünce Çiz şeridi 2B araçlarına geri döner', g3.ikiB >= 5, JSON.stringify(g3));
+
+  // 3B Çiz şeridinde de kilit rozeti sözleşmesi geçerlidir: kilitli ⇔ data-need ⇔ .lk
+  const g4 = await page.evaluate(async () => {
+    const E = window.dwgApp.editor;
+    if (!E.is3D()) { E.act('3d'); await new Promise(r => setTimeout(r, 700)); }
+    E.act('tab:draw'); await new Promise(r => setTimeout(r, 250));
+    const Ed = await import('./edition.js');
+    const bad = [...document.querySelectorAll('#toolbar .tb-row[data-for="draw"] [data-act]')].map(b => {
+      const k = b.dataset.act, lock = !Ed.has(k);
+      return { k, ok: lock === b.hasAttribute('data-need') && lock === !!b.querySelector('.lk') && (!lock || b.dataset.need === Ed.need(k)) };
+    }).filter(x => !x.ok).map(x => x.k);
+    return { bad, n: document.querySelectorAll('#toolbar .tb-row[data-for="draw"] [data-act]').length };
+  });
+  ok('9e 3B Çiz şeridinde rozet sözleşmesi tutuyor', g4.bad.length === 0 && g4.n >= 5, JSON.stringify(g4));
 }
 
 ok('7 sayfa hatası yok', errors.length === 0, errors.join(' | ').slice(0, 200));

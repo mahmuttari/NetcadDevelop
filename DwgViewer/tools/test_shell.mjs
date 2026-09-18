@@ -36,7 +36,9 @@ await ev(() => { document.getElementById('toast').hidden = true; });
     return { groups, small: tiles.filter(t => t[0] < 56 || t[1] < 56), tabH, emoji, svg, n: tiles.length };
   });
   ok('33 şerit', r.groups >= 4 && r.small.length === 0 && r.tabH >= 40 && !r.emoji && r.svg, JSON.stringify(r));
-  ok('3 seçiciler', await ev(() => ['[data-tab="view"]', '[data-tab="display"]', '[data-tab="measure"]', '[data-tab="draw"]', '[data-tab="edit"]', '[data-tab="3d"]', '.tb-row[data-for="edit"] [data-act="undo"]', '.tb-row[data-for="edit"] [data-act="redo"]', '#tbUndo', '#tbRedo', '#tbSave', '#tbLayer', '[data-act="3d"]', '[data-act="v:top"]', '[data-act="v:iso"]', '[data-act="3:dist"]', '[data-act="3:select"]', '[data-act="3:setz"]', '[data-act="3:pline"]', '[data-act="savedxf"]', '[data-act="t:line"]', '[data-act="t:rect"]', '[data-act="t:circle"]', '[data-act="t:text"]', '[data-act="t:move"]', '[data-act="t:rotate"]', '[data-act="t:area"]'].every(s => !!document.querySelector('#toolbar ' + s))));
+  // 3B araç karoları (3:*) yalnız 3B kipinde ve Çiz şeridinde bulunur (v7.80); 2B'de DOM'da olmamaları
+  // beklenen davranıştır — varlıkları test_edition 1g3'te 3B kipinde sınanır.
+  ok('3 seçiciler', await ev(() => ['[data-tab="view"]', '[data-tab="display"]', '[data-tab="measure"]', '[data-tab="draw"]', '[data-tab="edit"]', '[data-tab="3d"]', '.tb-row[data-for="edit"] [data-act="undo"]', '.tb-row[data-for="edit"] [data-act="redo"]', '#tbUndo', '#tbRedo', '#tbSave', '#tbLayer', '[data-act="3d"]', '[data-act="v:top"]', '[data-act="v:iso"]', '[data-act="savedxf"]', '[data-act="t:line"]', '[data-act="t:rect"]', '[data-act="t:circle"]', '[data-act="t:text"]', '[data-act="t:move"]', '[data-act="t:rotate"]', '[data-act="t:area"]'].every(s => !!document.querySelector('#toolbar ' + s))));
 }
 // 34 uzun basış + sık kullanılan
 {

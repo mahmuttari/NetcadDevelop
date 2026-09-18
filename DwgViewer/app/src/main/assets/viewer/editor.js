@@ -113,7 +113,26 @@ const TABS = [
     { cap: 'grpView3', items: [T('3d', 'i-3d', '3B aç/kapat', '3D on/off', 'Tek parmak döndürür, iki parmak kaydırır / yakınlaştırır', 'One finger orbits, two fingers pan / zoom'), T('fit3', 'i-fit', 'Sığdır', 'Fit'), T('v:iso', 'i-iso', 'İzometrik', 'Isometric'), T('v:top', 'i-top', 'Üst', 'Top'), T('v:front', 'i-front', 'Ön', 'Front'), T('v:left', 'i-left', 'Sol', 'Left'), T('v:right', 'i-right', 'Sağ', 'Right'), T('v:back', 'i-back', 'Arka', 'Back'), T('v:bottom', 'i-bottom', 'Alt', 'Bottom')] },
     { cap: 'grpCam3', items: [T('persp', 'i-eye', 'Perspektif', 'Perspective', 'Perspektif / ortografik', 'Perspective / orthographic'), T('zscale', 'i-zscale', 'Z abartı', 'Z scale', 'Düşey abartı çarpanı', 'Vertical exaggeration'), T('cam3', 'i-camera', 'Yer imleri', 'Bookmarks', 'Kamera konumlarını kaydeder', 'Save camera positions'), T('turn3', 'i-turn', 'Döner tabla', 'Turntable')] },
     { cap: 'grpStyle3', items: [T('vstyle', 'i-vs-wireframe', 'Görsel stil', 'Visual style', 'Tel kafes, gizli çizgi, gölgeli, gerçekçi, kavramsal, gri, eskiz, röntgen', 'Wireframe, hidden, shaded, realistic, conceptual, gray, sketchy, x-ray'), T('edges3', 'i-edges', 'Kenarlar', 'Edges', 'Yüzey kenar çizgilerini aç/kapat (stilin varsayılanını geçersiz kılar)', 'Toggle face edge lines (overrides the style default)'), T('color3', 'i-palette', 'Renk', 'Color', 'Nesne, katman, kot, tek renk', 'Entity, layer, elevation, mono'), T('clip3', 'i-clip', 'Kesit', 'Clip', 'Z aralığı ve kesit kutusu', 'Z range and clip box')] },
-    { cap: 'grpTools3', items: [T('3:select', 'i-select', 'Seç', 'Select'), T('target3', 'i-snap', 'Hedef', 'Target', 'Köşe / yüzey / otomatik: 3B dokunuşu neye oturur', 'Vertex / surface / auto: what a 3D tap snaps to'), T('3:dist', 'i-dist', '3B mesafe', '3D distance', 'Köşeler arası eğik mesafe, ΔZ, eğim', 'Slope distance between vertices'), T('3:move', 'i-move', 'Taşı (3B)', 'Move (3D)'), T('3:pline', 'i-pline3d', '3B Polyline', '3D Polyline'), T('3:geo', 'i-geo3', '3B geometrik ölçüm', '3D geometry measure', 'Nokta-doğru, nokta-düzlem, doğru-doğru, doğru-düzlem, düzlem-düzlem uzaklığı ve açı', 'Point-line, point-plane, line-line, line-plane, plane-plane distance and angle'), T('3:note', 'i-note3', '3B açıklama', '3D note', 'Seçilen 3B noktaya açıklama etiketi koyar', 'Place an annotation at a picked 3D point'), T('3:setz', 'i-z', 'Kot ata', 'Set Z'), T('3:del', 'i-erase', 'Sil', 'Delete'), T('undo', 'i-undo', 'Geri al', 'Undo')] } ] },
+    { cap: 'grpTools3', items: [T('target3', 'i-snap', 'Hedef', 'Target', 'Köşe / yüzey / otomatik: 3B dokunuşu neye oturur', 'Vertex / surface / auto: what a 3D tap snaps to')] } ] },   // 3B ARAÇLARI ÇİZ ŞERİDİNDEDİR (DRAW_3D_IDS): bir karo iki şeritte birden durmaz.
+    // Burada yalnız 'Hedef' kalır — o bir araç değil, dokunuşun neye oturacağını söyleyen bir ayardır.
+];
+/*
+ * 3B ÇİZİM ARAÇLARI. Ekran satırındaki DISPLAY_2D / DISPLAY_3D ile aynı desen: sekme tanımının
+ * dışında durur, aşağıda açıkça kaydedilir ve Çiz şeridi 3B'deyken bunları gösterir. Böylece
+ * karolar tek yerde tanımlanır (tek kimlik, tek kısayol, tek kapı basamağı) ve iki şeritte
+ * birden görünmez.
+ */
+const DRAW_3D = [
+  { cap: 'grpTools3', items: [
+    T('3:select', 'i-select', 'Seç', 'Select', '3B\'de nesne seçer', 'Select objects in 3D'),
+    T('3:pline', 'i-pline3d', '3B Polyline', '3D Polyline', 'Köşelere ve yüzeylere oturan üç boyutlu çizgi', 'A 3D polyline snapped to vertices and surfaces'),
+    T('3:note', 'i-note3', '3B açıklama', '3D note', 'Üç boyutlu noktaya açıklama', 'A note at a 3D point'),
+    T('3:dist', 'i-dist', '3B mesafe', '3D distance', 'Köşeler arası eğik mesafe, ΔZ, eğim', 'Slope distance between vertices'),
+    T('3:geo', 'i-geo3', '3B geometrik ölçüm', '3D geometry measure', 'Açı, düzlem, hacim, alan…', 'Angle, plane, volume, area…'),
+    T('3:move', 'i-move', 'Taşı (3B)', 'Move (3D)', 'Seçimi üç boyutta taşır', 'Move the selection in 3D'),
+    T('3:setz', 'i-z', 'Kot ata', 'Set Z', 'Seçime kot verir', 'Assign an elevation to the selection'),
+    T('3:del', 'i-erase', 'Sil', 'Delete', 'Seçimi siler', 'Erase the selection'),
+  ] },
 ];
 const DISPLAY_2D = [
   { cap: 'grpTheme', items: [T('theme', 'i-theme', 'Koyu / açık', 'Dark / light', 'Arka plan temasını değiştirir', 'Switch the background theme'), T('sun', 'i-sun', 'Güneş', 'Sun', 'Güneş altında okunaklı yüksek kontrast', 'High contrast for sunlight'), T('display', 'i-sliders', 'Ekran ayarları', 'Display options', 'Tema, ön ayarlar, süzgeçler, çizgiler, ızgara…', 'Theme, presets, filters, lines, grid…')] },
@@ -143,6 +162,7 @@ function registerTiles() {
   for (const tab of TABS) for (const g of tab.groups) for (const it of g.items) reg(it);
   for (const g of DISPLAY_2D) for (const it of g.items) reg(it);
   for (const g of DISPLAY_3D) for (const it of g.items) reg(it);
+  for (const g of DRAW_3D) for (const it of g.items) reg(it);
   tr.perspShort = 'Persp'; en.perspShort = 'Persp'; tr.orthoShort = 'Paralel'; en.orthoShort = 'Ortho';
   addStrings(tr, en);
 }
@@ -315,8 +335,18 @@ function editionGroups(groups) {
   if (lockedOn()) return groups;
   return groups.map(g => ({ ...g, items: g.items.filter(it => has(it.act)) })).filter(g => g.items.length);
 }
+/*
+ * 3B'DE ÇİZ ŞERİDİ. 2B çizim araçları (Çizgi, Polyline, Dikdörtgen, Daire…) ekran düzleminde
+ * çalışır; 3B görünümde başlatılınca uygulama 2B'ye dönmek zorundaydı ve bu kullanıcıya
+ * "çizmeye kalkışınca görünüm bir anda değişti" gibi görünüyordu. Artık 3B'deyken Çiz şeridi
+ * 3B'de GERÇEKTEN çalışan araçları gösterir (3B Polyline, 3B açıklama, kot atama, ölçüm…);
+ * 2B araçları o şeritte hiç görünmez, dolayısıyla kaza ile görünüm değiştiren bir dokunuş kalmaz.
+ * Ekran satırı gibi burada da karolar YENİDEN TANIMLANMAZ, 3B sekmesindekiler ödünç alınır:
+ * tek kayıt, tek kısayol, tek kapı basamağı.
+ */
 function rowGroups(tab) {
   if (tab.id === 'display') return editionGroups(ed.is3D() ? DISPLAY_3D : DISPLAY_2D);
+  if (tab.id === 'draw' && ed.is3D()) return editionGroups(DRAW_3D);
   if (tab.id === 'fav') { const items = ui.favs.filter(a => TILE[a] && (lockedOn() || has(a))).map(a => TILE[a]); return items.length ? [{ cap: 'grpFav', items }] : []; }
   return editionGroups(tab.groups);
 }
@@ -590,7 +620,9 @@ function act(name, btn) {
    * şeritten çalışan kullanıcı sağ tuşun neden bir şey yapmadığını anlayamazdı.
    */
   if (repeatable(name)) cmdLast = cmdOf(name);   // açma/kapama karoları (GRID, ORTHO…) yinelenmez: geri kapatırdı
-  if (name.startsWith('t:')) { if (!needModel()) return; if (ed.is3D()) exit3D(); const tn = name.slice(2); if (tools.active === tn || (tn === 'array' && /^array/.test(tools.active || ''))) { tools.cancel(); markActive(null); } else { tools.start(tn); markActive(name); } return; }
+  // 2B aracı 3B'den çağrıldıysa (komut satırı, kısayol, sık kullanılan) görünüm SESSİZCE değişmez:
+  // neden söylenir. Çiz şeridi 3B'de zaten 2B araçlarını göstermez, bu yol yalnız yazarak gelenler içindir.
+  if (name.startsWith('t:')) { if (!needModel()) return; if (ed.is3D()) { const ad = tileLabel(name); exit3D(); api.toast(t('need2d').replace('%s', ad), 3000); } const tn = name.slice(2); if (tools.active === tn || (tn === 'array' && /^array/.test(tools.active || ''))) { tools.cancel(); markActive(null); } else { tools.start(tn); markActive(name); } return; }
   if (name.startsWith('v:')) { if (!v3 || !ed.is3D()) { if (!needModel()) return; enter3D(); } if (v3) { v3.preset(name.slice(2), { animate: !ui.reduceMotion }); v3.render(); overlay3D(); } return; }
   if (name.startsWith('3:')) { if (!needModel()) return; if (!ed.is3D()) enter3D(); void start3DTool(name.slice(2)); markActive(name); return; }
   const tog = { text: 'showText', hatch: 'showHatch', dim: 'showDim', points: 'showPoint', images: 'showImage', lw: 'lw', mono: 'colorMode', ltype: 'showLtype', grid: 'grid', crosshair: 'crosshair', rulers: 'rulers', fade: 'fade', sun: 'sun', theme: 'theme' };
@@ -2294,7 +2326,7 @@ function enter3D() {
   if (!cube) { try { cube = buildViewCube($('cube3d'), v3, host3()); } catch (e) { console.warn(e); cube = null; } }
   syncCube();
   api.toast(tileHint('3d'), 2200);
-  rebuildRow('display'); refreshTiles(); statusMode3D();
+  rebuildRow('display'); rebuildRow('draw'); refreshTiles(); statusMode3D();
   D.refreshNav();
 }
 export function exit3D() {
@@ -2303,7 +2335,7 @@ export function exit3D() {
   const c3 = $('cube3d'); if (c3) c3.hidden = true;
   closePop();
   const p = $('displayPanel'); if (p && !p.hidden && p.querySelector('#displaySeg [data-seg="3d"].on')) D.closeDisplayOptions();
-  rebuildRow('display'); refreshTiles(); statusMode3D();
+  rebuildRow('display'); rebuildRow('draw'); refreshTiles(); statusMode3D();
   api.drawOverlay();
   D.refreshNav();
 }
