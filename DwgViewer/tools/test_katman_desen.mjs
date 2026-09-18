@@ -63,16 +63,17 @@ const ev = (fn, a) => page.evaluate(fn, a);
     r.aci0 === 45 && r.aci45 === 90, `${r.aci0} / ${r.aci45}`);
   ok('A4 NET iki çizgi ailesi, SOLID sıfır, bilinmeyen desen sıfır',
     r.net === 2 && r.solid === 0 && r.bilinmeyen === 0, `${r.net} / ${r.solid} / ${r.bilinmeyen}`);
-  // minStep ötelemenin BOYU değil, çizgiler arası DİK aralıktır. ANSI31'in çizgileri 45°'dir ve
-  // .pat ötelemesi eksenler boyunca (0 · 0,125) verilir; dik aralık 0,125/√2'dir. Ölçek 10'da
-  // 1,25/√2 = 0,8839. (test_io:45'teki "ANSI31 -0,7071" değeri de aynı kökten gelir.)
+  // minStep ötelemenin BOYU değil, çizgiler arası DİK aralıktır. acad.pat ve DXF 45-46'da öteleme
+  // ÇİZGİNİN kendi eksenindedir: delta-x çizgi doğrultusunda, delta-y çizgiye diktir. ANSI31'in
+  // delta-y'si 0,125'tir, dolayısıyla dik aralık doğrudan 0,125 · ölçek = 1,25'tir (AutoCAD ile aynı).
+  // v7.76'ya kadar öteleme dünya ekseni sanılıyor ve aralık 1,25/√2 = 0,8839 çıkıyordu.
   ok('A5 çizici parça üretiyor ve DİK adımı bildiriyor (LOD dolgusu bunu okur)',
-    !!r.cizgi && r.cizgi.segs > 10 && r.cizgi.ops === r.cizgi.segs * 2 && Math.abs(r.cizgi.step - 1.25 / Math.SQRT2) < 1e-3, JSON.stringify(r.cizgi));
+    !!r.cizgi && r.cizgi.segs > 10 && r.cizgi.ops === r.cizgi.segs * 2 && Math.abs(r.cizgi.step - 1.25) < 1e-6, JSON.stringify(r.cizgi));
   ok('A6 bütçe aşılınca null döner (sonsuz desen telefonu kilitlemez)', r.butce === null, JSON.stringify(r.butce));
   ok('A7 SOLID tek varlık, desenli tarama İKİ varlık (sınır + desen çizgileri)',
     r.solidEnt.n === 1 && r.solidEnt.t === 'HATCH' && r.ansiEnt.n === 2 && r.ansiEnt.t === 'HATCH,PATH', JSON.stringify([r.solidEnt, r.ansiEnt]));
   ok('A8 desen çizgileri hpart bayrağı taşıyor (DXF\'e ayrıca LWPOLYLINE olarak yazılmasın)',
-    r.ansiEnt.hpart === true && Math.abs(r.ansiEnt.hp - 1.25 / Math.SQRT2) < 1e-3, JSON.stringify(r.ansiEnt));
+    r.ansiEnt.hpart === true && Math.abs(r.ansiEnt.hp - 1.25) < 1e-6, JSON.stringify(r.ansiEnt));
   ok('A9 bilinmeyen desen SOLID\'e düşüyor (kullanıcı boş sonuçla karşılaşmaz)', r.dusus === 'SOLID', String(r.dusus));
 }
 

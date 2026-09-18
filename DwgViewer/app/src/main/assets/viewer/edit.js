@@ -13,7 +13,7 @@
  *  - writeDxf(): sahne + düzenlemeler → ASCII DXF (AC1015); uygulamanın blok tanımları BLOCKS bölümüne, yerleştirmeleri
  *    INSERT (+ATTRIB) olarak, maskeler WIPEOUT olarak yazılır; DWG'den gelen ve benimsenmemiş yerleştirmeler patlatılmış kalır
  */
-import { TAU, mul, apply, isSim, simScale, simRot, det, arcPts, ellipsePts, opsBBox, flatten, cloudOps, extrudeMesh } from './geom.js';
+import { TAU, mul, apply, isSim, simScale, simRot, det, arcPts, ellipsePts, opsBBox, flatten, cloudOps, extrudeMesh, patternDefs } from './geom.js';
 import { FG, ACI } from './scene.js';
 import { transformDef } from './annot.js';
 import { expandInsert, insMatrix, withMatrix, keyOf as blkKey, attrsFor, insFromInfo, decompose, xformEnts } from './blocks.js';
@@ -84,6 +84,7 @@ export function entToPrim(ent, layers) {
       const ad = String(ent.pattern || 'SOLID').toUpperCase();
       const dolu = ad === 'SOLID';
       info.pattern = ent.pattern || 'SOLID'; info.solid = dolu;
+      info.hscale = ent.hscale == null ? 1 : ent.hscale; info.hangle = ent.hangle == null ? 0 : ent.hangle;   // DXF kod 41 / 52
       // Desenli tarama İKİ ilkelden oluşur: sınır (dolgusuz, çerçeve) ve desen çizgileri.
       // Ayrı tutulmalarının sebebi çizim değil YAZMA: DXF'e desenli HATCH olarak yazılırken
       // çizgiler ayrıca LWPOLYLINE olarak çıkmamalıdır (hpart bayrağı onları süzer).
@@ -990,7 +991,10 @@ export function writeDxf(prims, layers, opts = {}) {
       if (p.k !== 0) return;
       const ops = p.ops;
       if (p.bg) { writeWipeout(p, owner); return; }
-      if (p.fill && (p.et === 'HATCH' || p.et === 'SOLID' || p.et === 'TRACE')) {
+      const hatchAd = p.et === 'HATCH' ? String((p.info && p.info.pattern) || 'SOLID').toUpperCase() : '';
+      // Desenli tarama DOLGUSUZ bir ilkeldir (çizgileri ayrı, hpart'lı bir yolda durur); yine de
+      // DXF'e HATCH olarak çıkmalıdır, yoksa dosyada yalnız sınır çokgeni kalır ve tarama kaybolur.
+      if ((p.fill || (hatchAd && hatchAd !== 'SOLID')) && (p.et === 'HATCH' || p.et === 'SOLID' || p.et === 'TRACE')) {
         // Dolu yüzeyler gerçek DXF varlığı olarak yazılır; LWPOLYLINE'a düşürmek dolguyu kaybettirirdi.
         // Alt yollar ayrı sınırdır (moveto her seferinde yeni yol açar).
         const parts = []; let cur = null;
@@ -1000,7 +1004,7 @@ export function writeDxf(prims, layers, opts = {}) {
         }
         const paths = parts.filter(a => a.length >= 3);
         const elev = (ops[0] && ops[0][3]) || 0;
-        if (paths.length && p.et !== 'HATCH' && paths.length === 1 && paths[0].length <= 4) {
+        if (paths.length && p.fill && p.et !== 'HATCH' && paths.length === 1 && paths[0].length <= 4) {
           // Üç ya da dört köşeli dolu: DXF SOLID. Köşe sırası 1-2-4-3'tür, üçgende 4 = 3.
           const q = paths[0];
           const A = q[0], B = q[1], Cc = q[2], Dd = q.length > 3 ? q[3] : q[2];
@@ -1012,17 +1016,40 @@ export function writeDxf(prims, layers, opts = {}) {
           return;
         }
         if (paths.length) {
+          const inf = p.info || {};
+          const desenli = !!hatchAd && hatchAd !== 'SOLID';
+          const olcek = desenli ? (typeof inf.hscale === 'number' && inf.hscale ? inf.hscale : 1) : 1;
+          const aci = desenli ? (typeof inf.hangle === 'number' ? inf.hangle : 0) : 0;
+          const defs = desenli ? patternDefs(hatchAd, olcek, aci) : [];
           common('HATCH', p, 'AcDbHatch', owner);
           w(10, 0); w(20, 0); w(30, f6(elev));
           w(210, 0); w(220, 0); w(230, 1);
-          w(2, 'SOLID'); w(70, 1); w(71, 0);
+          w(2, defs.length ? hatchAd : 'SOLID'); w(70, defs.length ? 0 : 1); w(71, 0);
           w(91, paths.length);
           for (const part of paths) {
             w(92, 3); w(72, 0); w(73, 1); w(93, part.length);       // 92: dış sınır (1) + çokgen (2)
             for (const q of part) { w(10, f6(q[0])); w(20, f6(q[1])); }
             w(97, 0);
           }
-          w(75, paths.length > 1 ? 1 : 0); w(76, 1); w(98, 0);
+          w(75, paths.length > 1 ? 1 : 0); w(76, 1);
+          /*
+           * Desen tanımı (AutoCAD'in kendi sırası): 52 açı, 41 ölçek, 77 çift, 78 satır sayısı,
+           * sonra her satır 53 açı · 43-44 taban · 45-46 kayma · 79 tire sayısı · 49 tireler.
+           * 45-46 ÇİZGİNİN kendi eksenindedir (geom.patternDefs de öyle üretir), döndürülmez.
+           * Bu satırlar olmadan AutoCAD deseni çizemez; yalnız ad yazmak boş tarama verir.
+           */
+          if (defs.length) {
+            w(52, f6(aci)); w(41, f6(olcek)); w(77, 0); w(78, defs.length);
+            for (const d of defs) {
+              w(53, f6(d.angle * R2D));
+              w(43, f6(d.base.x)); w(44, f6(d.base.y));
+              w(45, f6(d.offset.x)); w(46, f6(d.offset.y));
+              const dl = d.dashLengths || [];
+              w(79, dl.length);
+              for (const v of dl) w(49, f6(v));
+            }
+          }
+          w(98, 0);
           return;
         }
       }

@@ -1,5 +1,5 @@
 /*
- * v7.74 / v7.75 — son iki günün denetiminde doğrulanan dokuz kusurun düzeltmesi:
+ * v7.74 / v7.75 / v7.76 — son iki günün denetiminde doğrulanan on üç kusurun düzeltmesi:
  *   1. Komut satırından açılır kutu isteyen komutlar (VS / VSCURRENT / HIDE / RENDER / SECTIONPLANE)
  *      çapa düğmesi olmadığı için çöküyordu (openPop → anchor.getBoundingClientRect).
  *   2. Özellikler paletinde yalnız renk / çizgi tipi / kalınlık değişince bütün seçim ilk nesnenin
@@ -16,6 +16,16 @@
  *   9. Kalem HAVADA gezinirken bütün parmak dokunuşları avuç reddine takılıyordu; stylus.js'in
  *      kendi sözleşmesi "havada gezinme bloklamaz" derken watch() sağır süreyi gezinmede de
  *      yeniliyordu.
+ *  10. Desenli tarama DXF'e HATCH olarak ÇIKMIYORDU: sınır dolgusuz olduğu için yazıcı onu düz
+ *      LWPOLYLINE'a düşürüyor, desen çizgileri de hpart ile süzülüyordu — dosyada yalnız boş bir
+ *      çokgen kalıyordu. Artık desen adı, açı, ölçek ve DESEN TANIM SATIRLARI ile yazılır.
+ *  11. Desen kayması (acad.pat delta-x / delta-y, DXF 45-46) DÜNYA ekseni sanılıyordu; oysa
+ *      ÇİZGİNİN kendi eksenindedir. ANSI31 (45°, 0,125) AutoCAD'de 0,125 aralıklıyken burada
+ *      0,0884 çıkıyordu — hem kendi taramalarımız hem DWG/DXF'ten okunanlar %41 sıktı.
+ *  12. Dinamik blokta görünürlük durumu bir ATTDEF'i gizlediğinde kalan özniteliklerin indisi
+ *      kayıyor, değerler birbirinin yerine okunuyordu; artık eşleşme ETİKETLE yapılır.
+ *  13. Blok düzenleyici oturumu açıkken blok tablosuna dokunan komutlar (Bloklar paneli, Temizle,
+ *      BLOCK) geçici belgeye yazılıyor ve oturum kapanınca sessizce kayboluyordu.
  * Kullanım: PLAYWRIGHT_PKG=<node_modules> node tools/test_denetim.mjs [çıktı] [örnekler]
  */
 import { args, startServer, launchBrowser, openFile, onDialog, noUpdate, checker, PHONE } from './harness.mjs';
@@ -232,6 +242,88 @@ const kapat = () => ev(() => { const p = document.getElementById('tbPop'); if (p
   ok('9b gezinme sırasında bile GENİŞ temas (avuç) elenir', r.genisTemas === true, J(r));
   ok('9c kalem ekrana değerken parmak elenir', r.temas === true, J(r));
   ok('9d kalem kalktıktan hemen sonra elenir, sağır süre dolunca geçer', r.hemen === true && r.sonra === false, J(r));
+}
+
+// ---------------------------------------------------------------------------------
+// 10-11 · Desenli tarama: DXF'e gerçek HATCH olarak, desen tanım satırlarıyla; kayma çizgi ekseninde
+// ---------------------------------------------------------------------------------
+{
+  const r = await ev(async () => {
+    const G = await import('./geom.js');
+    const E = await import('./edit.js');
+    const A = await import('./annot.js');
+    const S = window.dwgApp.state;
+    // 11) kayma çizginin kendi eksenindedir: ANSI31 45° / 0,125 → 10x10 karede köşegen / 0,125 çizgi
+    const d = G.patternDefs('ANSI31', 1, 0);
+    const kare = [[0, 0], [10, 0], [10, 10], [0, 10]];
+    const hl = G.hatchLines([kare], d, {});
+    const cizgi = hl ? hl.ops.filter(o => o[0] === 0).length : 0;
+    const bekle = Math.round(Math.hypot(10, 10) / 0.125);
+    // 10) DXF turu
+    const ents = A.hatchEnts([[0, 0, 0], [10, 0, 0], [10, 10, 0], [0, 10, 0]], { pattern: 'ANSI31', scale: 2, angle: 30, layer: '0', color: 256 });
+    const prims = ents.ents.map((e, i) => E.entToPrim({ ...e, id: 'H' + i, layer: '0', color: 256 }, S.layers)).filter(Boolean);
+    const txt = E.writeDxf(prims, S.layers, {});
+    // yalnız HATCH varlığının gövdesine bak: başlık (HEADER) bölümünde de 2 / 41 / 52 kodları var
+    const govde = txt.slice(txt.indexOf('\r\n0\r\nHATCH\r\n'));
+    const kod = (c) => { const m = govde.match(new RegExp('\\r\\n' + c + '\\r\\n([^\\r]*)\\r\\n')); return m ? m[1] : null; };
+    return {
+      cizgi, bekle,
+      hatch: /\r\n0\r\nHATCH\r\n/.test(txt),
+      ad: kod(2), dolu: kod(70), satir: kod(78), aci: kod(52), olcek: kod(41),
+      tanimAci: kod(53), kaymaY: kod(46),
+      // desen çizgileri ayrıca LWPOLYLINE olarak çıkmaz
+      poly: (txt.match(/\r\nLWPOLYLINE\r\n/g) || []).length,
+    };
+  });
+  ok('10a desenli tarama DXF\'e HATCH olarak yazıldı (düz çokgene düşmüyor)', r.hatch === true && r.poly === 0, J(r));
+  ok('10b desen adı yazıldı, dolgu bayrağı 0 (desenli)', r.ad === 'ANSI31' && r.dolu === '0', J(r));
+  ok('10c açı ve ölçek yazıldı (kod 52 / 41)', Math.abs(parseFloat(r.aci) - 30) < 1e-6 && Math.abs(parseFloat(r.olcek) - 2) < 1e-6, J(r));
+  ok('10d desen TANIM satırları yazıldı (kod 78 ve 53 / 46)', r.satir === '1' && Math.abs(parseFloat(r.tanimAci) - 75) < 1e-6 && Math.abs(parseFloat(r.kaymaY) - 0.25) < 1e-6, J(r));
+  ok('11 kayma çizginin kendi eksenindedir: ANSI31 aralığı 0,125 (AutoCAD ile aynı)', r.cizgi === r.bekle, J(r));
+}
+
+// ---------------------------------------------------------------------------------
+// 12 · Dinamik blok: görünürlük bir özniteliği gizlediğinde kalanlar kendi değerini okur
+// ---------------------------------------------------------------------------------
+{
+  const r = await ev(async () => {
+    const B = await import('./blocks.js');
+    const def = {
+      name: 'ATT_VIS', base: [0, 0, 0], dyn: { params: [{ id: 'v1', kind: 'vis', states: ['AZ', 'COK'], def: 'COK' }] },
+      ents: [
+        { type: 'ATTDEF', tag: 'BIR', text: '', pts: [[0, 0, 0]], h: 1, vis: ['COK'] },
+        { type: 'ATTDEF', tag: 'IKI', text: '', pts: [[0, 1, 0]], h: 1 },
+      ],
+    };
+    const blocks = new Map([['ATT_VIS', def]]);
+    const oku = (state) => {
+      const ins = { type: 'INSERT', id: 'i1', name: 'ATT_VIS', layer: '0', color: 256, x: 0, y: 0, z: 0, rot: 0, sx: 1, sy: 1,
+        attrs: [['BIR', 'birinci'], ['IKI', 'ikinci']], dyn: { v1: state } };
+      return B.expandInsert(ins, blocks, new Map(), null)
+        .filter(p => p.et === 'ATTRIB')
+        .map(p => (p.ent && p.ent.tag ? p.ent.tag : '?') + '=' + (p.lines || []).join(''));
+    };
+    return { cok: oku('COK'), az: oku('AZ') };
+  });
+  ok('12a bütün öznitelikler görünürken değerler doğru', J(r.cok) === J(['BIR=birinci', 'IKI=ikinci']), J(r));
+  ok('12b görünürlük ilk özniteliği gizlediğinde kalan KENDİ değerini okur (indis kaymıyor)', J(r.az) === J(['IKI=ikinci']), J(r));
+}
+
+// ---------------------------------------------------------------------------------
+// 13 · Blok düzenleyici açıkken blok tablosu komutları geçici belgeye yazılmaz
+// ---------------------------------------------------------------------------------
+{
+  const z = await ev(async () => {
+    const src = await (await fetch('editor.js')).text();
+    const g = (ad) => { const i = src.indexOf(ad); return i < 0 ? null : src.slice(i, i + 600); };
+    const koru = (govde) => !!govde && /if \(bses\) \{ api\.toast\(t\('beditCloseFirst'\)\)/.test(govde);
+    return {
+      panel: koru(g('function showBlocks()')),
+      temizle: koru(g('async function purgeDialog()')),
+      blok: koru(g('function blockMake(')),
+    };
+  });
+  ok('13 Bloklar paneli, Temizle ve BLOCK oturum açıkken "önce blok düzenlemeyi kapatın" der', z.panel && z.temizle && z.blok, J(z));
 }
 
 await browser.close();

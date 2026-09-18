@@ -85,7 +85,7 @@ export function withMatrix(ins, m, dz = 0) {
 // Varlık dönüşümü (tek kapı)
 // ---------------------------------------------------------------------------------------
 /** Varlığın dönüşümde korunacak, geometri dışı alanları */
-const KEEP = ['id', 'tag', 'prompt', 'flags', 'vis', 'bg', 'hp', 'hpart', 'pattern', 'alpha', 'itype', 'gid', 'layer', 'color', 'linetype'];
+const KEEP = ['id', 'tag', 'prompt', 'flags', 'vis', 'bg', 'hp', 'hpart', 'pattern', 'hscale', 'hangle', 'alpha', 'itype', 'gid', 'layer', 'color', 'linetype'];
 /**
  * Varlık kümesinin m ile dönüşmüş KOPYASI (z'ye dz eklenir). İç içe yerleştirme (INSERT) matrisini
  * çarparak taşır; ATTDEF konum ve dönüşünü yazı gibi alır, öteki alanları korur; MASKE çokgeni
@@ -267,6 +267,7 @@ export function expandInsert(ins, blocks, layers, info, depth = 0) {
   // Ekleme noktası işareti (k=4): INS yakalaması ve bilgi paneli için; çizilmez, seçime girmez (scene.js ile aynı sözleşme)
   if (depth === 0) out.push({ k: 4, x: m[4], y: m[5], z: say(ins.z), bb: [m[4], m[5], m[4], m[5]], col: shared.col, lay: ins.layer || '0', info: shared, et: 'INSERT', key: ins.id + '#ins' });
   const attrs = shared.attrs || [];
+  const kullanilan = new Set();   // etiketle eşleşen öznitelik indisleri (yinelenen etiketlerde sıra korunur)
   for (const e0 of world) {
     let e = e0;
     if (!e.layer || e.layer === '0') e = { ...e, layer: ins.layer || '0' };
@@ -276,10 +277,22 @@ export function expandInsert(ins, blocks, layers, info, depth = 0) {
       continue;
     }
     if (e.type === 'ATTDEF') {
-      const i = ai++;
+      /*
+       * Öznitelik değeri ETİKETLE eşleşir, sırayla değil. Görünürlük durumu bir ATTDEF'i
+       * gizlediğinde (dinamik blok) kalanların sırası kayar ve sıraya güvenen eşleme değerleri
+       * birbirinin yerine okurdu. Etiket bulunamazsa (etiketsiz ya da yinelenen) sıraya düşülür;
+       * kullanılan indisler işaretlenir, böylece aynı etiketten iki tane varsa ikincisi ikinci
+       * değeri alır.
+       */
+      const sira = ai++;
+      const tagU = String(e.tag == null ? '' : e.tag).trim().toUpperCase();
+      let i = -1;
+      if (tagU) for (let k = 0; k < attrs.length; k++) { if (!kullanilan.has(k) && String(attrs[k][0] == null ? '' : attrs[k][0]).trim().toUpperCase() === tagU) { i = k; break; } }
+      if (i < 0) i = kullanilan.has(sira) ? -1 : sira;
+      if (i >= 0) kullanilan.add(i);
       const invisible = (e.flags | 0) & 1;
       if (invisible) continue;
-      const val = attrs[i] ? attrs[i][1] : (e.text == null ? '' : String(e.text));
+      const val = i >= 0 && attrs[i] ? attrs[i][1] : (e.text == null ? '' : String(e.text));
       if (val === '') continue;
       const tp = entToPrim({ ...e, type: 'TEXT', text: val, id: ins.id + '#' + n }, layers);
       if (!tp) continue;

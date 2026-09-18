@@ -262,7 +262,9 @@ export function hatchEnts(pts, o = {}) {
   const defs = patternDefs(ad, o.scale || 1, o.angle || 0);
   const r = defs.length ? hatchLines([pts.map(p => [p[0], p[1]])], defs, { maxSeg: 20000, maxWork: 1e6 }) : null;
   if (!r) return hatchEnts(pts, { ...o, pattern: 'SOLID' });
-  const sinir = { ...ortak, type: 'HATCH', pts: pts.map(p => [p[0], p[1], z]), pattern: ad, alpha: o.alpha == null ? 1 : o.alpha };
+  // hscale / hangle DXF'e yazarken gerekir (kod 41 ve 52) ve dosya yeniden açıldığında deseni
+  // aynı ölçekte kurar; yalnız desen adı saklanırsa tur başına ölçek 1'e döner.
+  const sinir = { ...ortak, type: 'HATCH', pts: pts.map(p => [p[0], p[1], z]), pattern: ad, hscale: o.scale || 1, hangle: o.angle || 0, alpha: o.alpha == null ? 1 : o.alpha };
   const cizgi = { ...ortak, type: 'PATH', ops: r.ops.map(op => [op[0], op[1], op[2], z]), closed: false, fill: false, hp: r.minStep, hpart: 1 };
   return { ents: [sinir, cizgi], pattern: ad, segs: r.segs };
 }

@@ -1379,6 +1379,7 @@ function primsToDefEnts(prims) {
  */
 function blockMake(name, prims, base, mode, lib) {
   if (!doc) return 0;
+  if (bses) { api.toast(t('beditCloseFirst')); return 0; }   // tanım geçici belgeye yazılıp kaybolmasın
   const { ents } = primsToDefEnts(prims);
   if (!ents.length) return 0;
   // AutoCAD kuralı: bir tanım kendine (doğrudan ya da iç içe bloklar üzerinden) başvuramaz.
@@ -1404,6 +1405,9 @@ function blockMake(name, prims, base, mode, lib) {
 function showBlocks() {
   if (!needModel()) return;
   if (!gate('blocks')) return;
+  // Blok düzenleyici oturumu ayrı bir belge üzerinde çalışır: tanım tablosuna dokunan her komut
+  // (yeniden adlandır, değiştir, sil, temizle) o geçici belgeye yazılır ve oturum kapanınca yok olur.
+  if (bses) { api.toast(t('beditCloseFirst')); return; }
   const cnt = insCounts();
   const defs = [...S.blocks.values()].sort((a, b) => a.name.localeCompare(b.name, 'tr'));
   const dwg = [...dwgBlockNames().values()].sort((a, b) => a.localeCompare(b, 'tr'));
@@ -1555,6 +1559,7 @@ async function wblockDialog(name) {
 /** PURGE: kullanılmayan blok tanımları ve boş katmanlar (AutoCAD PURGE'ün iki kalemi), tek geri alma adımı */
 async function purgeDialog() {
   if (!needModel() || !gate('blocks')) return;
+  if (bses) { api.toast(t('beditCloseFirst')); return; }   // temizleme ana çizimin tablosunu ilgilendirir
   const cnt = insCounts();
   const bl = [...S.blocks.values()].filter(d => !(cnt.get(blkKey(d.name)) || 0));
   const used = new Set(S.scene.layouts[0].prims.map(p => p.lay));

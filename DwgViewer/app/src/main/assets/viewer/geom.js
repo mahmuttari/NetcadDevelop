@@ -1213,8 +1213,10 @@ export function patternDefs(name, scale = 1, angleDeg = 0) {
     const dx = (r[3] || 0) * k, dy = (r[4] || 0) * k;
     return {
       angle: a,
+      // taban desen uzayındadır: yalnız kullanıcı dönüşüyle döner. Kayma ise ÇİZGİNİN kendi
+      // ekseninde verilir (acad.pat / DXF 45-46) — döndürülmez, yalnız ölçeklenir.
       base: { x: bx * cs - by * sn, y: bx * sn + by * cs },
-      offset: { x: dx * cs - dy * sn, y: dx * sn + dy * cs },
+      offset: { x: dx, y: dy },
       dashLengths: r.slice(5).map(v => v * k),
     };
   });
@@ -1241,7 +1243,13 @@ export function hatchLines(polys, defs, opt = {}) {
   for (const dl of defs) {
     const a = dl.angle || 0, ux = Math.cos(a), uy = Math.sin(a), nx = -uy, ny = ux;
     const base = dl.base || { x: 0, y: 0 }, off = dl.offset || { x: 0, y: 0 };
-    const step = (off.x || 0) * nx + (off.y || 0) * ny;             // ardışık çizgiler arası dik uzaklık (işaretli)
+    /*
+     * KAYMA, ÇİZGİNİN KENDİ EKSENİNDEDİR (acad.pat ve DXF 45/46 kuralı): delta-x çizgi DOĞRULTUSUNDA,
+     * delta-y çizgiye DİK ölçülür. Dünya ekseni sanılırsa açılı desenlerde aralık cos(açı) kadar
+     * daralır — ANSI31 (45°, delta-y 0,125) AutoCAD'de 0,125 aralıklıyken burada 0,0884 çıkıyordu.
+     */
+    const dwx = (off.x || 0) * ux + (off.y || 0) * nx, dwy = (off.x || 0) * uy + (off.y || 0) * ny;   // dünya karşılığı
+    const step = off.y || 0;                                        // ardışık çizgiler arası dik uzaklık (işaretli)
     if (!(Math.abs(step) > 1e-12)) continue;
     if (Math.abs(step) < minStep) minStep = Math.abs(step);
     const dashes = (dl.dashLengths || []).filter(v => typeof v === 'number' && isFinite(v));
@@ -1252,7 +1260,7 @@ export function hatchLines(polys, defs, opt = {}) {
     lines += i1 - i0 + 1;
     if (lines > maxSeg || lines * npts > maxWork || (period > 0 && lines * (diag / period) * dashes.length > maxSeg * 4)) return null;   // kırpma maliyeti de sınırlı
     for (let i = i0; i <= i1; i++) {
-      const ox = base.x + off.x * i, oy = base.y + off.y * i;
+      const ox = base.x + dwx * i, oy = base.y + dwy * i;
       const ts = [];
       for (const pl of polys) {
         for (let j = 0, m = pl.length; j < m; j++) {
