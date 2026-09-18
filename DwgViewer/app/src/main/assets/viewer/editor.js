@@ -535,11 +535,19 @@ function toggleFav(actName) {
   api.toast(i >= 0 ? t('favRemove') : t('favAdd'), 1200);
 }
 /** #tbPop: anchor düğmesinin üstünde (dikey) ya da solunda (yatay ray) */
+/** Açılır kutunun dayanacağı öge: tıklanan karo, yoksa etkin karo, o da yoksa şerit (komut satırı yolu) */
+function popAnchor(anchor) {
+  return anchor && typeof anchor.getBoundingClientRect === 'function'
+    ? anchor : (document.querySelector('#toolbar .tb-btn.on') || $('toolbar') || $('app'));
+}
 function openPop(anchor, html, o = {}) {
   closePop();
   const pop = $('tbPop'), app = $('app');
   pop.innerHTML = html; pop.hidden = false; pop.classList.toggle('side', landscapeMq.matches);
-  const ar = anchor.getBoundingClientRect(), pr = app.getBoundingClientRect();
+  // Komut satırından gelen çağrıda (VS, HIDE, RENDER, SPLANE…) tıklanan bir karo yoktur: açılır kutu
+  // o zaman etkin karoya, o da yoksa şeridin ortasına dayanır — çapasız çağrı çökmez.
+  const el = popAnchor(anchor);
+  const ar = el.getBoundingClientRect(), pr = app.getBoundingClientRect();
   const w = Math.min(pop.offsetWidth, pr.width - 16), h = pop.offsetHeight;
   let x, y;
   if (landscapeMq.matches) { x = ui.leftHand ? ar.right - pr.left + 8 : ar.left - pr.left - w - 8; y = Math.max(8, Math.min(pr.height - h - 8, ar.top - pr.top + ar.height / 2 - h / 2)); }
@@ -564,7 +572,7 @@ function optionPop(btn, renderFn, title) {
   const h = renderFn(body, v3, host3());
   popState.destroy = h;
   // içerik yüklendikten sonra konumu tazele
-  const anchor = btn; const ar = anchor.getBoundingClientRect(), pr = $('app').getBoundingClientRect();
+  const ar = popAnchor(btn).getBoundingClientRect(), pr = $('app').getBoundingClientRect();
   if (!landscapeMq.matches) { const hh = pop.offsetHeight; let y = ar.top - pr.top - hh - 10; if (y < 8) y = 8; pop.style.top = y + 'px'; }
 }
 function needDoc() { if (!S.hasDoc) { api.toast(t('openFirst')); return false; } return true; }
@@ -1199,7 +1207,9 @@ function showProps(all) {
     if (ci != null) { gen.color = ci; genOn = true; }
     if (($('pLt').value || '') !== (first.lt || '')) { gen.lt = $('pLt').value; genOn = true; }
     { const lw = Number($('pLw').value); if (lw !== (first.lw != null && first.lw >= 0 ? first.lw : -1) && !(lw === -1 && first.lw == null)) { gen.lw = lw; genOn = true; } }
-    if (genOn) { if (!gen.layer) gen.layer = first.lay; cmds.push(gen); }
+    // Katman YALNIZ kullanıcı değiştirdiyse gönderilir: yoksa çok katmanlı seçimde renk değişikliği
+    // bütün nesneleri ilk nesnenin katmanına taşırdı (props işlemi cmd.layer'ı hepsine uygular).
+    if (genOn) cmds.push(gen);
     if (same && F.length) {
       const vals = {};
       document.querySelectorAll('#docBody [data-pg]').forEach(el => { const id = el.dataset.pg; vals[id] = el.type === 'checkbox' ? el.checked : el.value; });
@@ -1371,9 +1381,14 @@ function blockMake(name, prims, base, mode, lib) {
   if (!doc) return 0;
   const { ents } = primsToDefEnts(prims);
   if (!ents.length) return 0;
+  // AutoCAD kuralı: bir tanım kendine (doğrudan ya da iç içe bloklar üzerinden) başvuramaz.
+  // Böyle bir tanım genişletilirken her düzeyde yeniden açılır ve uygulama kilitlenir.
+  if (B.refersTo(name, ents, S.blocks)) { api.toast(t('blkSelfRef'), 3200); return 0; }
   const bz = base[2] || 0;
   const def = { name: String(name).trim(), base: [base[0], base[1], bz], ents, dyn: null };
+  const vardi = S.blocks.has(blkKey(def.name));   // ÜZERİNE yazılıyorsa var olan yerleştirmeler yeni tanıma göre tazelenir
   const cmds = [{ op: 'blockdef', name: def.name, def }];
+  if (vardi) cmds.push({ op: 'blocksync', name: def.name });
   const keys = prims.filter(p => p.k !== 4).map(p => p.key);
   if (mode === 'convert' || mode === 'delete') cmds.push({ op: 'delete', keys });
   let insId = null;
@@ -1653,6 +1668,8 @@ async function beditSave() {
   const { ents: ents0, keys } = primsToDefEnts(model.prims);
   if (!ents0.length) { api.toast(t('beditEmpty')); return false; }
   const ents = s.kind === 'refedit' ? B.xformEnts(ents0, s.inv, (s.base[2] || 0) - s.z0) : ents0;
+  // Düzenlenen tanımın içine kendisi (ya da onu içeren bir blok) yerleştirilmişse kaydetmek kilitlenmeye yol açar
+  if (B.refersTo(s.name, ents, S.blocks)) { api.toast(t('blkSelfRef'), 3200); return false; }
   const params = (s.dyn.params || []).map(prm => { const q = { ...prm }; if (Array.isArray(prm.keys)) { q.ents = prm.keys.map(x => keys.indexOf(x)).filter(i => i >= 0); if (!q.ents.length) q.ents = null; } delete q.keys; return q; });
   const def = { name: s.name, base: s.base.slice(), ents, dyn: params.length ? { params } : null };
   const main = s.doc0;
@@ -1804,6 +1821,7 @@ function saveDxfText(text, name) {
 /** DXF metnini base64 olarak verir (Drive yüklemesi için); {b64, name} */
 ed.dxfBase64 = (onlyEdited) => {
   if (!S.hasDoc) return null;
+  if (bses) { api.toast(t('beditCloseFirst')); return null; }   // oturum açıkken model uzayı blok içeriğidir: Drive'a o yüklenmesin
   const text = writeDxf(S.scene.layouts[0].prims, S.layers, { onlyEdited: !!onlyEdited, ltypes: S.ltypes, units: UNIT_CODE[S.units] || 0, blocks: S.blocks, vars: S.vars });
   const bytes = new TextEncoder().encode(text);
   let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
@@ -2840,7 +2858,9 @@ ed.key = (ev) => {
   if ((ev.ctrlKey || ev.metaKey) && (k === 'z' || k === 'Z')) { if (ev.shiftKey) act('redo'); else act('undo'); return true; }
   if ((ev.ctrlKey || ev.metaKey) && (k === 'y' || k === 'Y')) { act('redo'); return true; }
   if ((k === 'Delete' || k === 'Backspace') && ed.sel.size && doc && !tools.running) { if (!gate('t:del')) return true; doc.run({ op: 'delete', keys: [...ed.sel].map(p => p.key) }); ed.sel.clear(); refreshUndo(); api.requestRender(); if (ed.is3D()) { refresh3D(); render3D(); } api.toast(t('deleted')); return true; }
-  if (k === 'Enter' && tools.running) { if (!(tools.enterEmpty && tools.enterEmpty())) tools.finish(); return true; }   // Ekran / Ölçü araçlarında boş Enter son değeri alır
+  // AutoCAD'de BOŞLUK çalışan bir komutun içinde ENTER'dır (adımı bitirir), son komutu yinelemez;
+  // yineleme yalnız komut YOKKEN olur. Boşluk komut satırına yazarken buraya hiç gelmez (odak girişte).
+  if ((k === 'Enter' || k === ' ') && tools.running) { if (!(tools.enterEmpty && tools.enterEmpty())) tools.finish(); return true; }   // Ekran / Ölçü araçlarında boş Enter son değeri alır
   // Boş Enter / boşluk son komutu yineler (AutoCAD). Araç çalışırken yukarıdaki dal bitirir.
   if ((k === 'Enter' || k === ' ') && deskAktif() && cmdLast) { ed.cmdRepeat(); return true; }
   return false;

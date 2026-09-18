@@ -555,7 +555,7 @@ export default {
   attPrompt: 'الطلب', attDefault: 'القيمة الافتراضية', attInvisible: 'غير مرئي', attConstant: 'ثابت (لا يُسأل عنه)', attdefHint: 'يُحوَّل الوسم إلى أحرف كبيرة؛ يصبح سمة عند إنشاء الكتلة وتُطلب قيمته عند الإدراج', attTagNeeded: 'الوسم مطلوب', attdefAdded: 'تمت إضافة تعريف السمة',
   attSynced: 'تمت مزامنة الإدراجات مع التعريف', attSyncNone: 'لا يوجد إدراج للمزامنة', battmanTitle: 'مدير السمات',
   blkTitle: 'الكتل', blkNoneDef: 'لا يوجد تعريف كتلة في الرسم — أنشئ واحدًا بأمر كتلة أو أضفه من المكتبة', blkMode: 'التحديد', blkConvert: 'تحويل إلى كتلة', blkRetain: 'إبقاء', blkDelete: 'حذف', blkAlsoLib: 'الحفظ في المكتبة أيضًا',
-  blkMakeHint: 'تصبح تعريفات السمات (ATTDEF) سمات الكتلة؛ تأخذ عناصر الطبقة 0 طبقة الإدراج', blkNameNeeded: 'اسم الكتلة مطلوب', blkOverwriteAsk: 'الكتلة "%s" موجودة؛ إعادة تعريفها؟ (ستتغير كل الإدراجات)', blkMade: 'تم تعريف الكتلة "%s"',
+  blkMakeHint: 'تصبح تعريفات السمات (ATTDEF) سمات الكتلة؛ تأخذ عناصر الطبقة 0 طبقة الإدراج', blkNameNeeded: 'اسم الكتلة مطلوب', blkSelfRef: 'لا يمكن إدراج الكتلة داخل نفسها', blkOverwriteAsk: 'الكتلة "%s" موجودة؛ إعادة تعريفها؟ (ستتغير كل الإدراجات)', blkMade: 'تم تعريف الكتلة "%s"',
   blkExplodeOnInsert: 'تفجير عند الإدراج', blkInsertHint2: 'الصفوف / الأعمدة > 1 تكرر الكتلة بالتباعد المعطى (MINSERT)؛ تُطلب السمات بعد نقطة الإدراج',
   blkEdit: 'تحرير', blkRename: 'إعادة تسمية', blkReplace: 'استبدال', blkToLib: 'إلى المكتبة', blkDwgTitle: 'كتل الملف (غير معتمدة)', blkAdopt: 'اعتماد', blkAdopted: 'تم أخذ التعريف "%s" من الملف',
   blkNewName: 'الاسم الجديد', blkExists: 'توجد كتلة بهذا الاسم', blkRenamed: 'أُعيدت تسمية الكتلة: %s', renameTitle: 'إعادة تسمية', renameKind: 'ماذا',

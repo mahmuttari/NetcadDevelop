@@ -556,7 +556,7 @@ export default {
   attPrompt: '프롬프트', attDefault: '기본값', attInvisible: '숨김', attConstant: '상수(묻지 않음)', attdefHint: '태그는 대문자로 바뀝니다. 블록으로 만들면 속성이 되고 삽입 시 값을 묻습니다', attTagNeeded: '태그가 필요합니다', attdefAdded: '속성 정의를 추가했습니다',
   attSynced: '삽입을 정의와 동기화했습니다', attSyncNone: '동기화할 삽입이 없습니다', battmanTitle: '속성 관리자',
   blkTitle: '블록', blkNoneDef: '도면에 블록 정의가 없습니다 — 블록 작성으로 만들거나 라이브러리에서 추가하세요', blkMode: '선택', blkConvert: '블록으로 변환', blkRetain: '유지', blkDelete: '삭제', blkAlsoLib: '라이브러리에도 저장',
-  blkMakeHint: '속성 정의(ATTDEF)는 블록 속성이 됩니다. 도면층 0의 객체는 삽입의 도면층을 사용합니다', blkNameNeeded: '블록 이름이 필요합니다', blkOverwriteAsk: '블록 "%s"이(가) 있습니다. 다시 정의할까요? (모든 삽입이 바뀝니다)', blkMade: '블록 "%s"을(를) 정의했습니다',
+  blkMakeHint: '속성 정의(ATTDEF)는 블록 속성이 됩니다. 도면층 0의 객체는 삽입의 도면층을 사용합니다', blkNameNeeded: '블록 이름이 필요합니다', blkSelfRef: '블록을 자기 자신 안에 삽입할 수 없습니다', blkOverwriteAsk: '블록 "%s"이(가) 있습니다. 다시 정의할까요? (모든 삽입이 바뀝니다)', blkMade: '블록 "%s"을(를) 정의했습니다',
   blkExplodeOnInsert: '삽입 시 분해', blkInsertHint2: '행 / 열이 1보다 크면 간격으로 반복합니다(MINSERT). 속성은 삽입점 다음에 묻습니다',
   blkEdit: '편집', blkRename: '이름 바꾸기', blkReplace: '교체', blkToLib: '라이브러리로', blkDwgTitle: '파일의 블록(가져오지 않음)', blkAdopt: '가져오기', blkAdopted: '정의 "%s"을(를) 파일에서 가져왔습니다',
   blkNewName: '새 이름', blkExists: '같은 이름의 블록이 있습니다', blkRenamed: '블록 이름 변경: %s', renameTitle: '이름 바꾸기', renameKind: '대상',

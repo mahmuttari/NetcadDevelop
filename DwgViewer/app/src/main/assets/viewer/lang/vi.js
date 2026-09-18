@@ -398,7 +398,7 @@ export default {
   attPrompt: 'Lời nhắc', attDefault: 'Giá trị mặc định', attInvisible: 'Ẩn', attConstant: 'Hằng (không hỏi)', attdefHint: 'Thẻ được viết hoa; khi tạo khối nó thành thuộc tính và giá trị được hỏi khi chèn', attTagNeeded: 'Cần có thẻ', attdefAdded: 'Đã thêm định nghĩa thuộc tính',
   attSynced: 'Đã đồng bộ các lần chèn với định nghĩa', attSyncNone: 'Không có lần chèn nào để đồng bộ', battmanTitle: 'Trình quản lý thuộc tính',
   blkTitle: 'Khối', blkNoneDef: 'Bản vẽ chưa có định nghĩa khối — tạo bằng Tạo khối hoặc thêm từ thư viện', blkMode: 'Vùng chọn', blkConvert: 'Chuyển thành khối', blkRetain: 'Giữ nguyên', blkDelete: 'Xóa', blkAlsoLib: 'Lưu cả vào thư viện',
-  blkMakeHint: 'Định nghĩa thuộc tính (ATTDEF) trở thành thuộc tính của khối; đối tượng ở lớp 0 lấy lớp của lần chèn', blkNameNeeded: 'Cần tên khối', blkOverwriteAsk: 'Khối "%s" đã có; định nghĩa lại? (mọi lần chèn sẽ thay đổi)', blkMade: 'Đã định nghĩa khối "%s"',
+  blkMakeHint: 'Định nghĩa thuộc tính (ATTDEF) trở thành thuộc tính của khối; đối tượng ở lớp 0 lấy lớp của lần chèn', blkNameNeeded: 'Cần tên khối', blkSelfRef: 'Không thể chèn một khối vào chính nó', blkOverwriteAsk: 'Khối "%s" đã có; định nghĩa lại? (mọi lần chèn sẽ thay đổi)', blkMade: 'Đã định nghĩa khối "%s"',
   blkExplodeOnInsert: 'Phá khối khi chèn', blkInsertHint2: 'Hàng / cột > 1 lặp lại khối theo khoảng cách (MINSERT); thuộc tính được hỏi sau điểm chèn',
   blkEdit: 'Sửa', blkRename: 'Đổi tên', blkReplace: 'Thay thế', blkToLib: 'Vào thư viện', blkDwgTitle: 'Khối của tệp (chưa tiếp nhận)', blkAdopt: 'Tiếp nhận', blkAdopted: 'Đã lấy định nghĩa "%s" từ tệp',
   blkNewName: 'Tên mới', blkExists: 'Đã có khối cùng tên', blkRenamed: 'Đã đổi tên khối: %s', renameTitle: 'Đổi tên', renameKind: 'Đối tượng',

@@ -295,6 +295,30 @@ export function expandInsert(ins, blocks, layers, info, depth = 0) {
   }
   return out;
 }
+/**
+ * Tanım kendine mi başvuruyor? AutoCAD bir blok tanımının kendi içinde (doğrudan ya da iç içe
+ * bloklar üzerinden) kendisine başvurmasını reddeder — böyle bir tanım genişletilirken her
+ * düzeyde yeniden açılır, iç içe iki yerleştirmede 2^24 ilkele kadar büyür ve uygulama kilitlenir.
+ * ents: tanıma girecek varlıklar · blocks: Map(KEY → def) · name: tanımlanmakta olan ad.
+ */
+export function refersTo(name, ents, blocks) {
+  const hedef = keyOf(name);
+  if (!hedef) return false;
+  const gorulen = new Set([hedef]);   // kendisi de gezilmiş sayılır: döngülü tanımlarda sonsuz gezinme olmaz
+  const yigin = [ents || []];
+  while (yigin.length) {
+    for (const e of yigin.pop()) {
+      if (!e || e.type !== 'INSERT') continue;
+      const k = keyOf(e.name);
+      if (k === hedef) return true;
+      if (!k || gorulen.has(k)) continue;
+      gorulen.add(k);
+      const def = blocks && blocks.get ? blocks.get(k) : null;
+      if (def && Array.isArray(def.ents)) yigin.push(def.ents);
+    }
+  }
+  return false;
+}
 /** Paylaşılan info'dan yerleştirme varlığı (geri yazma: BEDIT kaydı, DXF INSERT) */
 export function insFromInfo(info) {
   return { type: 'INSERT', id: info.h, name: info.name, layer: info.lay || '0', color: info.ci == null ? 256 : info.ci, x: say(info.x), y: say(info.y), z: say(info.z), rot: say(info.rot), sx: info.sx == null ? 1 : info.sx, sy: info.sy == null ? 1 : info.sy, m: insMatrix(info), attrs: info.attrs ? clone(info.attrs) : [], dyn: info.dyn ? clone(info.dyn) : undefined };

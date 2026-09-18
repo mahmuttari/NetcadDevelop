@@ -248,7 +248,16 @@ async function uploadMenu() {
     + `<div class="full muted">${esc(tt('uploadTarget', 'Hedef'))}: ${esc(nav.acc.name || nav.acc.url)}${esc(nav.path)}</div>`;
   api.openDoc(t('webdavUpload'), html);
   if ($('wuCur')) $('wuCur').onclick = () => { api.hide('docPanel'); uploadDo({ src: 'current' }, S.fileName); };
-  $('wuPick').onclick = () => { api.hide('docPanel'); if (api.pickForCloud) api.pickForCloud('webdav'); else api.toast(tt('uploadPick', 'Cihazdan dosya seç ve yükle')); };
+  $('wuPick').onclick = () => { api.hide('docPanel'); if (api.pickForCloud) api.pickForCloud(); else api.toast(t('webdavNoWrite'), { type: 'error' }); };
+}
+/**
+ * Seçicinin getirdiği dosyayı geçerli WebDAV klasörüne yükler (app.js → pickForCloud → buraya).
+ * args: Android'de { fileId } (Java tarafı dosyayı önbellekten okur), tarayıcıda { b64 }.
+ */
+export async function uploadPicked(args, name) {
+  if (!api) return;
+  if (!nav.acc) { api.toast(t('webdavError'), { type: 'error' }); return; }
+  await uploadDo(args, name);
 }
 async function newFolder() {
   if (!gate('webdavWrite')) return;

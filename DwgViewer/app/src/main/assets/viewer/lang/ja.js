@@ -556,7 +556,7 @@ export default {
   attPrompt: 'プロンプト', attDefault: '既定値', attInvisible: '非表示', attConstant: '定数（入力なし）', attdefHint: 'タグは大文字に変換されます。ブロック化すると属性になり、挿入時に値を入力します', attTagNeeded: 'タグが必要です', attdefAdded: '属性定義を追加しました',
   attSynced: '挿入を定義と同期しました', attSyncNone: '同期する挿入がありません', battmanTitle: '属性管理',
   blkTitle: 'ブロック', blkNoneDef: '図面にブロック定義がありません — 「ブロック作成」で作るかライブラリから追加してください', blkMode: '選択', blkConvert: 'ブロックに変換', blkRetain: '保持', blkDelete: '削除', blkAlsoLib: 'ライブラリにも保存',
-  blkMakeHint: '属性定義（ATTDEF）はブロックの属性になります。画層0のオブジェクトは挿入の画層を使います', blkNameNeeded: 'ブロック名が必要です', blkOverwriteAsk: 'ブロック「%s」は存在します。再定義しますか？（すべての挿入が変わります）', blkMade: 'ブロック「%s」を定義しました',
+  blkMakeHint: '属性定義（ATTDEF）はブロックの属性になります。画層0のオブジェクトは挿入の画層を使います', blkNameNeeded: 'ブロック名が必要です', blkSelfRef: 'ブロックを自分自身の中に挿入できません', blkOverwriteAsk: 'ブロック「%s」は存在します。再定義しますか？（すべての挿入が変わります）', blkMade: 'ブロック「%s」を定義しました',
   blkExplodeOnInsert: '挿入時に分解', blkInsertHint2: '行 / 列が1より大きいと間隔で繰り返します（MINSERT）。属性は挿入点の後に入力します',
   blkEdit: '編集', blkRename: '名前変更', blkReplace: '置換', blkToLib: 'ライブラリへ', blkDwgTitle: 'ファイルのブロック（未取込）', blkAdopt: '取り込む', blkAdopted: '定義「%s」をファイルから取り込みました',
   blkNewName: '新しい名前', blkExists: 'その名前のブロックがあります', blkRenamed: 'ブロック名を変更: %s', renameTitle: '名前変更', renameKind: '対象',

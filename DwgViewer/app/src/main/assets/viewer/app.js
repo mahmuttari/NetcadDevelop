@@ -1109,7 +1109,7 @@ function penErase(sx, sy) {
 }
 let gestureView0 = null; // jest başındaki görünüm (geçmiş için)
 function endPointer(ev) {
-  const elenen = palm.up(ev);
+  const elenen = palm.up(ev, performance.now());
   if (ev.pointerType === 'pen') { S.pen.kind = null; S.pen.pressure = 0; }
   const had = pointers.delete(ev.pointerId);
   if (!had) { if (elenen) S.pen.drop = palm.dropped; return; }
@@ -4097,6 +4097,7 @@ async function onFilePicked(purpose, id, name, size) {
   try {
     if (purpose === 'open') { await loadCurrent(name, size); return; }
     if (purpose.startsWith('upload:')) { const info = JSON.parse(A().docOpen(id) || '{}'); if (info.error) throw new Error(info.error); Drive.upload({ fileId: info.id, name, mime: Docs.kindOf(name) === 'cad' ? 'application/acad' : 'application/octet-stream', folder: purpose.slice(7) }); return; }
+    if (purpose === 'wdupload') { const info = JSON.parse(A().docOpen(id) || '{}'); if (info.error) throw new Error(info.error); await Cloud.uploadPicked({ fileId: info.id }, name); return; }
     if (purpose === 'compare') { await setCompare(await fetchFile(id), name); return; }
     if (purpose === 'pdfcad') { await pdfCadFromBytes(await fetchFile(id), name); return; }
     if (purpose.startsWith('xref:')) { await loadXref(Number(purpose.slice(5)), await fetchFile(id), name); return; }
@@ -4130,6 +4131,7 @@ async function fileForPurpose(purpose, f) {
     else if (purpose === 'pdfcad') await pdfCadFromBytes(await f.arrayBuffer(), f.name);
     else if (purpose.startsWith('xref:')) await loadXref(Number(purpose.slice(5)), await f.arrayBuffer(), f.name);
     else if (purpose === 'xattach') await xattachLoad(await f.arrayBuffer(), f.name);
+    else if (purpose === 'wdupload') await Cloud.uploadPicked({ b64: b64bytes(new Uint8Array(await f.arrayBuffer())) }, f.name);
     else if (purpose.startsWith('img:')) loadImageFile(purpose.slice(4), URL.createObjectURL(f));
     else if (purpose === 'photo' && pendingPhotoPoint) {
       const id = 'blob_' + Date.now();
@@ -4277,7 +4279,10 @@ $('btnBack').addEventListener('click', onBackSystem);
 $('btnHome').addEventListener('click', goHome);
 Open.initOpen({ toast, loadBytes, openBlob: (f) => Docs.openBlob(f), fileForPurpose, onFilePicked, showServer, startQr, openDrive: () => Drive.open(), systemPick, refreshRecent: buildRecent, goHome,
   onOpen: () => { closeMenu(); Drive.close(); hide('docPanel'); } });
-Home.initHome({ toast, openDoc, hide, kv, newDoc: showNewDoc, resumeInfo, resumeOpen, openSample, hideToast: () => { $('toast').hidden = true; }, menuAction, editorAct: (a) => edCall('act', a), click: (id) => { const b = $(id); if (b) b.click(); }, openProPanel: (x) => Ed.openProPanel(x),
+Home.initHome({ toast, openDoc, hide, kv, newDoc: showNewDoc, resumeInfo, resumeOpen, openSample, hideToast: () => { $('toast').hidden = true; }, menuAction, editorAct: (a) => edCall('act', a),
+  // WebDAV'a cihazdan dosya yükleme (Drive'daki "upload:" yolunun eşi)
+  pickForCloud: () => pickFile('wdupload', '*/*'),
+  click: (id) => { const b = $(id); if (b) b.click(); }, openProPanel: (x) => Ed.openProPanel(x),
   openCenter: (tab) => Open.open(tab), systemPick, openDrive: () => Drive.open(), showServer, openRegistered: (info) => Docs.openRegistered(info), refreshRecent: buildRecent,
   onShow: () => { closeMenu(); Drive.close(); Open.close(); for (const id of openPanels()) hide(id); if (S.notesOn) toggleNotes(false); if (S.mode !== 'view') setMode('view'); cancelZoomWindow(); refreshMenu(); buildRecent(); },   // Son dosyalar ızgarası her gösterimde tazelenir (tarayıcıda oturum listesi)
   onHide: () => { refreshMenu(); requestRender(); } });

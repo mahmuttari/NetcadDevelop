@@ -81,10 +81,16 @@ export class PalmGuard {
     this.seen = false;         // bu cihazda hiç kalem görüldü mü
     this.dropped = 0;          // ölçüm: kaç dokunuş elendi (durum çubuğunda gösterilir)
   }
-  /** Her işaretçi olayında çağrılır: kalem etkinliğini ve "bu cihazda kalem var" bilgisini kaydeder */
-  watch(ev, now) {
+  /**
+   * Her işaretçi olayında çağrılır: kalem etkinliğini ve "bu cihazda kalem var" bilgisini kaydeder.
+   * Sağır süreyi (penAt) YALNIZ TEMAS başlatır — havada gezinme değil. Havadayken de sağır kalsaydı
+   * kalemi elinde tutan kullanıcı iki parmakla yakınlaştıramazdı; modülün sözleşmesi de bunu yasaklar.
+   * contact verilmezse olaydan çıkarılır: kalem ucu basılıyken buttons > 0 gelir, gezinmede 0.
+   */
+  watch(ev, now, contact) {
     if (!ev || ev.pointerType !== 'pen') return false;
-    this.seen = true; this.penAt = now;
+    this.seen = true;
+    if (contact == null ? (ev.buttons > 0 || this.pens.has(ev.pointerId)) : !!contact) this.penAt = now;
     return true;
   }
   /**
@@ -93,7 +99,7 @@ export class PalmGuard {
    * → { block, drop } · block: bu işaretçi tümden yok sayılsın · drop: iptal edilecek dokunuşlar
    */
   down(ev, now, touchIds) {
-    this.watch(ev, now);
+    this.watch(ev, now, ev.pointerType === 'pen');
     if (ev.pointerType === 'pen') {
       this.pens.add(ev.pointerId);
       if (!this.enabled) return { block: false, drop: [] };
@@ -108,10 +114,14 @@ export class PalmGuard {
     if (temas || genis) { this.blocked.add(ev.pointerId); this.dropped++; return { block: true, drop: [] }; }
     return { block: false, drop: [] };
   }
-  /** pointerup / pointercancel: kayıtları temizler, bu işaretçi elenmiş miydi onu döndürür */
-  up(ev) {
-    this.pens.delete(ev.pointerId);
-    return this.blocked.delete(ev.pointerId);
+  /**
+   * pointerup / pointercancel: kayıtları temizler, bu işaretçi elenmiş miydi onu döndürür.
+   * Kalem kalkarken sağır süre TAM O ANDA başlar (now verilirse): elin kenarı kalemden sonra da iner.
+   */
+  up(ev, now) {
+    if (ev && ev.pointerType === 'pen') { this.pens.delete(ev.pointerId); if (now != null) this.penAt = now; }
+    else if (ev) this.pens.delete(ev.pointerId);
+    return ev ? this.blocked.delete(ev.pointerId) : false;
   }
   isBlocked(id) { return this.blocked.has(id); }
   /** Kalem şu anda ekrana değiyor mu */

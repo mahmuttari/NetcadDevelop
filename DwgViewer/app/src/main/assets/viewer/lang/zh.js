@@ -357,7 +357,7 @@ export default {
   attPrompt: '提示', attDefault: '默认值', attInvisible: '不可见', attConstant: '常量（不询问）', attdefHint: '标记转为大写；创建块时成为属性，插入时询问其值', attTagNeeded: '需要标记', attdefAdded: '已添加属性定义',
   attSynced: '插入已与定义同步', attSyncNone: '没有可同步的插入', battmanTitle: '属性管理器',
   blkTitle: '块', blkNoneDef: '图形中没有块定义 — 用“创建块”创建或从库中添加', blkMode: '选择集', blkConvert: '转换为块', blkRetain: '保留', blkDelete: '删除', blkAlsoLib: '同时保存到库',
-  blkMakeHint: '属性定义（ATTDEF）成为块属性；图层 0 上的对象采用插入的图层', blkNameNeeded: '需要块名', blkOverwriteAsk: '块“%s”已存在，重新定义？（所有插入都会改变）', blkMade: '已定义块“%s”',
+  blkMakeHint: '属性定义（ATTDEF）成为块属性；图层 0 上的对象采用插入的图层', blkNameNeeded: '需要块名', blkSelfRef: '块不能插入到自身中', blkOverwriteAsk: '块“%s”已存在，重新定义？（所有插入都会改变）', blkMade: '已定义块“%s”',
   blkExplodeOnInsert: '插入时分解', blkInsertHint2: '行 / 列 > 1 时按间距重复块（MINSERT）；属性在插入点之后询问',
   blkEdit: '编辑', blkRename: '重命名', blkReplace: '替换', blkToLib: '到库', blkDwgTitle: '文件的块（未采用）', blkAdopt: '采用', blkAdopted: '已从文件取得定义“%s”',
   blkNewName: '新名称', blkExists: '已有同名块', blkRenamed: '块已重命名：%s', renameTitle: '重命名', renameKind: '对象',

@@ -148,7 +148,7 @@ Bu yedisi v7.28 ile kapandı; **birinci öbekte açık madde kalmadı**. Ayrınt
 | Doğrudan uzaklık girişi: Çizgi / Polyline'da kutudaki sayı kadar dokunulan yönde ilerleme (AutoCAD direct distance entry) (v7.65) | Çiz ▸ Çizgi, Polyline | var olan araçların kademesi |
 | Köşe tutamağı sürüklenirken başka nesnelerin yakalama noktalarına oturur; sürüklemede işaret; kendi eski yerine yapışmaz (v7.65) | Düzenle ▸ Köşe tutamakları | premium (grips) |
 | Çoklu seçimde köşe tutamakları: seçili bütün yolların düğümleri, çakışan köşeler birlikte (tek geri alma), 100 nesne / 400 düğüm sınırı, nesne başına 200'ü aşan yol atlanır (v7.69) | Düzenle ▸ Köşe tutamakları | premium (grips) |
-| İzlemede uzantı yolları: çizgi doğrultusu, yay çemberi, iki uzantının kesişimi, genişletilmiş kesişim; EXT kipine bağlı, EXT varsayılan (v7.70) | Ölçü ▸ Yakalama izi, yakalama ayarları | var olan yakalamanın kademesi |
+| İzlemede uzantı yolları: çizgi doğrultusu, yay çemberi, iki uzantının kesişimi, genişletilmiş kesişim; EXT yakalama kipinden bağımsız (v7.74), EXT varsayılan (v7.70) | Ölçü ▸ Yakalama izi, yakalama ayarları | var olan yakalamanın kademesi |
 | Tarama / Sınır / Dolgu alanı ayrı çizgi, yay ve polyline parçalarından kapalı alanı bulur (en küçük yüz) (v7.70) | Çiz ▸ Tarama, Sınır; Ölçü ▸ Dolgu alanı | aracın kendi kademesi |
 | Desen seçicide her desenin SVG önizlemesi (kartlı liste) (v7.70) | Çiz ▸ Desen | premium (hatchpat) |
 | Özellikler'de nesne türü süzgeci: Tümü / Çizgi (3) / Daire (2), seçim türe daralır (v7.70) | Düzenle ▸ Özellikler, seçim menüsü | premium (props) |
@@ -446,7 +446,8 @@ alınır: `tools/out/pro/`.
 ## Kilitli özellik nasıl gösterilir (v7.31)
 
 v7.30'a kadar yetki yetmeyen şerit karosu, sekme ve menü satırı **eleniyordu**. Bu,
-paket farkını gizliyordu: 67 kapılı kimliğin 63'ünün şeritte / menüde bir girişi var,
+paket farkını gizliyordu: o günkü 67 kapılı kimliğin 63'ünün şeritte / menüde bir girişi var
+(tablo bugün 102 kimlik taşır: 86 Premium, 16 Super),
 yani ücretsiz kullanıcı uygulamanın yeteneklerinin neredeyse tamamını hiç göremiyordu.
 Artık eleme yok.
 

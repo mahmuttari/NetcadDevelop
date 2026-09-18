@@ -90,6 +90,7 @@ export function initHome(a) {
     hide(); call(api.openSample, b.dataset.ornek);
   });
   Cloud.initCloud({ toast: api.toast, openDoc: api.openDoc, hide: api.hide, kv: api.kv, hideToast: api.hideToast, openDrive: api.openDrive, showServer: api.showServer, openRegistered: api.openRegistered,
+    pickForCloud: api.pickForCloud,   // "Cihazdan dosya seç ve yükle": Drive'daki pickForUpload'un WebDAV eşi
     gotoCloud: () => { if (ui.shown) setTab('cloud'); }, gotoFilesCloud: () => { setTab('files'); setFilesSeg('cloud'); } });
   window.addEventListener('dwg:edition', () => { if (ui.shown) renderTools(); });
   window.addEventListener('dwg:google', () => { if (ui.shown) Cloud.refresh(); });
