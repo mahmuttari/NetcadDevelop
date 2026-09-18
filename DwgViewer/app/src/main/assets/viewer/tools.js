@@ -12,8 +12,9 @@
  */
 import { TAU, flatten, polyArea, pathLength, pathLength3, segDist, opsBBox, enclosingPrim, segmentsOf, segAt, trimPath, extendPath, lengthenPath, filletCorner, chamferCorner, cornerAt, segIntersect, pointInPoly, pathPointsAt, pathFramesAt, traceBoundary } from './geom.js';
 import { newId, offsetPoints } from './edit.js';
+import { alignMatrix } from './blocks.js';
 import { t, addStrings } from './i18n.js';
-import { askText, askForm } from './dialog.js';
+import { askText, askForm, askConfirm } from './dialog.js';
 import { dimLinear, dimRadial, dimAngular, leaderEnts, cloudEnt, balloonEnts, arrayItems, hatchEnts } from './annot.js';
 import { cmdOf } from './acad.js';
 import { constrain as deskConstrain } from './desktop.js';
@@ -84,6 +85,20 @@ export const TOOLS = {
   matchprop: { name: 'Özellik eşle', en: 'Match properties', steps: ['Kaynak nesneye dokunun', 'Hedef nesnelere dokunun (sürer) · Bitir'], stepsEn: ['Tap the source object', 'Tap the target objects (repeats) · Finish'] },
   stretch: { name: 'Esnet', en: 'Stretch', steps: ['Kesen pencereyle seçin (sağdan sola sürükleyin) · Bitir', 'Taban noktası', 'Hedef nokta (ya da @dx,dy)'], stepsEn: ['Select with a crossing window (drag right to left) · Finish', 'Base point', 'Target point (or @dx,dy)'] },
   boundary: { name: 'Sınır', en: 'Boundary', steps: ['Kapalı alanın içine dokunun (sürer)'], stepsEn: ['Tap inside a closed area (repeats)'] },
+  // v7.72 — blok ailesi: ALIGN · BLOCK · INSERT · BEDIT · REFEDIT · ATTDEF · BASE · NCOPY · BPARAMETER · BVSTATE · XCLIP; WIPEOUT · DRAWORDER
+  align: { name: 'Hizala', en: 'Align', steps: ['Nesneleri seçin · Bitir', '1. kaynak noktası', '1. hedef noktası', '2. kaynak noktası · ya da Bitir (yalnız taşı)', '2. hedef noktası'], stepsEn: ['Select objects · Finish', '1st source point', '1st destination point', '2nd source point · or Finish (move only)', '2nd destination point'] },
+  block: { name: 'Blok yap', en: 'Block', steps: ['Nesneleri seçin · Bitir', 'Taban noktasını seçin'], stepsEn: ['Select objects · Finish', 'Pick the base point'] },
+  insert: { name: 'Blok ekle', en: 'Insert', steps: ['Blok, ölçek ve dönüşü seçin', 'Ekleme noktasını seçin'], stepsEn: ['Choose the block, scale and rotation', 'Pick the insertion point'] },
+  bedit: { name: 'Blok düzenle', en: 'Block editor', steps: ['Blok yerleştirmesine dokunun (ya da Bloklar panelinden seçin)'], stepsEn: ['Tap a block insertion (or pick it in the Blocks panel)'] },
+  refedit: { name: 'Yerinde düzenle', en: 'Edit reference', steps: ['Yerinde düzenlenecek blok yerleştirmesine dokunun'], stepsEn: ['Tap the block insertion to edit in place'] },
+  attdef: { name: 'Öznitelik tanımı', en: 'Attribute definition', steps: ['Öznitelik konumunu seçin'], stepsEn: ['Pick the attribute position'] },
+  wipeout: { name: 'Maske', en: 'Wipeout', steps: ['Maske köşelerini seçin · Bitir', 'Sonraki köşe · Bitir / Kapat'], stepsEn: ['Pick the wipeout corners · Finish', 'Next corner · Finish / Close'] },
+  draworder: { name: 'Çizim sırası', en: 'Draw order', steps: ['Nesneleri seçin · Bitir', 'Başvuru nesnesine dokunun'], stepsEn: ['Select objects · Finish', 'Tap the reference object'] },
+  ncopy: { name: 'İçten kopyala', en: 'Copy nested', steps: ['Blok ya da referans içindeki nesneye dokunun (kopyası çizime girer)'], stepsEn: ['Tap an object inside a block or xref (a copy is added to the drawing)'] },
+  base: { name: 'Taban noktası', en: 'Base point', steps: ['Taban noktasını seçin'], stepsEn: ['Pick the base point'] },
+  bparam: { name: 'Blok parametresi', en: 'Block parameter', steps: ['Etkilenecek nesneleri seçin · Bitir (boş = hepsi)', 'Parametre noktasını seçin'], stepsEn: ['Select the affected objects · Finish (empty = all)', 'Pick the parameter point'] },
+  bvstate: { name: 'Görünürlük durumu', en: 'Visibility state', steps: ['Nesneleri seçin · Bitir', 'Durumu seçin'], stepsEn: ['Select objects · Finish', 'Choose the state'] },
+  xclip: { name: 'Referans kırp', en: 'Clip xref', steps: ['Harici referansa dokunun', 'Kırpma penceresinin 1. köşesi', 'Karşı köşe'], stepsEn: ['Tap the external reference', 'First corner of the clip window', 'Opposite corner'] },
 };
 /*
  * İngilizce arayüzde araç adı AutoCAD komut adıdır (LINE, TRIM, ERASE…): hedef kullanıcı
@@ -101,7 +116,7 @@ const toolName = (k) => t('tool_' + k);
 const toolStep = (k, i) => t(`tstep_${k}_${i}`);
 /** Ölçü kipinin adımı (stepsVal); araçta Ölçü adımı yoksa Ekran adımı */
 const toolStepVal = (k, i) => (TOOLS[k] && TOOLS[k].stepsVal && TOOLS[k].stepsVal.length ? t(`tstep_${k}_v${i}`) : toolStep(k, i));
-const SELECT_TOOLS = new Set(['move', 'copy', 'rotate', 'scale', 'mirror', 'del', 'setz', 'array', 'arrayrect', 'arraypolar', 'arraypath', 'thick', 'textsize', 'stretch', 'join']);
+const SELECT_TOOLS = new Set(['move', 'copy', 'rotate', 'scale', 'mirror', 'del', 'setz', 'array', 'arrayrect', 'arraypolar', 'arraypath', 'thick', 'textsize', 'stretch', 'join', 'align', 'block', 'draworder', 'bparam', 'bvstate']);
 /** Dizi ailesi (AutoCAD ARRAY, ARRAYRECT, ARRAYPOLAR, ARRAYPATH): seçim bitince tür / merkez / yol adımına geçer */
 const ARRAY_TOOLS = new Set(['array', 'arrayrect', 'arraypolar', 'arraypath']);
 /*
@@ -123,7 +138,7 @@ const LEN_RE = /^[-+]?\d+(\.\d+)?$/;
 /** Sayı girişi bekleyen araçlar ve hangi adımda beklediği — TEK kaynak (say / typed / tap buraya bakar) */
 const NUMBER_STEP = { circle: 1, rotate: 2, scale: 2, setz: 1, thick: 1, textsize: 1, polygon: 2, divide: 1, measure: 1 };
 /** Nokta değil NESNE (ya da kapalı alan) seçilerek çalışan araçlar */
-const OBJECT_TOOLS = new Set(['radius', 'edittext', 'dimedit', 'dimr', 'dimd', 'explode', 'attr', 'hatch', 'fillarea', 'ident', 'trim', 'extend', 'fillet', 'chamfer', 'offset', 'divide', 'measure', 'matchprop', 'boundary', 'arraypath']);
+const OBJECT_TOOLS = new Set(['radius', 'edittext', 'dimedit', 'dimr', 'dimd', 'explode', 'attr', 'hatch', 'fillarea', 'ident', 'trim', 'extend', 'fillet', 'chamfer', 'offset', 'divide', 'measure', 'matchprop', 'boundary', 'arraypath', 'bedit', 'refedit', 'ncopy']);
 /** Çok noktalı ölçülendirme / açıklama araçları: taslakları çizgi olarak gösterilir */
 const PATH_TOOLS = new Set(['dim', 'dimh', 'dimv', 'dima', 'leader', 'cloud']);
 /** Sonraki numara: sayıysa artar, harfle bitiyorsa harf ilerler ("A1"→"A2", "B"→"C") */
@@ -204,6 +219,12 @@ export class ToolManager {
     this.sides = null;        // çokgen: kenar sayısı (boş Enter = son değer ya da 6)
     this.src = null;          // özellik eşle: kaynak nesnenin katman / renk / çizgi tipi
     this.region = null;       // esnet: kesen pencere (dünya) — içindeki köşeler taşınır
+    this.ins = null;          // blok ekle: formdan gelen ad / ölçek / dönüş / satır-sütun
+    this.dro = null;          // çizim sırası: seçilen kip (above / below başvuru nesnesi bekler)
+    this.wipePoly = false;    // maske: polyline'dan (kapalı yola dokunulur)
+    this.alignScale = false;  // hizala: nesneler hizalama noktalarına göre ölçeklensin mi (AutoCAD "Scale objects…? <N>")
+    this.prm = null;          // blok parametresi: form sonucu ve toplanan noktalar
+    this.xref = null;         // referans kırp: dokunulan referansın adı
     if (SELECT_TOOLS.has(name)) {
       this.selecting = this.api.sel.size === 0;
       if (!this.selecting) { this.step = 1; }
@@ -211,11 +232,16 @@ export class ToolManager {
     if (name === 'select') this.selecting = true;
     if (name === 'stretch') this.selMode = 'box';   // AutoCAD STRETCH pencere ister: seçim doğrudan kutu kipinde başlar (sağdan sola = kesen)
     if (ARRAY_TOOLS.has(name) && !this.selecting) { void this.arrayNext(); return; }   // seçim hazırsa dizi hemen sorar: tür / merkez / yol
+    if (name === 'insert') { void this.insertStart(); return; }                          // blok, ölçek, dönüş önce sorulur; sonra ekleme noktası
+    if (name === 'draworder' && !this.selecting) { void this.drawOrderNext(); return; }
+    if (name === 'bparam' && !this.selecting) { void this.bparamNext(); return; }
+    if (name === 'bvstate' && !this.selecting) { void this.bvstateNext(); return; }
     this.say();
   }
   cancel(silent) {
     if (this.active && this.active !== 'select' && this.pts.length && ['pline', 'pline3d', 'face3d', 'area', 'cloud'].includes(this.active)) this.finish();
     this.active = null; this.pts = []; this.step = 0; this.draft = null; this.selecting = false; this.cut = null; this.c1 = null; this.corner = null; this.selMode = 'tap'; this.mode = null; this.val = null; this.pendLen = null;
+    this.ins = null; this.dro = null; this.wipePoly = false; this.prm = null; this.xref = null;
     if (this.api.trackClear) this.api.trackClear();   // edinilmiş iz noktaları araçla birlikte gider
     if (!silent) { this.api.prompt(null); this.api.overlay(); }
   }
@@ -241,14 +267,18 @@ export class ToolManager {
     }
     if (this.selecting) text += (this.selMode === 'box' ? t('selBoxHint') : this.selMode === 'lasso' ? t('selLassoHint') : toolStep(this.active, 0)) + `  [${this.api.sel.size} ${t('selCount')}]`;
     else if (this.active === 'mirror' && this.mirrorAxis && !this.pts.length) text += t(this.mirrorAxis === 'x' ? 'mirrorAxisX' : 'mirrorAxisY');   // eksen seçildi: tek nokta yeter
+    else if (this.active === 'wipeout' && this.wipePoly) text += t('wipePolyHint');   // polyline'dan maske: kapalı yola dokunulur
     else text += toolStep(this.active, Math.min(this.step, def.steps.length - 1));
     if (this.active === 'polygon' && this.step === 0) text += ` <${this.api.fmt(this.lastVal.polygon || 6, 0)}>`;   // AutoCAD <öntanımlı>: boş Enter son kenar sayısını alır
     if (this.pendLen > 0 && DIRECT_DIST_TOOLS.has(this.active) && this.pts.length) text += ' \u00b7 ' + t('dirTapHint').replace('%s', this.api.fmt(this.pendLen));
     const sidesStep = this.active === 'polygon' && this.step === 0;   // kenar sayısı: sayı istemi, klavye açık; dokunuş öntanımlı kenar sayısıyla merkezi alır
     const wantsNumber = (NUMBER_STEP[this.active] != null && this.step === NUMBER_STEP[this.active] && !this.selecting) || sidesStep;
     const buttons = [];
-    if (this.selecting || ['pline', 'pline3d', 'face3d', 'area', 'copy', 'line', 'dist', 'leader', 'cloud'].includes(this.active) || (this.active === 'matchprop' && this.step === 1)) buttons.push('finish');
-    if (['pline', 'area', 'cloud'].includes(this.active) && this.pts.length > 2) buttons.push('close');
+    if (this.selecting || ['pline', 'pline3d', 'face3d', 'area', 'copy', 'line', 'dist', 'leader', 'cloud', 'wipeout'].includes(this.active) || (this.active === 'matchprop' && this.step === 1) || (this.active === 'align' && this.pts.length >= 2)) buttons.push('finish');
+    if (['pline', 'area', 'cloud', 'wipeout'].includes(this.active) && this.pts.length > 2) buttons.push('close');
+    if (this.active === 'wipeout' && !this.pts.length && !this.wipePoly) buttons.push('wipepoly');   // AutoCAD WIPEOUT "Polyline" seçeneği
+    if (this.active === 'align' && !this.selecting) buttons.push('alignscale');                    // "Scale objects based on alignment points?"
+
     if (this.pts.length) buttons.push('back');
     if (this.selecting) buttons.push('selbox', 'sellasso', 'selall');
     if (this.active === 'mirror' && !this.selecting) {
@@ -372,7 +402,7 @@ export class ToolManager {
       else if (this.mode === 'value' && this.val == null) { this.api.toast(t('modeTypeFirst')); return true; }
     }
     if (this.active === 'polygon' && this.step === 0) { this.sides = this.lastVal.polygon || 6; this.step = 1; }   // kenar sayısı yazılmadan dokunuş: öntanımlı kenar, dokunuş merkezdir
-    if (OBJECT_TOOLS.has(this.active) && !this.wantsPoint()) { void this.objectTap(w); return true; }
+    if (this.wantsObject()) { void this.objectTap(w); return true; }
     // Önceki nokta dik / teğet / paralel / uzantı kipleri içindir; iki dokunuşlu geçersiz kılmalar
     // (M2P, FROM, TK) ilk dokunuşta { pending } döner ve o dokunuş nokta sayılmaz.
     const sn = this.api.snap(w, { prev: this.pts.length ? this.pts[this.pts.length - 1] : (this.last || null) });
@@ -476,6 +506,23 @@ export class ToolManager {
     const p = A.pick(w);
     if (!p) { A.toast(t('noObject')); return; }
     if (act === 'ident') { this.identify(p); return; }
+    if (act === 'draworder') { this.drawOrderRef(p); return; }
+    if (act === 'wipeout') { await this.wipeFromPoly(p); return; }
+    if (act === 'xclip') { if (!p.xref) { A.toast(t('notXref')); return; } this.xref = p.xref; this.step = 1; this.say(); A.overlay(); return; }
+    if (act === 'ncopy') {
+      // AutoCAD NCOPY: blok ya da referans içindeki nesnenin bağımsız kopyası aynı yere, geçerli katmana girer
+      const e = A.primToEnt ? A.primToEnt(p) : null;
+      if (!e) { A.toast(t('noObject')); return; }
+      if (A.run({ op: 'add', ents: [{ ...e, id: newId(), layer: A.layer(), color: e.color == null ? 256 : e.color, gid: undefined }] })) { A.render(); A.toast(t('ncopyDone')); }
+      return;
+    }
+    if (act === 'bedit' || act === 'refedit') {
+      if (!p.info || p.info.t !== 'INSERT' || !p.info.name) { A.toast(t('notBlock')); return; }
+      const f = act === 'bedit' ? A.beditStart : A.refeditStart;
+      this.cancel();
+      if (typeof f === 'function') void f(p.info.name, p.info.h);
+      return;
+    }
     if (act === 'radius' || act === 'dimr' || act === 'dimd') {
       const o = p.k === 0 ? p.ops.find(q => q[0] === 2 || q[0] === -2) : null;
       if (!o) { A.toast(t('notCircle')); return; }
@@ -723,7 +770,15 @@ export class ToolManager {
   pickingObject() {
     if (!this.running) return false;
     if (this.selecting) return true;                                   // Seç aracı ve Taşı / Sil / Döndür… araçlarının seçim aşaması
-    return OBJECT_TOOLS.has(this.active) && !this.wantsPoint();        // Buda, Uzat, Kavis, Pah, Ötele, Patlat, Yazı düzenle…
+    return this.wantsObject();                                         // Buda, Uzat, Kavis, Pah, Ötele, Patlat, Yazı düzenle…
+  }
+  /** Bu adımda NESNE mi bekleniyor (nokta değil): nesne araçları, çizim sırasının başvuru nesnesi, polyline'dan maske, kırpılacak referans */
+  wantsObject() {
+    if (this.selecting) return false;
+    if (this.active === 'draworder') return this.step === 1 && !!this.dro;
+    if (this.active === 'wipeout') return !!this.wipePoly;
+    if (this.active === 'xclip') return this.step === 0;
+    return OBJECT_TOOLS.has(this.active) && !this.wantsPoint();
   }
   /** Ekran / Ölçü düğmesi. Kip değişince araç nesne seçimine döner; Ölçü seçilince değer (yeniden) istenir. */
   setMode(m) {
@@ -1228,6 +1283,14 @@ export class ToolManager {
       case 'leader': case 'cloud': this.step = 1; break;
       case 'balloon': { await this.makeBalloon(p); this.pts = []; break; }
       case 'arraypolar': if (n === 1) void this.runArray({ center: p }); break;   // dokunulan merkez (AutoCAD "Specify center point of array")
+      case 'align': if (n >= 4) { this.alignApply(); return; } this.step = n + 1; break;
+      case 'block': this.pts = []; await this.blockMake(p); return;
+      case 'insert': this.pts = []; await this.insertPlace(p); return;
+      case 'attdef': this.pts = []; await this.attdefAt(p); return;
+      case 'wipeout': this.step = 1; break;
+      case 'base': this.pts = []; if (A.setBase) A.setBase(p); this.cancel(); return;
+      case 'bparam': await this.bparamPoint(p); return;
+      case 'xclip': if (n === 2) { const [a, b] = this.pts; if (A.xclip) A.xclip(this.xref, [a[0], a[1], b[0], b[1]]); this.cancel(); return; } this.step = 2; break;
       case 'move': case 'copy': case 'rotate': case 'scale': case 'mirror': case 'stretch': await this.modifyPoint(); break;
       case 'offset': this.pts = []; await this.offsetPoint(p); return;
       case 'fillet': case 'chamfer': this.pts = []; await this.cornerPoint(p); return;
@@ -1280,14 +1343,19 @@ export class ToolManager {
     if (A.trackClear) A.trackClear();
     if (MODE_TOOLS[this.active]) { if (!this.enterEmpty()) this.say(); return; }   // Bitir / Enter: son değeri alır; kesici ve ilk doğru önizlemesi silinmez
     if (this.selecting) {
-      if (!A.sel.size) { A.toast(t('selEmpty')); return; }
+      if (!A.sel.size && this.active !== 'bparam') { A.toast(t('selEmpty')); return; }
       this.selecting = false;
       if (this.active === 'select') { this.cancel(); return; }
       if (this.active === 'del') { A.run({ op: 'delete', keys: [...A.sel].map(p => p.key) }); A.render(); A.toast(t('deleted')); this.done(); return; }
       if (ARRAY_TOOLS.has(this.active)) { void this.arrayNext(); return; }
       if (this.active === 'join') { this.runJoin(); return; }
+      if (this.active === 'draworder') { void this.drawOrderNext(); return; }
+      if (this.active === 'bparam') { void this.bparamNext(); return; }
+      if (this.active === 'bvstate') { void this.bvstateNext(); return; }
       this.step = 1; this.say(); return;
     }
+    if (this.active === 'align') { if (this.pts.length >= 2) this.alignApply(); else A.toast(t('alignNeed')); return; }
+    if (this.active === 'wipeout') { if (this.pts.length >= 3) this.wipeCommit(); else if (this.pts.length) A.toast(t('wipeMin3')); else this.cancel(); return; }
     const n = this.pts.length;
     if (this.active === 'pline' && n >= 2) { this.commit({ type: 'LWPOLYLINE', pts: this.pts.slice(), closed: false }); this.pts = []; this.step = 0; }
     else if (this.active === 'pline3d' && n >= 2) { this.commit({ type: 'POLYLINE3D', pts: this.pts.slice() }); this.pts = []; this.step = 0; }
@@ -1323,8 +1391,12 @@ export class ToolManager {
   }
   close() {
     if (this.active === 'pline' && this.pts.length > 2) { this.commit({ type: 'LWPOLYLINE', pts: this.pts.slice(), closed: true }); this.pts = []; this.step = 0; this.draft = null; this.say(); this.api.overlay(); }
-    else if (this.active === 'area' || this.active === 'cloud') this.finish();
+    else if (this.active === 'area' || this.active === 'cloud' || this.active === 'wipeout') this.finish();
   }
+  /** Hizala: "Nesneler hizalama noktalarına göre ölçeklensin mi?" düğmesi (AutoCAD'in son sorusu) */
+  toggleAlignScale() { if (this.active !== 'align') return; this.alignScale = !this.alignScale; this.say(); }
+  /** Maske: polyline'dan (AutoCAD WIPEOUT Polyline seçeneği) — kapalı yola dokunulur */
+  setWipePoly() { if (this.active !== 'wipeout' || this.pts.length) return; this.wipePoly = !this.wipePoly; this.say(); this.api.overlay(); }
   back() { this.pts.pop(); this.step = Math.max(0, this.step - 1); this.updateDraft(); this.say(); this.api.overlay(); }
   selectAll() { for (const p of this.api.visiblePrims()) if (p.k !== 4) this.api.sel.add(p); this.say(); this.api.overlay(); }
   /** Seç aracının kipi: aynı kip yeniden seçilirse dokunma kipine döner */
@@ -1336,8 +1408,11 @@ export class ToolManager {
    */
   groupOf(p) {
     const gid = p.info && p.info.gid, fdim = !gid && p.info && p.info.t === 'DIMENSION' && p.info.h;
+    // Blok yerleştirmesi AutoCAD'de de tek nesnedir: bütün ilkelleri (ekleme noktası işareti hariç) birlikte seçilir
+    const ins = !gid && p.info && p.info.t === 'INSERT' && p.info.h;
     return gid ? this.api.visiblePrims().filter(q => q.info && q.info.gid === gid)
-      : fdim ? this.api.visiblePrims().filter(q => q.info && q.info.t === 'DIMENSION' && q.info.h === p.info.h) : [p];
+      : fdim ? this.api.visiblePrims().filter(q => q.info && q.info.t === 'DIMENSION' && q.info.h === p.info.h)
+        : ins ? this.api.visiblePrims().filter(q => q.k !== 4 && q.info && q.info.t === 'INSERT' && q.info.h === p.info.h) : [p];
   }
   /** Aynala: "Orijinal kalsın" düğmesi — açıkken kopya (AutoCAD <N>), kapalıyken kaynak silinir (Yes) */
   toggleMirrorKeep() { if (this.active !== 'mirror') return; this.mirrorKeep = !this.mirrorKeep; this.say(); }
@@ -1429,6 +1504,228 @@ export class ToolManager {
     if (A.run({ op: 'props', keys, layer: this.src.layer, color: this.src.color, lt: this.src.lt })) { A.render(); A.toast(t('applied') + ' · ' + keys.length, 1200); }
     else A.toast(t('error'));
   }
+  // ---- v7.72: hizalama, blok, öznitelik, maske, çizim sırası, dinamik parametre -------------------------------
+  /** ALIGN: 1 çift → taşı; 2 çift → taşı + döndür (+ ölçek düğmesi açıksa hedef / kaynak aralığı oranında ölçek) */
+  alignApply() {
+    const A = this.api, P = this.pts;
+    const pairs = [[P[0], P[1]]]; if (P.length >= 4) pairs.push([P[2], P[3]]);
+    const m = alignMatrix(pairs, this.alignScale);
+    if (!m) { A.toast(t('alignFail')); this.pts = []; this.step = 1; this.say(); A.overlay(); return; }
+    this.xform(m, (P[1][2] || 0) - (P[0][2] || 0));
+    this.done();
+  }
+  /** BLOCK: seçim + taban noktası → ad ve kip formu → tanım (+ seçimi bloğa çevir / koru / sil) */
+  async blockMake(base) {
+    const A = this.api;
+    const sel = [...A.sel].filter(p => p.k !== 4);
+    if (!sel.length) { A.toast(t('selEmpty')); this.cancel(); return; }
+    const last = this.lastVal.block || {};
+    const r = await askForm(toolName('block'), [
+      { id: 'name', label: t('blockName'), type: 'text', value: '' },
+      { id: 'mode', label: t('blkMode'), type: 'select', value: last.mode || 'convert', options: [['convert', t('blkConvert')], ['retain', t('blkRetain')], ['delete', t('blkDelete')]] },
+      { id: 'lib', label: t('blkAlsoLib'), type: 'check', value: false },
+    ], { ok: t('ok'), hint: t('blkMakeHint') });
+    if (!r || this.active !== 'block') { this.cancel(); return; }
+    const name = String(r.name || '').trim();
+    if (!name) { A.toast(t('blkNameNeeded')); this.cancel(); return; }
+    if (A.blockDef && A.blockDef(name) && !(await askConfirm(t('blkOverwriteAsk').replace('%s', name)))) { this.cancel(); return; }
+    this.lastVal.block = { mode: r.mode };
+    const n = A.blockMake ? A.blockMake(name, sel, base, r.mode, !!r.lib) : 0;
+    if (n) A.toast(t('blkMade').replace('%s', name) + ' \u00b7 ' + n); else A.toast(t('error'));
+    A.render();
+    this.cancel();
+  }
+  /** INSERT: blok (çizimdeki tanımlar + kütüphane), ölçek, dönüş, patlat, satır / sütun (MINSERT) formu; sonra ekleme noktası */
+  async insertStart() {
+    const A = this.api;
+    const names = A.blockNames ? A.blockNames() : [];
+    if (!names.length) { A.toast(t('blkNoneDef')); this.cancel(); return; }
+    const last = this.lastVal.insert || {};
+    const cur = names.some(x => x[0] === last.name) ? last.name : names[0][0];
+    this.say();
+    const r = await askForm(toolName('insert'), [
+      { id: 'name', label: t('blockName'), type: 'select', value: cur, options: names },
+      { id: 'scale', label: t('blockScale'), type: 'number', value: last.scale || 1 },
+      { id: 'rot', label: t('blockRot'), type: 'number', value: last.rot || 0 },
+      { id: 'explode', label: t('blkExplodeOnInsert'), type: 'check', value: false },
+      { id: 'cols', label: t('arrayCols'), type: 'number', value: 1 },
+      { id: 'rows', label: t('arrayRows'), type: 'number', value: 1 },
+      { id: 'dx', label: t('arrayDx'), type: 'number', value: 0 },
+      { id: 'dy', label: t('arrayDy'), type: 'number', value: 0 },
+    ], { ok: t('ok'), hint: t('blkInsertHint2') });
+    if (!r || this.active !== 'insert') { if (this.active === 'insert') this.cancel(); return; }
+    let name = String(r.name || '');
+    if (name.startsWith('lib:')) {   // kütüphane bloğu önce çizime benimsenir (tanım tablosuna girer), sonra yerleştirilir
+      name = name.slice(4);
+      const ok = A.blockFromLib ? await A.blockFromLib(name) : false;
+      if (!ok) { A.toast(t('error')); this.cancel(); return; }
+    } else if (name.startsWith('dwg:')) {   // DWG'den gelen (düzleştirilmiş) blok: bir yerleştirmesinden tanım benimsenir
+      name = name.slice(4);
+      const ok = A.blockAdopt ? A.blockAdopt(name) : false;
+      if (!ok) { A.toast(t('error')); this.cancel(); return; }
+    }
+    if (!(A.blockDef && A.blockDef(name))) { A.toast(t('blkNoneDef')); this.cancel(); return; }
+    this.ins = { name, scale: r.scale, rot: r.rot, explode: !!r.explode, cols: r.cols, rows: r.rows, dx: r.dx, dy: r.dy };
+    this.lastVal.insert = { name, scale: r.scale, rot: r.rot };
+    this.step = 1; this.say(); A.overlay();
+  }
+  async insertPlace(p) {
+    const A = this.api, o = this.ins;
+    if (!o) { this.cancel(); return; }
+    const def = A.blockDef(o.name);
+    if (!def) { A.toast(t('blkNoneDef')); this.cancel(); return; }
+    const sc = isFinite(o.scale) && o.scale ? o.scale : 1, rot = (isFinite(o.rot) ? o.rot : 0) * D2R;
+    // Öznitelikler: sabit (bayrak 2) olmayan her tanım sorulur (AutoCAD ATTDIA=1 kutusu)
+    const attdefs = (def.ents || []).filter(e => e && e.type === 'ATTDEF');
+    const ask = attdefs.filter(a => !((a.flags | 0) & 2));
+    let attrs;
+    if (ask.length) {
+      const fields = ask.map((a, i) => ({ id: 'a' + i, label: a.prompt || a.tag || ('#' + (i + 1)), type: 'text', value: a.text == null ? '' : String(a.text) }));
+      const r = await askForm(t('attrEdit') + ' \u2014 ' + def.name, fields, { ok: t('ok') });
+      if (!r) { this.say(); return; }   // vazgeçildi: ekleme noktası yeniden beklenir
+      attrs = attdefs.map(a => { const i = ask.indexOf(a); return [a.tag || '', i >= 0 ? String(r['a' + i] == null ? '' : r['a' + i]) : String(a.text == null ? '' : a.text)]; });
+    }
+    const cols = Math.max(1, Math.round(o.cols || 1)), rows = Math.max(1, Math.round(o.rows || 1));
+    if (cols * rows > 10000) { A.toast(t('arrayTooMany')); return; }
+    const cs = Math.cos(rot), sn = Math.sin(rot), ents = [];
+    for (let ri = 0; ri < rows; ri++) for (let ci = 0; ci < cols; ci++) {
+      // MINSERT: satır / sütun aralıkları bloğun (dönmüş) eksenleri boyunca ölçülür
+      const ox = ci * (o.dx || 0), oy = ri * (o.dy || 0);
+      const x = p[0] + ox * cs - oy * sn, y = p[1] + ox * sn + oy * cs;
+      ents.push({ type: 'INSERT', id: newId(), name: def.name, layer: A.layer(), color: A.color(), x, y, z: p[2] || 0, rot, sx: sc, sy: sc, m: [cs * sc, sn * sc, -sn * sc, cs * sc, x, y], attrs });
+    }
+    const cmd = o.explode ? { op: 'group', cmds: [{ op: 'add', ents }, ...ents.map(e => ({ op: 'explode', h: e.id }))] } : { op: 'add', ents };
+    if (!A.run(cmd)) { A.toast(t('error')); this.cancel(); return; }
+    A.render();
+    A.toast(t('blockInserted') + ' \u00b7 ' + def.name + (ents.length > 1 ? ' \u00d7 ' + ents.length : ''));
+    this.cancel();   // AutoCAD INSERT tek yerleştirmeyle biter
+  }
+  /** ATTDEF: konum dokunuşu → etiket, istem, öntanımlı değer, yükseklik, dönüş, görünmez / sabit bayrakları → ATTDEF varlığı */
+  async attdefAt(p) {
+    const A = this.api;
+    const r = await askForm(toolName('attdef'), [
+      { id: 'tag', label: t('tag'), type: 'text', value: '' },
+      { id: 'prompt', label: t('attPrompt'), type: 'text', value: '' },
+      { id: 'text', label: t('attDefault'), type: 'text', value: '' },
+      { id: 'h', label: t('textHeightPrompt'), type: 'number', value: A.textHeight() },
+      { id: 'rot', label: t('rotation'), type: 'number', value: 0 },
+      { id: 'invisible', label: t('attInvisible'), type: 'check', value: false },
+      { id: 'constant', label: t('attConstant'), type: 'check', value: false },
+    ], { ok: t('ok'), hint: t('attdefHint') });
+    if (!r || this.active !== 'attdef') return;
+    const tag = String(r.tag || '').trim().toUpperCase().replace(/\s+/g, '_');
+    if (!tag) { A.toast(t('attTagNeeded')); this.say(); return; }
+    const flags = (r.invisible ? 1 : 0) | (r.constant ? 2 : 0);
+    this.commit({ type: 'ATTDEF', tag, prompt: String(r.prompt || ''), text: String(r.text == null ? '' : r.text), pts: [p], h: r.h > 0 ? r.h : A.textHeight(), rot: (isFinite(r.rot) ? r.rot : 0) * D2R, flags });
+    A.toast(t('attdefAdded') + ': ' + tag);
+    this.say(); A.overlay();
+  }
+  /** WIPEOUT: köşelerden maske (kapalı çokgen, arka plan rengiyle dolu) */
+  wipeCommit() {
+    const A = this.api;
+    this.commit({ type: 'WIPEOUT', pts: this.pts.slice() });
+    A.toast(t('wipeAdded'));
+    this.pts = []; this.step = 0; this.draft = null; this.say(); A.overlay();
+  }
+  /** WIPEOUT Polyline: kapalı yol maske olur; polyline silinsin mi sorulur (AutoCAD "Erase polyline? <No>") */
+  async wipeFromPoly(p) {
+    const A = this.api;
+    if (p.k !== 0 || !p.closed || !p.ops || p.ops.length < 3) { A.toast(t('wipeNotClosed')); return; }
+    const pts = flatten(p.ops).map(q => [q[0], q[1], (p.ops[0] && p.ops[0][3]) || 0]);
+    if (pts.length < 3) { A.toast(t('wipeNotClosed')); return; }
+    const erase = await askConfirm(t('wipeErasePoly'));
+    const ent = { id: newId(), type: 'WIPEOUT', pts, layer: A.layer(), color: A.color() };
+    const ok = erase ? A.run({ op: 'group', cmds: [{ op: 'add', ents: [ent] }, { op: 'delete', keys: [p.key] }] }) : A.run({ op: 'add', ents: [ent] });
+    if (ok) { A.render(); A.toast(t('wipeAdded')); }
+    this.wipePoly = false; this.say(); A.overlay();
+  }
+  /** DRAWORDER: seçim bitince kip sorulur; öne / arkaya hemen uygulanır, üstüne / altına başvuru nesnesi ister */
+  async drawOrderNext() {
+    const A = this.api;
+    if (!A.sel.size) { A.toast(t('selEmpty')); this.cancel(); return; }
+    this.step = 1; this.say();
+    const r = await askForm(toolName('draworder'), [{ id: 'mode', label: t('droMode'), type: 'select', value: this.lastVal.droMode || 'front', options: [['front', t('droFront')], ['back', t('droBack')], ['above', t('droAbove')], ['below', t('droBelow')]] }], { ok: t('ok'), hint: t('droHint') });
+    if (!r || this.active !== 'draworder') { this.cancel(); return; }
+    this.lastVal.droMode = r.mode;
+    if (r.mode === 'front' || r.mode === 'back') { this.drawOrderRun(r.mode, null); return; }
+    this.dro = r.mode; this.step = 1; this.say(); A.overlay();
+  }
+  drawOrderRef(p) {
+    if (this.api.sel.has(p)) { this.api.toast(t('droSelfRef')); return; }
+    this.drawOrderRun(this.dro, p.key);
+  }
+  drawOrderRun(mode, ref) {
+    const A = this.api, keys = [...A.sel].map(p => p.key);
+    if (!keys.length) { this.cancel(); return; }
+    if (A.run({ op: 'draworder', keys, mode, ref })) { A.render(); A.toast(t('droDone').replace('%s', String(keys.length))); }
+    else A.toast(t('error'));
+    this.done();
+  }
+  /*
+   * BLOK PARAMETRESİ (yalnız blok düzenleyicide): seçim (etkilenecek nesneler; boş = hepsi) → tür / ad formu →
+   * türe göre noktalar: çevirme ekseni (2), döndürme merkezi (1), doğrusal taban + uç (2) + esnetmede çerçeve (2),
+   * nokta tabanı (1); görünürlük durumları formdan (nokta yok). Parametre tanımın dyn.params listesine girer,
+   * yerleştirmelerde tutamak olarak görünür.
+   */
+  async bparamNext() {
+    const A = this.api;
+    if (!A.bparamAdd || (A.inBedit && !A.inBedit())) { A.toast(t('bparamOnlyBedit')); this.cancel(); return; }   // ana belgede form açılmaz, hemen uyarır
+    const keys = [...A.sel].filter(p => p.k !== 4).map(p => p.key);
+    this.step = 1; this.say();
+    const last = this.lastVal.bparam || {};
+    const r = await askForm(toolName('bparam'), [
+      { id: 'kind', label: t('bpKind'), type: 'select', value: last.kind || 'linear', options: [['linear', t('bpLinear')], ['rot', t('bpRot')], ['flip', t('bpFlip')], ['point', t('bpPoint')], ['vis', t('bpVis')]] },
+      { id: 'label', label: t('bpLabel'), type: 'text', value: '' },
+      { id: 'mode', label: t('bpMode'), type: 'select', value: last.mode || 'stretch', options: [['stretch', t('bpStretch')], ['move', t('bpMove')]] },
+      { id: 'states', label: t('bpStates'), type: 'text', value: 'A, B' },
+    ], { ok: t('ok'), hint: t('bpHint') });
+    if (!r || this.active !== 'bparam') { this.cancel(); return; }
+    this.lastVal.bparam = { kind: r.kind, mode: r.mode };
+    const prm = { kind: r.kind, label: String(r.label || '').trim() || r.kind, ents: keys.length ? keys : null, mode: r.mode, pts: [] };
+    if (r.kind === 'vis') {
+      const states = String(r.states || '').split(/[,;]/).map(x => x.trim()).filter(Boolean);
+      if (states.length < 2) { A.toast(t('bpStatesMin')); this.cancel(); return; }
+      prm.states = states; prm.def = states[0];
+      this.bparamCommit(prm); return;
+    }
+    this.prm = prm; this.pts = []; this.step = 1; this.say(); A.overlay();
+    A.toast(t(r.kind === 'flip' ? 'bpFlipPts' : r.kind === 'linear' ? 'bpLinearPts' : r.kind === 'rot' ? 'bpRotPt' : 'bpPointPt'), 2600);
+  }
+  async bparamPoint(p) {
+    const A = this.api, prm = this.prm;
+    if (!prm) { this.cancel(); return; }
+    prm.pts.push([p[0], p[1]]);
+    const n = prm.pts.length;
+    const need = prm.kind === 'flip' ? 2 : prm.kind === 'linear' ? (prm.mode === 'stretch' ? 4 : 2) : 1;
+    if (n < need) { this.draft = { pts: prm.pts.map(q => [q[0], q[1], 0]) }; this.say(); A.overlay(); if (prm.kind === 'linear' && n === 2) A.toast(t('bpFramePts'), 2600); return; }
+    if (prm.kind === 'flip') { prm.a = prm.pts[0]; prm.b = prm.pts[1]; prm.def = false; }
+    else if (prm.kind === 'rot') { prm.base = prm.pts[0]; prm.def = 0; prm.r = A.bparamRadius ? A.bparamRadius(prm.base) : 1; }
+    else if (prm.kind === 'point') { prm.base = prm.pts[0]; prm.def = [0, 0]; }
+    else { prm.base = prm.pts[0]; prm.end = prm.pts[1]; prm.def = Math.hypot(prm.end[0] - prm.base[0], prm.end[1] - prm.base[1]); if (prm.mode === 'stretch') { const [c, d] = [prm.pts[2], prm.pts[3]]; prm.frame = [Math.min(c[0], d[0]), Math.min(c[1], d[1]), Math.max(c[0], d[0]), Math.max(c[1], d[1])]; } }
+    this.bparamCommit(prm);
+  }
+  bparamCommit(prm) {
+    const A = this.api;
+    delete prm.pts;
+    const ok = A.bparamAdd(prm);
+    A.toast(ok ? t('bpAdded').replace('%s', prm.label) : t('error'));
+    A.sel.clear(); this.cancel();
+  }
+  /** Görünürlük durumu ataması: seçili nesneler yalnız seçilen durumda görünür ("hepsi" → her durumda) */
+  async bvstateNext() {
+    const A = this.api;
+    if (!A.bvstateSet || (A.inBedit && !A.inBedit())) { A.toast(t('bparamOnlyBedit')); this.cancel(); return; }
+    const states = A.bvstates ? A.bvstates() : [];
+    if (!states.length) { A.toast(t('bpNoVis')); this.cancel(); return; }
+    const keys = [...A.sel].filter(p => p.k !== 4).map(p => p.key);
+    if (!keys.length) { A.toast(t('selEmpty')); this.cancel(); return; }
+    this.step = 1; this.say();
+    const r = await askForm(toolName('bvstate'), [{ id: 'state', label: t('bpState'), type: 'select', value: states[0], options: [['*', t('bpAllStates')], ...states.map(s => [s, s])] }], { ok: t('ok') });
+    if (!r || this.active !== 'bvstate') { this.cancel(); return; }
+    const n = A.bvstateSet(keys, r.state === '*' ? null : r.state);
+    A.toast(t('bpStateSet').replace('%s', String(n)));
+    A.sel.clear(); this.cancel();
+  }
   /*
    * BİRLEŞTİR (AutoCAD JOIN): uçları değen açık yollar (çizgi, polyline, yay) tek yol olur. Zincir greedy kurulur:
    * ucuna değen parça eklenir, gerekirse ters çevrilir (yaylarda yön de döner); zincir başa dönerse kapanır.
@@ -1510,7 +1807,8 @@ export class ToolManager {
 
   updateDraft() {
     const pts = this.pts;
-    if (['pline', 'pline3d', 'area', 'line', 'dist', 'face3d', 'mirror', 'leader', 'cloud', 'dim', 'dimh', 'dimv'].includes(this.active)) this.draft = { pts: pts.slice(), segs: pts.slice(1).map((q, i) => [pts[i], q]), close: ['area', 'face3d', 'cloud'].includes(this.active) };
+    if (['pline', 'pline3d', 'area', 'line', 'dist', 'face3d', 'mirror', 'leader', 'cloud', 'dim', 'dimh', 'dimv', 'wipeout', 'xclip'].includes(this.active)) this.draft = { pts: pts.slice(), segs: pts.slice(1).map((q, i) => [pts[i], q]), close: ['area', 'face3d', 'cloud', 'wipeout'].includes(this.active) };
+    else if (this.active === 'align') this.draft = { pts: pts.slice(), segs: pts.length >= 2 ? [[pts[0], pts[1]], ...(pts.length >= 4 ? [[pts[2], pts[3]]] : [])] : [] };   // kaynak → hedef okları
     else if (this.active === 'rect' && pts.length === 1) this.draft = { pts: pts.slice() };
     else if ((this.active === 'circle' || this.active === 'polygon') && pts.length === 1) this.draft = { pts: pts.slice() };
     else if (this.active === 'arc3') this.draft = { pts: pts.slice(), segs: pts.slice(1).map((q, i) => [pts[i], q]) };

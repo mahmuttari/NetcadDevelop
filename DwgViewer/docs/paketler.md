@@ -153,6 +153,15 @@ Bu yedisi v7.28 ile kapandı; **birinci öbekte açık madde kalmadı**. Ayrınt
 | Desen seçicide her desenin SVG önizlemesi (kartlı liste) (v7.70) | Çiz ▸ Desen | premium (hatchpat) |
 | Özellikler'de nesne türü süzgeci: Tümü / Çizgi (3) / Daire (2), seçim türe daralır (v7.70) | Düzenle ▸ Özellikler, seçim menüsü | premium (props) |
 | Dinamik okuma: çizim yaparken taban noktadan imlece uzaklık ve açı, lastik bant (v7.71) | imleç etiketi, büyüteç | var olan aracın kademesi |
+| Blok yap / Blok ekle (ölçek, dönüş, öznitelik formu, MINSERT) / Bloklar paneli (yeniden adlandır, değiştir, kütüphaneye, WBLOCK, PURGE) / NCOPY / BASE (v7.72) | Düzenle ▸ Blok yap, Blok ekle, Bloklar, Blok içinden kopya, Taban; seçim menüsü ▸ Blok | premium (t:block, t:insert, blocks, t:ncopy, t:base) |
+| Blok düzenleyici (BEDIT / BSAVE / BCLOSE) ve yerinde düzenleme (REFEDIT / REFCLOSE, solgun arka plan) (v7.72) | Düzenle ▸ Blok düzenle, Yerinde düzenle; seçim menüsü ▸ Blok düzenle | premium (t:bedit, t:refedit) |
+| Öznitelik tanımı (ATTDEF), ATTSYNC, BATTMAN, ATTDISP (v7.72) | Düzenle ▸ Öznitelik tanımı; komut satırı | premium (t:attdef; düzenleme t:attr) |
+| Dinamik blok: BPARAMETER (doğrusal taşı / esnet, döndürme, çevirme, nokta, görünürlük), BVSTATE, yerleştirmede özel tutamaklar, değerler Özellikler'de (v7.72) | blok düzenleyici çubuğu ▸ Parametreler; komut satırı | super (t:bparam, t:bvstate) |
+| Harici referans: XATTACH (DWG / DXF, ekleme noktası, ölçek, dönüş), XCLIP dikdörtgen, XBIND, boşalt / yeniden yükle / ayır, XOPEN, solgunluk (v7.72) | Menü ▸ Harici referanslar; komut satırı | premium (xattach, t:xclip, xbind) |
+| Hizala (ALIGN: 1 çift taşı, 2 çift taşı + döndür, Ölçek düğmesi) (v7.72) | Düzenle ▸ Hizala | premium (t:align) |
+| Maske (WIPEOUT: köşelerden ya da kapalı polyline'dan; WIPEOUTFRAME çerçeve anahtarı) (v7.72) | Çiz ▸ Maske; komut satırı | premium (t:wipeout) |
+| Çizim sırası (DRAWORDER: öne / arkaya / üstüne / altına; TEXTTOFRONT, HATCHTOBACK; seçim menüsünde Öne getir / Arkaya gönder) (v7.72) | Düzenle ▸ Çizim sırası; seçim menüsü | premium (t:draworder) |
+| Özellikler paletinde nesnenin düzenlenebilir alanları: çizgi uçları, daire / yay merkez–yarıçap–açı, polyline kapalı / genişlik, yazı içerik–yükseklik–dönüş–konum, nokta XYZ, yerleştirme konum–dönüş–ölçek–öznitelik–dinamik değer, çizgi kalınlığı (v7.72) | Düzenle ▸ Özellikler, seçim menüsü | premium (props) |
 | Nesne yakalama izleme (AutoCAD OTRACK, F11): yakalama noktasında bekleyince iz noktası (+), yatay / düşey (kutupsalda açılı) hizalama yolları ve kesişimleri, ortho kilidiyle kesişim, İz noktası (TT) düğmesi Ortho'nun yanında, Yakalama izi karosu (v7.66) | Ölçü ▸ Yakalama izi, Ekran ▸ Yakalama izi, komut çubuğu | var olan yakalamanın kademesi (kalemle gezinme premium) |
 | Çokgen (POLYGON), Böl (DIVIDE), Aralıkla (MEASURE), Sınır (BOUNDARY) (v7.67) | Çiz ▸ Çokgen, Böl, Aralıkla, Sınır | premium |
 | Esnet (STRETCH, kesen pencere içindeki köşeler), Birleştir (JOIN), Özellik eşle (MATCHPROP) (v7.67) | Düzenle ▸ Esnet, Birleştir, Özellik eşle | premium |

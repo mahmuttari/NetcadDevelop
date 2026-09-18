@@ -12,21 +12,23 @@
  *   openDisplayOptions, setDisplay, getDisplay, toggleDisplay, display }
  */
 import { ToolManager, TOOLS } from './tools.js';
-import { EditDoc, writeDxf, newId } from './edit.js';
+import { EditDoc, writeDxf, newId, entsToPrims } from './edit.js';
 import { View3D } from './view3d.js';
 import { openView3DOptions, buildViewCube, openCameraBookmarks, renderZScale, renderClip } from './view3d_panel.js';
 import { FG, ACI } from './scene.js';
 import { toScreen, toWorld, fmt, store } from './state.js';
 import { bgColor, fgColor } from './render.js';
 import { t, applyI18n, addStrings } from './i18n.js';
-import { TAU, meshMetrics } from './geom.js';
+import { TAU, meshMetrics, mul, flatten } from './geom.js';
 import * as D from './display.js';
-import { askText, askForm } from './dialog.js';
-import { leaderEnts } from './annot.js';
+import { askText, askForm, askConfirm } from './dialog.js';
+import { leaderEnts, hatchEnts } from './annot.js';
 import * as Gz from './gizmo.js';
 import { has, gate, need, rank, tier, tierName, lockAttr, lockBadge, lockBadgeFor, openProPanel } from './edition.js';
 import { cmdOf, namesOf, repeatable, resolve as acadResolve, suggest as acadSuggest, COMMANDS as ACAD } from './acad.js';
 import * as Desk from './desktop.js';
+import * as B from './blocks.js';
+import { primToEnt, listBlocks, loadBlock, saveBlock, entsBBox } from './blocklib.js';
 
 const $ = (id) => document.getElementById(id);
 const tt = (k, tr) => { const v = t(k); return v === k ? tr : v; };
@@ -92,7 +94,7 @@ const TABS = [
     { cap: 'grpMeasure', items: [T('t:dist', 'i-dist', 'Mesafe', 'Distance', 'Noktalar arası mesafe, ΔX/ΔY, açı', 'Distance between points'), T('t:area', 'i-area', 'Alan', 'Area', 'Kapalı alan ve çevre', 'Closed area and perimeter'), T('t:angle', 'i-angle', 'Açı', 'Angle', 'Üç noktayla açı', 'Angle by three points'), T('t:radius', 'i-radius', 'Yarıçap', 'Radius', 'Daire / yay yarıçapı', 'Circle / arc radius'), T('t:coord', 'i-coord', 'Koordinat', 'Coordinate', 'Noktanın koordinatını okur', 'Read point coordinates'), T('t:fillarea', 'i-fill', 'Dolgu alanı', 'Fill area', 'Kapalı alanın içine dokunun; alan, çevre ve dönüşümler', 'Tap inside a closed area for its area and perimeter'), T('t:ident', 'i-ident', 'Akıllı ölçüm', 'Smart measure', 'Nesneye dokunun: türüne göre boy, alan, yarıçap ya da hacim', 'Tap an object: length, area, radius or volume by its type'), T('profile', 'i-profile', 'Profil', 'Profile', 'Kot / eğim profili', 'Elevation / slope profile')] },
     { cap: 'grpHelpers', items: [T('osnap', 'i-snap', 'Yakalama', 'Osnap', 'Nesne yakalamayı açar / kapatır', 'Toggle object snap'), T('osnapset', 'i-sliders', 'Yakalama ayarları', 'Osnap settings', 'Yakalama kipleri (14 AutoCAD kipi), bir kerelik yakalama, açıklık', 'Object snap modes (all 14 AutoCAD modes), one-shot overrides, aperture'), T('otrack', 'i-otrack', 'Yakalama izi', 'Osnap tracking', 'Yakalama noktasında bekleyince iz noktası (+) alınır; imleç yatay / düşey yollara ve kesişimlere oturur (F11)', 'Pause over a snap point to acquire a tracking point (+); the cursor snaps to alignment paths and intersections (F11)'), T('grid', 'i-grid', 'Izgara', 'Grid'), T('crosshair', 'i-crosshair', 'Artı imleç', 'Crosshair')] } ] },
   { id: 'draw', i18n: 'tabDraw', icon: 'i-pen', groups: [
-    { cap: 'grpDraw2', items: [T('t:line', 'i-line', 'Çizgi', 'Line', 'İki nokta ya da @uzunluk<açı', 'Two points or @length<angle'), T('t:pline', 'i-pline', 'Polyline', 'Polyline', 'Çok köşeli çizgi; Bitir / Kapat', 'Multi-vertex line'), T('t:rect', 'i-rect', 'Dikdörtgen', 'Rectangle'), T('t:circle', 'i-circle', 'Daire', 'Circle', 'Merkez + yarıçap', 'Center + radius'), T('t:arc3', 'i-arc', 'Yay', 'Arc', 'Üç noktadan yay', 'Three-point arc'), T('t:polygon', 'i-polygon', 'Çokgen', 'Polygon', 'Kenar sayısı, merkez ve yarıçap; çembere iç teğet', 'Sides, center and radius; inscribed in a circle'), T('t:point', 'i-point', 'Nokta', 'Point'), T('t:divide', 'i-divide', 'Böl', 'Divide', 'Yolu eşit parçaya böler, bölme yerlerine nokta koyar', 'Places points at equal divisions of a path'), T('t:measure', 'i-measurepts', 'Aralıkla', 'Measure', 'Yol boyunca sabit aralıkla nokta koyar (dokunulan uçtan başlar)', 'Places points at a fixed spacing along a path (from the tapped end)'), T('t:boundary', 'i-boundary', 'Sınır', 'Boundary', 'Kapalı nesnenin sınırını yeni bir polyline olarak kopyalar', 'Copies the outline of a closed object as a new polyline'), T('t:text', 'i-text', 'Yazı', 'Text', 'Konum, metin ve yükseklik', 'Position, text and height')] },
+    { cap: 'grpDraw2', items: [T('t:line', 'i-line', 'Çizgi', 'Line', 'İki nokta ya da @uzunluk<açı', 'Two points or @length<angle'), T('t:pline', 'i-pline', 'Polyline', 'Polyline', 'Çok köşeli çizgi; Bitir / Kapat', 'Multi-vertex line'), T('t:rect', 'i-rect', 'Dikdörtgen', 'Rectangle'), T('t:circle', 'i-circle', 'Daire', 'Circle', 'Merkez + yarıçap', 'Center + radius'), T('t:arc3', 'i-arc', 'Yay', 'Arc', 'Üç noktadan yay', 'Three-point arc'), T('t:polygon', 'i-polygon', 'Çokgen', 'Polygon', 'Kenar sayısı, merkez ve yarıçap; çembere iç teğet', 'Sides, center and radius; inscribed in a circle'), T('t:point', 'i-point', 'Nokta', 'Point'), T('t:divide', 'i-divide', 'Böl', 'Divide', 'Yolu eşit parçaya böler, bölme yerlerine nokta koyar', 'Places points at equal divisions of a path'), T('t:measure', 'i-measurepts', 'Aralıkla', 'Measure', 'Yol boyunca sabit aralıkla nokta koyar (dokunulan uçtan başlar)', 'Places points at a fixed spacing along a path (from the tapped end)'), T('t:boundary', 'i-boundary', 'Sınır', 'Boundary', 'Kapalı nesnenin sınırını yeni bir polyline olarak kopyalar', 'Copies the outline of a closed object as a new polyline'), T('t:text', 'i-text', 'Yazı', 'Text', 'Konum, metin ve yükseklik', 'Position, text and height'), T('t:wipeout', 'i-wipeout', 'Maske', 'Wipeout', 'Köşeleri seçilen (ya da kapalı polyline\'dan) alan altındakileri örter; çizim sırasıyla öne / arkaya alınır', 'A polygon that masks what is drawn below it; reorder it with Draw order')] },
     { cap: 'grpDraw3', items: [T('t:pline3d', 'i-pline3d', '3B Polyline', '3D Polyline', 'x,y,z köşeli çizgi', 'Vertices with z'), T('t:face3d', 'i-face', '3B Yüzey', '3D Face', 'Üç / dört köşeli yüzey', 'Three / four vertex face')] },
     { cap: 'grpCur', items: [T('layer', 'i-layers', 'Katman', 'Layer', 'Geçerli katman ve yeni katman', 'Current layer'), T('color', 'i-palette', 'Renk', 'Color', 'Geçerli renk (ACI)', 'Current color')] },
     { cap: 'grpHist', items: [T('undo', 'i-undo', 'Geri al', 'Undo'), T('redo', 'i-redo', 'Yinele', 'Redo')] } ] },
@@ -103,9 +105,9 @@ const TABS = [
     { cap: 'grpHist', items: [T('undo', 'i-undo', 'Geri al', 'Undo'), T('redo', 'i-redo', 'Yinele', 'Redo')] } ] },
   { id: 'edit', i18n: 'tabEdit', icon: 'i-select', groups: [
     { cap: 'grpSel', items: [T('t:select', 'i-select', 'Seç', 'Select', 'Dokunarak seçim; Tümü düğmesiyle hepsi', 'Tap to select'), T('props', 'i-props', 'Özellikler', 'Properties', 'Seçimin katmanı ve rengi', 'Layer and color of the selection'), T('grips', 'i-grips', 'Köşe tutamakları', 'Vertex grips', 'Açıkken dokunulan nesne seçilir; seçili yolların her köşesi ayrı ayrı sürüklenir, çakışan köşeler birlikte gider', 'When on, tapping selects the object; drag any vertex of the selected paths, coincident vertices move together'), T('selectsimilar', 'i-similar', 'Benzerini seç', 'Select similar', 'Seçimle aynı tür ve katmandaki bütün nesneleri seçime ekler', 'Adds every object of the same type and layer as the selection'), T('hideobj', 'i-hideobj', 'Gizle', 'Hide objects', 'Seçili nesneleri görünümden kaldırır; çizim değişmez', 'Hides the selected objects; the drawing is not changed'), T('isoobj', 'i-isoobj', 'İzole et', 'Isolate objects', 'Yalnız seçili nesneleri gösterir', 'Shows only the selected objects'), T('unisoobj', 'i-showobj', 'Hepsini göster', 'Show all', 'Gizlenen ve izole edilen nesneleri geri getirir', 'Shows hidden and isolated objects again')] },
-    { cap: 'grpXform', items: [T('t:move', 'i-move', 'Taşı', 'Move'), T('t:copy', 'i-copyobj', 'Kopyala', 'Copy'), T('t:rotate', 'i-rotate', 'Döndür', 'Rotate'), T('t:scale', 'i-scale', 'Ölçekle', 'Scale'), T('t:mirror', 'i-mirror', 'Aynala', 'Mirror'), T('t:stretch', 'i-stretch', 'Esnet', 'Stretch', 'Kesen pencerenin içindeki köşeler taşınır, dışındakiler yerinde kalır', 'Vertices inside the crossing window move, the rest stay'), T('t:offset', 'i-offset', 'Ofset', 'Offset', 'Önce Ekran mı Ölçü mü: geçiş noktası ya da yazılan mesafe, sonra nesne', 'Asks Screen or Measure first: through point or typed distance, then the object')] },
-    { cap: 'grpModify', items: [T('t:del', 'i-erase', 'Sil', 'Delete'), T('t:setz', 'i-z', 'Kot ata', 'Set Z', 'Seçime Z kotu atar', 'Assign elevation'), T('t:edittext', 'i-edittext', 'Yazı düzenle', 'Edit text'), T('t:array', 'i-array', 'Dizi', 'Array', 'Dikdörtgen, kutupsal (merkez dokunuşla) ya da yol boyunca artımlı kopya; kat artımı', 'Rectangular, polar (tapped center) or along-a-path incremental copy; Z increment'), T('t:thick', 'i-thick', 'Kalınlık', 'Thickness', '2B nesneye yükseklik vererek 3B gövde üretir', 'Extrude 2D objects into 3D bodies'), T('t:explode', 'i-explode', 'Patlat', 'Explode', 'Blok yerleştirmesini parçalarına ayırır', 'Break a block insertion into its parts'), T('t:join', 'i-join', 'Birleştir', 'Join', 'Uçları değen çizgi, yay ve polyline\'ları tek polyline yapar', 'Joins touching lines, arcs and polylines into one polyline'), T('t:matchprop', 'i-matchprop', 'Özellik eşle', 'Match properties', 'Kaynak nesnenin katman, renk ve çizgi tipini hedeflere kopyalar', 'Copies layer, colour and linetype from a source to targets'), T('t:textsize', 'i-textsize', 'Yazı yüksekliği', 'Text height', 'Seçili yazıların yüksekliğini değiştirir', 'Change the height of selected texts'), T('t:attr', 'i-attr', 'Öznitelik', 'Attributes', 'Blok özniteliklerini düzenler', 'Edit block attributes'), T('findrep', 'i-findrep', 'Bul-değiştir', 'Find & replace', 'Çizimdeki yazılarda toplu değiştirme', 'Bulk replace across drawing texts'), T('t:trim', 'i-trim', 'Buda', 'Trim', 'Önce Ekran mı Ölçü mü: kesici kenar + parça, ya da yazılan boy kadar kısalt', 'Asks Screen or Measure first: cutting edge + piece, or cut a typed length off the end'), T('t:extend', 'i-extend', 'Uzat', 'Extend', 'Önce Ekran mı Ölçü mü: sınır + uç, ya da yazılan boy kadar uzat', 'Asks Screen or Measure first: boundary + end, or add a typed length to the end'), T('t:fillet', 'i-fillet', 'Kavis', 'Fillet', 'Önce Ekran mı Ölçü mü: yayın geçeceği nokta ya da yazılan yarıçap, sonra iki doğru', 'Asks Screen or Measure first: where the arc passes or a typed radius, then two lines'), T('t:chamfer', 'i-chamfer', 'Pah', 'Chamfer', 'Önce Ekran mı Ölçü mü: pahın geçeceği nokta ya da yazılan mesafe, sonra iki doğru', 'Asks Screen or Measure first: where the chamfer passes or a typed distance, then two lines')] },
-    { cap: 'grpBlock', items: [T('blocklib', 'i-block', 'Blok kütüphanesi', 'Block library', 'Seçimden blok oluştur, kaydet, çizime ekle', 'Create, save and insert blocks'), T('copyclip', 'i-copy', 'Panoya kopyala', 'Copy to clipboard', 'Seçimi panoya alır; başka çizimde yapıştırılır', 'Copy the selection for pasting into another drawing'), T('cutclip', 'i-cut', 'Kes', 'Cut', 'Seçimi panoya alır ve siler', 'Copies the selection to the clipboard and erases it'), T('pasteclip', 'i-paste', 'Panodan yapıştır', 'Paste', 'Panodaki nesneleri bu çizime ekler', 'Paste clipboard objects into this drawing')] },
+    { cap: 'grpXform', items: [T('t:move', 'i-move', 'Taşı', 'Move'), T('t:copy', 'i-copyobj', 'Kopyala', 'Copy'), T('t:rotate', 'i-rotate', 'Döndür', 'Rotate'), T('t:scale', 'i-scale', 'Ölçekle', 'Scale'), T('t:mirror', 'i-mirror', 'Aynala', 'Mirror'), T('t:stretch', 'i-stretch', 'Esnet', 'Stretch', 'Kesen pencerenin içindeki köşeler taşınır, dışındakiler yerinde kalır', 'Vertices inside the crossing window move, the rest stay'), T('t:offset', 'i-offset', 'Ofset', 'Offset', 'Önce Ekran mı Ölçü mü: geçiş noktası ya da yazılan mesafe, sonra nesne', 'Asks Screen or Measure first: through point or typed distance, then the object'), T('t:align', 'i-align', 'Hizala', 'Align', 'Bir ya da iki nokta çiftiyle taşı + döndür; isteğe bağlı ölçek', 'Move and rotate by one or two point pairs; optional scale')] },
+    { cap: 'grpModify', items: [T('t:del', 'i-erase', 'Sil', 'Delete'), T('t:setz', 'i-z', 'Kot ata', 'Set Z', 'Seçime Z kotu atar', 'Assign elevation'), T('t:edittext', 'i-edittext', 'Yazı düzenle', 'Edit text'), T('t:array', 'i-array', 'Dizi', 'Array', 'Dikdörtgen, kutupsal (merkez dokunuşla) ya da yol boyunca artımlı kopya; kat artımı', 'Rectangular, polar (tapped center) or along-a-path incremental copy; Z increment'), T('t:thick', 'i-thick', 'Kalınlık', 'Thickness', '2B nesneye yükseklik vererek 3B gövde üretir', 'Extrude 2D objects into 3D bodies'), T('t:explode', 'i-explode', 'Patlat', 'Explode', 'Blok yerleştirmesini parçalarına ayırır', 'Break a block insertion into its parts'), T('t:join', 'i-join', 'Birleştir', 'Join', 'Uçları değen çizgi, yay ve polyline\'ları tek polyline yapar', 'Joins touching lines, arcs and polylines into one polyline'), T('t:matchprop', 'i-matchprop', 'Özellik eşle', 'Match properties', 'Kaynak nesnenin katman, renk ve çizgi tipini hedeflere kopyalar', 'Copies layer, colour and linetype from a source to targets'), T('t:textsize', 'i-textsize', 'Yazı yüksekliği', 'Text height', 'Seçili yazıların yüksekliğini değiştirir', 'Change the height of selected texts'), T('t:attr', 'i-attr', 'Öznitelik', 'Attributes', 'Blok özniteliklerini düzenler', 'Edit block attributes'), T('findrep', 'i-findrep', 'Bul-değiştir', 'Find & replace', 'Çizimdeki yazılarda toplu değiştirme', 'Bulk replace across drawing texts'), T('t:trim', 'i-trim', 'Buda', 'Trim', 'Önce Ekran mı Ölçü mü: kesici kenar + parça, ya da yazılan boy kadar kısalt', 'Asks Screen or Measure first: cutting edge + piece, or cut a typed length off the end'), T('t:extend', 'i-extend', 'Uzat', 'Extend', 'Önce Ekran mı Ölçü mü: sınır + uç, ya da yazılan boy kadar uzat', 'Asks Screen or Measure first: boundary + end, or add a typed length to the end'), T('t:fillet', 'i-fillet', 'Kavis', 'Fillet', 'Önce Ekran mı Ölçü mü: yayın geçeceği nokta ya da yazılan yarıçap, sonra iki doğru', 'Asks Screen or Measure first: where the arc passes or a typed radius, then two lines'), T('t:chamfer', 'i-chamfer', 'Pah', 'Chamfer', 'Önce Ekran mı Ölçü mü: pahın geçeceği nokta ya da yazılan mesafe, sonra iki doğru', 'Asks Screen or Measure first: where the chamfer passes or a typed distance, then two lines'), T('t:draworder', 'i-draworder', 'Çizim sırası', 'Draw order', 'Seçimi öne / arkaya, bir nesnenin üstüne / altına alır', 'Bring the selection to front / send to back, above / below an object')] },
+    { cap: 'grpBlock', items: [T('t:block', 'i-block', 'Blok yap', 'Block', 'Seçimden blok tanımı: taban noktası, ad; seçim bloğa çevrilir / korunur / silinir', 'Block definition from the selection: base point, name; convert / retain / delete'), T('t:insert', 'i-insert', 'Blok ekle', 'Insert', 'Çizimdeki ya da kütüphanedeki bloğu ölçek, dönüş ve özniteliklerle yerleştirir; satır / sütun (MINSERT)', 'Insert a drawing or library block with scale, rotation and attributes; rows / columns (MINSERT)'), T('blocks', 'i-blocks', 'Bloklar', 'Blocks', 'Çizimin blok tanımları: düzenle, yeniden adlandır, değiştir, öznitelikler, kütüphaneye kaydet, DXF yaz, temizle', 'Block definitions of the drawing: edit, rename, replace, attributes, save to library, write DXF, purge'), T('t:bedit', 'i-bedit', 'Blok düzenle', 'Block editor', 'Tanımı ayrı bir oturumda düzenler; kaydedince bütün yerleştirmeler değişir (parametreler: dinamik blok)', 'Edit the definition in its own session; saving updates every insertion (parameters: dynamic block)'), T('t:refedit', 'i-refedit', 'Yerinde düzenle', 'Edit reference', 'Yerleştirmeyi olduğu yerde düzenler; öteki nesneler solgun kalır', 'Edit an insertion in place; other objects are faded'), T('t:attdef', 'i-attdef', 'Öznitelik tanımı', 'Attribute definition', 'Etiket, istem ve öntanımlı değerle öznitelik tanımı koyar; blok yapılınca özniteliğe döner', 'Place an attribute definition (tag, prompt, default); it becomes an attribute when blocked'), T('t:ncopy', 'i-ncopy', 'İçten kopyala', 'Copy nested', 'Blok ya da referans içindeki nesnenin kopyasını çizime alır', 'Copy an object out of a block or xref'), T('blocklib', 'i-block', 'Blok kütüphanesi', 'Block library', 'Cihazdaki blok kütüphanesi: çizimler arası blok saklama', 'Device block library: blocks kept across drawings'), T('copyclip', 'i-copy', 'Panoya kopyala', 'Copy to clipboard', 'Seçimi panoya alır; başka çizimde yapıştırılır', 'Copy the selection for pasting into another drawing'), T('cutclip', 'i-cut', 'Kes', 'Cut', 'Seçimi panoya alır ve siler', 'Copies the selection to the clipboard and erases it'), T('pasteclip', 'i-paste', 'Panodan yapıştır', 'Paste', 'Panodaki nesneleri bu çizime ekler', 'Paste clipboard objects into this drawing'), T('xrefs', 'i-link', 'Referanslar', 'Xrefs', 'Harici referansları ekle (XATTACH), kırp, bağla, ayır, soldur', 'Attach external references, clip, bind, detach, fade')] },
     { cap: 'grpHist', items: [T('undo', 'i-undo', 'Geri al', 'Undo'), T('redo', 'i-redo', 'Yinele', 'Redo')] } ] },
   { id: '3d', i18n: 'tab3d', icon: 'i-cube', groups: [
     { cap: 'grpView3', items: [T('3d', 'i-3d', '3B aç/kapat', '3D on/off', 'Tek parmak döndürür, iki parmak kaydırır / yakınlaştırır', 'One finger orbits, two fingers pan / zoom'), T('fit3', 'i-fit', 'Sığdır', 'Fit'), T('v:iso', 'i-iso', 'İzometrik', 'Isometric'), T('v:top', 'i-top', 'Üst', 'Top'), T('v:front', 'i-front', 'Ön', 'Front'), T('v:left', 'i-left', 'Sol', 'Left'), T('v:right', 'i-right', 'Sağ', 'Right'), T('v:back', 'i-back', 'Arka', 'Back'), T('v:bottom', 'i-bottom', 'Alt', 'Bottom')] },
@@ -188,6 +190,21 @@ export function initEditor(a) {
     trType: (x) => tt('ety_' + x, x),               // DXF tür adının yerelleşmiş karşılığı (yoksa adın kendisi)
     hatchPattern: () => ed.curPattern,              // çizilecek taramanın deseni (SOLID varsayılan)
     meshMetrics: (p) => { try { return p && p.vtx && p.idx ? meshMetrics(p.vtx, p.idx) : null; } catch (_) { return null; } },
+    // v7.72 blok ailesi: tanım tablosu, tanım yapma, kütüphaneden benimseme, düzenleme oturumları, taban noktası, parametreler, kırpma
+    primToEnt: (p) => primToEnt(p),
+    blockDef: (name) => S.blocks.get(B.keyOf(name)) || null,
+    blockNames: () => blockNames(),
+    blockFromLib: (name) => blockFromLib(name),
+    blockAdopt: (name) => blockAdopt(name),
+    blockMake: (name, prims, base, mode, lib) => blockMake(name, prims, base, mode, lib),
+    beditStart: (name, h) => beditStart(name, { h }),
+    refeditStart: (name, h) => beditStart(name, { h, inplace: true }),
+    setBase: (p) => setBase(p),
+    bparamAdd: (prm) => bparamAdd(prm), inBedit: () => !!bses && bses.kind === 'bedit',   // parametre araçları yalnız BEDIT oturumunda (REFEDIT'te de değil)
+    bparamRadius: (base) => { const bb = Gz.boxOf(S.prims.filter(p => p.k !== 4)); return bb ? Math.max(Math.hypot(bb[2] - base[0], bb[3] - base[1]), Math.hypot(base[0] - bb[0], base[1] - bb[1])) * 0.6 || 1 : 1; },
+    bvstateSet: (keys, state) => bvstateSet(keys, state),
+    bvstates: () => bvstates(),
+    xclip: (name, rect) => call(api.xclip, name, rect),
   });
   ed.tools = tools;
   applyUi({ store: false });
@@ -216,14 +233,32 @@ export function onScene() {
   for (const L of S.scene.layouts) for (const p of L.prims) { const h = (p.info && p.info.h) || 'x'; const n = counts.get(h) || 0; counts.set(h, n + 1); p.key = h + '#' + n; }
   ed.curLayer = S.layers.has('0') ? '0' : (S.layers.keys().next().value || '0');
   ed.curColor = 256;
-  doc = new EditDoc({
+  if (bses) { bses = null; S.backdrop = null; S.bedit = null; removeBeditBar(); }   // yeni dosya: açık blok düzenleyici oturumu düşer
+  S.blocks = new Map(); S.vars = {};   // blok tablosu ve başlık değişkenleri dosyaya aittir; günlük yeniden oynatılınca kurulur
+  doc = makeDoc(S.fileKey);
+  ed.doc = doc;
+  const n = doc.load();
+  if (n) api.toast(n + ' ' + t('editsApplied'));
+  refreshUndo();
+  updateLayerButton();
+  if (ed.is3D()) exit3D();
+  setTab(ed.tab);
+  refreshTiles(); syncQuick();
+  if (!ui.hints.tour) setTimeout(showTour, 600);
+}
+/** Düzenleme belgesi: model uzayı ilkelleri, katmanlar, blok tablosu ve başlık değişkenleri; key null ise kalıcı değildir (blok düzenleyici oturumu) */
+function makeDoc(key) {
+  const model = S.scene.layouts[0];
+  return new EditDoc({
     prims: () => model.prims,
     layers: S.layers,
+    blocks: S.blocks,
+    vars: S.vars,
     insert: (p, at) => { if (at == null || at > model.prims.length) model.prims.push(p); else model.prims.splice(at, 0, p); },
     remove: (p) => { const i = model.prims.indexOf(p); if (i >= 0) model.prims.splice(i, 1); return i; },
     rebuild,
     store: api.store,
-    key: S.fileKey,
+    key,
     // katman işlemi (çalıştırma, geri alma, yineleme) → sahne önbelleği düşer, katman listesi tazelenir;
     // geçerli katman adı değiştiyse (yeniden adlandırma ya da onun geri alınması) onu izler, silindiyse '0'a düşer
     layersChanged: (cmd) => {
@@ -236,15 +271,6 @@ export function onScene() {
       call(api.buildLayerList);
     },
   });
-  ed.doc = doc;
-  const n = doc.load();
-  if (n) api.toast(n + ' ' + t('editsApplied'));
-  refreshUndo();
-  updateLayerButton();
-  if (ed.is3D()) exit3D();
-  setTab(ed.tab);
-  refreshTiles(); syncQuick();
-  if (!ui.hints.tour) setTimeout(showTour, 600);
 }
 function rebuild() {
   const model = S.scene.layouts[0];
@@ -388,6 +414,7 @@ function refreshTiles() {
     on.osnap = S.snapModes && S.snapModes.size > 0; on['3d'] = ed.is3D(); on.grips = !!ui.grips; on.cmdline = ui.cmdLine !== false; on.ortho = !!(S.desk && S.desk.ortho); on.polar = !!(S.desk && S.desk.polar);
     try { on.otrack = !!(api && api.osnap && api.osnap.opt().otrack); } catch (_) { on.otrack = false; }   // nesne yakalama izleme (F11) karosu
     on.unisoobj = !!(S.hideObj && (S.hideObj.size > 0 || !!S.isoObj));   // gizli / izole nesne varken "Hepsini göster" karosu yanar
+    on.wipeframe = S.wipeFrame !== false; on.xreffade = S.xrefFade > 0; on.blocks = !!bses;
   }
   if (v3) { const o = v3.opts; on.grid3 = o.grid; on.axes3 = o.axes; on.cube3 = o.cube; on.hud3 = o.hud; on.light3 = o.light; on.turn3 = o.turntable; on.persp = v3.cam.persp; on.clip3 = !!o.clip; on.shadow3 = o.shadow; on.sil3 = !!v3._styleFx().silhouette; on.edges3 = !!v3._styleFx().edges; }
   document.querySelectorAll('#toolbar [data-act]').forEach(b => { const k = b.dataset.act; if (k in on) { b.classList.toggle('on', !!on[k]); b.setAttribute('aria-pressed', String(!!on[k])); } if (!FREE.has(k) && !HIST.has(k)) b.disabled = has(k) ? !(S && S.hasDoc) : false; });
@@ -576,6 +603,23 @@ function act(name, btn) {
     case 'hideobj': hideObjects(false); break;
     case 'isoobj': hideObjects(true); break;
     case 'unisoobj': showAllObjects(); break;
+    // --- v7.72 blok ailesi, maske, çizim sırası, harici referans
+    case 'blocks': showBlocks(); break;
+    case 'bsave': if (bses) void beditSave(false); else api.toast(t('bparamOnlyBedit')); break;
+    case 'bclose': case 'refclose': if (bses) void beditClose(); else api.toast(t('bparamOnlyBedit')); break;
+    case 'purge': void purgeDialog(); break;
+    case 'rename': void renameDialog(); break;
+    case 'blockreplace': void blockReplaceDialog(); break;
+    case 'attsync': void attSync(); break;
+    case 'battman': void battman(); break;
+    case 'wblock': void wblockDialog(); break;
+    case 'tofront': case 'toback': drawOrderSel(name === 'tofront' ? 'front' : 'back'); break;
+    case 'texttofront': drawOrderKind('text'); break;
+    case 'hatchtoback': drawOrderKind('hatch'); break;
+    case 'wipeframe': S.wipeFrame = S.wipeFrame === false; S.cacheValid = false; api.requestRender(); api.toast(t(S.wipeFrame === false ? 'wipeFrameOff' : 'wipeFrameOn'), 1400); break;
+    case 'attdisp': D.toggleDisplay('showAttrib'); haptic('toggle'); break;
+    case 'xreffade': S.xrefFade = S.xrefFade > 0 ? 0 : 0.5; S.cacheValid = false; api.requestRender(); api.toast(t(S.xrefFade > 0 ? 'xrefFadeOn' : 'xrefFadeOff'), 1400); break;
+    case 'xattach': case 'xbind': case 'xopen': case 'xdetach': api.action(name); break;
     // --- komut satırından gelen AutoCAD karşılıkları (karosu yok)
     case 'regen': S.cacheValid = false; api.requestRender(); if (ed.is3D() && v3) v3.render(); break;
     case 'selectall': if (!needModel()) return; if (ed.is3D()) exit3D(); if (tools.active !== 'select') { tools.start('select'); markActive('t:select'); } tools.selectAll(); break;
@@ -587,6 +631,7 @@ function act(name, btn) {
     case 'laylck': layerSet(selLayers(), { locked: true }); break;
     case 'layulk': layerSet(selLayers(), { locked: false }); break;
     case 'xrefs': case 'about': case 'settings': case 'open': case 'new': api.action(name); break;
+    case 'blockmgr': showBlocks(); break;
     case 'closefile': api.action('home'); break;
     case 'grips': toggleGrips(); break;
     case 'cmdline': toggleCmdLine(); break;
@@ -745,18 +790,20 @@ const BTN = { finish: ['finishBtn', () => tools.finish()], close: ['close', () =
   mirrorkeep: ['mirrorKeepBtn', () => tools.toggleMirrorKeep()],
   // Aynala: yatay (X) / düşey (Y) ayna çizgisi — ilk noktadan önce seçilir, sonra tek nokta yeter
   mirrorx: ['mirrorXBtn', () => tools.setMirrorAxis('x')], mirrory: ['mirrorYBtn', () => tools.setMirrorAxis('y')],
+  // Hizala: nesneler hizalama noktalarına göre ölçeklensin mi (AutoCAD'in son sorusu) · Maske: polyline'dan (WIPEOUT Polyline seçeneği)
+  alignscale: ['alignScaleBtn', () => tools.toggleAlignScale()], wipepoly: ['wipePolyBtn', () => tools.setWipePoly()],
   cancel: ['cancelBtn', () => { tools.cancel(); markActive(null); ed.sel.clear(); api.drawOverlay(); }] };
 /*
  * Komut çubuğu düğmesi: SVG simge + etiket. Çeviri metinlerinin başındaki ince Unicode imleri
  * (✓ ↶ ✕) atılır; simgeyi yazı tipi değil SVG çizer, böylece her dilde aynı dolgunlukta görünür.
  * Bitir birincil (vurgu renkli) düğmedir: çubuğun onay eylemi odur.
  */
-const CMD_ICON = { finish: 'i-check', close: 'i-closepath', back: 'i-undo', selall: 'i-selectall', cancel: 'i-close', selbox: 'i-selbox', sellasso: 'i-lasso', modescreen: 'i-crosshair', modevalue: 'i-ruler', mirrorkeep: 'i-copyobj', mirrorx: 'i-mirror-x', mirrory: 'i-mirror' };
+const CMD_ICON = { finish: 'i-check', close: 'i-closepath', back: 'i-undo', selall: 'i-selectall', cancel: 'i-close', selbox: 'i-selbox', sellasso: 'i-lasso', modescreen: 'i-crosshair', modevalue: 'i-ruler', mirrorkeep: 'i-copyobj', mirrorx: 'i-mirror-x', mirrory: 'i-mirror', alignscale: 'i-scale', wipepoly: 'i-pline' };
 const CMD_ICON_ONLY = new Set(['selbox', 'sellasso', 'mirrorx', 'mirrory']);   // yalnız simge: beş düğme 412 px'te tek satıra sığsın; ad başlık / aria-label'da
 function cmdBtnHtml(attr, k, label) {
   const lbl = String(label == null ? '' : label).replace(/^[✓↶✕⟲←]+\s*/, '');
   const ic = CMD_ICON[k];
-  const on = !!tools && ((k === 'selbox' && tools.selMode === 'box') || (k === 'sellasso' && tools.selMode === 'lasso') || (k === 'modescreen' && tools.mode === 'screen') || (k === 'modevalue' && tools.mode === 'value') || (k === 'mirrorkeep' && tools.mirrorKeep === true) || (k === 'mirrorx' && tools.mirrorAxis === 'x') || (k === 'mirrory' && tools.mirrorAxis === 'y'));
+  const on = !!tools && ((k === 'selbox' && tools.selMode === 'box') || (k === 'sellasso' && tools.selMode === 'lasso') || (k === 'modescreen' && tools.mode === 'screen') || (k === 'modevalue' && tools.mode === 'value') || (k === 'mirrorkeep' && tools.mirrorKeep === true) || (k === 'mirrorx' && tools.mirrorAxis === 'x') || (k === 'mirrory' && tools.mirrorAxis === 'y') || (k === 'alignscale' && tools.alignScale === true) || (k === 'wipepoly' && tools.wipePoly === true));
   const cls = k === 'finish' ? 'primary' : (CMD_ICON_ONLY.has(k) ? 'icon' + (on ? ' on' : '') : (on ? 'on' : ''));
   const svg = ic ? `<svg class="ic" aria-hidden="true"><use href="#${ic}"/></svg>` : '';
   if (CMD_ICON_ONLY.has(k)) return `<button type="button" ${attr}="${k}" class="${cls}" title="${esc(lbl)}" aria-label="${esc(lbl)}" aria-pressed="${on}">${svg}</button>`;
@@ -994,10 +1041,116 @@ function pickColor() {
   $('eCiOk').onclick = () => { const c = parseInt($('eCi').value, 10); if (c >= 1 && c <= 255) { ed.curColor = c; api.hide('docPanel'); } };
 }
 /*
- * ÖZELLİKLER. AutoCAD'in Properties paletindeki nesne türü listesi gibi: "Tümü (5)", "Çizgi (3)", "Daire (2)" … Bir tür
- * seçilince seçim o türe DARALIR (öteki nesneler bırakılır; tutamak ve rozet de daralır), değişiklik yalnız onlara
- * uygulanır; "Tümü" seçimi geri getirir. Uygulandıktan sonra daraltılmış seçim kalır — kullanıcı türleri ayırmıştır.
+ * ÖZELLİKLER PALETİ (AutoCAD Properties). Üç bölüm:
+ *   1. Nesne türü listesi: "Tümü (5)", "Çizgi (3)", "Daire (2)" … — bir tür seçilince seçim o türe DARALIR (öteki nesneler
+ *      bırakılır; tutamak ve rozet de daralır), "Tümü" geri getirir; daraltılmış seçim pencere kapanınca kalır.
+ *   2. Genel: katman, renk, çizgi tipi, çizgi kalınlığı (props komutu).
+ *   3. Nesnenin DÜZENLENEBİLİR alanları (v7.72, kullanıcının isteği): çizgide uç noktalar; daire / yayda merkez, yarıçap,
+ *      açılar; polyline'da kapalı ve genişlik; yazıda içerik, yükseklik, dönüş, konum; noktada X Y Z; blok yerleştirmesinde
+ *      konum, dönüş, ölçek, öznitelik değerleri ve dinamik parametreler. Alanlar ilk nesneden okunur; yalnız DEĞİŞTİRİLEN
+ *      alan uygulanır ve seçimdeki aynı türden bütün nesnelere gider (AutoCAD gibi). Ölçüde kendi kutusu (Ölçüyü düzenle).
+ *   Uygulama tek geri alma adımıdır ('group').
  */
+const LW_LIST = [0, 5, 9, 13, 15, 18, 20, 25, 30, 35, 40, 50, 53, 60, 70, 80, 90, 100, 106, 120, 140, 158, 200, 211];
+const fx12 = (v) => (typeof v === 'number' && isFinite(v) ? String(+v.toPrecision(12)) : '');
+function propFields(p) {
+  const F = [], inf = p.info || {}, top = inf.t || p.et;
+  const num = (id, label, v) => F.push({ id, label, type: 'number', value: fx12(v) });
+  if (top === 'INSERT') {
+    num('ix', t('insPoint') + ' X', inf.x); num('iy', t('insPoint') + ' Y', inf.y);
+    if (inf.blk) { num('irot', t('rotation') + ' (°)', (inf.rot || 0) * 180 / Math.PI); num('isx', t('blockScale') + ' X', inf.sx == null ? 1 : inf.sx); num('isy', t('blockScale') + ' Y', inf.sy == null ? 1 : inf.sy); }
+    (inf.attrs || []).forEach((a, i) => F.push({ id: 'att' + i, label: a[0] || ('#' + (i + 1)), type: 'text', value: String(a[1] == null ? '' : a[1]) }));
+    if (inf.blk) for (const prm of B.params(S.blocks.get(blkKey(inf.name)) || null)) {
+      const v = B.dynValue(prm, inf.dyn);
+      if (prm.kind === 'vis') F.push({ id: 'dyn:' + prm.id, label: prm.label, type: 'select', value: v, options: (prm.states || []).map(x => [x, x]) });
+      else if (prm.kind === 'flip') F.push({ id: 'dyn:' + prm.id, label: prm.label, type: 'check', value: !!v });
+      else if (prm.kind === 'point') { num('dynx:' + prm.id, prm.label + ' ΔX', Array.isArray(v) ? v[0] : 0); num('dyny:' + prm.id, prm.label + ' ΔY', Array.isArray(v) ? v[1] : 0); }
+      else num('dyn:' + prm.id, prm.label + (prm.kind === 'rot' ? ' (°)' : ''), v);
+    }
+    return F;
+  }
+  if (top === 'DIMENSION') return F;
+  if (p.k === 1) { F.push({ id: 'text', label: t('textK'), type: 'multi', value: p.lines.join('\n') }); num('th', t('height'), p.h); num('trot', t('rotation') + ' (°)', p.rot * 180 / Math.PI); num('tx', 'X', p.x); num('ty', 'Y', p.y); return F; }
+  if (p.k === 2) { num('px', 'X', p.x); num('py', 'Y', p.y); num('pz', 'Z', p.z || 0); return F; }
+  if (p.k !== 0 || !p.ops || p.ops.length < 2) return F;
+  const ops = p.ops;
+  if (ops.length === 2 && (ops[1][0] === 2 || ops[1][0] === -2)) {
+    const o = ops[1], full = o[0] === 2 && Math.abs((o[5] - o[4]) - TAU) < 1e-9;
+    num('cx', t('center') + ' X', o[1]); num('cy', t('center') + ' Y', o[2]); num('cr', t('radius'), o[3]);
+    if (!full) { num('a0', t('start') + ' (°)', o[4] * 180 / Math.PI); num('a1', t('end') + ' (°)', o[5] * 180 / Math.PI); }
+    return F;
+  }
+  if (p.fill || p.bg) return F;
+  if (ops.length === 2 && ops[1][0] === 1 && !p.closed) { num('x1', t('start') + ' X', ops[0][1]); num('y1', t('start') + ' Y', ops[0][2]); num('x2', t('end') + ' X', ops[1][1]); num('y2', t('end') + ' Y', ops[1][2]); return F; }
+  F.push({ id: 'closed', label: t('closed'), type: 'check', value: !!p.closed }); num('width', t('width'), p.w || 0);
+  return F;
+}
+/** Değişen alanlardan komutlar (seçimdeki aynı türden her nesne için); yerleştirme grubu tek nesne sayılır */
+function propCmds(sel, F, vals) {
+  const cmds = [], seenIns = new Set();
+  const changed = (id) => vals[id] !== undefined && F.some(f => f.id === id) && String(vals[id]) !== String(F.find(f => f.id === id).value);
+  const numv = (id) => { const n = parseFloat(String(vals[id]).replace(',', '.')); return isFinite(n) ? n : null; };
+  const D2R = Math.PI / 180;
+  for (const p of sel) {
+    const inf = p.info || {}, top = inf.t || p.et;
+    if (top === 'INSERT') {
+      if (!inf.h || seenIns.has(inf.h)) continue; seenIns.add(inf.h);
+      const keys = sel.filter(q => q.info && q.info.h === inf.h).map(q => q.key);
+      if (changed('ix') || changed('iy')) { const nx = changed('ix') ? numv('ix') : inf.x, ny = changed('iy') ? numv('iy') : inf.y; if (nx != null && ny != null) cmds.push({ op: 'xform', keys, m: [1, 0, 0, 1, nx - inf.x, ny - inf.y] }); }
+      if (inf.blk && changed('irot')) { const a = numv('irot'); if (a != null) { const d = a * D2R - (inf.rot || 0), cs = Math.cos(d), sn = Math.sin(d); cmds.push({ op: 'xform', keys, m: [cs, sn, -sn, cs, inf.x - cs * inf.x + sn * inf.y, inf.y - sn * inf.x - cs * inf.y] }); } }
+      if (inf.blk && (changed('isx') || changed('isy'))) {
+        const sx0 = inf.sx == null ? 1 : inf.sx, sy0 = inf.sy == null ? 1 : inf.sy, kx = changed('isx') ? (numv('isx') || sx0) / sx0 : 1, ky = changed('isy') ? (numv('isy') || sy0) / sy0 : 1;
+        if (kx && ky && isFinite(kx) && isFinite(ky)) { const r = inf.rot || 0, R = [Math.cos(r), Math.sin(r), -Math.sin(r), Math.cos(r), 0, 0], Ri = [Math.cos(r), -Math.sin(r), Math.sin(r), Math.cos(r), 0, 0]; const m = mul([1, 0, 0, 1, inf.x, inf.y], mul(R, mul([kx, 0, 0, ky, 0, 0], mul(Ri, [1, 0, 0, 1, -inf.x, -inf.y])))); cmds.push({ op: 'xform', keys, m }); }
+      }
+      const items = (inf.attrs || []).map((a, i) => (changed('att' + i) ? { i, value: String(vals['att' + i]) } : null)).filter(Boolean);
+      if (items.length) cmds.push({ op: 'attrib', h: inf.h, items });
+      const dv = {};
+      for (const prm of B.params(S.blocks.get(blkKey(inf.name)) || null)) {
+        if (prm.kind === 'point') { if (changed('dynx:' + prm.id) || changed('dyny:' + prm.id)) { const v = B.dynValue(prm, inf.dyn) || [0, 0]; dv[prm.id] = [changed('dynx:' + prm.id) ? numv('dynx:' + prm.id) : v[0], changed('dyny:' + prm.id) ? numv('dyny:' + prm.id) : v[1]]; } continue; }
+        if (!changed('dyn:' + prm.id)) continue;
+        dv[prm.id] = prm.kind === 'vis' ? String(vals['dyn:' + prm.id]) : prm.kind === 'flip' ? !!vals['dyn:' + prm.id] : numv('dyn:' + prm.id);
+      }
+      if (Object.keys(dv).length) cmds.push({ op: 'dynset', h: inf.h, values: dv });
+      continue;
+    }
+    if (top === 'DIMENSION') continue;
+    if (p.k === 1) {
+      if (changed('text') && String(vals.text).trim()) cmds.push({ op: 'edittext', keys: [p.key], text: String(vals.text) });
+      if (changed('th') && numv('th') > 0) cmds.push({ op: 'textheight', keys: [p.key], h: numv('th') });
+      if (changed('trot') && numv('trot') != null) { const d = numv('trot') * D2R - p.rot, cs = Math.cos(d), sn = Math.sin(d); cmds.push({ op: 'xform', keys: [p.key], m: [cs, sn, -sn, cs, p.x - cs * p.x + sn * p.y, p.y - sn * p.x - cs * p.y] }); }
+      if (changed('tx') || changed('ty')) { const nx = changed('tx') ? numv('tx') : p.x, ny = changed('ty') ? numv('ty') : p.y; if (nx != null && ny != null) cmds.push({ op: 'xform', keys: [p.key], m: [1, 0, 0, 1, nx - p.x, ny - p.y] }); }
+      continue;
+    }
+    if (p.k === 2) {
+      if (changed('px') || changed('py')) { const nx = changed('px') ? numv('px') : p.x, ny = changed('py') ? numv('py') : p.y; if (nx != null && ny != null) cmds.push({ op: 'xform', keys: [p.key], m: [1, 0, 0, 1, nx - p.x, ny - p.y] }); }
+      if (changed('pz') && numv('pz') != null) cmds.push({ op: 'setz', keys: [p.key], z: numv('pz') });
+      continue;
+    }
+    if (p.k !== 0 || !p.ops || p.ops.length < 2) continue;
+    const ops = p.ops;
+    if (ops.length === 2 && (ops[1][0] === 2 || ops[1][0] === -2)) {
+      if (!['cx', 'cy', 'cr', 'a0', 'a1'].some(changed)) continue;
+      const o = ops[1], full = o[0] === 2 && Math.abs((o[5] - o[4]) - TAU) < 1e-9;
+      const cx = changed('cx') ? numv('cx') : o[1], cy = changed('cy') ? numv('cy') : o[2], r = changed('cr') ? numv('cr') : o[3];
+      const a0 = full ? 0 : (changed('a0') ? numv('a0') * D2R : o[4]), a1 = full ? TAU : (changed('a1') ? numv('a1') * D2R : o[5]);
+      if (cx == null || cy == null || !(r > 0) || a0 == null || a1 == null) continue;
+      const z = o[6] || 0;
+      cmds.push({ op: 'reshape', items: [{ key: p.key, ops: [[0, cx + r * Math.cos(a0), cy + r * Math.sin(a0), z], [o[0], cx, cy, r, a0, a1, z]], closed: !!p.closed }] });
+      continue;
+    }
+    if (p.fill || p.bg) continue;
+    if (ops.length === 2 && ops[1][0] === 1 && !p.closed) {
+      if (!['x1', 'y1', 'x2', 'y2'].some(changed)) continue;
+      const g = (id, d) => (changed(id) ? numv(id) : d);
+      const x1 = g('x1', ops[0][1]), y1 = g('y1', ops[0][2]), x2 = g('x2', ops[1][1]), y2 = g('y2', ops[1][2]);
+      if ([x1, y1, x2, y2].some(v => v == null)) continue;
+      cmds.push({ op: 'reshape', items: [{ key: p.key, ops: [[0, x1, y1, ops[0][3] || 0], [1, x2, y2, ops[1][3] || 0]], closed: false }] });
+      continue;
+    }
+    if (changed('closed') || changed('width')) { const it = { key: p.key, ops: ops.map(o => o.slice()) }; if (changed('closed')) it.closed = !!vals.closed; if (changed('width') && numv('width') != null && numv('width') >= 0) it.w = numv('width'); cmds.push({ op: 'reshape', items: [it] }); }
+  }
+  return cmds;
+}
 function showProps(all) {
   if (!needModel()) return;
   if (!ed.sel.size) { api.toast(t('selectFirstQ')); return; }
@@ -1005,10 +1158,28 @@ function showProps(all) {
   const typeOf = (p) => (p.info && p.info.t) || p.et || ('k' + p.k);
   const counts = new Map(); for (const p of tam) counts.set(typeOf(p), (counts.get(typeOf(p)) || 0) + 1);
   const cur = ed.sel.size === tam.length ? '' : typeOf([...ed.sel][0]);
-  const first = [...ed.sel][0];
+  const sel = [...ed.sel].filter(p => p.k !== 4), first = sel[0] || [...ed.sel][0];
   const tur = `<select id="pType"><option value=""${cur === '' ? ' selected' : ''}>${esc(t('selAllTypes'))} (${tam.length})</option>${[...counts].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0]))).map(([k, n]) => `<option value="${esc(k)}"${k === cur ? ' selected' : ''}>${esc(tt('ety_' + k, k))} (${n})</option>`).join('')}</select>`;
-  api.openDoc(`${t('propsTitle')} (${ed.sel.size} ${t('objectsN')})`, api.kv([[t('selType'), tur, 1], [t('layer'), layerSelectHtml('pLayer', first.lay), 1], [t('color'), colorSwatches(first.info ? first.info.ci : 256), 1],
-    [`<div class="full btns"><button class="btn primary small" id="pOk">${esc(t('apply'))}</button></div>`]]));
+  const ltSel = `<select id="pLt"><option value="">${esc(t('selByLayer'))}</option>${Object.keys(S.ltypes || {}).map(k => `<option value="${esc(k)}"${(first.lt || '') === k ? ' selected' : ''}>${esc((S.ltypes[k] && S.ltypes[k].name) || k)}</option>`).join('')}</select>`;
+  const L0 = S.layers.get(first.lay), lwCur = first.lw != null && first.lw >= 0 ? first.lw : (L0 ? L0.lw : 25);
+  const lwSel = `<select id="pLw"><option value="-1">${esc(t('selByLayer'))}</option>${LW_LIST.map(v => `<option value="${v}"${v === lwCur ? ' selected' : ''}>${(v / 100).toFixed(2)} mm</option>`).join('')}</select>`;
+  const F = propFields(first);
+  const same = sel.every(p => typeOf(p) === typeOf(first));
+  const rows = [[t('selType'), tur, 1], [t('layer'), layerSelectHtml('pLayer', first.lay), 1], [t('color'), colorSwatches(first.info ? first.info.ci : 256), 1], [t('ltype'), ltSel, 1], [t('lweight'), lwSel, 1]];
+  if (same && F.length) {
+    rows.push([`<div class="full opt-title">${esc(tt('ety_' + typeOf(first), typeOf(first)))}${sel.length > 1 ? ' · ' + sel.length : ''}</div>`]);
+    for (const f of F) {
+      const id = 'pg_' + f.id.replace(/[^\w]/g, '_');
+      const inp = f.type === 'check' ? `<label class="chk"><input type="checkbox" id="${id}" data-pg="${esc(f.id)}"${f.value ? ' checked' : ''}></label>`
+        : f.type === 'select' ? `<select id="${id}" data-pg="${esc(f.id)}">${(f.options || []).map(([v, l]) => `<option value="${esc(v)}"${String(v) === String(f.value) ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`
+          : f.type === 'multi' ? `<textarea id="${id}" data-pg="${esc(f.id)}" class="opt-text" rows="2">${esc(f.value)}</textarea>`
+            : `<input id="${id}" data-pg="${esc(f.id)}" type="text"${f.type === 'number' ? ' inputmode="decimal"' : ''} value="${esc(f.value)}" autocomplete="off">`;
+      rows.push([f.label, inp, 1]);
+    }
+  }
+  if (same && (first.info && first.info.t === 'DIMENSION')) rows.push([`<div class="full btns"><button class="btn small" id="pDim">${esc(t('dimSelMenu'))}</button></div>`]);
+  rows.push([`<div class="full btns"><button class="btn primary small" id="pOk">${esc(t('apply'))}</button></div>`]);
+  api.openDoc(`${t('propsTitle')} (${ed.sel.size} ${t('objectsN')})`, api.kv(rows));
   let ci = null;
   $('docBody').onclick = (ev) => { const b = ev.target.closest('[data-ci]'); if (b) { ci = Number(b.dataset.ci); document.querySelectorAll('#docBody [data-ci]').forEach(x => x.classList.toggle('active', x === b)); } };
   $('pType').onchange = () => {
@@ -1018,10 +1189,26 @@ function showProps(all) {
     api.drawOverlay(); refreshTiles(); haptic('toggle');
     showProps(tam);   // pencere daraltılmış seçimle yeniden kurulur (başlık, katman ve renk ilk nesneden)
   };
+  const pd = $('pDim'); if (pd) pd.onclick = () => { const p = selDimPrim(); api.hide('docPanel'); if (p && gate('t:dimedit')) void tools.editDim(p); };
   $('pOk').onclick = () => {
-    const cmd = { op: 'props', keys: [...ed.sel].map(p => p.key), layer: $('pLayer').value };
-    if (ci != null) cmd.color = ci;
-    doc.run(cmd); refreshUndo(); api.requestRender(); api.drawOverlay(); api.hide('docPanel'); api.toast(t('propsApplied'));
+    const cmds = [];
+    const keys = [...ed.sel].map(p => p.key);
+    const gen = { op: 'props', keys };
+    let genOn = false;
+    if ($('pLayer').value !== first.lay) { gen.layer = $('pLayer').value; genOn = true; }
+    if (ci != null) { gen.color = ci; genOn = true; }
+    if (($('pLt').value || '') !== (first.lt || '')) { gen.lt = $('pLt').value; genOn = true; }
+    { const lw = Number($('pLw').value); if (lw !== (first.lw != null && first.lw >= 0 ? first.lw : -1) && !(lw === -1 && first.lw == null)) { gen.lw = lw; genOn = true; } }
+    if (genOn) { if (!gen.layer) gen.layer = first.lay; cmds.push(gen); }
+    if (same && F.length) {
+      const vals = {};
+      document.querySelectorAll('#docBody [data-pg]').forEach(el => { const id = el.dataset.pg; vals[id] = el.type === 'checkbox' ? el.checked : el.value; });
+      for (const c of propCmds(sel, F, vals)) cmds.push(c);
+    }
+    if (!cmds.length) { api.hide('docPanel'); return; }
+    const ok = doc.run(cmds.length === 1 ? cmds[0] : { op: 'group', cmds });
+    refreshUndo(); api.requestRender(); api.drawOverlay(); api.hide('docPanel');
+    api.toast(ok ? t('propsApplied') : t('error'));
   };
 }
 
@@ -1031,13 +1218,15 @@ function showProps(all) {
  * araçları seçimi koruyarak başlar ve doğrudan taban noktasını sorar; renk / çizgi tipi / katman
  * tek dokunuşla uygulanır ve tek geri alma adımı üretir.
  */
-const SEL_MENU = [['del', 'i-erase'], ['copy', 'i-copyobj'], ['move', 'i-move'], ['block', 'i-block'], ['rotate', 'i-rotate'], ['mirror', 'i-mirror'], ['scale', 'i-scale'], ['color', 'i-palette'], ['ltype', 'i-ltype'], ['layer', 'i-layers'], ['props', 'i-props'], ['similar', 'i-similar'], ['hide', 'i-hideobj'], ['iso', 'i-isoobj'], ['cut', 'i-cut'], ['clear', 'i-close']];
-const selMenuLabel = (id) => ({ block: t('selMakeBlock'), color: t('color'), ltype: t('ltype'), layer: t('selChangeLayer'), clear: t('selClear'), props: tileLabel('props'), dimedit: t('dimSelMenu'), similar: t('selSimilar'), hide: t('selHideObj'), iso: t('selIsoObj'), cut: tileLabel('cutclip') }[id] || tileLabel('t:' + id));
+const SEL_MENU = [['del', 'i-erase'], ['copy', 'i-copyobj'], ['move', 'i-move'], ['block', 'i-block'], ['rotate', 'i-rotate'], ['mirror', 'i-mirror'], ['scale', 'i-scale'], ['color', 'i-palette'], ['ltype', 'i-ltype'], ['layer', 'i-layers'], ['props', 'i-props'], ['similar', 'i-similar'], ['hide', 'i-hideobj'], ['iso', 'i-isoobj'], ['front', 'i-draworder'], ['back', 'i-draworder'], ['cut', 'i-cut'], ['clear', 'i-close']];
+const selMenuLabel = (id) => ({ block: t('selMakeBlock'), color: t('color'), ltype: t('ltype'), layer: t('selChangeLayer'), clear: t('selClear'), props: tileLabel('props'), dimedit: t('dimSelMenu'), similar: t('selSimilar'), hide: t('selHideObj'), iso: t('selIsoObj'), cut: tileLabel('cutclip'), front: t('droFront'), back: t('droBack'), bedit: tileLabel('t:bedit') }[id] || tileLabel('t:' + id));
 const selDimPrim = () => [...ed.sel].find(p => p.info && p.info.t === 'DIMENSION' && (p.info.gid || p.info.dim));
 function selMenu() {
   if (!ed.sel.size) { api.toast(t('selEmpty')); return; }
   // seçimde ölçülendirme varsa "Ölçü özellikleri" kartı da gelir (Özellikler'in önünde)
-  const items = selDimPrim() ? [...SEL_MENU.slice(0, 10), ['dimedit', 'i-dimedit'], ...SEL_MENU.slice(10)] : SEL_MENU;
+  let items = selDimPrim() ? [...SEL_MENU.slice(0, 10), ['dimedit', 'i-dimedit'], ...SEL_MENU.slice(10)] : SEL_MENU;
+  // seçimde blok yerleştirmesi varsa "Blok düzenle" kartı da gelir (Özellikler'in önünde)
+  if ([...ed.sel].some(p => p.info && p.info.t === 'INSERT' && p.info.name)) { const i = items.findIndex(x => x[0] === 'props'); items = [...items.slice(0, i), ['bedit', 'i-bedit'], ...items.slice(i)]; }
   api.openDoc(`${t('selMenuTitle')} · ${ed.sel.size} ${t('objectsN')}`,
     `<div class="full os-grid sel-grid">${items.map(([id, ic]) => `<button type="button" class="os-card" data-sm="${id}"><svg class="ic" aria-hidden="true"><use href="#${ic}"/></svg><span>${esc(selMenuLabel(id))}</span></button>`).join('')}</div>`);
   $('docBody').onclick = (ev) => { const b = ev.target.closest('[data-sm]'); if (!b) return; api.hide('docPanel'); selAction(b.dataset.sm); };
@@ -1060,7 +1249,10 @@ function selAction(id) {
       break;
     }
     case 'copy': case 'move': case 'rotate': case 'mirror': case 'scale': act('t:' + id); break;   // seçim korunur, araç taban noktasını sorar
-    case 'block': api.action('blocklib'); break;
+    case 'block': act('t:block'); break;   // seçim korunur, araç taban noktasını sorar
+    case 'front': drawOrderSel('front'); break;
+    case 'back': drawOrderSel('back'); break;
+    case 'bedit': { const p = [...ed.sel].find(q => q.info && q.info.t === 'INSERT' && q.info.name); if (!p) { api.toast(t('notBlock')); return; } if (!gate('t:bedit')) return; void beditStart(p.info.name, { h: p.info.h }); break; }
     case 'color': {
       if (!gate('props')) return;
       const first = [...ed.sel][0];
@@ -1096,6 +1288,496 @@ function selAction(id) {
 ed.selMenu = selMenu; ed.selAction = selAction;
 { const b = $('selBadge'); if (b) b.addEventListener('click', () => selMenu()); }
 
+
+// ---------------------------------------------------------------------------------
+// BLOK TABLOSU (v7.72): tanım yapma, yerleştirme adları, DWG / kütüphaneden benimseme, yönetici, temizleme,
+// yeniden adlandırma, değiştirme, öznitelik eşitleme / yöneticisi, WBLOCK, taban noktası, çizim sırası kısayolları
+// ---------------------------------------------------------------------------------
+const blkKey = B.keyOf;
+/** Yerleştirme sayımı: tanım anahtarı → yerleştirme sayısı (DWG'den gelen düzleştirilmişler de sayılır) */
+function insCounts() {
+  const seen = new Map();
+  for (const p of S.scene.layouts[0].prims) { const i = p.info; if (!i || i.t !== 'INSERT' || !i.name || !i.h) continue; const k = blkKey(i.name); if (!seen.has(k)) seen.set(k, new Set()); seen.get(k).add(i.h); }
+  const out = new Map(); for (const [k, v] of seen) out.set(k, v.size); return out;
+}
+/** Çizimde adı geçen ama tanımı tabloda olmayan DWG blokları (benimsenebilir): anahtar → ad */
+function dwgBlockNames() {
+  const out = new Map();
+  for (const p of S.scene.layouts[0].prims) { const i = p.info; if (!i || i.t !== 'INSERT' || !i.name) continue; const k = blkKey(i.name); if (!S.blocks.has(k) && !out.has(k)) out.set(k, i.name); }
+  return out;
+}
+/** INSERT formunun blok listesi: [[değer, etiket]] — çizimdeki tanımlar, benimsenmemiş DWG blokları (dwg:ad), kütüphane (lib:ad) */
+function blockNames() {
+  const out = [], cnt = insCounts();
+  for (const [k, d] of [...S.blocks].sort((a, b) => a[1].name.localeCompare(b[1].name, 'tr'))) out.push([d.name, d.name + ' (' + (cnt.get(k) || 0) + ')']);
+  for (const [k, nm] of dwgBlockNames()) out.push(['dwg:' + nm, nm + ' · DWG (' + (cnt.get(k) || 0) + ')']);
+  try { for (const b of listBlocks(api.store)) if (!S.blocks.has(blkKey(b.name))) out.push(['lib:' + b.name, b.name + ' · ' + t('blockTitle')]); } catch (_) { /* depo yoksa */ }
+  return out;
+}
+/*
+ * DWG YERLEŞTİRMESİNDEN TANIM BENİMSEME. Sahne kurulurken blok düzleştirilmiştir; tanım, bir yerleştirmenin
+ * ilkellerinin matris tersiyle tanım uzayına alınmasıdır (blocks.adoptFromPrims; taban 0,0,0). Tanım komut
+ * günlüğüne 'blockdef' olarak girer: dosya yeniden açılınca da vardır, DXF'e BLOCKS olarak yazılır.
+ */
+function blockAdopt(name) {
+  const k = blkKey(name);
+  if (S.blocks.has(k)) return true;
+  if (!doc) return false;
+  const prims = S.scene.layouts[0].prims.filter(p => p.info && p.info.t === 'INSERT' && blkKey(p.info.name) === k);
+  const h = prims.length ? prims[0].info.h : null;
+  const def = h ? B.adoptFromPrims(name, prims.filter(p => p.info.h === h)) : null;
+  if (!def) return false;
+  const ok = doc.run({ op: 'blockdef', name: def.name, def: { name: def.name, base: def.base, ents: def.ents, dyn: null } });
+  refreshUndo();
+  return ok;
+}
+/** Kütüphane bloğunu tanım tablosuna alır (taban kütüphanedeki taban, varlıklar olduğu gibi) */
+async function blockFromLib(name) {
+  const b = loadBlock(api.store, name);
+  if (!b || !b.ents.length || !doc) return false;
+  if (S.blocks.has(blkKey(name))) return true;
+  const ok = doc.run({ op: 'blockdef', name: b.name, def: { name: b.name, base: b.base || [0, 0, 0], ents: b.ents, dyn: null } });
+  refreshUndo();
+  return ok;
+}
+/** İlkelin varlık anahtarı: yerleştirme ilkelleri tanıtıcıyı (grup), ötekiler kendi anahtarını taşır */
+const entKeyOf = (p) => (p.info && p.info.t === 'INSERT' && p.info.blk && S.blocks.has(blkKey(p.info.name)) ? p.info.h : p.key);
+/**
+ * Seçili ilkeller → tanım varlıkları. Uygulama yerleştirmeleri iç içe INSERT varlığı olur (grup tek varlık), ATTDEF yazıları
+ * tanım kalır, görünürlük durumları (p.vis) taşınır. keys[i] = i. varlığı üreten ilkelin anahtarı (parametre listeleri için).
+ */
+function primsToDefEnts(prims) {
+  const ents = [], keys = [], seen = new Set();
+  for (const p of prims) {
+    if (p.k === 4) continue;
+    const i = p.info;
+    if (i && i.t === 'INSERT' && i.blk && S.blocks.has(blkKey(i.name))) {
+      if (seen.has(i.h)) continue; seen.add(i.h);
+      ents.push(B.insFromInfo(i)); keys.push(i.h); continue;
+    }
+    const e = primToEnt(p);
+    if (!e) continue;
+    if (Array.isArray(p.vis) && p.vis.length) e.vis = p.vis.slice();
+    ents.push(e); keys.push(p.key);
+  }
+  return { ents, keys };
+}
+/*
+ * BLOCK: ad, taban noktası, seçim → tanım. Varlıklar DÜNYA koordinatında saklanır, taban ayrı durur; genişletme T(−taban)
+ * uygular. Kip: convert → seçim silinir, yerine birebir aynı görünen yerleştirme gelir (AutoCAD "Convert to block");
+ * retain → seçim kalır; delete → seçim silinir. Kütüphaneye de kaydedilebilir. Tek geri alma adımı ('group').
+ */
+function blockMake(name, prims, base, mode, lib) {
+  if (!doc) return 0;
+  const { ents } = primsToDefEnts(prims);
+  if (!ents.length) return 0;
+  const bz = base[2] || 0;
+  const def = { name: String(name).trim(), base: [base[0], base[1], bz], ents, dyn: null };
+  const cmds = [{ op: 'blockdef', name: def.name, def }];
+  const keys = prims.filter(p => p.k !== 4).map(p => p.key);
+  if (mode === 'convert' || mode === 'delete') cmds.push({ op: 'delete', keys });
+  let insId = null;
+  if (mode === 'convert') { insId = newId(); cmds.push({ op: 'add', ents: [{ type: 'INSERT', id: insId, name: def.name, layer: ed.curLayer, color: ed.curColor, x: base[0], y: base[1], z: bz, rot: 0, sx: 1, sy: 1, m: [1, 0, 0, 1, base[0], base[1]], attrs: B.attrsFor(def, null) }] }); }
+  if (!doc.run({ op: 'group', cmds })) return 0;
+  if (lib) saveBlock(api.store, def.name, B.xformEnts(ents, [1, 0, 0, 1, -base[0], -base[1]], -bz), [0, 0, 0]);
+  ed.sel.clear();
+  if (insId) for (const p of S.prims) if (p.k !== 4 && p.info && p.info.h === insId) ed.sel.add(p);
+  refreshUndo(); api.requestRender(); api.drawOverlay();
+  return ents.length;
+}
+/** Bloklar paneli: çizimin tanımları (sayı, öznitelik, parametre), DWG'den benimsenebilecekler, eylem düğmeleri */
+function showBlocks() {
+  if (!needModel()) return;
+  if (!gate('blocks')) return;
+  const cnt = insCounts();
+  const defs = [...S.blocks.values()].sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+  const dwg = [...dwgBlockNames().values()].sort((a, b) => a.localeCompare(b, 'tr'));
+  const btn = (a, name, label, cls = '') => `<button type="button" class="btn small${cls ? ' ' + cls : ''}" data-bk="${esc(a)}" data-name="${esc(name)}">${esc(label)}</button>`;
+  let html = `<div class="full btns">${btn('new', '', tileLabel('t:block'), 'primary')}${btn('ins', '', tileLabel('t:insert'))}${btn('purge', '', t('purgeTitle'))}${btn('lib', '', t('blockTitle'))}</div>`;
+  if (!defs.length && !dwg.length) html += `<div class="full muted">${esc(t('blkNoneDef'))}</div>`;
+  for (const d of defs) {
+    const k = blkKey(d.name), n = cnt.get(k) || 0, att = B.attdefsOf(d).length, dyn = B.params(d).length;
+    html += `<div class="full blk-row"><div class="blk-name"><b>${esc(d.name)}</b><small>${n} ${esc(t('insertsN'))} · ${(d.ents || []).length} ${esc(t('prims'))}${att ? ' · ' + att + ' ' + esc(t('attrs')) : ''}${dyn ? ' · ' + dyn + ' ' + esc(t('bpParams')) : ''}</small></div><div class="blk-btns">${btn('insert', d.name, t('blockInsert'))}${btn('edit', d.name, t('blkEdit'))}${btn('ren', d.name, t('blkRename'))}${btn('repl', d.name, t('blkReplace'))}${att ? btn('att', d.name, t('attrs')) : ''}${btn('tolib', d.name, t('blkToLib'))}${btn('wblock', d.name, 'WBLOCK')}${n ? '' : btn('del', d.name, t('delete'))}</div></div>`;
+  }
+  if (dwg.length) {
+    html += `<div class="full opt-title">${esc(t('blkDwgTitle'))}</div>`;
+    for (const nm of dwg) html += `<div class="full blk-row"><div class="blk-name"><b>${esc(nm)}</b><small>${cnt.get(blkKey(nm)) || 0} ${esc(t('insertsN'))}</small></div><div class="blk-btns">${btn('adopt', nm, t('blkAdopt'))}${btn('insert', nm, t('blockInsert'))}${btn('edit', nm, t('blkEdit'))}</div></div>`;
+  }
+  api.openDoc(t('blkTitle'), html);
+  $('docBody').onclick = async (ev) => {
+    const b = ev.target.closest('[data-bk]'); if (!b) return;
+    const a = b.dataset.bk, nm = b.dataset.name;
+    switch (a) {
+      case 'new': api.hide('docPanel'); act('t:block'); break;
+      case 'ins': api.hide('docPanel'); act('t:insert'); break;
+      case 'lib': api.hide('docPanel'); api.action('blocklib'); break;
+      case 'purge': api.hide('docPanel'); void purgeDialog(); break;
+      case 'adopt': if (!gate('t:bedit')) break; api.toast(blockAdopt(nm) ? t('blkAdopted').replace('%s', nm) : t('error')); showBlocks(); break;
+      case 'insert': api.hide('docPanel'); if (!S.blocks.has(blkKey(nm)) && !blockAdopt(nm)) { api.toast(t('error')); break; } tools.lastVal.insert = { ...(tools.lastVal.insert || {}), name: nm }; act('t:insert'); break;
+      case 'edit': api.hide('docPanel'); if (!gate('t:bedit')) break; void beditStart(nm, {}); break;
+      case 'ren': await renameBlock(nm); showBlocks(); break;
+      case 'repl': api.hide('docPanel'); void blockReplaceDialog(nm); break;
+      case 'att': api.hide('docPanel'); void battman(nm); break;
+      case 'tolib': { const d = S.blocks.get(blkKey(nm)); const ok = d && saveBlock(api.store, d.name, B.xformEnts(d.ents, [1, 0, 0, 1, -(d.base[0] || 0), -(d.base[1] || 0)], -(d.base[2] || 0)), [0, 0, 0]); api.toast(ok ? t('blockSaved') + ': ' + d.name : t('blockTooBig'), { type: ok ? 'ok' : 'error' }); break; }
+      case 'wblock': api.hide('docPanel'); void wblockDialog(nm); break;
+      case 'del': if (!(await askConfirm(t('blockDelAsk') + ' ' + nm))) break; if (doc.run({ op: 'blockdel', name: nm })) { refreshUndo(); api.toast(t('blockDeleted')); } showBlocks(); break;
+      default: break;
+    }
+  };
+}
+async function renameBlock(nm) {
+  if (!gate('blocks')) return false;
+  const yeni = await askText(t('blkNewName') + ' (' + nm + ')', nm, { maxlength: 60 });
+  if (yeni === null) return false;
+  const ad = String(yeni).trim();
+  if (!ad || blkKey(ad) === blkKey(nm)) return false;
+  if (S.blocks.has(blkKey(ad))) { api.toast(t('blkExists')); return false; }
+  if (!doc.run({ op: 'blockrename', name: nm, newName: ad })) { api.toast(t('error')); return false; }
+  refreshUndo(); api.requestRender(); api.toast(t('blkRenamed').replace('%s', ad));
+  return true;
+}
+/** RENAME: blok ya da katman adı (AutoCAD RENAME kutusunun iki kalemi) */
+async function renameDialog() {
+  if (!needModel() || !gate('blocks')) return;
+  const bl = [...S.blocks.values()].map(d => [d.name, d.name]), la = [...S.layers.keys()].filter(n => n !== '0').map(n => [n, n]);
+  const r = await askForm(t('renameTitle'), [
+    { id: 'kind', label: t('renameKind'), type: 'select', value: bl.length ? 'block' : 'layer', options: [['block', t('blockN')], ['layer', t('layer')]] },
+    { id: 'block', label: t('blockN'), type: 'select', value: bl.length ? bl[0][0] : '', options: bl.length ? bl : [['', '—']] },
+    { id: 'layer', label: t('layer'), type: 'select', value: la.length ? la[0][0] : '', options: la.length ? la : [['', '—']] },
+    { id: 'name', label: t('blkNewName'), type: 'text', value: '' },
+  ], { ok: t('ok') });
+  if (!r) return;
+  const ad = String(r.name || '').trim(); if (!ad) return;
+  if (r.kind === 'block') {
+    if (!r.block) return;
+    if (S.blocks.has(blkKey(ad))) { api.toast(t('blkExists')); return; }
+    if (doc.run({ op: 'blockrename', name: r.block, newName: ad })) { refreshUndo(); api.requestRender(); api.toast(t('blkRenamed').replace('%s', ad)); } else api.toast(t('error'));
+  } else {
+    if (!r.layer || !gate('layeredit')) return;
+    if (doc.run({ op: 'layerprops', name: r.layer, newName: ad })) { refreshUndo(); api.requestRender(); api.toast(t('layerUpdated') + ': ' + ad); } else api.toast(t('layerExists'));
+  }
+}
+/** BLOCKREPLACE: A'nın bütün yerleştirmeleri B olur (aynı ekleme noktası, ölçek, dönüş; öznitelikler etikete göre); A silinebilir */
+async function blockReplaceDialog(from) {
+  if (!needModel() || !gate('blocks')) return;
+  const bl = [...S.blocks.values()].map(d => [d.name, d.name]);
+  if (bl.length < 2) { api.toast(t('blkReplaceNeed2')); return; }
+  const r = await askForm(t('blkReplace'), [
+    { id: 'from', label: t('blkReplaceFrom'), type: 'select', value: from || bl[0][0], options: bl },
+    { id: 'to', label: t('blkReplaceTo'), type: 'select', value: bl.find(x => x[0] !== (from || bl[0][0]))[0], options: bl },
+    { id: 'purge', label: t('blkReplacePurge'), type: 'check', value: false },
+  ], { ok: t('apply') });
+  if (!r || blkKey(r.from) === blkKey(r.to)) return;
+  const cmds = [{ op: 'blockreplace', from: r.from, to: r.to }];
+  if (r.purge) cmds.push({ op: 'blockdel', name: r.from });
+  if (doc.run(cmds.length === 1 ? cmds[0] : { op: 'group', cmds })) { refreshUndo(); api.requestRender(); api.drawOverlay(); api.toast(t('blkReplaced').replace('%s', r.from).replace('%t', r.to)); }
+  else api.toast(t('blkReplaceNone'));
+}
+/** ATTSYNC: bütün yerleştirmeler tanımdaki öznitelik tanımlarına göre yeniden kurulur (değerler etikete göre korunur) */
+async function attSync() {
+  if (!needModel() || !gate('blocks')) return;
+  if (!S.blocks.size) { api.toast(t('blkNoneDef')); return; }
+  if (doc.run({ op: 'blocksync' })) { refreshUndo(); api.requestRender(); api.drawOverlay(); api.toast(t('attSynced')); } else api.toast(t('attSyncNone'));
+}
+/** BATTMAN: bir bloğun öznitelik tanımları — etiket, istem, öntanımlı, görünmez, sabit, sil; uygulanınca yerleştirmeler eşitlenir */
+async function battman(name) {
+  if (!needModel() || !gate('blocks')) return;
+  let nm = name;
+  if (!nm) {
+    const bl = [...S.blocks.values()].filter(d => B.attdefsOf(d).length).map(d => [d.name, d.name]);
+    if (!bl.length) { api.toast(t('noAttribs')); return; }
+    const r0 = await askForm(t('battmanTitle'), [{ id: 'name', label: t('blockN'), type: 'select', value: bl[0][0], options: bl }], { ok: t('ok') });
+    if (!r0) return; nm = r0.name;
+  }
+  const def = S.blocks.get(blkKey(nm)); if (!def) return;
+  const atts = B.attdefsOf(def);
+  if (!atts.length) { api.toast(t('noAttribs')); return; }
+  const fields = [];
+  atts.forEach((a, i) => {
+    fields.push({ id: 'tag' + i, label: (i + 1) + '. ' + t('tag'), type: 'text', value: a.tag || '' }, { id: 'prompt' + i, label: t('attPrompt'), type: 'text', value: a.prompt || '' }, { id: 'def' + i, label: t('attDefault'), type: 'text', value: a.text == null ? '' : String(a.text) },
+      { id: 'inv' + i, label: t('attInvisible'), type: 'check', value: !!((a.flags | 0) & 1) }, { id: 'con' + i, label: t('attConstant'), type: 'check', value: !!((a.flags | 0) & 2) }, { id: 'del' + i, label: t('delete'), type: 'check', value: false });
+  });
+  const r = await askForm(t('battmanTitle') + ' — ' + def.name, fields, { ok: t('apply') });
+  if (!r) return;
+  let ai = 0;
+  const ents = def.ents.filter(e => e && e.type !== 'ATTDEF').concat([]);
+  const out = [];
+  for (const e of def.ents) {
+    if (!e || e.type !== 'ATTDEF') { out.push(e); continue; }
+    const i = ai++;
+    if (r['del' + i]) continue;
+    const tag = String(r['tag' + i] || '').trim().toUpperCase().replace(/\s+/g, '_') || e.tag;
+    out.push({ ...e, tag, prompt: String(r['prompt' + i] || ''), text: String(r['def' + i] == null ? '' : r['def' + i]), flags: (r['inv' + i] ? 1 : 0) | (r['con' + i] ? 2 : 0) });
+  }
+  void ents;
+  const cmds = [{ op: 'blockdef', name: def.name, def: { ...def, ents: out } }, { op: 'blocksync', name: def.name }];
+  if (doc.run({ op: 'group', cmds })) { refreshUndo(); api.requestRender(); api.drawOverlay(); api.toast(t('attSynced')); } else api.toast(t('error'));
+}
+/** WBLOCK: bloğu (ya da seçimi / bütün çizimi) ayrı bir DXF dosyasına yazar; blokta $INSBASE tabandır */
+async function wblockDialog(name) {
+  if (!needModel() || !gate('savedxf')) return;
+  let src = name ? 'block' : null, nm = name;
+  if (!src) {
+    const bl = [...S.blocks.values()].map(d => [d.name, d.name]);
+    const r = await askForm('WBLOCK', [
+      { id: 'src', label: t('wblockSrc'), type: 'select', value: bl.length ? 'block' : (ed.sel.size ? 'sel' : 'all'), options: [['block', t('blockN')], ['sel', t('scopeSel')], ['all', t('scopeAll')]] },
+      { id: 'name', label: t('blockN'), type: 'select', value: bl.length ? bl[0][0] : '', options: bl.length ? bl : [['', '—']] },
+    ], { ok: t('ok') });
+    if (!r) return;
+    src = r.src; nm = r.name;
+  }
+  if (src === 'all') { saveDxf(false); return; }
+  let prims, fileName, vars = {};
+  if (src === 'sel') { prims = [...ed.sel]; if (!prims.length) { api.toast(t('selEmpty')); return; } fileName = api.baseName() + '_secim.dxf'; }
+  else {
+    const def = S.blocks.get(blkKey(nm)); if (!def) { api.toast(t('blkNoneDef')); return; }
+    prims = []; for (const e of def.ents) for (const p of entsToPrims({ ...e, id: newId() }, S.layers, S.blocks)) prims.push(p);
+    vars = { INSBASE: def.base.slice() }; fileName = def.name.replace(/[^\w.-]+/g, '_') + '.dxf';
+  }
+  const text = writeDxf(prims, S.layers, { ltypes: S.ltypes, units: UNIT_CODE[S.units] || 0, blocks: S.blocks, vars });
+  saveDxfText(text, fileName);
+}
+/** PURGE: kullanılmayan blok tanımları ve boş katmanlar (AutoCAD PURGE'ün iki kalemi), tek geri alma adımı */
+async function purgeDialog() {
+  if (!needModel() || !gate('blocks')) return;
+  const cnt = insCounts();
+  const bl = [...S.blocks.values()].filter(d => !(cnt.get(blkKey(d.name)) || 0));
+  const used = new Set(S.scene.layouts[0].prims.map(p => p.lay));
+  for (const d of S.blocks.values()) for (const e of d.ents || []) if (e && e.layer) used.add(e.layer);
+  const la = [...S.layers.keys()].filter(n => n !== '0' && n !== ed.curLayer && !used.has(n));
+  if (!bl.length && !la.length) { api.toast(t('purgeNone')); return; }
+  const r = await askForm(t('purgeTitle'), [
+    { id: 'blocks', label: t('purgeBlocks').replace('%s', String(bl.length)), type: 'check', value: bl.length > 0 },
+    { id: 'layers', label: t('purgeLayers').replace('%s', String(la.length)), type: 'check', value: la.length > 0 },
+  ], { ok: t('apply'), hint: [...bl.map(d => d.name), ...la].join(', ').slice(0, 300) });
+  if (!r) return;
+  const cmds = [];
+  if (r.blocks) for (const d of bl) cmds.push({ op: 'blockdel', name: d.name });
+  if (r.layers) for (const n of la) cmds.push({ op: 'layerdel', name: n, mode: 'move' });
+  if (!cmds.length) return;
+  if (doc.run(cmds.length === 1 ? cmds[0] : { op: 'group', cmds })) { refreshUndo(); api.requestRender(); call(api.buildLayerList); api.toast(t('purged').replace('%s', String(cmds.length))); }
+}
+/** BASE: blok düzenleyicide tanımın taban noktası; çizimde $INSBASE (bu çizim başka çizime blok olarak eklenince ekleme noktası) */
+function setBase(p) {
+  if (bses) { if (bses.kind !== 'bedit') { api.toast(t('baseOnlyBedit')); return; } bses.base = [p[0], p[1], p[2] || 0]; api.toast(t('baseSet') + ': ' + fmt(p[0]) + ' ; ' + fmt(p[1])); api.drawOverlay(); return; }
+  if (!doc) return;
+  if (doc.run({ op: 'vars', set: { INSBASE: [p[0], p[1], p[2] || 0] } })) { refreshUndo(); api.toast(t('baseSet') + ': ' + fmt(p[0]) + ' ; ' + fmt(p[1])); }
+}
+/** Seçimi öne / arkaya (seçim menüsü ve komutlar); dolgu taşınıyorsa "taramalar arkada" ekran sıralaması kapatılır (yoksa değişiklik görünmezdi) */
+function drawOrderSel(mode) {
+  if (!needModel() || !gate('t:draworder')) return;
+  if (!ed.sel.size) { api.toast(t('noSel')); return; }
+  drawOrderRun([...ed.sel].map(p => p.key), mode, null);
+}
+function drawOrderRun(keys, mode, ref) {
+  if (!doc || !keys.length) return false;
+  const ps = doc.find(keys);
+  if (S.hatchBack !== false && ps.some(p => p.k === 0 && p.fill && !p.bg)) { D.setDisplay('hatchBack', false); api.toast(t('droHatchBackOff'), 3000); }
+  const ok = doc.run({ op: 'draworder', keys, mode, ref });
+  if (ok) { refreshUndo(); api.requestRender(); api.drawOverlay(); haptic('toggle'); api.toast(t('droDone').replace('%s', String(keys.length)), 1400); }
+  return ok;
+}
+/** TEXTTOFRONT (yazılar ve ölçüler öne) · HATCHTOBACK (taramalar ve dolgular arkaya): bütün çizim */
+function drawOrderKind(kind) {
+  if (!needModel() || !gate('t:draworder')) return;
+  const all = S.scene.layouts[0].prims;
+  const keys = kind === 'text' ? all.filter(p => p.k === 1 || (p.info && p.info.t === 'DIMENSION')).map(p => p.key) : all.filter(p => p.k === 0 && p.fill && !p.bg && (p.et === 'HATCH' || p.et === 'SOLID' || p.et === 'TRACE')).map(p => p.key);
+  if (!keys.length) { api.toast(t('droNone')); return; }
+  drawOrderRun(keys, kind === 'text' ? 'front' : 'back', null);
+}
+
+// ---------------------------------------------------------------------------------
+// BLOK DÜZENLEYİCİ OTURUMU (BEDIT / REFEDIT). Model uzayı ilkelleri ve düzenleme belgesi GEÇİCİ olarak
+// oturumunkilerle değiştirilir: bütün çizim araçları, geri al / yinele ve kaplama olduğu gibi çalışır, ana
+// belgenin günlüğüne hiçbir şey yazılmaz. Kaydet → ana belgede 'blockdef' + 'blocksync' tek adım; kapat →
+// eski ilkeller ve belge geri gelir. BEDIT tanımı tanım uzayında (taban işaretiyle) gösterir, REFEDIT
+// yerleştirmeyi olduğu yerde gösterir ve ötekileri solgun (S.backdrop) çizer.
+// ---------------------------------------------------------------------------------
+let bses = null;
+async function beditStart(name, opt = {}) {
+  if (!needModel()) return false;
+  if (bses) { api.toast(t('beditCloseFirst')); return false; }
+  if (!gate(opt.inplace ? 't:refedit' : 't:bedit')) return false;
+  const k = blkKey(name);
+  if (!S.blocks.has(k) && !blockAdopt(name)) { api.toast(t('blkNoneDef')); return false; }
+  const def = S.blocks.get(k), model = S.scene.layouts[0];
+  const T = [1, 0, 0, 1, -(def.base[0] || 0), -(def.base[1] || 0)];
+  let m = null, inv = null, group = null, z0 = 0;
+  if (opt.inplace) {
+    group = opt.h ? model.prims.filter(p => p.info && p.info.t === 'INSERT' && p.info.h === opt.h) : [];
+    if (!group.length) { api.toast(t('notBlock')); return false; }
+    const info = group[0].info;
+    m = mul(B.insMatrix(info), T); inv = B.invert(m); z0 = info.z || 0;
+    if (!inv) { api.toast(t('error')); return false; }
+  }
+  if (tools.running) { tools.cancel(); markActive(null); }
+  ed.sel.clear();
+  const ents = opt.inplace ? B.xformEnts(def.ents, m, z0 - (def.base[2] || 0)) : B.clone(def.ents);
+  const prims = [];
+  ents.forEach((e, i) => {
+    for (const p of entsToPrims({ ...e, id: 'B' + i }, S.layers, S.blocks)) { if (e.type !== 'INSERT') p.key = 'B' + i; if (Array.isArray(e.vis) && e.vis.length) p.vis = e.vis.slice(); prims.push(p); }
+  });
+  const dyn = B.clone(def.dyn || { params: [] });
+  if (!Array.isArray(dyn.params)) dyn.params = [];
+  for (const prm of dyn.params) if (Array.isArray(prm.ents)) prm.keys = prm.ents.map(i => 'B' + i);
+  bses = { name: def.name, kind: opt.inplace ? 'refedit' : 'bedit', h: opt.h || null, base: def.base.slice(), m, inv, z0, prims0: model.prims, doc0: doc, view0: { ...S.view }, dyn };
+  if (opt.inplace) { const gset = new Set(group); const bd = model.prims.filter(p => !gset.has(p)); S.backdrop = { prims: bd, tree: new api.RTree(bd, p => p.bb) }; }
+  model.prims = prims;
+  doc = makeDoc(null); ed.doc = doc;
+  rebuild();
+  S.bedit = { kind: bses.kind, name: def.name };
+  if (!opt.inplace && model.ext && isFinite(model.ext[0])) { const bb = model.ext, w = Math.max(bb[2] - bb[0], 1e-6), h = Math.max(bb[3] - bb[1], 1e-6); api.zoomExtents([bb[0] - w * 0.15, bb[1] - h * 0.15, bb[2] + w * 0.15, bb[3] + h * 0.15]); }
+  showBeditBar();
+  statusMode((opt.inplace ? 'REFEDIT' : 'BEDIT') + ' · ' + def.name);
+  refreshUndo(); refreshTiles(); S.cacheValid = false; api.requestRender(); api.drawOverlay();
+  api.toast(t(opt.inplace ? 'refeditOn' : 'beditOn').replace('%s', def.name), 2800);
+  return true;
+}
+function beditRestore() {
+  const s = bses; if (!s) return;
+  const model = S.scene.layouts[0];
+  model.prims = s.prims0;
+  doc = s.doc0; ed.doc = doc;
+  bses = null; S.backdrop = null; S.bedit = null;
+  ed.sel.clear();
+  if (tools.running) { tools.cancel(); markActive(null); }
+  rebuild();
+  if (s.view0) { S.view.scale = s.view0.scale; S.view.cx = s.view0.cx; S.view.cy = s.view0.cy; }
+  removeBeditBar(); statusMode(null);
+  refreshUndo(); refreshTiles(); S.cacheValid = false; api.requestRender(); api.drawOverlay();
+}
+/** BSAVE / REFCLOSE Save: oturum ilkelleri tanım varlığı olur (yerindeyse matris tersiyle), ana belgede tanım + eşitleme tek adım */
+async function beditSave() {
+  const s = bses; if (!s || !s.doc0) return false;
+  const model = S.scene.layouts[0];
+  const { ents: ents0, keys } = primsToDefEnts(model.prims);
+  if (!ents0.length) { api.toast(t('beditEmpty')); return false; }
+  const ents = s.kind === 'refedit' ? B.xformEnts(ents0, s.inv, (s.base[2] || 0) - s.z0) : ents0;
+  const params = (s.dyn.params || []).map(prm => { const q = { ...prm }; if (Array.isArray(prm.keys)) { q.ents = prm.keys.map(x => keys.indexOf(x)).filter(i => i >= 0); if (!q.ents.length) q.ents = null; } delete q.keys; return q; });
+  const def = { name: s.name, base: s.base.slice(), ents, dyn: params.length ? { params } : null };
+  const main = s.doc0;
+  beditRestore();
+  const ok = main.run({ op: 'group', cmds: [{ op: 'blockdef', name: def.name, def }, { op: 'blocksync', name: def.name }] });
+  refreshUndo(); S.cacheValid = false; api.requestRender(); api.drawOverlay();
+  api.toast(ok ? t('beditSaved').replace('%s', def.name) : t('error'), 2400);
+  return ok;
+}
+/** BCLOSE / REFCLOSE: değişiklik varsa sorulur (kaydet / at) */
+async function beditClose() {
+  const s = bses; if (!s) return;
+  const dirty = !!(doc && doc.dirty) || JSON.stringify(s.dyn) !== JSON.stringify(S.blocks.get(blkKey(s.name)).dyn || { params: [] }) || s.base.join(',') !== S.blocks.get(blkKey(s.name)).base.join(',');
+  if (dirty) { const keep = await askConfirm(t('beditSaveAsk').replace('%s', s.name)); if (keep) { await beditSave(); return; } }
+  beditRestore();
+  api.toast(t('beditClosed'), 1400);
+}
+function showBeditBar() {
+  let bar = $('beditBar');
+  if (!bar) { bar = document.createElement('div'); bar.id = 'beditBar'; bar.className = 'bedit-bar hud'; const vp = $('viewport'); if (vp) vp.appendChild(bar); else document.body.appendChild(bar); }
+  const s = bses; if (!s) return;
+  const b = (a, ic, lbl, cls = '') => `<button type="button" class="btn small${cls ? ' ' + cls : ''}" data-bb="${a}" title="${esc(lbl)}"><svg class="ic" aria-hidden="true"><use href="#${ic}"/></svg><span>${esc(lbl)}</span></button>`;
+  bar.innerHTML = `<span class="bb-name"><b>${esc(s.kind === 'refedit' ? 'REFEDIT' : 'BEDIT')}</b> ${esc(s.name)}</span>` + b('save', 'i-check', t('bsave'), 'primary') + b('close', 'i-close', t('bclose')) + (s.kind === 'bedit' ? b('params', 'i-sliders', t('bpParams')) + b('base', 'i-goto', tileLabel('t:base')) : '');
+  bar.hidden = false;
+  bar.onclick = (ev) => { const x = ev.target.closest('[data-bb]'); if (!x) return; const a = x.dataset.bb; if (a === 'save') void beditSave(); else if (a === 'close') void beditClose(); else if (a === 'params') void bparamsDialog(); else if (a === 'base') act('t:base'); };
+}
+function removeBeditBar() { const bar = $('beditBar'); if (bar) { bar.hidden = true; bar.innerHTML = ''; } }
+/** Oturumdaki parametre listesi: ekle / sil, görünürlük durumları, nesne ataması */
+async function bparamsDialog() {
+  if (!bses || bses.kind !== 'bedit') { api.toast(t('bparamOnlyBedit')); return; }
+  const P = bses.dyn.params;
+  let html = `<div class="full btns"><button type="button" class="btn primary small" data-bp="add">${esc(t('bpAdd'))}</button><button type="button" class="btn small" data-bp="vstate">${esc(tileLabel('t:bvstate'))}</button></div>`;
+  if (!P.length) html += `<div class="full muted">${esc(t('bpNone'))}</div>`;
+  P.forEach((prm, i) => {
+    const desc = prm.kind === 'vis' ? (prm.states || []).join(' · ') : prm.kind === 'linear' ? `${fmt(prm.def)} (${prm.mode === 'stretch' ? t('bpStretch') : t('bpMove')})` : prm.kind === 'rot' ? fmt(prm.def) + '°' : prm.kind === 'flip' ? t('bpFlip') : t('bpPoint');
+    html += `<div class="full blk-row"><div class="blk-name"><b>${esc(prm.label || prm.id)}</b><small>${esc(t('bp_' + prm.kind))} · ${esc(desc)} · ${Array.isArray(prm.keys) && prm.keys.length ? prm.keys.length + ' ' + esc(t('objectsN')) : esc(t('bpAllObjs'))}</small></div><div class="blk-btns"><button type="button" class="btn small" data-bp="del" data-i="${i}">${esc(t('delete'))}</button></div></div>`;
+  });
+  api.openDoc(t('bpParams') + ' — ' + bses.name, html);
+  $('docBody').onclick = (ev) => {
+    const b = ev.target.closest('[data-bp]'); if (!b) return;
+    if (b.dataset.bp === 'add') { api.hide('docPanel'); act('t:bparam'); return; }
+    if (b.dataset.bp === 'vstate') { api.hide('docPanel'); act('t:bvstate'); return; }
+    if (b.dataset.bp === 'del') { P.splice(+b.dataset.i, 1); bparamsDialog(); api.drawOverlay(); }
+  };
+}
+/** Parametre ekleme (tools.bparamNext → buraya): kimlik verilir, nesne anahtarları normalize edilir; görünürlük tek parametredir */
+function bparamAdd(prm) {
+  if (!bses || bses.kind !== 'bedit') return false;
+  const P = bses.dyn.params;
+  const keys = Array.isArray(prm.ents) ? [...new Set(prm.ents.map(k => { const p = S.prims.find(q => q.key === k); return p ? entKeyOf(p) : k; }))] : null;
+  const q = { ...prm, keys, ents: undefined };
+  delete q.ents;
+  if (q.kind === 'vis') { const i = P.findIndex(x => x.kind === 'vis'); q.id = i >= 0 ? P[i].id : 'vis'; if (i >= 0) P[i] = q; else P.push(q); }
+  else { let n = 1; while (P.some(x => x.id === 'p' + n)) n++; q.id = 'p' + n; P.push(q); }
+  api.drawOverlay();
+  return true;
+}
+function bvstates() { if (!bses) return []; const v = (bses.dyn.params || []).find(x => x.kind === 'vis'); return v ? v.states.slice() : []; }
+/** Seçili oturum ilkelleri yalnız verilen durumda görünür (null = hepsinde) */
+function bvstateSet(keys, state) {
+  if (!bses) return 0;
+  let n = 0;
+  const set = new Set(keys);
+  for (const p of S.prims) { if (!set.has(p.key) && !(p.info && p.info.t === 'INSERT' && set.has(p.info.h))) continue; if (state) p.vis = [state]; else delete p.vis; n++; }
+  if (doc) doc.log.push({ op: 'vis' });   // oturumu "değişmiş" sayar (kaydet sorusu)
+  return n;
+}
+/*
+ * DİNAMİK TUTAMAKLAR: seçili TEK yerleştirmenin parametreleri kutu tutamağından ayrı gliflerle çizilir (AutoCAD'in açık mavi
+ * özel tutamakları): ▼ görünürlük (dokun → durum seçici), ⇄ çevirme (dokun → çevir), ● döndürme (sürükle), ▶ doğrusal
+ * (sürükle: yön boyunca uzunluk), ■ nokta (sürükle). Bırakışta tek 'dynset' komutu; yerleştirme yeniden genişletilir.
+ */
+const DYN_COL = '#4da3ff';
+function dynLayout() {
+  if (!gizmoOn() || bses) return null;
+  const sel = [...ed.sel].filter(p => p.k !== 4);
+  if (!sel.length) return null;
+  const info = sel[0].info;
+  if (!info || info.t !== 'INSERT' || !info.blk || !sel.every(p => p.info && p.info.h === info.h)) return null;
+  const def = S.blocks.get(blkKey(info.name)); if (!def || !B.params(def).length) return null;
+  const m = mul(B.insMatrix(info), [1, 0, 0, 1, -(def.base[0] || 0), -(def.base[1] || 0)]);
+  const grips = B.dynGrips(def, info.dyn, m).map(g => { const s = toScreen(g.x, g.y); return { ...g, sx: s[0], sy: s[1] }; });
+  return { info, def, m, grips, hitR: Math.round((ui.glove ? 26 : 22) * ui.fontScale) };
+}
+function drawDynGrips(c, DL) {
+  const r = Math.round(7 * ui.fontScale);
+  c.save(); c.lineWidth = 2; c.strokeStyle = DYN_COL; c.fillStyle = DYN_COL; c.setLineDash([]);
+  c.font = `bold ${Math.round(10 * ui.fontScale)}px sans-serif`; c.textBaseline = 'bottom'; c.textAlign = 'left';
+  for (const g of DL.grips) {
+    const x = g.sx, y = g.sy;
+    c.beginPath();
+    if (g.kind === 'vis') { c.moveTo(x - r, y - r * 0.8); c.lineTo(x + r, y - r * 0.8); c.lineTo(x, y + r); c.closePath(); c.fill(); }
+    else if (g.kind === 'flip') { const ux = g.ux != null ? -g.uy : 1, uy = g.ux != null ? g.ux : 0; c.moveTo(x - ux * r * 1.4, y + uy * r * 1.4); c.lineTo(x + ux * r * 1.4, y - uy * r * 1.4); c.stroke(); c.beginPath(); c.arc(x, y, r * 0.55, 0, TAU); c.fill(); }
+    else if (g.kind === 'rot') { c.arc(x, y, r, 0, TAU); c.fill(); if (g.cx != null) { const s = toScreen(g.cx, g.cy); c.setLineDash([4, 3]); c.moveTo(s[0], s[1]); c.lineTo(x, y); c.stroke(); c.setLineDash([]); } }
+    else if (g.kind === 'linear') { const ux = g.ux || 1, uy = -(g.uy || 0); c.moveTo(x + ux * r * 1.5, y + uy * r * 1.5); c.lineTo(x - uy * r, y + ux * r); c.lineTo(x + uy * r, y - ux * r); c.closePath(); c.fill(); }
+    else { c.rect(x - r * 0.8, y - r * 0.8, r * 1.6, r * 1.6); c.fill(); }
+    const txt = g.label + (g.kind === 'vis' ? ': ' + g.value : g.kind === 'linear' ? ': ' + fmt(g.value) : g.kind === 'rot' ? ': ' + fmt(g.value, 1) + '°' : '');
+    c.fillText(txt, x + r + 3, y - r - 2);
+  }
+  c.restore();
+}
+function runDyn(h, values) {
+  if (!doc) return false;
+  const ok = doc.run({ op: 'dynset', h, values });
+  if (ok) { ed.sel.clear(); for (const p of S.prims) if (p.k !== 4 && p.info && p.info.h === h) ed.sel.add(p); refreshUndo(); api.requestRender(); haptic('toggle'); }
+  api.drawOverlay();
+  return ok;
+}
+async function dynVisPick(DL, prm) {
+  const cur = B.dynValue(prm, DL.info.dyn);
+  const r = await askForm(prm.label || t('bpVis'), [{ id: 'state', label: t('bpState'), type: 'select', value: cur, options: (prm.states || []).map(x => [x, x]) }], { ok: t('ok') });
+  if (!r || r.state === cur) return;
+  runDyn(DL.info.h, { [prm.id]: r.state });
+}
+/** Sınama ve kabuk: oturum durumu, tanım tablosu, dinamik tutamaklar */
+ed.bedit = () => (bses ? { kind: bses.kind, name: bses.name, base: bses.base.slice(), params: (bses.dyn.params || []).length } : null);
+ed.beditStart = (name, o) => beditStart(name, o || {});
+ed.beditSave = () => beditSave();
+ed.beditClose = () => beditClose();
+ed.blockAdopt = (name) => blockAdopt(name);
+ed.dynGrips = () => { const DL = dynLayout(); return DL ? DL.grips.map(g => ({ id: g.id, kind: g.kind, sx: g.sx, sy: g.sy, value: g.value, label: g.label })) : []; };
+ed.runDyn = (h, values) => runDyn(h, values);
+ed.drawOrder = (keys, mode, ref) => drawOrderRun(keys, mode, ref);
+ed.showBlocks = () => showBlocks();
+
 // ---------------------------------------------------------------------------------
 // DXF kaydetme
 // ---------------------------------------------------------------------------------
@@ -1104,8 +1786,13 @@ function saveDxf(onlyEdited) {
   if (!needDoc()) return;
   const model = S.scene.layouts[0];
   if (onlyEdited && !(doc && doc.dirty)) { api.toast(t('noChanges')); return; }
-  const text = writeDxf(model.prims, S.layers, { onlyEdited, ltypes: S.ltypes, units: UNIT_CODE[S.units] || 0 });
+  if (bses) { api.toast(t('beditCloseFirst')); return; }
+  const text = writeDxf(model.prims, S.layers, { onlyEdited, ltypes: S.ltypes, units: UNIT_CODE[S.units] || 0, blocks: S.blocks, vars: S.vars });
   const name = api.baseName() + (onlyEdited ? '_degisiklikler' : '_duzenlenmis') + '.dxf';
+  saveDxfText(text, name);
+}
+/** DXF metnini dosyaya yazar (Android: Bridge.saveFile, tarayıcı: indirme); Drive açıksa yükleme eylemi */
+function saveDxfText(text, name) {
   const bytes = new TextEncoder().encode(text);
   let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
   const b64 = btoa(bin);
@@ -1117,7 +1804,7 @@ function saveDxf(onlyEdited) {
 /** DXF metnini base64 olarak verir (Drive yüklemesi için); {b64, name} */
 ed.dxfBase64 = (onlyEdited) => {
   if (!S.hasDoc) return null;
-  const text = writeDxf(S.scene.layouts[0].prims, S.layers, { onlyEdited: !!onlyEdited, ltypes: S.ltypes, units: UNIT_CODE[S.units] || 0 });
+  const text = writeDxf(S.scene.layouts[0].prims, S.layers, { onlyEdited: !!onlyEdited, ltypes: S.ltypes, units: UNIT_CODE[S.units] || 0, blocks: S.blocks, vars: S.vars });
   const bytes = new TextEncoder().encode(text);
   let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
   return { b64: btoa(bin), name: api.baseName() + (onlyEdited ? '_degisiklikler' : '_duzenlenmis') + '.dxf' };
@@ -1260,6 +1947,9 @@ ed.gizmoDown = (sx, sy, o = {}) => {
     return true;
   }
   const L = gizmoLayout(); if (!L) return false;
+  // Dinamik blok tutamakları kutu tutamağından ÖNCE bakılır (kutunun köşesiyle çakışabilir): dokunuş görünürlük / çevirme, sürükleme değer
+  const DL = dynLayout();
+  if (DL) { const g = DL.grips.find(q => Math.hypot(sx - q.sx, sy - q.sy) <= DL.hitR); if (g) { if (!gate('t:bparam')) return true; giz = { kind: 'dyn', g, DL, prm: B.params(DL.def).find(x => x.id === g.id), w0: toWorld(sx, sy), p: null, m: null, info: null, moved: false }; haptic('snap'); return true; } }
   const G = gizmoVertLayout();
   const kind = Gz.hit(sx, sy, L, G && G.VL); if (!kind) return false;
   if (!gate(Gz.needOf(kind))) return true;   // yetki yoksa jest yine yutulur: kutu açıldı
@@ -1288,6 +1978,13 @@ ed.gizmoMove = (sx, sy) => {
     api.drawOverlay(); return true;
   }
   if (!giz) return false;
+  if (giz.kind === 'dyn') {
+    const w = toWorld(sx, sy);
+    if (Math.hypot(w[0] - giz.w0[0], w[1] - giz.w0[1]) * S.view.scale > 4) giz.moved = true;
+    if (giz.prm && (giz.prm.kind === 'rot' || giz.prm.kind === 'linear' || giz.prm.kind === 'point')) { giz.val = B.dynValueAt(giz.DL.def, giz.prm, w, giz.DL.m); giz.p = w; giz.info = { tip: 'dyn', label: giz.g.label, v: giz.val }; }
+    api.drawOverlay();
+    return true;
+  }
   if (giz.vi != null) {
     // Bırakma noktası yakalamaya oturur: düğüm bir başka çizginin ucuna TAM denk gelsin diye.
     // Tutamak sürüklemesi NOKTA işidir: yakalama orada çalışır (uç / orta / merkez / kesişim…), açıklık 1,5 kat.
@@ -1321,6 +2018,16 @@ ed.gizmoUp = (commit) => {
   }
   const g = giz; giz = null;
   if (!g) return false;
+  if (g.kind === 'dyn') {
+    const prm = g.prm;
+    if (commit && prm) {
+      if (prm.kind === 'vis') { if (!g.moved) void dynVisPick(g.DL, prm); }
+      else if (prm.kind === 'flip') { if (!g.moved) runDyn(g.DL.info.h, { [prm.id]: !B.dynValue(prm, g.DL.info.dyn) }); }
+      else if (g.moved && g.val != null) runDyn(g.DL.info.h, { [prm.id]: g.val });
+    }
+    api.drawOverlay();
+    return true;
+  }
   if (g.vi != null) {
     const kip = g.p && (Math.abs(g.p[0] - g.ops0[g.oi][1]) > 0 || Math.abs(g.p[1] - g.ops0[g.oi][2]) > 0);
     if (commit && kip && doc) {
@@ -1343,6 +2050,7 @@ ed.gizmoBusy = () => !!giz || !!selDrag;
 function gizmoText() {
   const i = giz && giz.info; if (!i) return '';
   if (i.tip === 'move' || i.tip === 'vertex') return `${fmt(i.dx)} ; ${fmt(i.dy)}`;
+  if (i.tip === 'dyn') return `${i.label}: ${Array.isArray(i.v) ? fmt(i.v[0]) + ' ; ' + fmt(i.v[1]) : fmt(i.v, 2)}`;
   if (i.tip === 'rot') return `${fmt(i.deg, 1)}°` + (i.snap ? ' ⌁' : '');
   return i.uniform ? `%${fmt(i.sx * 100, 1)}` : `%${fmt(i.sx * 100, 1)} × %${fmt(i.sy * 100, 1)}`;
 }
@@ -1384,6 +2092,8 @@ export function overlay(c) {
         c.fillText(api.osnap.abbrOf(giz.sn.kind), s[0] + 11, s[1] - 10);
         c.restore();
       }
+      const DL = dynLayout();
+      if (DL) drawDynGrips(c, DL);
       const txt = gizmoText();
       if (txt) {
         c.font = `bold ${Math.round(12 * ui.fontScale)}px sans-serif`; c.textAlign = 'center'; c.textBaseline = 'bottom';
@@ -1395,6 +2105,13 @@ export function overlay(c) {
     }
   }
   drawSelDrag(c); updateSelBadge();
+  if (bses && bses.kind === 'bedit') {   // blok düzenleyici: taban noktası işareti (AutoCAD'in BASE noktası)
+    const s = toScreen(bses.base[0], bses.base[1]);
+    c.save(); c.strokeStyle = DYN_COL; c.lineWidth = 2; c.setLineDash([]);
+    c.beginPath(); c.arc(s[0], s[1], 7, 0, TAU); c.stroke(); c.beginPath(); c.moveTo(s[0] - 12, s[1]); c.lineTo(s[0] + 12, s[1]); c.moveTo(s[0], s[1] - 12); c.lineTo(s[0], s[1] + 12); c.stroke();
+    c.font = `bold ${Math.round(10 * ui.fontScale)}px sans-serif`; c.fillStyle = DYN_COL; c.textBaseline = 'bottom'; c.fillText('BASE', s[0] + 10, s[1] - 8);
+    c.restore();
+  }
   const d = tools.draft;
   if (!d || !tools.running && !d.keep) return;
   c.strokeStyle = acc; c.fillStyle = acc; c.lineWidth = Math.max(1.5, sw - 1); c.setLineDash([]);

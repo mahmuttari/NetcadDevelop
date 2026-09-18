@@ -1406,10 +1406,12 @@ function showInfo(p) {
   const top = inf.t || p.et, sub = p.et;
   $('infoTitle').textContent = trType(top) + (sub !== top ? ' › ' + trType(sub) : '');
   if (top === 'INSERT') {
-    rows.push([t('block'), inf.name], [t('insPoint'), fmt(inf.x) + ' ; ' + fmt(inf.y) + zTxt(inf.z)]);
+    rows.push([t('block'), inf.name + (inf.blk ? '' : ' · DWG')], [t('insPoint'), fmt(inf.x) + ' ; ' + fmt(inf.y) + zTxt(inf.z)]);
     if (inf.sx !== 1 || inf.sy !== 1) more.push([t('scale'), fmt(inf.sx) + ' / ' + fmt(inf.sy)]);
     if (inf.rot) more.push([t('rotation'), fmt(inf.rot * 180 / Math.PI, 2) + '°']);
+    if (inf.dyn && Object.keys(inf.dyn).length) more.push([t('bpParams'), Object.entries(inf.dyn).map(([k, v]) => k + ' = ' + (Array.isArray(v) ? v.map(q => fmt(q)).join(' ; ') : (typeof v === 'number' ? fmt(v) : String(v)))).join(', ')]);
   }
+  if (p.xref) rows.push([t('xrefs'), p.xref]);
   if (top === 'DIMENSION') { rows.push([t('measVal'), inf.meas != null ? fmt(inf.meas) + u : null]); if (inf.text && inf.text !== '<>') rows.push([t('measText'), inf.text]); more.push([t('dimStyle'), inf.style]); }
   rows.push([t('layer'), p.lay]);
   const L = S.layers.get(p.lay);
@@ -2674,7 +2676,7 @@ $('btnExtents').addEventListener('click', () => zoomExtents());
 function menuAction(act) {
   closeMenu();
   if (!Ed.gate(act)) return;   // Ücretsiz sürümde Pro eylemi (notes / profile / compare / pdf): yükseltme kutusu
-  const needDoc = ['info', 'layouts', 'notes', 'profile', 'compare', 'xrefs', 'views', 'png', 'pdf', 'textout', 'markdim', 'findrep', 'blocklib', 'copyclip', 'pasteclip', 'mesh3d', 'tableout'];
+  const needDoc = ['info', 'layouts', 'notes', 'profile', 'compare', 'xrefs', 'views', 'png', 'pdf', 'textout', 'markdim', 'findrep', 'blocklib', 'copyclip', 'pasteclip', 'mesh3d', 'tableout', 'blocks', 'xattach', 'xbind', 'xopen', 'xdetach'];
   if (needDoc.includes(act) && !S.hasDoc) { toast(t('openFirst')); return; }
   switch (act) {
     case 'info': showDocInfo(); break;
@@ -2704,6 +2706,11 @@ function menuAction(act) {
     case 'markdim': markMeasurement(); break;
     case 'findrep': showFindReplace(); break;
     case 'blocklib': showBlockLib(); break;
+    case 'blocks': edCall('showBlocks'); break;
+    case 'xattach': pickFile('xattach', '*/*'); break;
+    case 'xbind': void xrefBindPick(); break;
+    case 'xopen': void xrefOpenPick(); break;
+    case 'xdetach': void xrefDetachPick(); break;
     case 'copyclip': clipCopySelection(); break;
     case 'cutclip': void clipCut(); break;
     case 'pasteclip': void clipPaste(); break;
@@ -3216,36 +3223,157 @@ async function setCompare(buf, name) {
 }
 
 // ---- xref ve resimler ------------------------------------------------------------------------
+/*
+ * HARİCİ REFERANSLAR (v7.72). İki kaynak: dosyanın kendi eksik xref kayıtları (scene.xrefs: ad + ekleme matrisleri;
+ * dosya seçilince yüklenir) ve XATTACH ile eklenenler (ekleme noktası, ölçek, dönüş formdan). Yüklenen referansın
+ * ilkelleri model uzayına girer (p.xref = ad; katmanlar "ad|katman"), soldurulur (XDWGFADECTL), kırpılabilir (XCLIP:
+ * dikdörtgen; yeniden yüklemede korunur), boşaltılıp yeniden yüklenebilir (önbellek), ayrılır (DETACH), bağlanır
+ * (XBIND: blok tanımı + yerleştirme) ya da ayrı dosya olarak açılır (XOPEN). Ekleme kalıcı değildir: dosyaya
+ * erişim oturumluktur, DXF'e referansın ilkelleri değil (bağlanmadıysa) hiçbir şey yazılmaz.
+ */
 function showXrefs() {
   const xr = S.scene.xrefs || [], im = S.scene.images || [];
-  if (!xr.length && !im.length) { openDoc(t('xrefs'), `<div class="full muted">${esc(t('noXrefs'))}</div>`); return; }
-  let html = '';
-  if (xr.length) html += `<div class="full"><strong>XREF</strong></div>` + xr.map((x, i) => `<div class="k">${esc(x.name)}</div><div class="v">${x.loaded ? '✓ ' + t('loadedMark') : `<button class="btn small" data-xref="${i}">${t('pickXref')}</button> <span class="muted">${x.inserts.length} ${t('insertsN')}</span>`}</div>`).join('');
-  if (im.length) html += `<div class="full"><strong>${t('imgMissing')}</strong></div>` + im.map((x, i) => `<div class="k">${esc((x.fileName || x.handle).replace(/^.*[\\/]/, ''))}</div><div class="v">${S.images.has(x.handle) && S.images.get(x.handle).ok ? '✓' : `<button class="btn small" data-img="${i}">${t('pickXref')}</button>`}</div>`).join('');
+  const b = (a, i, lbl, cls = '') => `<button type="button" class="btn small${cls ? ' ' + cls : ''}" data-xa="${a}" data-i="${i}">${esc(lbl)}</button>`;
+  let html = `<div class="full btns"><button type="button" class="btn primary small" data-xa="attach">${esc(t('xattachTitle'))}</button><button type="button" class="btn small${S.xrefFade > 0 ? ' on' : ''}" data-xa="fade">${esc(t('xrefFade'))}</button></div>`;
+  if (!xr.length && !im.length) html += `<div class="full muted">${esc(t('noXrefs'))}</div>`;
+  xr.forEach((x, i) => {
+    const st = x.loaded ? t('loadedMark') + ' · ' + (x.keys ? x.keys.length : 0) + ' ' + t('prims') + (x.clip ? ' · ' + t('xrefClipped') : '') : (x.unloaded ? t('xrefUnloadedMark') : t('xrefMissing'));
+    const acts = x.loaded
+      ? b('unload', i, t('xrefUnload')) + b('clip', i, t('xrefClip')) + (x.clip ? b('unclip', i, t('xrefClipClear')) : '') + b('bind', i, t('xrefBind')) + (x.buf ? b('open', i, t('xrefOpen')) : '') + b('detach', i, t('xrefDetach'))
+      : (x.prims || x.buf ? b('reload', i, t('xrefReload')) : b('pick', i, t('pickXref'))) + b('detach', i, t('xrefDetach'));
+    html += `<div class="full blk-row"><div class="blk-name"><b>${esc(x.name)}</b><small>${esc(st)} · ${x.inserts.length} ${esc(t('insertsN'))}${x.file ? ' · ' + esc(x.file) : ''}</small></div><div class="blk-btns">${acts}</div></div>`;
+  });
+  if (im.length) html += `<div class="full opt-title">${esc(t('imgMissing'))}</div>` + im.map((x, i) => `<div class="full blk-row"><div class="blk-name"><b>${esc((x.fileName || x.handle).replace(/^.*[\\/]/, ''))}</b></div><div class="blk-btns">${S.images.has(x.handle) && S.images.get(x.handle).ok ? '✓' : `<button type="button" class="btn small" data-img="${i}">${esc(t('pickXref'))}</button>`}</div></div>`).join('');
   openDoc(t('xrefs'), html);
-  $('docBody').onclick = (ev) => {
-    const b = ev.target.closest('button'); if (!b) return;
-    if (b.dataset.xref != null) pickFile('xref:' + b.dataset.xref, '*/*');
-    if (b.dataset.img != null) pickFile('img:' + im[Number(b.dataset.img)].handle, 'image/*');
+  $('docBody').onclick = async (ev) => {
+    const bt = ev.target.closest('button'); if (!bt) return;
+    if (bt.dataset.img != null) { pickFile('img:' + im[Number(bt.dataset.img)].handle, 'image/*'); return; }
+    const a = bt.dataset.xa, i = Number(bt.dataset.i), x = xr[i];
+    if (a === 'attach') { if (!Ed.gate('xattach')) return; hide('docPanel'); pickFile('xattach', '*/*'); return; }
+    if (a === 'fade') { edCall('act', 'xreffade'); showXrefs(); return; }
+    if (!x) return;
+    if (a === 'pick') { pickFile('xref:' + i, '*/*'); return; }
+    if (a === 'unload') { xrefRemovePrims(x); x.loaded = false; x.unloaded = true; toast(t('xrefUnloaded').replace('%s', x.name), 1600); showXrefs(); return; }
+    if (a === 'reload') { if (x.prims) { xrefPushPrims(x, x.prims); toast(t('xrefReloaded').replace('%s', x.name), 1600); showXrefs(); } else if (x.buf) await loadXref(i, x.buf.slice(0), x.file || x.name); return; }
+    if (a === 'detach') { if (!(await askConfirm(t('xrefDetachAsk').replace('%s', x.name)))) return; xrefRemovePrims(x); if (x.attached) xr.splice(i, 1); else { x.loaded = false; x.unloaded = false; x.prims = null; } toast(t('xrefDetached').replace('%s', x.name), 1600); showXrefs(); return; }
+    if (a === 'clip') { if (!Ed.gate('t:xclip')) return; hide('docPanel'); editor.act('t:xclip'); return; }
+    if (a === 'unclip') { x.clip = null; if (x.prims) { xrefPushPrims(x, x.prims); toast(t('xrefClipClear'), 1400); } showXrefs(); return; }
+    if (a === 'bind') { hide('docPanel'); await xrefBind(x); return; }
+    if (a === 'open') { hide('docPanel'); await xrefOpen(x); return; }
   };
+}
+/** Referansın ilkellerini model uzayından çıkarır (yeniden yükleme için önbellek x.prims'te kalır) */
+function xrefRemovePrims(x) {
+  const model = S.scene.layouts[0];
+  const set = new Set(x.keys || []);
+  if (set.size) { const kept = model.prims.filter(p => !set.has(p.key)); model.prims.length = 0; for (const p of kept) model.prims.push(p); }
+  x.keys = [];
+  xrefRebuild();
+}
+/** Referans ilkellerini (kırpma varsa kırparak) model uzayına koyar; anahtar 'X<ad>#<n>', p.xref = ad */
+function xrefPushPrims(x, prims) {
+  xrefRemovePrims(x);
+  const model = S.scene.layouts[0];
+  const list = x.clip ? B_clipPrims(prims, x.clip) : prims;
+  const keys = [];
+  list.forEach((p, i) => { p.xref = x.name; p.key = 'X' + x.name + '#' + i; keys.push(p.key); model.prims.push(p); });
+  x.keys = keys; x.loaded = true; x.unloaded = false;
+  xrefRebuild();
+}
+let BLK = null;
+function B_clipPrims(prims, rect) { return BLK ? BLK.clipPrims(prims, rect) : prims; }
+function xrefRebuild() {
+  const model = S.scene.layouts[0];
+  const bb = [Infinity, Infinity, -Infinity, -Infinity];
+  for (const p of model.prims) { if (p.inf || p.k === 4 || !p.bb || !isFinite(p.bb[0])) continue; if (p.bb[0] < bb[0]) bb[0] = p.bb[0]; if (p.bb[1] < bb[1]) bb[1] = p.bb[1]; if (p.bb[2] > bb[2]) bb[2] = p.bb[2]; if (p.bb[3] > bb[3]) bb[3] = p.bb[3]; }
+  if (isFinite(bb[0])) model.ext = bb;
+  S.modelTree = new RTree(model.prims, p => p.bb);
+  if (S.scene.layouts[S.layoutIndex].isModel) { S.prims = model.prims; S.tree = S.modelTree; S.ext = model.ext; }
+  S.cacheValid = false; requestRender(); drawOverlay();
 }
 async function loadXref(idx, buf, name) {
   const x = S.scene.xrefs[idx];
+  if (!BLK) { try { BLK = await import('./blocks.js'); } catch (e) { console.warn(e); } }
   setLoading(t('loading'), name, undefined, 'cad');
   try {
+    const keep = buf.slice(0);   // işçi tamponu devralır; yeniden yükleme ve XOPEN için kopya kalır
     const res = await runWorker({ cmd: 'xref', bytes: buf, name, inserts: x.inserts, prefix: x.name }, (st, pct) => setLoading(stageText(st), name, pct));
-    const model = S.scene.layouts[0];
     for (const l of res.xref.layers) if (!S.layers.has(l.name)) S.layers.set(l.name, { ...l });
     Object.assign(S.ltypes, res.xref.ltypes);
-    model.prims.push(...res.xref.prims);
-    if (res.xref.ext) model.ext = [Math.min(model.ext[0], res.xref.ext[0]), Math.min(model.ext[1], res.xref.ext[1]), Math.max(model.ext[2], res.xref.ext[2]), Math.max(model.ext[3], res.xref.ext[3])];
-    S.modelTree = new RTree(model.prims, p => p.bb);
-    if (S.scene.layouts[S.layoutIndex].isModel) { S.prims = model.prims; S.tree = S.modelTree; S.ext = model.ext; }
-    x.loaded = true;
-    S.cacheValid = false; requestRender(); showXrefs();
+    x.prims = res.xref.prims; x.buf = keep; x.file = name;
+    xrefPushPrims(x, x.prims);
+    toast(t('xrefAttached').replace('%s', x.name) + ' · ' + x.keys.length + ' ' + t('prims'), 2200);
+    showXrefs();
   } catch (e) { fail(e); }
   setLoading(null);
 }
+/** XATTACH: dosya seçildi → ekleme noktası, ölçek, dönüş ve ad formu → yükleme */
+async function xattachLoad(buf, name) {
+  if (!S.hasDoc || !S.scene.layouts[S.layoutIndex].isModel) { toast(t('modelOnly')); return; }
+  if (!Ed.gate('xattach')) return;
+  const base = String(name || 'xref').replace(/\.[^.]+$/, '');
+  const r = await askForm(t('xattachTitle') + ' — ' + name, [
+    { id: 'name', label: t('xrefName'), type: 'text', value: base },
+    { id: 'x', label: t('insPoint') + ' X', type: 'number', value: String(+S.view.cx.toPrecision(12)) },
+    { id: 'y', label: t('insPoint') + ' Y', type: 'number', value: String(+S.view.cy.toPrecision(12)) },
+    { id: 'scale', label: t('blockScale'), type: 'number', value: 1 },
+    { id: 'rot', label: t('blockRot'), type: 'number', value: 0 },
+  ], { ok: t('ok'), hint: t('xattachHint') });
+  if (!r) return;
+  let nm = String(r.name || base).trim() || base;
+  const xr = S.scene.xrefs;
+  if (xr.some(x => x.name.toUpperCase() === nm.toUpperCase())) { let k = 2; while (xr.some(x => x.name.toUpperCase() === (nm + '_' + k).toUpperCase())) k++; nm = nm + '_' + k; }
+  const rot = (isFinite(r.rot) ? r.rot : 0) * Math.PI / 180, sc = isFinite(r.scale) && r.scale ? r.scale : 1, cs = Math.cos(rot) * sc, sn = Math.sin(rot) * sc;
+  const m = [cs, sn, -sn, cs, isFinite(r.x) ? r.x : 0, isFinite(r.y) ? r.y : 0];
+  xr.push({ name: nm, inserts: [{ m, layer: '0', color: FG }], loaded: false, attached: true, keys: [] });
+  await loadXref(xr.length - 1, buf, name);
+}
+/** XCLIP (t:xclip → editor api): dikdörtgen kırpma; yeniden yüklemede korunur */
+function xrefClip(name, rect) {
+  const x = (S.scene.xrefs || []).find(q => q.name === name);
+  if (!x || !x.prims) { toast(t('notXref')); return false; }
+  x.clip = rect.slice();
+  xrefPushPrims(x, x.prims);
+  toast(t('xrefClipped') + ' · ' + x.keys.length + ' ' + t('prims'), 1800);
+  return true;
+}
+/** XBIND: referans blok tanımı + yerleştirme olur (ilkeller matris tersiyle tanım uzayına; katman adları "ad|katman" kalır) */
+async function xrefBind(x) {
+  if (!Ed.gate('xbind') || !x || !x.loaded || !x.keys || !x.keys.length) { toast(t('notXref')); return false; }
+  if (!BLK) { try { BLK = await import('./blocks.js'); } catch (e) { console.warn(e); return false; } }
+  const L = await blockLib(); if (!L) return false;
+  const model = S.scene.layouts[0], set = new Set(x.keys);
+  const prims = model.prims.filter(p => set.has(p.key));
+  const m0 = (x.inserts[0] && x.inserts[0].m) || [1, 0, 0, 1, 0, 0], inv = BLK.invert(m0);
+  if (!inv) { toast(t('error')); return false; }
+  const ents = BLK.xformEnts(prims.map(p => L.primToEnt(p)).filter(Boolean), inv, 0);
+  if (!ents.length) { toast(t('error')); return false; }
+  let name = x.name; if (S.blocks.has(BLK.keyOf(name))) name = name + '$0';
+  const ins = BLK.withMatrix({ type: 'INSERT', id: 'E' + Date.now().toString(36) + 'x', name, layer: '0', color: 256, z: 0 }, m0, 0);
+  const ok = editor.runCmd({ op: 'group', cmds: [{ op: 'blockdef', name, def: { name, base: [0, 0, 0], ents, dyn: null } }, { op: 'add', ents: [ins] }] });
+  if (!ok) { toast(t('error')); return false; }
+  xrefRemovePrims(x);
+  const i = S.scene.xrefs.indexOf(x); if (i >= 0) S.scene.xrefs.splice(i, 1);
+  toast(t('xrefBound').replace('%s', name), 2400);
+  return true;
+}
+/** XOPEN: referans dosyasını bu çizimin yerine açar (onaylı) */
+async function xrefOpen(x) {
+  if (!x || !x.buf) { toast(t('xrefNoBuf')); return; }
+  if (!(await askConfirm(t('xrefOpenAsk').replace('%s', x.file || x.name)))) return;
+  await loadBytes(x.buf.slice(0), x.file || x.name + '.dwg', x.buf.byteLength);
+}
+const xrefLoadedList = () => (S.scene && S.scene.xrefs ? S.scene.xrefs.filter(x => x.loaded) : []);
+async function xrefPickOne(title) {
+  const list = xrefLoadedList();
+  if (!list.length) { toast(t('notXref')); return null; }
+  if (list.length === 1) return list[0];
+  const r = await askForm(title, [{ id: 'n', label: t('xrefName'), type: 'select', value: list[0].name, options: list.map(x => [x.name, x.name]) }], { ok: t('ok') });
+  return r ? list.find(x => x.name === r.n) : null;
+}
+async function xrefBindPick() { const x = await xrefPickOne(t('xrefBind')); if (x) await xrefBind(x); }
+async function xrefOpenPick() { const x = await xrefPickOne(t('xrefOpen')); if (x) await xrefOpen(x); }
+async function xrefDetachPick() { const x = await xrefPickOne(t('xrefDetach')); if (!x) return; if (!(await askConfirm(t('xrefDetachAsk').replace('%s', x.name)))) return; xrefRemovePrims(x); const i = S.scene.xrefs.indexOf(x); if (x.attached && i >= 0) S.scene.xrefs.splice(i, 1); else { x.loaded = false; x.prims = null; } toast(t('xrefDetached').replace('%s', x.name), 1600); }
 function loadImageFile(handle, src) {
   const rec = { img: new Image(), ok: false };
   rec.img.onload = () => { rec.ok = true; S.cacheValid = false; requestRender(); };
@@ -3942,6 +4070,7 @@ async function onFilePicked(purpose, id, name, size) {
     if (purpose === 'compare') { await setCompare(await fetchFile(id), name); return; }
     if (purpose === 'pdfcad') { await pdfCadFromBytes(await fetchFile(id), name); return; }
     if (purpose.startsWith('xref:')) { await loadXref(Number(purpose.slice(5)), await fetchFile(id), name); return; }
+    if (purpose === 'xattach') { await xattachLoad(await fetchFile(id), name); return; }
     if (purpose.startsWith('img:')) { loadImageFile(purpose.slice(4), '/file/' + id); return; }
     if (purpose === 'photo' && pendingPhotoPoint) {
       const txt = (await askText(t('notePrompt'), '', { multiline: true, words: true })) || '';
@@ -3970,6 +4099,7 @@ async function fileForPurpose(purpose, f) {
     else if (purpose === 'compare') await setCompare(await f.arrayBuffer(), f.name);
     else if (purpose === 'pdfcad') await pdfCadFromBytes(await f.arrayBuffer(), f.name);
     else if (purpose.startsWith('xref:')) await loadXref(Number(purpose.slice(5)), await f.arrayBuffer(), f.name);
+    else if (purpose === 'xattach') await xattachLoad(await f.arrayBuffer(), f.name);
     else if (purpose.startsWith('img:')) loadImageFile(purpose.slice(4), URL.createObjectURL(f));
     else if (purpose === 'photo' && pendingPhotoPoint) {
       const id = 'blob_' + Date.now();
@@ -4070,6 +4200,7 @@ window.dwgApp = { osnap: Osnap, loadCurrent, onFilePicked, onLocation, onBack, o
   // Nesne yakalama izleme (bkz. tools/test_izleme.mjs): açık mı, edinilmiş noktalar, süren bekleme, gezinen imlecin oturduğu yol
   __track: () => { const h = penHover && penHover.snap && penHover.snap.trk ? penHover.snap.trk : null; return { on: !!Osnap.opt().otrack, pts: S.track.pts.map(q => ({ p: q.p.slice(), kind: q.kind, dirs: (q.dirs || []).slice(), arcs: (q.arcs || []).map(a => ({ c: a.c.slice(), r: a.r })) })), dwell: dwell ? dwell.key : null, hover: h ? { p: penHover.snap.p.slice(0, 2), cross: !!h.cross, lock: !!h.lock, obj: !!h.obj, n: h.paths.length, ext: h.paths.map(p => !!p.ext), arc: h.paths.map(p => !!p.arc), text: trkText(h) } : null }; },
   __trackAdd: (x, y, kind) => trackToggle([x, y], kind || 'end', true), __trackClear: () => trackClear(),
+  __xattach: (buf, name) => xattachLoad(buf, name), __xrefs: () => (S.scene && S.scene.xrefs ? S.scene.xrefs.map(x => ({ name: x.name, loaded: !!x.loaded, unloaded: !!x.unloaded, attached: !!x.attached, keys: (x.keys || []).length, clip: x.clip ? x.clip.slice() : null, cached: !!x.prims, buf: !!x.buf })) : []), __xclip: (name, rect) => xrefClip(name, rect), __xrefBind: (name) => xrefBind((S.scene.xrefs || []).find(x => x.name === name)),
   __hoverLabel: () => (penHover && penHover.w ? { text: hoverLabel(penHover.snap, penHover.q, penHover.w), base: hoverBase(), ...(function () { const p = penHover.snap ? penHover.snap.p : (penHover.q || penHover.w); const r = hoverReadout(p); return { L: r.L, deg: r.deg }; }()) } : null),
   // Açılış kestirimcisinin sınanabilir parçaları (bkz. tools/test_ilerleme.mjs)
   __band: (v) => bandOf(v), __tahminTaban: (n, mb) => tahminTaban(n, mb),
@@ -4093,7 +4224,7 @@ ensureStatusChips();
 Ed.initEdition({ toast, rebuildToolbar: () => editor.rebuild(), refreshMenu });   // Ücretsiz / Pro: menü, karşılama kartı, Pro paneli, Drive düğmeleri; reklam zamanlayıcısı; onEdition → şerit yeniden kurulur
 D.initDisplay({ requestRender, drawOverlay, toast, openDoc, show, hide, buildLayerList, settings, saveSettings, editorTheme, zoomExtents, zoomBy, fitPrims, viewHistory, setLayout, editor, ui: uiPrefs(), basemaps: BASEMAPS, haptic });
 mountNavFabs(vp);
-initEditor({ S, requestRender, drawOverlay, toast, noFaces: showNoFaces, pick: (w) => pick(w, TOL.pick / S.view.scale), snap: doSnap, snapPeek: findSnap, fromBase, trackClear, hideObjects, showAllObjects, primVisible, osnap: Osnap, showInfo, openDoc, hide, show, esc, kv, copyText, buildLayerList, fmt, store, RTree, baseName, zoomExtents, tracePath, worldTransform, strokeWorldRect, worldOrigin,
+initEditor({ S, requestRender, drawOverlay, toast, noFaces: showNoFaces, pick: (w) => pick(w, TOL.pick / S.view.scale), snap: doSnap, snapPeek: findSnap, fromBase, trackClear, hideObjects, showAllObjects, primVisible, osnap: Osnap, xclip: xrefClip, showInfo, openDoc, hide, show, esc, kv, copyText, buildLayerList, fmt, store, RTree, baseName, zoomExtents, tracePath, worldTransform, strokeWorldRect, worldOrigin,
   action: (a) => { if (a === 'layers') $('btnLayers').click(); else if (a === 'search') $('btnSearch').click(); else if (a === 'more') $('btnMore').click(); else if (a === 'open') Open.open(); else if (a === 'new') showNewDoc(); else menuAction(a); },
   savePng, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, isolateLayers, unisolate, settings, saveSettings, stamp, haptic, openDisplayOptions, setDisplay, getDisplay, toggleDisplay, display: D });
 $('stScale').addEventListener('click', showScalePicker);

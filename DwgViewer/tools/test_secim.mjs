@@ -167,7 +167,7 @@ const box = async (x0, y0, x1, y1) => [await scr(x0, y0), await scr(x1, y1)];   
   await klik('#selBadge');
   const d = await doc();
   const kart = await ev(() => [...document.querySelectorAll('#docBody .sel-grid .os-card')].map(b => b.dataset.sm).join(','));
-  ok('13 rozete dokunmak seçim menüsünü açar: 16 kart (benzerini seç, gizle, izole et, kes dâhil)', d.acik && /^Seçim · \d+ nesne$/.test(d.baslik) && kart === 'del,copy,move,block,rotate,mirror,scale,color,ltype,layer,props,similar,hide,iso,cut,clear', J({ d, kart }));
+  ok('13 rozete dokunmak seçim menüsünü açar: 18 kart (benzerini seç, gizle, izole et, öne getir, arkaya gönder, kes dâhil)', d.acik && /^Seçim · \d+ nesne$/.test(d.baslik) && kart === 'del,copy,move,block,rotate,mirror,scale,color,ltype,layer,props,similar,hide,iso,front,back,cut,clear', J({ d, kart }));
   await shot('secim_menu');
   await klik('#docBody [data-sm="color"]');
   ok('14 Renk: renk kutusu açıldı', (await doc()).baslik === 'Renk seç');

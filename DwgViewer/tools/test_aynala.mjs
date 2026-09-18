@@ -132,7 +132,7 @@ await zoom([0, 0, 800, 600]);
   await dugme('cancel');
   await dil('tr'); await bekle(150);
   const a = await ev(async () => { const A = await import('./acad.js'); return { mi: A.resolve('MI').note, st: A.stats() }; });
-  ok('5b komut tablosu: MIRROR notu düğmeyi söyler; sayılar değişmedi (487 / 180 / 731)', /Keep original/.test(a.mi || '') && /Erase source/.test(a.mi || '') && a.st.total === 487 && a.st.acad === 180 && a.st.names === 731, J(a));
+  ok('5b komut tablosu: MIRROR notu düğmeyi söyler; sayılar değişmedi (504 / 214 / 748)', /Keep original/.test(a.mi || '') && /Erase source/.test(a.mi || '') && a.st.total === 504 && a.st.acad === 214 && a.st.names === 748, J(a));
   const dil15 = await ev(async () => { const I = await import('./i18n.js'); const out = { tr: I.TR.mirrorKeepBtn, en: I.EN.mirrorKeepBtn }; for (const l of ['ar', 'de', 'es', 'fr', 'hi', 'id', 'it', 'ja', 'ko', 'pt', 'ru', 'vi', 'zh']) { const M = await import(`./lang/${l}.js`); out[l] = M.default.mirrorKeepBtn; } return out; });
   ok('5c "Orijinal kalsın" 15 dilde de var', Object.values(dil15).every(v => typeof v === 'string' && v.length > 0) && Object.keys(dil15).length === 15, J(dil15));
 }
@@ -189,7 +189,7 @@ await zoom([0, 0, 800, 600]);
   ok('6l İngilizce: "MIRROR: Point on the vertical mirror line", başlıklar "Horizontal / Vertical mirror line (X / Y)"', /^MIRROR: Point on the vertical mirror line/.test(be.text) && te[0] === 'Horizontal mirror line (X)' && te[1] === 'Vertical mirror line (Y)', J({ text: be.text, te }));
   await dugme('cancel'); await dil('tr'); await bekle(150);
   const a = await ev(async () => { const A = await import('./acad.js'); return { mi: A.resolve('MI').note, st: A.stats() }; });
-  ok('6m MIRROR notu X / Y düğmelerini ve ORTHO karşılığını söyler; sayılar sabit', /X \/ Y buttons/.test(a.mi || '') && /ORTHO/.test(a.mi || '') && a.st.total === 487, J(a));
+  ok('6m MIRROR notu X / Y düğmelerini ve ORTHO karşılığını söyler; sayılar sabit', /X \/ Y buttons/.test(a.mi || '') && /ORTHO/.test(a.mi || '') && a.st.total === 504, J(a));
 }
 
 await page.screenshot({ path: `${out}/aynala.png` });

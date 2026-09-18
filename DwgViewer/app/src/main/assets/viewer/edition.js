@@ -111,6 +111,11 @@ export const FEATURE_TIER = new Map([
   // --- 2B düzenleme eklentileri
   ['t:array', 'premium'], ['t:explode', 'premium'], ['t:textsize', 'premium'], ['t:attr', 'premium'], ['findrep', 'premium'],
   ['blocklib', 'premium'], ['copyclip', 'premium'], ['pasteclip', 'premium'],
+  // --- v7.72 blok ailesi: tanım / yerleştirme / düzenleyici / öznitelik / yönetici Premium; dinamik blok parametreleri Super
+  ['t:block', 'premium'], ['t:insert', 'premium'], ['t:bedit', 'premium'], ['t:refedit', 'premium'], ['t:attdef', 'premium'], ['t:ncopy', 'premium'], ['t:base', 'premium'],
+  ['blocks', 'premium'], ['t:align', 'premium'], ['t:wipeout', 'premium'], ['t:draworder', 'premium'],
+  ['t:bparam', 'super'], ['t:bvstate', 'super'],
+  ['xattach', 'premium'], ['t:xclip', 'premium'], ['xbind', 'premium'],
   ['t:trim', 'premium'], ['t:extend', 'premium'], ['t:fillet', 'premium'], ['t:chamfer', 'premium'],
   ['grips', 'premium'],                  // köşe tutamağı: geometriyi değiştirir, düzenleme rafında durur
   /*

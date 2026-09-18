@@ -3,18 +3,20 @@
  *
  *  - Varlık tanımı (ent): kullanıcının çizdiği nesnelerin taşınabilir biçimi
  *      { type:'LINE'|'LWPOLYLINE'|'POLYLINE3D'|'CIRCLE'|'ARC'|'POINT'|'TEXT'|'3DFACE'
- *            |'SOLID'|'HATCH'|'CLOUD'|'DIMENSION'|'EXTRUDE',
+ *            |'SOLID'|'HATCH'|'CLOUD'|'DIMENSION'|'EXTRUDE'|'ATTDEF'|'WIPEOUT'|'INSERT' (blocks.js),
  *        pts:[[x,y,z]…], r, a0, a1, closed, text, h, rot, layer, color (ACI ya da -1),
  *        itype: bilgi türü üstüne yazımı (ör. ok başı SOLID ama bilgide DIMENSION görünsün),
  *        gid:   grup kimliği — aynı ölçülendirmenin / balonun bütün parçaları birlikte seçilir }
  *  - entToPrim(): tanımı çizilebilir ilkele çevirir (scene.js ilkel biçimi)
  *  - transformPrim(): ilkele 2B afin dönüşüm + Δz uygular
  *  - EditDoc: komut günlüğü (add/delete/xform/props/setz), geri al / yinele, kalıcılık
- *  - writeDxf(): sahne + düzenlemeler → ASCII DXF (AC1015); bloklar patlatılmış hâlde
+ *  - writeDxf(): sahne + düzenlemeler → ASCII DXF (AC1015); uygulamanın blok tanımları BLOCKS bölümüne, yerleştirmeleri
+ *    INSERT (+ATTRIB) olarak, maskeler WIPEOUT olarak yazılır; DWG'den gelen ve benimsenmemiş yerleştirmeler patlatılmış kalır
  */
 import { TAU, mul, apply, isSim, simScale, simRot, det, arcPts, ellipsePts, opsBBox, flatten, cloudOps, extrudeMesh } from './geom.js';
 import { FG, ACI } from './scene.js';
 import { transformDef } from './annot.js';
+import { expandInsert, insMatrix, withMatrix, keyOf as blkKey, attrsFor, insFromInfo, decompose, xformEnts } from './blocks.js';
 
 const R2D = 180 / Math.PI;
 let seq = 0;
@@ -57,6 +59,19 @@ export function entToPrim(ent, layers) {
       const h = ent.h || 2.5, lines = String(ent.text).split('\n');
       const R = Math.hypot(Math.max(...lines.map(l => l.length)) * h * 0.75, h * (1 + 1.667 * (lines.length - 1)));
       return { ...base, k: 1, x: p[0], y: p[1], z: p[2] || 0, h, rot: ent.rot || 0, lines, ha: ent.ha || 0, va: ent.va || 0, ws: 1, obl: 0, spacing: 1, bb: [p[0] - R, p[1] - R, p[0] + R, p[1] + R] };
+    }
+    case 'ATTDEF': {                                  // öznitelik tanımı: tanım düzenleyicide etiket (ya da öntanımlı değer) yazı olarak görünür
+      const p = P[0]; if (!p) return null;
+      const shown = ent.text != null && String(ent.text) !== '' ? String(ent.text) : (ent.tag || 'TAG');
+      const h = ent.h || 2.5, lines = shown.split('\n');
+      info.tag = ent.tag || ''; info.text = shown;
+      const R = Math.hypot(Math.max(...lines.map(l => l.length)) * h * 0.75, h * (1 + 1.667 * (lines.length - 1)));
+      return { ...base, k: 1, x: p[0], y: p[1], z: p[2] || 0, h, rot: ent.rot || 0, lines, ha: ent.ha || 0, va: ent.va || 0, ws: 1, obl: 0, spacing: 1, bb: [p[0] - R, p[1] - R, p[0] + R, p[1] + R] };
+    }
+    case 'WIPEOUT': {                                 // maske: arka plan rengiyle dolu kapalı çokgen; çizim sırasında altında kalanı örter
+      if (P.length < 3) return null;
+      const ops = P.map((p, i) => [i ? 1 : 0, p[0], p[1], p[2] || 0]);
+      return { ...base, k: 0, ops, closed: true, fill: true, bg: true, alpha: 1, w: 0, bb: opsBBox(ops) };
     }
     case 'SOLID': {                                   // dolu çokgen: ok başı, işaret
       if (P.length < 3) return null;
@@ -102,6 +117,7 @@ export function entToPrim(ent, layers) {
       // günceller. Bloğa ya da panoya yeniden alırken primToEnt p.ops’u okur, bu yüzden ayrışma olmaz.
       const pr = { ...base, k: 0, ops, closed: !!ent.closed, fill: !!ent.fill, alpha: ent.alpha == null ? 1 : ent.alpha, w: ent.width || 0, bb: opsBBox(ops) };
       if (ent.hp != null) pr.hp = ent.hp;             // desen adımı: LOD dolgusu bunu okur (render.js)
+      if (ent.bg) pr.bg = true;                       // maske (WIPEOUT) yolu: arka plan rengiyle dolar
       return pr;
     }
     case 'MESH': {                                    // hazır üçgen ağı (blok, pano)
@@ -127,6 +143,13 @@ export function entToPrim(ent, layers) {
     }
     default: return null;
   }
+}
+
+/** Varlık → ilkel(ler): INSERT tanım tablosuyla genişletilir (blocks.expandInsert, ortak info), ötekiler tek ilkeldir */
+export function entsToPrims(ent, layers, blocks) {
+  if (ent && ent.type === 'INSERT') return blocks ? expandInsert(ent, blocks, layers) : [];
+  const p = entToPrim(ent, layers);
+  return p ? [p] : [];
 }
 
 // ---------------------------------------------------------------------------------------
@@ -274,12 +297,78 @@ const GECICI = (l) => ({ isoHidden: l.isoHidden, faded: l.faded, count: l.count 
  * geri alınamaz olur. Yinele yığını da aynı derinliktedir: on birinci geri alınan adım yinelenemez.
  */
 export const UNDO_DEPTH = 10;
+/*
+ * PAYLAŞILAN BİLGİ NESNESİ. Bir blok yerleştirmesinin bütün ilkelleri AYNI info nesnesini taşır (scene.js ve
+ * blocks.expandInsert sözleşmesi); ilkel başına { ...info } kopyalamak bu bağı koparır ve öznitelik / dinamik
+ * parametre düzenlemesi yalnız bir ilkele işlerdi. Bu yüzden bir komut içinde her eski info için TEK yeni info
+ * üretilir (Map ile) ve paylaşım korunur. Yerleştirme bilgisine matris düzeltmesi de burada uygulanır.
+ */
+function infoMapper(extra, insFn, ps) {
+  const map = new Map(), canon = new Map();
+  // Yerleştirme bilgisi TANITICIYA (h) göre tek kez üretilir: geometri ilkelinin bilgisi esastır, ekleme noktası işareti (k=4)
+  // ve eski bir dosyada ayrışmış kopyalar aynı yeni nesneyi alır — grup hiçbir işlemde ayrışamaz
+  if (ps) { for (const p of ps) { const i = p.info; if (i && i.t === 'INSERT' && i.h && p.k !== 4 && !canon.has(i.h)) canon.set(i.h, i); } for (const p of ps) { const i = p.info; if (i && i.t === 'INSERT' && i.h && !canon.has(i.h)) canon.set(i.h, i); } }
+  return (info) => {
+    if (!info) return info;
+    const ins = info.t === 'INSERT' && info.h ? 'h:' + info.h : null;
+    let n = map.get(ins || info);
+    if (!n) { const src = ins ? (canon.get(info.h) || info) : info; n = { ...src, ...extra }; if (ins && typeof insFn === 'function') n = insFn(n) || n; map.set(ins || info, n); }
+    return n;
+  };
+}
+/** Yerleştirme bilgisinin matrisini m ile çarpar (x, y, rot, sx, sy türetilir); z'ye dz eklenir */
+function insXform(info, m, dz) {
+  const w = withMatrix({ z: info.z }, mul(m, insMatrix(info)), dz);
+  return { ...info, m: w.m, x: w.x, y: w.y, z: w.z, rot: w.rot, sx: w.sx, sy: w.sy };
+}
+/** Yerleştirme grupları: tanıtıcı (info.h) başına { info, prims } — taşınmış eski dosyalarda info nesneleri kopyalanmış olabilir, tanıtıcı bağlar */
+function insGroups(C, filter) {
+  const map = new Map();
+  for (const p of C.prims()) {
+    const i = p.info;
+    if (!i || i.t !== 'INSERT' || !i.h || !i.name) continue;
+    if (filter && !filter(i, p)) continue;
+    let g = map.get(i.h); if (!g) { g = { info: i, prims: [] }; map.set(i.h, g); }
+    g.prims.push(p);
+  }
+  return [...map.values()];
+}
+/*
+ * YERLEŞTİRMELERİ TANIMDAN YENİDEN GENİŞLETME (BSAVE, REFCLOSE, ATTSYNC, BLOCKREPLACE, dinamik değer). Eski ilkeller
+ * çıkar, yeni genişletme grubun ilk ilkelinin yerine girer (çizim sırası korunur); öznitelik değerleri etikete göre
+ * taşınır. DWG'den gelen (düzleştirilmiş) yerleştirme de bu yolla uygulama yerleştirmesine döner (info.blk, matris
+ * x-y-rot-sx-sy'den, taban 0). Dizi YERİNDE değiştirilir (S.prims aynı diziyi paylaşır); geri alma eski içeriği
+ * geri yazar. infoFn eski info'dan yenisini üretir (ad, dinamik değer).
+ */
+function resyncGroups(C, groups, infoFn) {
+  const arr = C.prims(), old = arr.slice();
+  const member = new Map(), plans = [];
+  for (const g of groups) {
+    const ni = infoFn ? infoFn(g.info) : g.info;          // önce yeni bilgi (BLOCKREPLACE'te yeni ad), tanım ona göre bulunur
+    const def = C.blocks.get(blkKey(ni.name));
+    if (!def || !g.prims.length) continue;
+    const ins = insFromInfo({ ...ni, name: def.name });
+    ins.attrs = attrsFor(def, ni.attrs);
+    const fresh = expandInsert(ins, C.blocks, C.layers);
+    if (!fresh.length) continue;
+    const plan = { prims: fresh, done: false };
+    plans.push(plan);
+    for (const p of g.prims) member.set(p, plan);
+  }
+  if (!plans.length) return null;
+  const out = [];
+  for (const p of old) { const pl = member.get(p); if (!pl) { out.push(p); continue; } if (!pl.done) { pl.done = true; for (const q of pl.prims) out.push(q); } }
+  arr.length = 0; for (const p of out) arr.push(p);
+  return () => { arr.length = 0; for (const p of old) arr.push(p); };
+}
 export class EditDoc {
   /**
-   * @param ctx { prims:()=>array, layers:Map, keyOf:(p)=>string, insert:(prim, at)=>void, remove:(prim)=>index, rebuild:()=>void, store:{get,set}, key:string }
+   * @param ctx { prims:()=>array, layers:Map, blocks:Map (blok tanımları, blocks.js), vars:{} (başlık değişkenleri: INSBASE), insert:(prim, at)=>void, remove:(prim)=>index, rebuild:()=>void, store:{get,set}, key:string }
    */
   constructor(ctx) {
     this.ctx = ctx;
+    if (!(ctx.blocks instanceof Map)) ctx.blocks = new Map();
+    if (!ctx.vars || typeof ctx.vars !== 'object') ctx.vars = {};
     this.log = [];      // kalıcı komutlar
     this.undoStack = []; // { cmd, restore:() => void }
     this.redoStack = [];
@@ -288,6 +377,20 @@ export class EditDoc {
   find(keys) {
     const set = new Set(keys);
     return this.ctx.prims().filter(p => set.has(p.key));
+  }
+  /**
+   * Anahtarlarla bulunan ilkeller + dokundukları YERLEŞTİRME gruplarının bütün üyeleri (ekleme noktası işareti k=4 dâhil).
+   * Yerleştirme AutoCAD'de tek nesnedir: seçim hangi parçasını tutarsa tutsun taşıma, silme, kopyalama, özellik ve
+   * çizim sırası bütün gruba gider; işaret geride kalıp bilgisi eskiyemez. Önce anahtarla istenenler (copy / array'de
+   * newKeys sırayla bunlarla eşleşir), sonra grubun kalanı döner.
+   */
+  findWhole(keys) {
+    const set = new Set(keys), all = this.ctx.prims(), hs = new Set();
+    for (const p of all) if (set.has(p.key) && p.info && p.info.t === 'INSERT' && p.info.h) hs.add(p.info.h);
+    if (!hs.size) return all.filter(p => set.has(p.key));
+    const found = [], extra = [];
+    for (const p of all) { if (set.has(p.key)) found.push(p); else if (p.info && p.info.t === 'INSERT' && hs.has(p.info.h)) extra.push(p); }
+    return found.concat(extra);
   }
   /** komutu uygular, günlüğe yazar */
   run(cmd, opts = {}) {
@@ -312,17 +415,13 @@ export class EditDoc {
     switch (cmd.op) {
       case 'add': {
         const created = [];
-        for (const ent of cmd.ents) {
-          const p = entToPrim(ent, C.layers);
-          if (!p) continue;
-          C.insert(p); created.push(p);
-        }
+        for (const ent of cmd.ents) for (const p of entsToPrims(ent, C.layers, C.blocks)) { C.insert(p); created.push(p); }
         if (!created.length) return null;
         C.rebuild();
         return () => { for (const p of created) C.remove(p); C.rebuild(); };
       }
       case 'delete': {
-        const ps = this.find(cmd.keys);
+        const ps = this.findWhole(cmd.keys);
         if (!ps.length) return null;
         const removed = ps.map(p => ({ p, at: C.remove(p) }));
         C.rebuild();
@@ -336,46 +435,63 @@ export class EditDoc {
         const ps = this.find(cmd.keys || []);
         const removed = ps.map(p => ({ p, at: C.remove(p) }));
         const created = [];
-        for (const ent of cmd.ents || []) { const p = entToPrim(ent, C.layers); if (p) { C.insert(p); created.push(p); } }
+        for (const ent of cmd.ents || []) for (const p of entsToPrims(ent, C.layers, C.blocks)) { C.insert(p); created.push(p); }
         if (!removed.length && !created.length) return null;
         C.rebuild();
         return () => { for (const p of created) C.remove(p); for (const r of removed.slice().reverse()) C.insert(r.p, r.at); C.rebuild(); };
       }
       case 'xform': {
-        const ps = this.find(cmd.keys);
+        const ps = this.findWhole(cmd.keys);
         if (!ps.length) return null;
         const snaps = ps.map(p => clonePrim(p));
-        for (const p of ps) { transformPrim(p, cmd.m, cmd.dz || 0); p.info = { ...p.info, edited: true }; }
+        const ni = infoMapper({ edited: true }, (i) => insXform(i, cmd.m, cmd.dz || 0), ps);   // yerleştirme matrisi de döner / ölçeklenir / yansır
+        for (const p of ps) { transformPrim(p, cmd.m, cmd.dz || 0); p.info = ni(p.info); }
         C.rebuild();
         return () => { ps.forEach((p, i) => Object.assign(p, snaps[i])); C.rebuild(); };
       }
       case 'copy': {
-        const ps = this.find(cmd.keys);
+        const ps = this.findWhole(cmd.keys);
         if (!ps.length) return null;
         // Kopyalanan grup (ölçülendirme, balon) YENİ bir grup kimliği alır: kopya ile aslı birlikte seçilmesin
-        const gmap = new Map();
-        const created = ps.map((p, i) => { const c = clonePrim(p); c.key = cmd.newKeys[i]; c.info = { ...p.info, h: c.key, edited: true }; if (c.info.gid) { if (!gmap.has(c.info.gid)) gmap.set(c.info.gid, newId()); c.info.gid = gmap.get(c.info.gid); } if (c.ent) { c.ent = { ...c.ent, id: c.key, ...(c.ent.gid ? { gid: c.info.gid } : {}) }; } transformPrim(c, cmd.m, cmd.dz || 0); C.insert(c); return c; });
+        const gmap = new Map(), imap = new Map(), nk = cmd.newKeys || [];
+        const created = ps.map((p, i) => {
+          const c = clonePrim(p);
+          const ih = p.info && p.info.t === 'INSERT' && p.info.h ? p.info.h : null;
+          // anahtarla istenmeyen grup üyesi (ekleme noktası işareti): anahtarı yeni tanıtıcıdan türer — yeniden oynatmada da aynı
+          c.key = i < nk.length ? nk[i] : (ih && imap.has(ih) ? imap.get(ih).h + (p.k === 4 ? '#ins' : '#e' + i) : newId());
+          // Yerleştirme ilkelleri ortak info'yu paylaşmayı sürdürür; kopyanın tanıtıcısı grubun İLK yeni anahtarıdır (yeniden oynatmada da aynı)
+          if (ih) { let ni = imap.get(ih); if (!ni) { ni = insXform({ ...p.info, h: c.key, edited: true }, cmd.m, cmd.dz || 0); imap.set(ih, ni); } c.info = ni; }
+          else { c.info = { ...p.info, h: c.key, edited: true }; if (c.info.gid) { if (!gmap.has(c.info.gid)) gmap.set(c.info.gid, newId()); c.info.gid = gmap.get(c.info.gid); } }
+          if (c.ent) { c.ent = { ...c.ent, id: c.key, ...(c.ent.gid && !(p.info && p.info.t === 'INSERT') ? { gid: c.info.gid } : {}) }; }
+          transformPrim(c, cmd.m, cmd.dz || 0); C.insert(c); return c;
+        });
         C.rebuild();
         return () => { for (const p of created) C.remove(p); C.rebuild(); };
       }
       case 'setz': {
-        const ps = this.find(cmd.keys);
+        const ps = this.findWhole(cmd.keys);
         if (!ps.length) return null;
         const snaps = ps.map(p => clonePrim(p));
-        for (const p of ps) { setPrimZ(p, cmd.z); p.info = { ...p.info, edited: true }; }
+        const ni = infoMapper({ edited: true }, (i) => ({ ...i, z: cmd.z }), ps);
+        for (const p of ps) { setPrimZ(p, cmd.z); p.info = ni(p.info); }
         return () => { ps.forEach((p, i) => Object.assign(p, snaps[i])); };
       }
       case 'props': {
-        const ps = this.find(cmd.keys);
+        const ps = this.findWhole(cmd.keys);
         if (!ps.length) return null;
-        const snaps = ps.map(p => ({ lay: p.lay, col: p.col, lt: p.lt, info: p.info, ent: p.ent }));
+        const snaps = ps.map(p => ({ lay: p.lay, col: p.col, lt: p.lt, lw: p.lw, info: p.info, ent: p.ent }));
+        const imap = new Map();   // yerleştirme ilkelleri ortak info'yu paylaşmayı sürdürür
         for (const p of ps) {
           const lay = cmd.layer ? C.layers.get(cmd.layer) : null;
           if (cmd.layer) p.lay = cmd.layer;
           if (cmd.lt !== undefined) p.lt = cmd.lt || null;   // '' / null = katmandan (ByLayer); anahtar LTYPE tablosunun büyük harfli adı
+          if (cmd.lw !== undefined) { const L2 = C.layers.get(p.lay); p.lw = cmd.lw >= 0 ? cmd.lw : (L2 ? L2.lw : 25); }   // −1 = katmandan (ByLayer)
           if (cmd.color != null) p.col = cmd.color === 256 ? (C.layers.get(p.lay) ? C.layers.get(p.lay).color : FG) : (cmd.color === -1 ? FG : ACI[cmd.color]);
           else if (lay && (p.info && p.info.ci === 256)) p.col = lay.color;
-          p.info = { ...p.info, lay: p.lay, ci: cmd.color != null ? cmd.color : (p.info ? p.info.ci : 256), col: p.col, lt: cmd.lt !== undefined ? (cmd.lt || '') : (p.info ? p.info.lt : ''), edited: true };
+          const old = p.info;
+          let ni = old ? imap.get(old) : null;
+          if (!ni) { ni = { ...p.info, lay: p.lay, ci: cmd.color != null ? cmd.color : (p.info ? p.info.ci : 256), col: p.col, lt: cmd.lt !== undefined ? (cmd.lt || '') : (p.info ? p.info.lt : ''), ...(cmd.lw !== undefined ? { lw: p.lw } : {}), edited: true }; if (old) imap.set(old, ni); }
+          p.info = ni;
           if (p.ent) p.ent = { ...p.ent, layer: p.lay, color: cmd.color != null ? cmd.color : p.ent.color, ...(cmd.lt !== undefined ? { linetype: cmd.lt || 'BYLAYER' } : {}) };
         }
         return () => { ps.forEach((p, i) => Object.assign(p, snaps[i])); };
@@ -482,14 +598,17 @@ export class EditDoc {
       }
       case 'array': {
         // artımlı kopya: bütün kopyalar TEK komutta oluşur, tek geri almayla kalkar
-        const ps = this.find(cmd.keys);
+        const ps = this.findWhole(cmd.keys);
         if (!ps.length) return null;
         const created = [];
         for (const it of cmd.items || []) {
+          const imap = new Map(), nk = it.newKeys || [];
           ps.forEach((p, i) => {
             const c = clonePrim(p);
-            c.key = (it.newKeys && it.newKeys[i]) || newId();
-            c.info = { ...p.info, h: c.key, edited: true };
+            const ih = p.info && p.info.t === 'INSERT' && p.info.h ? p.info.h : null;
+            c.key = i < nk.length ? nk[i] : (ih && imap.has(ih) ? imap.get(ih).h + (p.k === 4 ? '#ins' : '#e' + i) : newId());
+            if (ih) { let ni = imap.get(ih); if (!ni) { ni = insXform({ ...p.info, h: c.key, edited: true }, it.m, it.dz || 0); imap.set(ih, ni); } c.info = ni; }   // yerleştirme: ortak info, tek tanıtıcı
+            else c.info = { ...p.info, h: c.key, edited: true };
             if (c.ent) c.ent = { ...c.ent, id: c.key };
             transformPrim(c, it.m, it.dz || 0);
             C.insert(c); created.push(c);
@@ -547,7 +666,8 @@ export class EditDoc {
         const next = attrs.map(a => a.slice());
         for (const it of items) {
           next[it.i] = [attrs[it.i][0], String(it.value)];
-          const target = texts[it.i];
+          // uygulama yerleştirmesinde yazı ilkeli öznitelik indisini taşır (p.ai; görünmeyen öznitelik yazı üretmez → sıra kayar), DWG'de sıra
+          const target = texts.some(q => q.ai != null) ? texts.find(q => q.ai === it.i) : texts[it.i];
           if (!target) continue;
           target.lines = String(it.value).split('\n');
           const R = Math.hypot(Math.max(...target.lines.map(l => l.length)) * target.h * 0.75 * (target.ws || 1), target.h * (1 + 1.667 * (target.lines.length - 1)));
@@ -576,13 +696,15 @@ export class EditDoc {
         const group = C.prims().filter(p => p.info && p.info.h === cmd.h && p.info.t === 'INSERT');
         if (!group.length) return null;
         const snaps = group.map(p => ({ p, info: p.info, key: p.key }));
+        const marks = group.filter(p => p.k === 4).map(p => ({ p, at: C.remove(p) }));   // ekleme noktası işareti bloğa aitti: patlayınca kalkar
         group.forEach((p, i) => {
+          if (p.k === 4) return;
           const id = (cmd.ids && cmd.ids[i]) || (cmd.h + '_x' + i);
           p.key = id;
-          p.info = { ...p.info, t: p.et || 'LINE', h: id, name: undefined, attrs: undefined, exploded: true, edited: true };
+          p.info = { ...p.info, t: p.et || 'LINE', h: id, name: undefined, attrs: undefined, blk: undefined, m: undefined, dyn: undefined, exploded: true, edited: true };
         });
         C.rebuild();
-        return () => { for (const sN of snaps) { sN.p.info = sN.info; sN.p.key = sN.key; } C.rebuild(); };
+        return () => { for (const sN of snaps) { sN.p.info = sN.info; sN.p.key = sN.key; } for (const r of marks.slice().reverse()) C.insert(r.p, r.at); C.rebuild(); };
       }
       case 'reshape': {
         /*
@@ -602,20 +724,100 @@ export class EditDoc {
           // yeniden yüklemede NaN üretirdi.
           p.ops = it.ops.map(o => o.map(v => (typeof v === 'number' && isFinite(v) ? v : 0)));
           if (it.closed != null) p.closed = !!it.closed;
+          if (typeof it.w === 'number' && it.w >= 0) p.w = it.w;   // polyline genişliği (Özellikler paleti)
           p.bb = opsBBox(p.ops);
           p.info = { ...p.info, edited: true };
           // p.ent ile p.ops ayrışmamalı: blok kitaplığı, pano ve bilgi paneli ent'i okur.
           if (p.ent) {
             const duz = p.ops.every(o => o[0] === 0 || o[0] === 1);
             if (duz && (p.ent.type === 'LINE' || p.ent.type === 'LWPOLYLINE' || p.ent.type === 'POLYLINE3D')) {
-              p.ent = { ...p.ent, type: p.ops.length === 2 ? p.ent.type : (p.ent.type === 'LINE' ? 'LWPOLYLINE' : p.ent.type), pts: p.ops.map(o => [o[1], o[2], o[3] || 0]), closed: !!p.closed };
+              p.ent = { ...p.ent, type: p.ops.length === 2 ? p.ent.type : (p.ent.type === 'LINE' ? 'LWPOLYLINE' : p.ent.type), pts: p.ops.map(o => [o[1], o[2], o[3] || 0]), closed: !!p.closed, ...(typeof it.w === 'number' ? { width: p.w } : {}) };
             } else {
-              p.ent = { ...p.ent, type: 'PATH', ops: p.ops.map(o => o.slice()), closed: !!p.closed };
+              p.ent = { ...p.ent, type: 'PATH', ops: p.ops.map(o => o.slice()), closed: !!p.closed, ...(typeof it.w === 'number' ? { width: p.w } : {}) };
             }
           }
         }
         C.rebuild();
         return () => { ps.forEach((p, i) => Object.assign(p, snaps[i])); C.rebuild(); };
+      }
+      /*
+       * BLOK TABLOSU. Tanım komutları yalnız tabloyu değiştirir; yerleştirmelerin yeniden genişletilmesi ayrı bir
+       * komuttur (blocksync) ve çağıran ikisini 'group' ile tek geri alma adımı yapar. Tanım komut günlüğünde
+       * durur: dosya yeniden açılınca tablo günlükten kurulur, DXF'e BLOCKS bölümü olarak yazılır.
+       */
+      case 'blockdef': {
+        const key = blkKey(cmd.name);
+        if (!key || !cmd.def || typeof cmd.def !== 'object') return null;
+        const old = C.blocks.get(key) || null;
+        C.blocks.set(key, { ...cmd.def, name: cmd.def.name || String(cmd.name).trim(), base: Array.isArray(cmd.def.base) ? cmd.def.base : [0, 0, 0], ents: Array.isArray(cmd.def.ents) ? cmd.def.ents : [] });
+        return () => { if (old) C.blocks.set(key, old); else C.blocks.delete(key); };
+      }
+      case 'blockdel': {
+        const key = blkKey(cmd.name), old = C.blocks.get(key);
+        if (!old) return null;
+        C.blocks.delete(key);
+        return () => { C.blocks.set(key, old); };
+      }
+      case 'blockrename': {
+        const key = blkKey(cmd.name), nk = blkKey(cmd.newName), def = C.blocks.get(key);
+        if (!def || !nk || nk === key || C.blocks.has(nk)) return null;
+        const ad = String(cmd.newName).trim();
+        C.blocks.delete(key); C.blocks.set(nk, { ...def, name: ad });
+        const touched = [], ni = infoMapper({ name: ad });
+        for (const p of C.prims()) if (p.info && p.info.t === 'INSERT' && blkKey(p.info.name) === key) { touched.push([p, p.info]); p.info = ni(p.info); }
+        return () => { C.blocks.delete(nk); C.blocks.set(key, def); for (const [p, i] of touched) p.info = i; };
+      }
+      case 'blocksync': {
+        const names = new Set((cmd.names || (cmd.name ? [cmd.name] : [])).map(blkKey));
+        const groups = insGroups(C, (i) => (!names.size || names.has(blkKey(i.name))) && C.blocks.has(blkKey(i.name)) && (cmd.h == null || i.h === cmd.h));
+        const r = resyncGroups(C, groups, null);
+        if (!r) return null;
+        C.rebuild();
+        return () => { r(); C.rebuild(); };
+      }
+      case 'blockreplace': {
+        const from = blkKey(cmd.from), to = C.blocks.get(blkKey(cmd.to));
+        if (!to || !from) return null;
+        const r = resyncGroups(C, insGroups(C, (i) => blkKey(i.name) === from), (i) => ({ ...i, name: to.name }));
+        if (!r) return null;
+        C.rebuild();
+        return () => { r(); C.rebuild(); };
+      }
+      case 'dynset': {
+        // dinamik parametre değeri: yerleştirmede saklanır, ilkeller yeniden genişletilir
+        const r = resyncGroups(C, insGroups(C, (i) => i.h === cmd.h && C.blocks.has(blkKey(i.name))), (i) => ({ ...i, dyn: { ...(i.dyn || {}), ...(cmd.values || {}) } }));
+        if (!r) return null;
+        C.rebuild();
+        return () => { r(); C.rebuild(); };
+      }
+      /*
+       * ÇİZİM SIRASI (AutoCAD DRAWORDER / TEXTTOFRONT / HATCHTOBACK). İlkel dizisinin sırası çizim sırasıdır: sonda
+       * olan üstte görünür. Seçilenler kendi aralarındaki sırayı koruyarak öne (sona), arkaya (başa), bir
+       * nesnenin üstüne ya da altına alınır. Geri alma dizinin eski sırasını geri yazar.
+       */
+      case 'draworder': {
+        const arr = C.prims(), set = new Set(this.findWhole(cmd.keys || []));
+        if (!set.size) return null;
+        const old = arr.slice();
+        const moving = old.filter(p => set.has(p)), rest = old.filter(p => !set.has(p));
+        let out;
+        if (cmd.mode === 'back') out = moving.concat(rest);
+        else if (cmd.mode === 'above' || cmd.mode === 'below') {
+          const ri = rest.findIndex(p => p.key === cmd.ref);
+          if (ri < 0) return null;
+          const i = ri + (cmd.mode === 'above' ? 1 : 0);
+          out = rest.slice(0, i).concat(moving, rest.slice(i));
+        } else out = rest.concat(moving);
+        arr.length = 0; for (const p of out) arr.push(p);
+        C.rebuild();
+        return () => { arr.length = 0; for (const p of old) arr.push(p); C.rebuild(); };
+      }
+      /** Başlık değişkenleri (BASE → $INSBASE): DXF'e yazılır, günlükte durur */
+      case 'vars': {
+        if (!cmd.set || typeof cmd.set !== 'object') return null;
+        const prev = {};
+        for (const k of Object.keys(cmd.set)) { prev[k] = C.vars[k]; C.vars[k] = cmd.set[k]; }
+        return () => { for (const k of Object.keys(prev)) { if (prev[k] === undefined) delete C.vars[k]; else C.vars[k] = prev[k]; } };
       }
       default: return null;
     }
@@ -673,11 +875,21 @@ export function writeDxf(prims, layers, opts = {}) {
   const w = (c, v) => { out.push(String(c)); out.push(String(v)); };
   let handle = 0x100;
   const H = () => (handle++).toString(16).toUpperCase();
+  const blocks = opts.blocks instanceof Map ? opts.blocks : new Map();
+  const ltypes = opts.ltypes || {};
+  const vars = opts.vars || {};
   // Desen çizgileri ayrı LWPOLYLINE olarak YAZILMAZ: desenli tarama DXF'e HATCH olarak çıkar ve
   // AutoCAD deseni kendisi üretir. Yazılsaydı dosyada hem dolgu hem çizgiler olur, çift görünürdü.
-  const ents = prims.filter(p => p.k !== 4 && !p.inf && !(p.ent && p.ent.hpart) && (!opts.onlyEdited || (p.info && p.info.edited)));
+  // harici referansın ilkelleri (p.xref) çizimin kendi geometrisi değildir: DXF'e yazılmaz, XBIND ile blok olunca yazılır
+  const ents = prims.filter(p => p.k !== 4 && !p.inf && !p.xref && !(p.ent && p.ent.hpart) && (!opts.onlyEdited || (p.info && p.info.edited)));
+  // Uygulamanın blok yerleştirmeleri (info.blk, tanımı tabloda) ilkel ilkel değil TEK INSERT olarak yazılır
+  const isIns = (p) => !!(p.info && p.info.t === 'INSERT' && p.info.blk && blocks.has(blkKey(p.info.name)));
+  const insG = new Map();
+  for (const p of ents) if (isIns(p)) { let g = insG.get(p.info.h); if (!g) { g = { info: p.info, prims: [] }; insG.set(p.info.h, g); } g.prims.push(p); }
   const usedLayers = new Set(ents.map(p => p.lay));
+  for (const d of blocks.values()) for (const e of d.ents || []) if (e && e.layer) usedLayers.add(e.layer);
   const bb = ents.length ? ents.reduce((a, p) => [Math.min(a[0], p.bb[0]), Math.min(a[1], p.bb[1]), Math.max(a[2], p.bb[2]), Math.max(a[3], p.bb[3])], [Infinity, Infinity, -Infinity, -Infinity]) : [0, 0, 1, 1];
+  const hasWipe = ents.some(p => p.k === 0 && p.bg) || [...blocks.values()].some(d => (d.ents || []).some(e => e && (e.type === 'WIPEOUT' || e.bg)));
   // HEADER
   w(0, 'SECTION'); w(2, 'HEADER');
   w(9, '$ACADVER'); w(1, 'AC1015');
@@ -685,10 +897,16 @@ export function writeDxf(prims, layers, opts = {}) {
   w(9, '$EXTMIN'); w(10, f6(bb[0])); w(20, f6(bb[1])); w(30, 0);
   w(9, '$EXTMAX'); w(10, f6(bb[2])); w(20, f6(bb[3])); w(30, 0);
   w(9, '$LTSCALE'); w(40, 1);
+  if (Array.isArray(vars.INSBASE)) { w(9, '$INSBASE'); w(10, f6(vars.INSBASE[0])); w(20, f6(vars.INSBASE[1])); w(30, f6(vars.INSBASE[2])); }   // BASE komutu
   w(0, 'ENDSEC');
+  // CLASSES: WIPEOUT sınıf kaydı olmadan AutoCAD maskeyi okumaz (WipeOut Dbx uygulaması)
+  if (hasWipe) {
+    w(0, 'SECTION'); w(2, 'CLASSES');
+    w(0, 'CLASS'); w(1, 'WIPEOUT'); w(2, 'AcDbWipeout'); w(3, 'WipeOut|Product Desc:     WipeOut Dbx Application|Company:          Autodesk, Inc.|WEB Address:      www.autodesk.com'); w(90, 0); w(280, 0); w(281, 1);
+    w(0, 'ENDSEC');
+  }
   // TABLES
   w(0, 'SECTION'); w(2, 'TABLES');
-  const ltypes = opts.ltypes || {};
   w(0, 'TABLE'); w(2, 'LTYPE'); w(5, H()); w(100, 'AcDbSymbolTable'); w(70, 3 + Object.keys(ltypes).length);
   for (const [name, desc] of [['ByBlock', ''], ['ByLayer', ''], ['Continuous', 'Solid line']]) { w(0, 'LTYPE'); w(5, H()); w(100, 'AcDbSymbolTableRecord'); w(100, 'AcDbLinetypeTableRecord'); w(2, name); w(70, 0); w(3, desc); w(72, 65); w(73, 0); w(40, 0); }
   for (const k of Object.keys(ltypes)) { const lt = ltypes[k]; w(0, 'LTYPE'); w(5, H()); w(100, 'AcDbSymbolTableRecord'); w(100, 'AcDbLinetypeTableRecord'); w(2, lt.name || k); w(70, 0); w(3, ''); w(72, 65); w(73, lt.pat.length); w(40, f6(lt.len)); for (const e of lt.pat) { w(49, f6(e)); w(74, 0); } }
@@ -704,31 +922,51 @@ export function writeDxf(prims, layers, opts = {}) {
   w(0, 'TABLE'); w(2, 'STYLE'); w(5, H()); w(100, 'AcDbSymbolTable'); w(70, 1);
   w(0, 'STYLE'); w(5, H()); w(100, 'AcDbSymbolTableRecord'); w(100, 'AcDbTextStyleTableRecord'); w(2, 'Standard'); w(70, 0); w(40, 0); w(41, 1); w(50, 0); w(71, 0); w(42, 2.5); w(3, 'txt'); w(4, '');
   w(0, 'ENDTAB');
+  // BLOCK_RECORD: model / kâğıt uzayı ve uygulamanın her blok tanımı için bir kayıt (BLOCK'un sahibi 330 ile buraya bağlanır)
+  w(0, 'TABLE'); w(2, 'BLOCK_RECORD'); const brTab = H(); w(5, brTab); w(100, 'AcDbSymbolTable'); w(70, blocks.size + 2);
+  const rec = (name) => { const h = H(); w(0, 'BLOCK_RECORD'); w(5, h); w(330, brTab); w(100, 'AcDbSymbolTableRecord'); w(100, 'AcDbBlockTableRecord'); w(2, name); w(340, 0); return h; };
+  const msH = rec('*Model_Space'), psH = rec('*Paper_Space'), recH = new Map();
+  for (const [k, d] of blocks) recH.set(k, rec(d.name));
+  w(0, 'ENDTAB');
   w(0, 'ENDSEC');
-  w(0, 'SECTION'); w(2, 'BLOCKS'); w(0, 'ENDSEC');
-  // ENTITIES
-  w(0, 'SECTION'); w(2, 'ENTITIES');
-  const common = (type, p, sub) => {
-    w(0, type); w(5, H()); w(100, 'AcDbEntity'); w(8, p.lay || '0');
+  // ---- varlık yazıcıları (ENTITIES ve BLOCKS ortak) ----
+  const common = (type, p, sub, owner) => {
+    w(0, type); w(5, H()); if (owner) w(330, owner); w(100, 'AcDbEntity'); w(8, p.lay || '0');
     const lay = layers.get(p.lay);
     const ci = p.info && p.info.ci != null && p.info.ci !== 0 ? (p.info.ci === 256 ? 256 : aciOf(p.col, lay ? lay.color : null)) : aciOf(p.col, lay ? lay.color : null);
     if (ci !== 256) w(62, ci);
     if (p.lt) w(6, ltypes[p.lt] ? ltypes[p.lt].name : p.lt);
     if (sub) w(100, sub);
   };
-  for (const p of ents) {
+  /*
+   * MASKE (WIPEOUT): AutoCAD 1×1 piksellik bir "resim" yazar; sınır köşeleri resim uzayında −0,5…0,5 aralığındadır
+   * (scene.js aynı kuralı okur: bx = b.x + 0.5, by = 0.5 − b.y). Kutu sol alt köşe konum, u genişlik, v yükseklik.
+   */
+  const writeWipeout = (p, owner) => {
+    const pts = []; for (const o of p.ops) { if (o[0] === 0 || o[0] === 1) pts.push([o[1], o[2]]); else for (const q of flatten([o])) pts.push([q[0], q[1]]); }
+    if (pts.length < 3) return;
+    if (Math.hypot(pts[0][0] - pts[pts.length - 1][0], pts[0][1] - pts[pts.length - 1][1]) < 1e-9) pts.pop();
+    const x0 = Math.min(...pts.map(q => q[0])), y0 = Math.min(...pts.map(q => q[1])), x1 = Math.max(...pts.map(q => q[0])), y1 = Math.max(...pts.map(q => q[1]));
+    const wd = Math.max(x1 - x0, 1e-9), ht = Math.max(y1 - y0, 1e-9), elev = (p.ops[0] && p.ops[0][3]) || 0;
+    common('WIPEOUT', p, 'AcDbWipeout', owner);
+    w(90, 0); w(10, f6(x0)); w(20, f6(y0)); w(30, f6(elev)); w(11, f6(wd)); w(21, 0); w(31, 0); w(12, 0); w(22, f6(ht)); w(32, 0);
+    w(13, 1); w(23, 1); w(340, 0); w(70, 7); w(280, 1); w(281, 50); w(282, 50); w(283, 0); w(360, 0); w(71, 2); w(91, pts.length + 1);
+    const ring = pts.concat([pts[0]]);
+    for (const q of ring) { w(14, f6((q[0] - x0) / wd - 0.5)); w(24, f6(0.5 - (q[1] - y0) / ht)); }
+  };
+  const writeEnt = (p, owner) => {
     try {
       if (p.k === 1) {
         const txt = p.lines.join('\\P');
         if (p.lines.length > 1) {
-          common('MTEXT', p, 'AcDbMText'); w(10, f6(p.x)); w(20, f6(p.y)); w(30, f6(p.z || 0)); w(40, f6(p.h)); w(71, p.va === 3 ? 1 : p.va === 2 ? 4 : 7); w(1, txt.slice(0, 250)); w(50, f6(p.rot * R2D));
+          common('MTEXT', p, 'AcDbMText', owner); w(10, f6(p.x)); w(20, f6(p.y)); w(30, f6(p.z || 0)); w(40, f6(p.h)); w(71, p.va === 3 ? 1 : p.va === 2 ? 4 : 7); w(1, txt.slice(0, 250)); w(50, f6(p.rot * R2D));
         } else {
-          common('TEXT', p, 'AcDbText'); w(10, f6(p.x)); w(20, f6(p.y)); w(30, f6(p.z || 0)); w(40, f6(p.h)); w(1, p.lines[0]); w(50, f6(p.rot * R2D)); w(41, f6(p.ws || 1));
+          common('TEXT', p, 'AcDbText', owner); w(10, f6(p.x)); w(20, f6(p.y)); w(30, f6(p.z || 0)); w(40, f6(p.h)); w(1, p.lines[0]); w(50, f6(p.rot * R2D)); w(41, f6(p.ws || 1));
           w(72, p.ha === 1 ? 1 : p.ha === 2 ? 2 : 0); w(11, f6(p.x)); w(21, f6(p.y)); w(31, f6(p.z || 0)); w(100, 'AcDbText'); w(73, p.va === 3 ? 3 : p.va === 2 ? 2 : p.va === 1 ? 1 : 0);
         }
-        continue;
+        return;
       }
-      if (p.k === 2) { common('POINT', p, 'AcDbPoint'); w(10, f6(p.x)); w(20, f6(p.y)); w(30, f6(p.z || 0)); continue; }
+      if (p.k === 2) { common('POINT', p, 'AcDbPoint', owner); w(10, f6(p.x)); w(20, f6(p.y)); w(30, f6(p.z || 0)); return; }
       if (p.k === 5) {
         // ağ gövdesi: üçgenler 3DFACE, kenarlar LINE olarak yazılır (yoksa katı geometri DXF'e hiç girmez).
         // Çok büyük gövdede yüzler atlanır, kenarlar her zaman yazılır — dosya bellek taşırmasın.
@@ -738,19 +976,20 @@ export function writeDxf(prims, layers, opts = {}) {
           for (let i = 0; i + 2 < I.length; i += 3) {
             const a = I[i] * 3, b = I[i + 1] * 3, c = I[i + 2] * 3;
             if (a + 2 >= V.length || b + 2 >= V.length || c + 2 >= V.length) continue;
-            common('3DFACE', p, 'AcDbFace');
+            common('3DFACE', p, 'AcDbFace', owner);
             for (const [q, v] of [[0, a], [1, b], [2, c], [3, c]]) { w(10 + q, f6(V[v])); w(20 + q, f6(V[v + 1])); w(30 + q, f6(V[v + 2])); }
             if (G && G.length) w(70, 15);          // gerçek kenarlar LINE olarak yazılıyor: üçgenleme kenarları gizli
           }
         }
         if (G) for (let i = 0; i + 5 < G.length; i += 6) {
-          common('LINE', p, 'AcDbLine');
+          common('LINE', p, 'AcDbLine', owner);
           w(10, f6(G[i])); w(20, f6(G[i + 1])); w(30, f6(G[i + 2])); w(11, f6(G[i + 3])); w(21, f6(G[i + 4])); w(31, f6(G[i + 5]));
         }
-        continue;
+        return;
       }
-      if (p.k !== 0) continue;
+      if (p.k !== 0) return;
       const ops = p.ops;
+      if (p.bg) { writeWipeout(p, owner); return; }
       if (p.fill && (p.et === 'HATCH' || p.et === 'SOLID' || p.et === 'TRACE')) {
         // Dolu yüzeyler gerçek DXF varlığı olarak yazılır; LWPOLYLINE'a düşürmek dolguyu kaybettirirdi.
         // Alt yollar ayrı sınırdır (moveto her seferinde yeni yol açar).
@@ -765,15 +1004,15 @@ export function writeDxf(prims, layers, opts = {}) {
           // Üç ya da dört köşeli dolu: DXF SOLID. Köşe sırası 1-2-4-3'tür, üçgende 4 = 3.
           const q = paths[0];
           const A = q[0], B = q[1], Cc = q[2], Dd = q.length > 3 ? q[3] : q[2];
-          common('SOLID', p, 'AcDbTrace');
+          common('SOLID', p, 'AcDbTrace', owner);
           w(10, f6(A[0])); w(20, f6(A[1])); w(30, f6(elev));
           w(11, f6(B[0])); w(21, f6(B[1])); w(31, f6(elev));
           w(12, f6(Dd[0])); w(22, f6(Dd[1])); w(32, f6(elev));
           w(13, f6(Cc[0])); w(23, f6(Cc[1])); w(33, f6(elev));
-          continue;
+          return;
         }
         if (paths.length) {
-          common('HATCH', p, 'AcDbHatch');
+          common('HATCH', p, 'AcDbHatch', owner);
           w(10, 0); w(20, 0); w(30, f6(elev));
           w(210, 0); w(220, 0); w(230, 1);
           w(2, 'SOLID'); w(70, 1); w(71, 0);
@@ -784,32 +1023,32 @@ export function writeDxf(prims, layers, opts = {}) {
             w(97, 0);
           }
           w(75, paths.length > 1 ? 1 : 0); w(76, 1); w(98, 0);
-          continue;
+          return;
         }
       }
       if (ops.length === 2 && ops[1][0] === 2 && Math.abs((ops[1][5] - ops[1][4]) - TAU) < 1e-9) {
-        const o = ops[1]; common('CIRCLE', p, 'AcDbCircle'); w(10, f6(o[1])); w(20, f6(o[2])); w(30, f6(o[6] || 0)); w(40, f6(o[3])); continue;
+        const o = ops[1]; common('CIRCLE', p, 'AcDbCircle', owner); w(10, f6(o[1])); w(20, f6(o[2])); w(30, f6(o[6] || 0)); w(40, f6(o[3])); return;
       }
       if (ops.length === 2 && (ops[1][0] === 2 || ops[1][0] === -2)) {
         const o = ops[1]; const a0 = o[0] === 2 ? o[4] : o[5], a1 = o[0] === 2 ? o[5] : o[4];
-        common('ARC', p, 'AcDbCircle'); w(10, f6(o[1])); w(20, f6(o[2])); w(30, f6(o[6] || 0)); w(40, f6(o[3])); w(100, 'AcDbArc'); w(50, f6(a0 * R2D)); w(51, f6(a1 * R2D)); continue;
+        common('ARC', p, 'AcDbCircle', owner); w(10, f6(o[1])); w(20, f6(o[2])); w(30, f6(o[6] || 0)); w(40, f6(o[3])); w(100, 'AcDbArc'); w(50, f6(a0 * R2D)); w(51, f6(a1 * R2D)); return;
       }
       const zs = ops.filter(o => o[0] === 0 || o[0] === 1).map(o => o[3] || 0);
       const is3d = zs.some(z => Math.abs(z - zs[0]) > 1e-9);
       const hasArc = ops.some(o => o[0] === 2 || o[0] === -2 || o[0] === 3);
       if (p.face && ops.length >= 3 && ops.length <= 4) {
-        common('3DFACE', p, 'AcDbFace');
+        common('3DFACE', p, 'AcDbFace', owner);
         for (let i = 0; i < 4; i++) { const o = ops[Math.min(i, ops.length - 1)]; w(10 + i, f6(o[1])); w(20 + i, f6(o[2])); w(30 + i, f6(o[3] || 0)); }
-        continue;
+        return;
       }
       if (is3d && !hasArc) {
-        common('POLYLINE', p, 'AcDb3dPolyline'); w(66, 1); w(10, 0); w(20, 0); w(30, 0); w(70, 8 | (p.closed ? 1 : 0));
+        common('POLYLINE', p, 'AcDb3dPolyline', owner); w(66, 1); w(10, 0); w(20, 0); w(30, 0); w(70, 8 | (p.closed ? 1 : 0));
         for (const o of ops) { if (o[0] !== 0 && o[0] !== 1) continue; w(0, 'VERTEX'); w(5, H()); w(100, 'AcDbEntity'); w(8, p.lay || '0'); w(100, 'AcDbVertex'); w(100, 'AcDb3dPolylineVertex'); w(10, f6(o[1])); w(20, f6(o[2])); w(30, f6(o[3] || 0)); w(70, 32); }
         w(0, 'SEQEND'); w(5, H()); w(100, 'AcDbEntity'); w(8, p.lay || '0');
-        continue;
+        return;
       }
       if (ops.length === 2 && ops[1][0] === 1 && !p.closed && !p.w && !p.fill) {
-        common('LINE', p, 'AcDbLine'); w(10, f6(ops[0][1])); w(20, f6(ops[0][2])); w(30, f6(ops[0][3] || 0)); w(11, f6(ops[1][1])); w(21, f6(ops[1][2])); w(31, f6(ops[1][3] || 0)); continue;
+        common('LINE', p, 'AcDbLine', owner); w(10, f6(ops[0][1])); w(20, f6(ops[0][2])); w(30, f6(ops[0][3] || 0)); w(11, f6(ops[1][1])); w(21, f6(ops[1][2])); w(31, f6(ops[1][3] || 0)); return;
       }
       // LWPOLYLINE (yaylar bulge ile, elipsler örneklenerek)
       const verts = []; // [x,y,bulge]
@@ -830,13 +1069,75 @@ export function writeDxf(prims, layers, opts = {}) {
       if (subpaths > 0 && p.fill) { // çok parçalı tarama sınırı → her parça ayrı polyline
         const parts = []; let cur = null;
         for (const o of ops) { if (o[0] === 0) { cur = [[o[1], o[2], 0]]; parts.push(cur); } else if (cur) { const pts = o[0] === 1 ? [[o[1], o[2]]] : flatten([o]); for (const q of pts) cur.push([q[0], q[1], 0]); } }
-        for (const part of parts) { common('LWPOLYLINE', p, 'AcDbPolyline'); w(90, part.length); w(70, 1); w(38, f6(zs[0])); for (const v of part) { w(10, f6(v[0])); w(20, f6(v[1])); } }
-        continue;
+        for (const part of parts) { common('LWPOLYLINE', p, 'AcDbPolyline', owner); w(90, part.length); w(70, 1); w(38, f6(zs[0])); for (const v of part) { w(10, f6(v[0])); w(20, f6(v[1])); } }
+        return;
       }
-      if (verts.length < 2) continue;
-      common('LWPOLYLINE', p, 'AcDbPolyline'); w(90, verts.length); w(70, p.closed || p.fill ? 1 : 0); if (p.w) w(43, f6(p.w)); w(38, f6(zs[0]));
+      if (verts.length < 2) return;
+      common('LWPOLYLINE', p, 'AcDbPolyline', owner); w(90, verts.length); w(70, p.closed || p.fill ? 1 : 0); if (p.w) w(43, f6(p.w)); w(38, f6(zs[0]));
       for (const v of verts) { w(10, f6(v[0])); w(20, f6(v[1])); if (v[2]) w(42, f6(v[2])); }
     } catch (e) { /* bu ilkeli atla */ }
+  };
+  /** Öznitelik tanımı (blok içinde): AcDbText + AcDbAttributeDefinition */
+  const writeAttdef = (e, owner) => {
+    const q = (e.pts && e.pts[0]) || [0, 0, 0];
+    const p = { lay: e.layer || '0', col: FG, info: { ci: e.color == null ? 256 : e.color } };
+    w(0, 'ATTDEF'); w(5, H()); if (owner) w(330, owner); w(100, 'AcDbEntity'); w(8, p.lay);
+    if (p.info.ci !== 256 && p.info.ci >= 1 && p.info.ci <= 255) w(62, p.info.ci);
+    w(100, 'AcDbText'); w(10, f6(q[0])); w(20, f6(q[1])); w(30, f6(q[2] || 0)); w(40, f6(e.h || 2.5)); w(1, e.text == null ? '' : String(e.text)); w(50, f6((e.rot || 0) * R2D));
+    w(100, 'AcDbAttributeDefinition'); w(3, e.prompt == null ? '' : String(e.prompt)); w(2, String(e.tag || 'TAG')); w(70, e.flags | 0);
+  };
+  /** Yerleştirme: INSERT (+ ATTRIB… SEQEND). i: paylaşılan info ya da INSERT varlığı; attPrims: görünen ATTRIB ilkelleri (konum) */
+  const writeInsert = (i, owner, attPrims) => {
+    const def = blocks.get(blkKey(i.name));
+    const m = insMatrix(i), d = decompose(m);
+    const attdefs = def ? (def.ents || []).filter(e => e && e.type === 'ATTDEF') : [];
+    const attrs = attrsFor(def, i.attrs);
+    const hasAtt = attdefs.length > 0;
+    const lay = i.lay || i.layer || '0', ci = i.ci != null ? i.ci : (i.color == null ? 256 : i.color);
+    w(0, 'INSERT'); w(5, H()); if (owner) w(330, owner); w(100, 'AcDbEntity'); w(8, lay);
+    if (ci !== 256 && ci >= 1 && ci <= 255) w(62, ci);
+    w(100, 'AcDbBlockReference'); if (hasAtt) w(66, 1); w(2, def ? def.name : i.name);
+    w(10, f6(d.x)); w(20, f6(d.y)); w(30, f6(i.z || 0)); w(41, f6(d.sx)); w(42, f6(d.sy)); w(43, 1); w(50, f6(d.rot * R2D));
+    if (hasAtt) {
+      const world = xformEnts(attdefs, m, i.z || 0);   // görünmeyen öznitelik için tanımın dönüştürülmüş konumu
+      attdefs.forEach((a, ai) => {
+        const val = attrs[ai] ? String(attrs[ai][1]) : String(a.text == null ? '' : a.text);
+        const wp = attPrims ? attPrims.find(q => q.ai === ai) : null, we = world[ai] || {};
+        const q = (we.pts && we.pts[0]) || [d.x, d.y, i.z || 0];
+        const x = wp ? wp.x : q[0], y = wp ? wp.y : q[1], z = wp ? (wp.z || 0) : (q[2] || 0), h = wp ? wp.h : (we.h || 2.5), rot = wp ? wp.rot : (we.rot || 0);
+        w(0, 'ATTRIB'); w(5, H()); if (owner) w(330, owner); w(100, 'AcDbEntity'); w(8, wp ? (wp.lay || lay) : (a.layer && a.layer !== '0' ? a.layer : lay));
+        w(100, 'AcDbText'); w(10, f6(x)); w(20, f6(y)); w(30, f6(z)); w(40, f6(h)); w(1, val); w(50, f6(rot * R2D));
+        w(100, 'AcDbAttribute'); w(2, String(a.tag || 'TAG')); w(70, a.flags | 0);
+      });
+      w(0, 'SEQEND'); w(5, H()); if (owner) w(330, owner); w(100, 'AcDbEntity'); w(8, lay);
+    }
+  };
+  const writeDefEnt = (e, owner) => {
+    if (!e || typeof e !== 'object') return;
+    if (e.type === 'INSERT') { writeInsert(e, owner, null); return; }
+    if (e.type === 'ATTDEF') { writeAttdef(e, owner); return; }
+    const p = entToPrim(e, layers);
+    if (p) writeEnt(p, owner);
+  };
+  // BLOCKS: model / kâğıt uzayı boş kayıtları ve uygulamanın blok tanımları (tanım uzayında, taban 10/20/30)
+  w(0, 'SECTION'); w(2, 'BLOCKS');
+  const blockHead = (name, owner, base, flags) => { w(0, 'BLOCK'); w(5, H()); w(330, owner); w(100, 'AcDbEntity'); w(8, '0'); w(100, 'AcDbBlockBegin'); w(2, name); w(70, flags); w(10, f6(base[0])); w(20, f6(base[1])); w(30, f6(base[2])); w(3, name); w(1, ''); };
+  const blockEnd = (owner) => { w(0, 'ENDBLK'); w(5, H()); w(330, owner); w(100, 'AcDbEntity'); w(8, '0'); w(100, 'AcDbBlockEnd'); };
+  blockHead('*Model_Space', msH, [0, 0, 0], 0); blockEnd(msH);
+  blockHead('*Paper_Space', psH, [0, 0, 0], 0); blockEnd(psH);
+  for (const [k, d] of blocks) {
+    const owner = recH.get(k), list = d.ents || [];
+    blockHead(d.name, owner, Array.isArray(d.base) ? d.base : [0, 0, 0], list.some(e => e && e.type === 'ATTDEF') ? 2 : 0);
+    for (const e of list) writeDefEnt(e, owner);
+    blockEnd(owner);
+  }
+  w(0, 'ENDSEC');
+  // ENTITIES: çizim sırasıyla; yerleştirme grubu ilk ilkelinin yerinde tek INSERT olarak
+  w(0, 'SECTION'); w(2, 'ENTITIES');
+  const written = new Set();
+  for (const p of ents) {
+    if (isIns(p)) { const g = insG.get(p.info.h); if (!g || written.has(g)) continue; written.add(g); writeInsert(g.info, null, g.prims.filter(q => q.ai != null)); continue; }
+    writeEnt(p, null);
   }
   w(0, 'ENDSEC');
   w(0, 'EOF');

@@ -1621,3 +1621,16 @@ body[data-theme="hicontrast"] .empty-ill, body.contrast .empty-ill { opacity: 1;
 .empty-title:empty, .empty-text:empty, .empty-acts:empty { display: none; }
 /* dar telefonda çizim küçülür, başlık yine ilk bakışta okunur */
 @media (max-height: 560px) { .empty { padding: calc(14px * var(--fs)) calc(12px * var(--fs)); } .empty-ill { max-width: 28%; } }
+/* v7.72 — blok yöneticisi satırları ve blok düzenleyici oturum çubuğu */
+.blk-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 8px 0; border-bottom: 1px solid rgba(128,128,128,.14); }
+.blk-name { flex: 1 1 140px; min-width: 0; }
+.blk-name b { display: block; font-size: calc(13.5px * var(--fs)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.blk-name small { color: var(--muted); display: block; font-size: calc(11px * var(--fs)); }
+.blk-btns { display: flex; flex-wrap: wrap; gap: 4px; }
+.blk-btns .btn.small { min-height: 34px; padding: 4px 8px; font-size: calc(11.5px * var(--fs)); }
+.bedit-bar { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; padding: 4px 8px; max-width: calc(100% - 16px); background: var(--bar); border: 1px solid #4da3ff; border-radius: 14px; box-shadow: var(--shadow); font-size: calc(12px * var(--fs)); }
+.bedit-bar .bb-name { padding: 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40vw; }
+.bedit-bar .bb-name b { color: #4da3ff; margin-inline-end: 4px; }
+.bedit-bar .btn.small { min-height: 34px; padding: 4px 8px; display: inline-flex; align-items: center; gap: 4px; }
+.bedit-bar .btn.small svg.ic { width: 16px; height: 16px; }
+@media (max-width: 480px) { .bedit-bar .btn.small span { display: none; } .bedit-bar .btn.small svg.ic { width: 18px; height: 18px; } }

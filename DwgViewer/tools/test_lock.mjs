@@ -202,8 +202,8 @@ await setEd('free');
       cta: row.querySelectorAll('.lk-cta').length, ctaTier: (row.querySelector('.lk-cta') || {}).dataset?.tier,
       first: row.firstElementChild.classList.contains('tb-lockg') };
   });
-  ok('8 kilitli Çiz sekmesi satırı açar, paket panelini AÇMAZ; 17 karo rozetli, tek çağrı karosu BAŞTA',
-    r.tab === 'draw' && !r.panel && r.tiles === 17 && r.locked === 17 && r.cta === 1 && r.ctaTier === 'premium' && r.first, JSON.stringify(r));
+  ok('8 kilitli Çiz sekmesi satırı açar, paket panelini AÇMAZ; 18 karo rozetli, tek çağrı karosu BAŞTA',
+    r.tab === 'draw' && !r.panel && r.tiles === 18 && r.locked === 18 && r.cta === 1 && r.ctaTier === 'premium' && r.first, JSON.stringify(r));
   await page.click('#toolbar [data-tab="annot"]'); await page.waitForTimeout(180);
   const a = await ev(() => { const row = document.querySelector('#toolbar .tb-row[data-for="annot"]'); return { empty: !!row.querySelector('.tb-empty'), tiles: row.querySelectorAll('[data-act]').length, txt: row.textContent }; });
   // Karo sayısı sabit yazılmaz: sekmeye yeni araç eklendiğinde sınama yanlış kırmızı verirdi.
@@ -322,11 +322,13 @@ await setEd('free');
   // budama, uzatma, kavis, pah ve köşe tutamağı ile 70 → 75; gelişmiş kalem desteği ile 75 → 76;
   // ölçü özelliklerini düzenleme (t:dimedit, v7.56) ile 76 → 77.
   // v7.67: yedi yeni premium araç (çokgen, böl, aralıkla, sınır, esnet, birleştir, özellik eşle) ile Premium 63 → 70, Super 77 → 84.
+  // v7.72: blok ailesi — 14 premium (blok yap, blok ekle, bloklar, blok düzenle, yerinde düzenle, öznitelik tanımı, içten kopyala, taban,
+  //        hizala, maske, çizim sırası, referans ekle / kırp / bağla) ile Premium 70 → 84; dinamik blok parametresi ve görünürlük durumu Super: 14 → 16 → toplam 100.
   // Kalem TANIMA ve AVUÇ REDDİ ücretsizdir, bu yüzden sayaca girmez.)
   const cum = (x) => ['adfree', 'premium', 'super'].slice(0, ['adfree', 'premium', 'super'].indexOf(x) + 1).reduce((a, y) => a + (r.lists[y] || 0), 0);
   const same = ['premium', 'super'].every(x => r.counts[x] === cum(x));
-  ok('14 kart sayacı dökümdeki grupların toplamıyla birebir aynı (Premium 70, Super 70+14=84); Ad-Free\'de sayaç yok',
-    r.title && same && r.total === r.cap && r.counts.adfree === 0 && r.total === 84, JSON.stringify({ ...r, cumPremium: cum('premium'), cumSuper: cum('super') }));
+  ok('14 kart sayacı dökümdeki grupların toplamıyla birebir aynı (Premium 84, Super 84+16=100); Ad-Free\'de sayaç yok',
+    r.title && same && r.total === r.cap && r.counts.adfree === 0 && r.total === 100, JSON.stringify({ ...r, cumPremium: cum('premium'), cumSuper: cum('super') }));
   await page.screenshot({ path: `${out}/lock_panel.png` });
 
   /*

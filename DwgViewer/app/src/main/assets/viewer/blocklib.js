@@ -70,6 +70,7 @@ export function primToEnt(p) {
   };
   if (inf.gid) ort.gid = inf.gid;                       // grup kimliği: parçalar birlikte seçilir
   if (typeof p.et === 'string') ort.itype = p.et;       // bilgi türü üstüne yazımı (ok başı, ölçü parçası)
+  if (Array.isArray(p.vis) && p.vis.length) ort.vis = p.vis.slice();   // dinamik blok görünürlük durumları (blocks.js)
   if (p.ent && p.ent.def && typeof p.ent.def === 'object') {
     // ölçü tanımı: bloğa alınan / panoya kopyalanan ölçü hedefte de düzenlenebilir kalsın
     ort.def = JSON.parse(JSON.stringify(p.ent.def));
@@ -81,6 +82,10 @@ export function primToEnt(p) {
       // dizi olmayan işlem atılır: bozuk bir yol yüzünden istisna fırlatılmaz
       const ops = p.ops.filter(Array.isArray).map(opKopya);
       if (ops.length < 2) return null;                    // tek işlemli yol (yalnız moveto) çizilmez; entToPrim de üretmez
+      if (p.bg) {                                         // maske (WIPEOUT): sınır çokgeni taşınır, dolgu arka plan rengidir
+        const pts = []; for (const o of ops) { if (o[0] === 0 || o[0] === 1) pts.push([o[1], o[2], say(o[3])]); }
+        if (pts.length >= 3) return { ...ort, type: 'WIPEOUT', pts };
+      }
       return {
         ...ort, type: 'PATH',
         ops,
@@ -90,10 +95,16 @@ export function primToEnt(p) {
     case 1: {
       const text = (p.lines || []).join('\n');
       if (!text) return null;                           // boş yazı geri çevrildiğinde ilkel üretmez
-      return {
+      const e = {
         ...ort, type: 'TEXT', pts: [[say(p.x), say(p.y), say(p.z)]],
         text, h: p.h > 0 ? p.h : 2.5, rot: say(p.rot), ha: say(p.ha), va: say(p.va),
       };
+      if (p.et === 'ATTDEF') {                          // öznitelik tanımı (blok düzenleyici): etiket, istem, öntanımlı değer ve bayraklar korunur
+        const src = p.ent && p.ent.type === 'ATTDEF' ? p.ent : null;
+        e.type = 'ATTDEF'; e.tag = src ? src.tag : (inf.tag || text); e.prompt = src ? (src.prompt || '') : ''; e.text = src ? (src.text == null ? '' : src.text) : ''; e.flags = src ? (src.flags | 0) : 0;
+        delete e.itype;
+      }
+      return e;
     }
     case 2:
       return { ...ort, type: 'POINT', pts: [[say(p.x), say(p.y), say(p.z)]] };

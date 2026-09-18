@@ -7,6 +7,11 @@ export const S = {
   fileName: '', fileKey: '', units: '', unitToM: 1, version: '', counts: {}, entityCount: 0, blockCount: 0,
   images: new Map(),            // imagedef handle → HTMLImageElement
   xrefs: [],                    // [{name, inserts, loaded}]
+  blocks: new Map(),            // blok tanım tablosu (blocks.js; EditDoc günlüğünden kurulur, DXF BLOCKS bölümüne yazılır)
+  vars: {},                     // başlık değişkenleri (BASE → INSBASE)
+  backdrop: null,               // REFEDIT: çalışma kümesi dışındaki ilkeller solgun çizilir { prims, tree }
+  bedit: null,                  // blok düzenleyici oturumu (editor.js): { kind, name } — durum çubuğu ve kaplama okur
+  wipeFrame: true, xrefFade: 0.5,   // maske çerçevesi (WIPEOUTFRAME) · harici referans soldurma (XDWGFADECTL; 0 = kapalı)
   // görünüm
   view: { scale: 1, cx: 0, cy: 0 }, W: 1, H: 1, dpr: 1,
   // ekran (display.js tek gerçek kaynak olarak S alanlarını kullanır; settings.display kalıcı kopyadır)

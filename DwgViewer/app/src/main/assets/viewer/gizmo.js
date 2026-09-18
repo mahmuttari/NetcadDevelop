@@ -120,7 +120,7 @@ export const GRIP_OBJ_LIMIT = 100, GRIP_VERT_LIMIT = 400;
 export function vertsOfAll(prims) {
   const all = [...prims];
   if (all.length > GRIP_OBJ_LIMIT) return [];   // AutoCAD GRIPOBJLIMIT gibi seçimin TAMAMI sayılır (yazı, nokta, blok dâhil)
-  const list = all.filter(p => p && p.k === 0 && !(p.info && p.info.t === 'DIMENSION'));
+  const list = all.filter(p => p && p.k === 0 && !(p.info && (p.info.t === 'DIMENSION' || p.info.t === 'INSERT')));   // blok yerleştirmesinin geometrisi düğümden değişmez (BEDIT / REFEDIT ile)
   if (!list.length) return [];
   const out = [];
   for (const p of list) {

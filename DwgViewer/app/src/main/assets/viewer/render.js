@@ -196,11 +196,14 @@ export function drawPrims(c, prims, scale, rect, opt) {
     if (visArea < extArea * 0.35) list = opt.tree.collect(vx0, vy0, vx1, vy1);
   }
   let seq = list ? list.map(i => prims[i]) : prims;
-  if (S.hatchBack !== false) {   // taramalar ve dolgular önce: çizgi, yazı ve ölçüler dolgunun altında kalmaz
+  if (S.hatchBack !== false && !opt.keepOrder) {   // taramalar ve dolgular önce: çizgi, yazı ve ölçüler dolgunun altında kalmaz
     const a = [], b = [];
-    for (const p of seq) ((p.k === 0 && p.fill && (p.et === 'HATCH' || p.et === 'SOLID' || p.et === 'TRACE')) ? a : b).push(p);
+    for (const p of seq) ((p.k === 0 && p.fill && !p.bg && (p.et === 'HATCH' || p.et === 'SOLID' || p.et === 'TRACE')) ? a : b).push(p);
     if (a.length) seq = a.concat(b);
   }
+  const alpha0 = opt.alpha > 0 && opt.alpha < 1 ? opt.alpha : 1;   // arka plan (REFEDIT çalışma kümesi dışı) solgun çizilir
+  const xrefA = S.xrefFade > 0 && S.xrefFade < 1 ? 1 - S.xrefFade : 1;   // harici referans soldurma (XDWGFADECTL)
+  const wipeFrame = S.wipeFrame !== false;
   const n = seq.length;
   for (let ii = 0; ii < n; ii++) {
     const p = seq[ii];
@@ -213,9 +216,10 @@ export function drawPrims(c, prims, scale, rect, opt) {
     if (!passFilters(p)) continue;
     let col = opt.colorOf ? opt.colorOf(p) : (monoCol || (mode === 'layer' ? layerPalette(p.lay) : entityCss(p.col, fg)));
     if (col === null) continue;
-    let alpha = 1;
+    let alpha = alpha0;
     if (L && (L.faded || L.locked)) alpha = fadeA;
     else if (fadeOn && p.lay !== curLayer) alpha = fadeA;
+    if (p.xref && xrefA !== 1) alpha *= xrefA;
     if (p.k === 0) {
       if (p.hp != null && p.hp * scale < HATCH_LOD_PX) continue;          // sık desen: çizgiler değil dolgu
       if (p.hpFill != null && p.hpFill * scale >= HATCH_LOD_PX) continue; // seyrek desen: dolgu değil çizgiler
@@ -226,6 +230,7 @@ export function drawPrims(c, prims, scale, rect, opt) {
         flush(); curKey = null;
         c.globalAlpha = p.alpha * alpha * (isHatch(p) ? hatchA : 1); c.fillStyle = col;
         c.beginPath(); tracePath(c, p.ops); c.closePath(); c.fill('evenodd');
+        if (p.bg && wipeFrame) { c.strokeStyle = entityCss(p.col, fg); c.lineWidth = thin; c.setLineDash([]); c.globalAlpha = 0.6 * alpha; c.stroke(); }   // maske çerçevesi (WIPEOUTFRAME = 1)
         c.globalAlpha = curAlpha;
         continue;
       }
@@ -387,6 +392,7 @@ export function drawFrame(c, cv) {
     drawBasemap(c);
     if (!exporting) { drawGrid(c, cv); world(); }
     const colorOf = compareColorOf(fg);
+    if (S.backdrop && S.backdrop.prims) drawPrims(c, S.backdrop.prims, scale, rect, { ...opt, tree: S.backdrop.tree || null, alpha: 0.3 });   // REFEDIT: çalışma kümesi dışı solgun
     drawPrims(c, S.prims, scale, rect, { ...opt, tree: S.tree, colorOf });
     if (S.compare) drawPrims(c, S.compare.prims, scale, rect, { ...opt, tree: S.compare.tree, colorOf: (p) => S.compare.mark.get(p) === 'added' ? '#30d158' : null });
   } else {
