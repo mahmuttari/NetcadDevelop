@@ -30,7 +30,7 @@ export function entToPrim(ent, layers) {
   const col = ent.color === -1 || ent.color == null ? (lay ? lay.color : FG) : (ent.color >= 1 && ent.color <= 255 ? ACI[ent.color] : FG);
   const info = { t: ent.type, h: ent.id, lay: ent.layer, ci: ent.color == null ? 256 : ent.color, col, lt: '', lw: lay ? lay.lw : 25, edited: true, text: ent.text };
   if (ent.itype) info.t = ent.itype;            // ok başı SOLID'dir ama ölçü süzgeci onu da gizlemelidir
-  if (ent.gid) info.gid = ent.gid;              // grup: parçalar birlikte seçilir, birlikte silinir
+  if (ent.gid || ent.group) info.gid = ent.gid || ent.group;   // grup: parçalar birlikte seçilir, birlikte silinir ('group' v7.76 öncesi belgelerde)
   const base = { col, lay: ent.layer, lw: lay ? lay.lw : 25, lt: null, lts: 1, info, et: ent.type, key: ent.id, ent };
   const P = ent.pts || [];
   switch (ent.type) {
@@ -85,10 +85,16 @@ export function entToPrim(ent, layers) {
       const dolu = ad === 'SOLID';
       info.pattern = ent.pattern || 'SOLID'; info.solid = dolu;
       info.hscale = ent.hscale == null ? 1 : ent.hscale; info.hangle = ent.hangle == null ? 0 : ent.hangle;   // DXF kod 41 / 52
-      // Desenli tarama İKİ ilkelden oluşur: sınır (dolgusuz, çerçeve) ve desen çizgileri.
-      // Ayrı tutulmalarının sebebi çizim değil YAZMA: DXF'e desenli HATCH olarak yazılırken
-      // çizgiler ayrıca LWPOLYLINE olarak çıkmamalıdır (hpart bayrağı onları süzer).
-      return { ...base, k: 0, ops, closed: true, fill: dolu, alpha: ent.alpha == null ? 1 : ent.alpha, w: 0, bb: opsBBox(ops) };
+      /*
+       * Desenli tarama İKİ ilkelden oluşur: SINIR ve desen çizgileri. Ayrı tutulmalarının bir sebebi
+       * YAZMA'dır (çizgiler DXF'e ayrıca LWPOLYLINE olarak çıkmamalı; hpart onları süzer), öteki sebep
+       * UZAKLIK DÜZEYİ'dir: desen aralığı ekranda 2 px'in altına inince render.js çizgileri değil
+       * sınırın SAYDAM DOLGUSUNU çizer. Bu dolgu olmadan uzaklaşınca tarama ekrandan tümden kaybolur —
+       * dosyadan okunan taramada da aynı düzen vardır (scene.js hpFill).
+       */
+      const pr = { ...base, k: 0, ops, closed: true, fill: true, alpha: dolu ? (ent.alpha == null ? 1 : ent.alpha) : 0.18, w: 0, bb: opsBBox(ops) };
+      if (!dolu && ent.hp != null) pr.hpFill = ent.hp;
+      return pr;
     }
     case 'CLOUD': {                                   // revizyon bulutu: yol üzerinde dışa kabaran yaylar
       const ops = cloudOps(P, ent.r || 0, ent.closed !== false);
@@ -603,14 +609,19 @@ export class EditDoc {
         if (!ps.length) return null;
         const created = [];
         for (const it of cmd.items || []) {
-          const imap = new Map(), nk = it.newKeys || [];
+          const imap = new Map(), nk = it.newKeys || [], gmap = new Map();
           ps.forEach((p, i) => {
             const c = clonePrim(p);
             const ih = p.info && p.info.t === 'INSERT' && p.info.h ? p.info.h : null;
             c.key = i < nk.length ? nk[i] : (ih && imap.has(ih) ? imap.get(ih).h + (p.k === 4 ? '#ins' : '#e' + i) : newId());
             if (ih) { let ni = imap.get(ih); if (!ni) { ni = insXform({ ...p.info, h: c.key, edited: true }, it.m, it.dz || 0); imap.set(ih, ni); } c.info = ni; }   // yerleştirme: ortak info, tek tanıtıcı
-            else c.info = { ...p.info, h: c.key, edited: true };
-            if (c.ent) c.ent = { ...c.ent, id: c.key };
+            else {
+              c.info = { ...p.info, h: c.key, edited: true };
+              // Dizinin her kopyası YENİ bir grup kimliği alır ('copy' dalındaki kuralla aynı):
+              // yoksa bütün kopyalar aslıyla aynı gruba girer ve birine dokunmak hepsini seçerdi.
+              if (c.info.gid) { if (!gmap.has(c.info.gid)) gmap.set(c.info.gid, newId()); c.info.gid = gmap.get(c.info.gid); }
+            }
+            if (c.ent) c.ent = { ...c.ent, id: c.key, ...(c.ent.gid && !ih ? { gid: c.info.gid } : {}) };
             transformPrim(c, it.m, it.dz || 0);
             C.insert(c); created.push(c);
           });
@@ -882,7 +893,10 @@ export function writeDxf(prims, layers, opts = {}) {
   // Desen çizgileri ayrı LWPOLYLINE olarak YAZILMAZ: desenli tarama DXF'e HATCH olarak çıkar ve
   // AutoCAD deseni kendisi üretir. Yazılsaydı dosyada hem dolgu hem çizgiler olur, çift görünürdü.
   // harici referansın ilkelleri (p.xref) çizimin kendi geometrisi değildir: DXF'e yazılmaz, XBIND ile blok olunca yazılır
-  const ents = prims.filter(p => p.k !== 4 && !p.inf && !p.xref && !(p.ent && p.ent.hpart) && (!opts.onlyEdited || (p.info && p.info.edited)));
+  // Desen çizgileri ilkeli DXF'e AYRICA yazılmaz: tarama zaten HATCH varlığı olarak çıkar.
+  // Bizim ürettiğimizde bayrak ent.hpart'tadır, dosyadan okunanda ilkelin kendi p.hp'sinde —
+  // ikincisi süzülmezse dosyadan gelen her tarama dev bir zikzak LWPOLYLINE olarak dışa çıkardı.
+  const ents = prims.filter(p => p.k !== 4 && !p.inf && !p.xref && !(p.ent && p.ent.hpart) && !(p.k === 0 && p.hp != null) && (!opts.onlyEdited || (p.info && p.info.edited)));
   // Uygulamanın blok yerleştirmeleri (info.blk, tanımı tabloda) ilkel ilkel değil TEK INSERT olarak yazılır
   const isIns = (p) => !!(p.info && p.info.t === 'INSERT' && p.info.blk && blocks.has(blkKey(p.info.name)));
   const insG = new Map();
@@ -1020,7 +1034,14 @@ export function writeDxf(prims, layers, opts = {}) {
           const desenli = !!hatchAd && hatchAd !== 'SOLID';
           const olcek = desenli ? (typeof inf.hscale === 'number' && inf.hscale ? inf.hscale : 1) : 1;
           const aci = desenli ? (typeof inf.hangle === 'number' ? inf.hangle : 0) : 0;
-          const defs = desenli ? patternDefs(hatchAd, olcek, aci) : [];
+          /*
+           * Desen tanım satırları. Kendi desenlerimizde tablodan üretilir; DOSYADAN okunan
+           * taramada dosyanın kendi satırları (inf.hdefs) yazılır — böylece tablomuzda olmayan
+           * ANGLE, AR-CONC, BRICK gibi AutoCAD desenleri adıyla ve dokusuyla korunur, daha önce
+           * olduğu gibi sessizce düz dolguya (SOLID) çevrilmez.
+           */
+          const dosyaDefs = Array.isArray(inf.hdefs) && inf.hdefs.length ? inf.hdefs : null;
+          const defs = desenli ? (patternDefs(hatchAd, olcek, aci).length ? patternDefs(hatchAd, olcek, aci) : (dosyaDefs || [])) : [];
           common('HATCH', p, 'AcDbHatch', owner);
           w(10, 0); w(20, 0); w(30, f6(elev));
           w(210, 0); w(220, 0); w(230, 1);

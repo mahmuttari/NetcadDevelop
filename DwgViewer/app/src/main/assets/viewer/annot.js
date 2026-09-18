@@ -17,7 +17,7 @@
  * geometri her okuyucuda birebir aynı görünür ve DXF'e sorunsuz yazılır. Parçalar `itype`
  * ile DIMENSION damgası taşıdığı için "Ölçüleri gizle" süzgeci onları da gizler.
  */
-import { TAU, patternDefs, hatchLines } from './geom.js';
+import { TAU, patternDefs, hatchLines, autoHatchScale } from './geom.js';
 
 const D2R = Math.PI / 180;
 const sub = (a, b) => [a[0] - b[0], a[1] - b[1]];
@@ -257,16 +257,44 @@ export function hatchEnts(pts, o = {}) {
   if (!pts || pts.length < 3) return null;
   const ad = String(o.pattern || 'SOLID').toUpperCase();
   const z = (pts[0] && pts[0][2]) || 0;
-  // gid: sınır ile desen çizgileri TEK nesne gibi seçilir ve birlikte silinir. v7.76'ya kadar
-  // burada 'group' yazıyordu; edit.js ent.gid okur, o yüzden tarama iki ayrı nesne kalıyordu.
-  const ortak = { layer: o.layer, color: o.color, gid: o.gid || o.group };
-  if (ad === 'SOLID') return { ents: [{ ...ortak, type: 'HATCH', pts: pts.map(p => [p[0], p[1], z]), pattern: 'SOLID', alpha: o.alpha == null ? 1 : o.alpha }], pattern: 'SOLID', segs: 0 };
-  const defs = patternDefs(ad, o.scale || 1, o.angle || 0);
-  const r = defs.length ? hatchLines([pts.map(p => [p[0], p[1]])], defs, { maxSeg: 20000, maxWork: 1e6 }) : null;
-  if (!r) return hatchEnts(pts, { ...o, pattern: 'SOLID' });
-  // hscale / hangle DXF'e yazarken gerekir (kod 41 ve 52) ve dosya yeniden açıldığında deseni
-  // aynı ölçekte kurar; yalnız desen adı saklanırsa tur başına ölçek 1'e döner.
-  const sinir = { ...ortak, type: 'HATCH', pts: pts.map(p => [p[0], p[1], z]), pattern: ad, hscale: o.scale || 1, hangle: o.angle || 0, alpha: o.alpha == null ? 1 : o.alpha };
-  const cizgi = { ...ortak, type: 'PATH', ops: r.ops.map(op => [op[0], op[1], op[2], z]), closed: false, fill: false, hp: r.minStep, hpart: 1 };
-  return { ents: [sinir, cizgi], pattern: ad, segs: r.segs };
+  // gid: sınır ile desen çizgileri TEK nesne gibi seçilir ve birlikte silinir. edit.js ent.gid okur.
+  // SOLID tek varlıktır, grup kimliği ALMAZ: tek ilkelli nesneye grup damgası vurmak esnetme gibi
+  // düğüm düzeyinde çalışan komutları bütün-taşımaya düşürürdü.
+  const gid = o.gid || o.group;
+  const ortak = { layer: o.layer, color: o.color };
+  const alpha = o.alpha == null ? 1 : o.alpha;
+  const cokgen = pts.map(p => [p[0], p[1], z]);
+  const duz = (sc, an) => ({ ents: [{ ...ortak, type: 'HATCH', pts: cokgen, pattern: 'SOLID', hscale: sc, hangle: an, alpha }], pattern: 'SOLID', segs: 0, scale: sc, angle: an });
+  // Ölçek ve açı SOLID'de de saklanır: desenliye geri çevrildiğinde kullanıcının ayarı geri gelsin.
+  if (ad === 'SOLID') return duz(o.scale > 0 ? o.scale : 1, o.angle || 0);
+
+  const poly = [pts.map(p => [p[0], p[1]])];
+  const an = o.angle || 0;
+  /*
+   * ÖLÇEK. acad.pat desenleri inç tabanlıdır; milimetre birimli bir projede öntanımlı ölçek 1
+   * yüz binlerce çizgi ister, çizici bütçeyi aşar ve tarama SESSİZCE düz dolguya düşerdi —
+   * kullanıcı ANSI31 seçip düz bir leke görürdü. Artık ölçek verilmemişse alan büyüklüğünden
+   * türetilir; verilen ölçek bütçeye sığmıyorsa kademeli olarak açılır ve HANGİ ölçeğin
+   * kullanıldığı döndürülür (çağıran bunu kullanıcıya söyler). Hiçbiri sığmazsa düz dolguya
+   * düşülür ama bu artık SESSİZ değildir: dustu = true.
+   */
+  const oto = autoHatchScale(ad, poly);
+  const istenen = o.scale > 0 ? o.scale : oto;
+  const denemeler = [istenen];
+  for (const k of [oto, oto * 2, oto * 5, oto * 10, oto * 25, oto * 100]) if (k > istenen * 1.001 && !denemeler.some(x => Math.abs(x - k) < 1e-9)) denemeler.push(k);
+  for (const sc of denemeler) {
+    const defs = patternDefs(ad, sc, an);
+    const r = defs.length ? hatchLines(poly, defs, { maxSeg: 20000, maxWork: 1e6 }) : null;
+    if (!r) continue;
+    /*
+     * İKİ VARLIK. Sınır, desen aralığı ekranda 2 px'in altına inince çizgilerin yerine görünen
+     * SAYDAM DOLGUDUR (render.js LOD; dosyadan okunan taramada da aynı düzen vardır) — bu olmadan
+     * uzaklaşınca tarama ekrandan tamamen kaybolurdu. hp / hpFill çiftini render.js okur.
+     */
+    const sinir = { ...ortak, type: 'HATCH', pts: cokgen, pattern: ad, hscale: sc, hangle: an, alpha, hp: r.minStep, ...(gid ? { gid } : {}) };
+    const cizgi = { ...ortak, type: 'PATH', ops: r.ops.map(op => [op[0], op[1], op[2], z]), closed: false, fill: false, hp: r.minStep, hpart: 1, ...(gid ? { gid } : {}) };
+    return { ents: [sinir, cizgi], pattern: ad, segs: r.segs, scale: sc, angle: an, oto: Math.abs(sc - istenen) > 1e-9 };
+  }
+  return { ...duz(istenen, an), dustu: true, istenenDesen: ad };
 }
+

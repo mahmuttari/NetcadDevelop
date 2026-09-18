@@ -285,7 +285,7 @@ export default {
   attrEdit: 'Modifier les attributs',
   exploded: 'Décomposé',
   noRegion: 'Aucune zone fermée trouvée',
-  hatchAdded: 'Hachures ajoutées', hatchPatTitle: 'Motif de hachure', hatchScale: 'Échelle du motif', hatchAngle: 'Angle du motif (°)', patSolid: 'Remplissage plein', tl_hatchpat: 'Motif', th_hatchpat: 'Motif, échelle et angle des nouvelles hachures',
+  hatchAdded: 'Hachures ajoutées', hatchPatTitle: 'Motif de hachure', hatchScale: 'Échelle du motif', autoWord: 'automatique', hatchFromFile: 'motif du fichier', hatchFail_sinir: 'Aucun contour trouvé : cette hachure ne peut pas être reconstruite', hatchFail_desen: 'Ce motif appartient au fichier ; l\'application n\'a pas d\'équivalent et l\'a conservé tel quel', hatchFail_deger: 'L\'échelle et l\'angle doivent être des nombres (échelle supérieure à zéro)', hatchFail_uretim: 'La hachure n\'a pas pu être créée', hatchFail_yogun: 'Le motif ne tient dans cette zone à aucune échelle ; un remplissage plein a été appliqué', hatchAutoScale: 'échelle réglée automatiquement sur %s', hatchAngle: 'Angle du motif (°)', patSolid: 'Remplissage plein', tl_hatchpat: 'Motif', th_hatchpat: 'Motif, échelle et angle des nouvelles hachures',
   dimFail: 'Impossible de créer la cote',
   balloonStart: 'Numéro de départ',
   leaderPrompt: 'Texte du repère',

@@ -284,7 +284,7 @@ export default {
   attrEdit: 'Sunting atribut',
   exploded: 'Dipecah',
   noRegion: 'Tidak ada area tertutup',
-  hatchAdded: 'Arsir ditambahkan', hatchPatTitle: 'Pola arsiran', hatchScale: 'Skala pola', hatchAngle: 'Sudut pola (°)', patSolid: 'Isian padat', tl_hatchpat: 'Pola', th_hatchpat: 'Pola, skala, dan sudut untuk arsiran baru',
+  hatchAdded: 'Arsir ditambahkan', hatchPatTitle: 'Pola arsiran', hatchScale: 'Skala pola', autoWord: 'otomatis', hatchFromFile: 'pola berkas', hatchFail_sinir: 'Batas tidak ditemukan: arsiran ini tidak dapat dibangun ulang', hatchFail_desen: 'Pola ini milik berkas; aplikasi tidak punya padanannya, jadi dibiarkan apa adanya', hatchFail_deger: 'Skala dan sudut harus berupa angka (skala lebih besar dari nol)', hatchFail_uretim: 'Arsiran tidak dapat dibuat', hatchFail_yogun: 'Pola tidak muat di area ini pada skala mana pun; isian padat diterapkan', hatchAutoScale: 'skala otomatis diatur ke %s', hatchAngle: 'Sudut pola (°)', patSolid: 'Isian padat', tl_hatchpat: 'Pola', th_hatchpat: 'Pola, skala, dan sudut untuk arsiran baru',
   dimFail: 'Dimensi tidak dapat dibuat',
   balloonStart: 'Nomor awal',
   leaderPrompt: 'Teks keterangan',

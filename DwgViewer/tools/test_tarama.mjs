@@ -253,6 +253,131 @@ const bosNokta = () => ev(() => { const S = window.dwgApp.state; let mx = -Infin
   await iptal();
 }
 
+// ---------------------------------------------------------------------------------
+// E · v7.78: "desen uygulanamıyor" — gerçek kullanıcı akışı ve sessiz düşüşler
+// ---------------------------------------------------------------------------------
+{
+  await iptal();
+  // E1 · BÜYÜK alan: desen sessizce düz dolguya DÜŞMEZ, ölçek kendiliğinden açılır.
+  //      Milimetre birimli bir projede öntanımlı ölçek 1 yüz binlerce çizgi ister; v7.77'ye kadar
+  //      çizici bütçeyi aşıyor ve tarama sessizce SOLID oluyordu — şikâyetin asıl kaynağı buydu.
+  const e1 = await ev(async () => {
+    const A = window.dwgApp, E = A.editor, S = A.state;
+    E.curPattern = { name: 'ANSI31', scale: 0, angle: 0 };
+    const x0 = 10000, y0 = 10000, w = 8000;
+    E.doc.run({ op: 'add', ents: [{ id: 'TR_BUYUK', type: 'LWPOLYLINE', layer: '0', color: 256, closed: true,
+      pts: [[x0, y0, 0], [x0 + w, y0, 0], [x0 + w, y0 + w, 0], [x0, y0 + w, 0]] }] });
+    A.requestRender(); await new Promise(r => setTimeout(r, 150));
+    const once = S.prims.length;
+    E.act('t:hatch'); await new Promise(r => setTimeout(r, 150));
+    await E.tools.regionTap([x0 + w / 2, y0 + w / 2, 0]);
+    await new Promise(r => setTimeout(r, 450));
+    if (E.tools.running) E.tools.cancel();
+    const yeni = S.prims.slice(once);
+    return { n: yeni.length, desen: [...new Set(yeni.map(p => p.info && p.info.pattern).filter(Boolean))],
+      olcek: [...new Set(yeni.map(p => p.info && p.info.hscale).filter(v => v != null))],
+      grup: [...new Set(yeni.map(p => p.info && p.info.gid).filter(Boolean))].length,
+      lodDolgu: yeni.some(p => p.hpFill != null), cizgi: yeni.some(p => p.hp != null && p.et === 'PATH') };
+  });
+  ok('E1 8 m x 8 m alan ANSI31 ile taranır (sessizce düz dolguya düşmez)', J(e1.desen) === J(['ANSI31']) && e1.n === 2, J(e1));
+  ok('E1b ölçek alan büyüklüğünden kendiliğinden türetilir', e1.olcek.length === 1 && e1.olcek[0] > 1, J(e1));
+  ok('E1c sınır uzaklık düzeyi dolgusu taşır: uzaklaşınca tarama ekrandan kaybolmaz', e1.lodDolgu === true && e1.cizgi === true, J(e1));
+
+  // E2 · Taramaya DOKUNARAK seçim: iki parça gelir ama Özellikler bunu TEK nesne sayar ve
+  //      desen / ölçek / açı alanlarını çizer. v7.77'de iki parça ayrı tür sanılıyor, alanlar hiç çıkmıyordu.
+  const e2 = await ev(async () => {
+    const A = window.dwgApp, E = A.editor, S = A.state;
+    const h = [...S.prims].reverse().find(p => p.info && p.info.pattern === 'ANSI31');
+    const gid = h.info.gid;
+    E.sel.clear(); for (const q of S.prims) if (q.info && q.info.gid === gid) E.sel.add(q);
+    E.act('props'); await new Promise(r => setTimeout(r, 450));
+    const tip = document.getElementById('pType');
+    return { secili: E.sel.size, alanlar: [...document.querySelectorAll('#docBody [data-pg]')].map(i => i.dataset.pg),
+      tipler: tip ? [...tip.options].map(o => o.text) : null };
+  });
+  ok('E2 iki parçalı tarama seçiliyken Özellikler desen / ölçek / açı gösterir', J(e2.alanlar) === J(['hpat', 'hsc', 'hang']) && e2.secili === 2, J(e2));
+  ok('E2b tür listesinde tarama TEK nesne sayılır ("Tarama (1)")', (e2.tipler || []).some(x => /\(1\)/.test(x)) && (e2.tipler || []).length === 2, J(e2));
+
+  // E3 · Uygula: desen değişir, ölçek 0 = otomatik kabul edilir, seçim korunur, iki parça da yenilenir
+  const e3 = await ev(async () => {
+    const A = window.dwgApp, E = A.editor, S = A.state;
+    const eskiG = ([...E.sel][0].info || {}).gid;
+    const eskiAnahtar = [...E.sel].map(q => q.key);   // düzenlemeden sonra bu ilkeller kalmamalı (gid KORUNUR: nesne kimliğini yitirmez)
+    document.querySelector('#docBody [data-pg="hpat"]').value = 'ANSI37';
+    document.querySelector('#docBody [data-pg="hsc"]').value = '0';
+    document.getElementById('pOk').click();
+    await new Promise(r => setTimeout(r, 500));
+    const b = [...S.prims].reverse().find(p => p.info && p.info.pattern === 'ANSI37');
+    const el = document.getElementById('toast');
+    return { desen: b && b.info.pattern, olcek: b && b.info.hscale, secim: E.sel.size,
+      parca: b ? S.prims.filter(q => q.info && q.info.gid === b.info.gid).length : 0,
+      kalanEski: S.prims.filter(q => eskiAnahtar.includes(q.key)).length, gidKorundu: !!(b && b.info.gid === eskiG),
+      toast: el && !el.hidden ? (el.querySelector('.tx') || el).textContent : '' };
+  });
+  ok('E3 desen uygulanır (ANSI37), ölçek 0 otomatik sayılır', e3.desen === 'ANSI37' && e3.olcek > 1, J(e3));
+  ok('E3b eski ilkeller silinir, tarama grup kimliğini korur, iki parçalı ve seçili kalır', e3.kalanEski === 0 && e3.gidKorundu === true && e3.parca === 2 && e3.secim === 2, J(e3));
+  ok('E3c sessiz kapanış yok: sonuç iletisi verilir', /uygulandı|applied/i.test(e3.toast), J(e3));
+
+  // E4 · DOSYADAN okunan tarama: iki ilkeli tek grup, kendi desen adı listede kalır ve
+  //      yalnız katman değiştirilince desen bozulmaz (v7.77'de sessizce düz dolguya dönüyordu).
+  const e4 = await ev(async () => {
+    const A = window.dwgApp, E = A.editor, S = A.state;
+    document.getElementById('docPanel').hidden = true;
+    const h = S.prims.find(p => p.info && p.info.pattern && !String(p.key || '').startsWith('TR_') && p.info.gid && String(p.info.gid).startsWith('H'));
+    if (!h) return { dosyaTaramasiYok: true };
+    const gid = h.info.gid, once = h.info.pattern;
+    E.sel.clear(); for (const q of S.prims) if (q.info && q.info.gid === gid) E.sel.add(q);
+    E.act('props'); await new Promise(r => setTimeout(r, 450));
+    const sel = document.querySelector('#docBody [data-pg="hpat"]');
+    const secili = sel ? sel.value : null;
+    document.getElementById('pOk').click();
+    await new Promise(r => setTimeout(r, 400));
+    const kalan = S.prims.filter(q => q.info && q.info.gid === gid);
+    return { once, secili, parca: E.sel.size, kalanParca: kalan.length, desen: [...new Set(kalan.map(q => q.info.pattern))] };
+  });
+  if (e4.dosyaTaramasiYok) ok('E4 (atlandı: örnek çizimde dosya taraması yok)', true, J(e4));
+  else {
+    ok('E4 dosya taramasının iki ilkeli tek grup: dokunuşta ikisi birlikte seçilir', e4.parca === 2, J(e4));
+    ok('E4b dosyanın kendi desen adı listede seçili kalır (sessizce dolguya düşmez)', e4.secili === e4.once, J(e4));
+    ok('E4c desene dokunulmadan Uygula tarama desenini bozmaz', e4.kalanParca === 2 && J(e4.desen) === J([e4.once]), J(e4));
+  }
+
+  // E5 · Dizi: kopyalar YENİ grup kimliği alır (biri seçilince hepsi seçilmez)
+  const e5 = await ev(async () => {
+    const A = window.dwgApp, E = A.editor, S = A.state;
+    document.getElementById('docPanel').hidden = true;
+    const b = [...S.prims].reverse().find(p => p.info && p.info.pattern === 'ANSI37');
+    if (!b) return { yok: true };
+    const gid = b.info.gid;
+    const keys = S.prims.filter(q => q.info && q.info.gid === gid).map(q => q.key);
+    E.doc.run({ op: 'array', keys, items: [{ m: [1, 0, 0, 1, 20000, 0] }, { m: [1, 0, 0, 1, 40000, 0] }] });
+    A.requestRender(); await new Promise(r => setTimeout(r, 250));
+    const gidler = [...new Set(S.prims.filter(q => q.info && q.info.pattern === 'ANSI37').map(q => q.info.gid))];
+    return { grupSayisi: gidler.length };
+  });
+  ok('E5 dizi kopyaları ayrı grup kimliği alır (asıl + iki kopya = üç grup)', e5.yok || e5.grupSayisi === 3, J(e5));
+
+  // E6 · DXF: dosyadan gelen desen çizgileri AYRICA polyline olarak yazılmaz
+  const e6 = await ev(async () => {
+    const E = await import('./edit.js');
+    const S = window.dwgApp.state;
+    const cizgiOps = S.prims.filter(q => q.k === 0 && q.hp != null).map(q => q.ops.length);
+    const t = E.writeDxf(S.prims, S.layers, {});
+    const ln = t.split('\r\n'); const polyN = []; let cur = null, hatch = 0;
+    for (let i2 = 0; i2 + 1 < ln.length; i2 += 2) {
+      const kod = ln[i2].trim(), deg = ln[i2 + 1];
+      if (kod === '0') { cur = deg; if (deg === 'HATCH') hatch++; }
+      else if (kod === '90' && cur === 'LWPOLYLINE') polyN.push(+deg || 0);
+    }
+    return { hatch, cizgiOps, sizan: cizgiOps.filter(n => polyN.includes(n)) };
+  });
+  ok('E6 DXF: tarama HATCH olarak çıkar, desen çizgileri ayrıca polyline olarak yazılmaz', e6.hatch >= 1 && e6.cizgiOps.length > 0 && e6.sizan.length === 0, J(e6));
+
+  await ev(() => { window.dwgApp.editor.act('hatchpat'); }); await bekle(300);
+  await ev(() => document.querySelector('#askField .ask-cell[data-v="SOLID"]').click()); await page.click('#askOk'); await bekle(200);
+  await iptal();
+}
+
 ok('X sayfa hatası yok', errors.length === 0, J(errors.slice(0, 3)));
 await browser.close(); await srv.kill();
 C.summary(); C.exit();

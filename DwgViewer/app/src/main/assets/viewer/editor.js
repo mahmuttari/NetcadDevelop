@@ -35,7 +35,7 @@ const tt = (k, tr) => { const v = t(k); return v === k ? tr : v; };
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const call = (fn, ...a) => { try { return typeof fn === 'function' ? fn(...a) : undefined; } catch (e) { console.warn(e); return undefined; } };
 let api, S, tools, doc = null, v3 = null;
-const ed = { is3D: () => !!(v3 && !$('cv3d').hidden), tools: null, doc: null, curLayer: '0', curColor: 256, tab: 'view', sel: new Set(), result: null, m3: null, curPattern: { name: 'SOLID', scale: 1, angle: 0 } };
+const ed = { is3D: () => !!(v3 && !$('cv3d').hidden), tools: null, doc: null, curLayer: '0', curColor: 256, tab: 'view', sel: new Set(), result: null, m3: null, curPattern: { name: 'SOLID', scale: 0, angle: 0 } };   // ölçek 0 = otomatik
 
 // ---------------------------------------------------------------------------------
 // Kullanım tercihleri (ui) — kalıcı anahtar 'ui'
@@ -466,16 +466,17 @@ async function hatchPatPop() {
   if (!gate('t:hatch')) return;
   const G = await import('./geom.js');
   const adlar = Object.keys(G.HATCH_PATTERNS);
-  const cur = ed.curPattern || { name: 'SOLID', scale: 1, angle: 0 };
+  const cur = ed.curPattern || { name: 'SOLID', scale: 0, angle: 0 };
   const r = await askForm(t('hatchPatTitle'), [
     { id: 'name', label: tileLabel('hatchpat'), type: 'grid', value: cur.name,   // kartlı liste: her desenin önizlemesi görünür
       options: adlar.map(n => [n, n === 'SOLID' ? t('patSolid') : n, patSvg(G, n)]) },
-    { id: 'scale', label: t('hatchScale'), type: 'number', value: String(cur.scale) },
+    { id: 'scale', label: t('hatchScale') + ' (0 = ' + t('autoWord') + ')', type: 'number', value: String(cur.scale || 0) },
     { id: 'angle', label: t('hatchAngle'), type: 'number', value: String(cur.angle) },
   ], { ok: t('ok') });
   if (!r) return;
   const sc = parseFloat(String(r.scale).replace(',', '.')), an = parseFloat(String(r.angle).replace(',', '.'));
-  ed.curPattern = { name: adlar.includes(r.name) ? r.name : 'SOLID', scale: isFinite(sc) && sc > 0 ? sc : 1, angle: isFinite(an) ? an : 0 };
+  // ölçek 0 / boş: alan büyüklüğünden türetilir (annot.hatchEnts otomatik ölçek)
+  ed.curPattern = { name: adlar.includes(r.name) ? r.name : 'SOLID', scale: isFinite(sc) && sc > 0 ? sc : 0, angle: isFinite(an) ? an : 0 };
   refreshTiles();
   api.toast(ed.curPattern.name === 'SOLID' ? t('patSolid') : ed.curPattern.name);
 }
@@ -1063,25 +1064,41 @@ function pickColor() {
  */
 const LW_LIST = [0, 5, 9, 13, 15, 18, 20, 25, 30, 35, 40, 50, 53, 60, 70, 80, 90, 100, 106, 120, 140, 158, 200, 211];
 const fx12 = (v) => (typeof v === 'number' && isFinite(v) ? String(+v.toPrecision(12)) : '');
-/**
- * İlkel bir TARAMA mı? Sınır ilkeli (et 'HATCH') ya da onun desen çizgileri (ent.hpart) olabilir;
- * ikisi de aynı gid'i taşır. Dönüş { pattern, scale, angle } ya da null.
+/*
+ * TARAMANIN PARÇALARI. Bir tarama ekranda tek nesnedir ama SAHNEDE iki ilkelden oluşur:
+ *   · SINIR   — kapalı çokgen; desenliyse saydam dolgu (hpFill), SOLID ise tam dolgu
+ *   · ÇİZGİLER — desenin kırpılmış parçaları; p.hp (desen aralığı) taşır
+ * İkisi de aynı grup kimliğini (gid) taşır: bizim ürettiğimizde annot.hatchEnts, dosyadan
+ * okunanda scene.js verir. Aşağıdaki üç yardımcı, paletin ve düzenlemenin tek doğru kaynağıdır.
  */
-function hatchInfo(p) {
-  if (!p) return null;
-  const inf = p.info || {};
-  const tarama = (inf.t || p.et) === 'HATCH' || !!(p.ent && p.ent.hpart);
-  if (!tarama) return null;
-  const k = hatchBoundary(p) || p;
-  const ki = k.info || {};
-  return { pattern: String(ki.pattern || 'SOLID').toUpperCase(), scale: ki.hscale == null ? 1 : ki.hscale, angle: ki.hangle == null ? 0 : ki.hangle };
+const hatchLinesPart = (p) => !!p && p.k === 0 && p.hp != null;                 // desen çizgileri ilkeli
+const hatchAnyPart = (p) => !!p && p.k === 0 && (hatchLinesPart(p) || ((p.info && p.info.t) || p.et) === 'HATCH');
+/** Taramanın parçaları (gid grubu; gid yoksa ilkelin kendisi) */
+function hatchGroup(p) {
+  const gid = p && p.info && p.info.gid;
+  if (!gid) return [p];
+  return S.prims.filter(q => q.info && q.info.gid === gid);
 }
-/** Taramanın SINIR ilkeli: aynı gruptaki (gid) et === 'HATCH' ilkeli */
+/**
+ * Taramanın SINIR ilkeli: desen çizgileri ASLA sınır sayılmaz (onların ops'u yüzlerce kırpılmış
+ * parçanın uçlarıdır; sınır sanılırsa yeniden üretilen tarama kendini kesen çöp bir çokgene oturur).
+ * Bulunamazsa null döner ve çağıran işlemi hiç yapmaz.
+ */
 function hatchBoundary(p) {
-  const gid = p.info && p.info.gid;
-  if ((p.info && p.info.t) === 'HATCH' || p.et === 'HATCH') return p;
-  if (!gid) return null;
-  return S.prims.find(q => q.info && q.info.gid === gid && ((q.info.t || q.et) === 'HATCH')) || null;
+  if (!hatchAnyPart(p)) return null;
+  const parcalar = hatchGroup(p);
+  const sinir = parcalar.find(q => !hatchLinesPart(q) && q.closed && (((q.info && q.info.t) || q.et) === 'HATCH'));
+  if (sinir) return sinir;
+  return !hatchLinesPart(p) && p.closed ? p : null;
+}
+/** İlkel bir taramaysa { pattern, scale, angle, bilinen } döner, değilse null */
+function hatchInfo(p) {
+  if (!hatchAnyPart(p)) return null;
+  const k = hatchBoundary(p) || (hatchLinesPart(p) ? null : p);
+  if (!k) return null;
+  const ki = k.info || {};
+  const ad = String(ki.pattern || 'SOLID').toUpperCase();
+  return { pattern: ad, scale: ki.hscale > 0 ? ki.hscale : 1, angle: ki.hangle == null ? 0 : ki.hangle, bilinen: !!HATCH_PATTERNS[ad] };
 }
 function propFields(p) {
   const F = [], inf = p.info || {}, top = inf.t || p.et;
@@ -1117,8 +1134,15 @@ function propFields(p) {
      * Uygulanınca tarama sınırı korunarak yeniden üretilir (aşağıda propCmds).
      */
     const h = hatchInfo(p);
-    F.push({ id: 'hpat', label: t('hatchPatTitle'), type: 'select', value: h.pattern,
-      options: Object.keys(HATCH_PATTERNS).map(n => [n, n === 'SOLID' ? t('patSolid') : n]) });
+    /*
+     * Dosyadan gelen desen adı bizim tablomuzda olmayabilir (ANGLE, AR-CONC, BRICK…). O ad
+     * listeye EKLENİR: yoksa tarayıcı hiçbir seçeneği eşleştiremez, ilk seçeneği (SOLID)
+     * işaretler ve kullanıcı desene hiç dokunmadan Uygula'ya bastığında tarama dolguya dönerdi.
+     */
+    const adlar = Object.keys(HATCH_PATTERNS);
+    const secenek = adlar.map(n => [n, n === 'SOLID' ? t('patSolid') : n]);
+    if (!h.bilinen) secenek.unshift([h.pattern, h.pattern + ' \u00b7 ' + t('hatchFromFile')]);
+    F.push({ id: 'hpat', label: t('hatchPatTitle'), type: 'select', value: h.pattern, options: secenek });
     num('hsc', t('hatchScale'), h.scale); num('hang', t('hatchAngle'), h.angle);
     return F;
   }
@@ -1128,8 +1152,9 @@ function propFields(p) {
   return F;
 }
 /** Değişen alanlardan komutlar (seçimdeki aynı türden her nesne için); yerleştirme grubu tek nesne sayılır */
-function propCmds(sel, F, vals) {
+function propCmds(sel, F, vals, genel, rapor) {
   const cmds = [], seenIns = new Set(), seenHatch = new Set();
+  const basarisiz = (rapor && rapor.basarisiz) || [], uyarlanan = (rapor && rapor.uyarlanan) || [];
   const changed = (id) => vals[id] !== undefined && F.some(f => f.id === id) && String(vals[id]) !== String(F.find(f => f.id === id).value);
   const numv = (id) => { const n = parseFloat(String(vals[id]).replace(',', '.')); return isFinite(n) ? n : null; };
   const D2R = Math.PI / 180;
@@ -1163,22 +1188,33 @@ function propCmds(sel, F, vals) {
      */
     if (hatchInfo(p) && (changed('hpat') || changed('hsc') || changed('hang'))) {
       const sinir = hatchBoundary(p);
-      if (!sinir || !Array.isArray(sinir.ops) || sinir.ops.length < 3) continue;
+      // Sınır bulunamıyorsa (bozuk ya da tanınmayan tarama) işlem HİÇ yapılmaz: desen çizgilerinin
+      // uçlarından çokgen örmek çizimde tanınmaz bir leke bırakırdı.
+      if (!sinir || !Array.isArray(sinir.ops) || sinir.ops.length < 3) { basarisiz.push('sinir'); continue; }
       const gid = (sinir.info && sinir.info.gid) || null;
       const anahtar = gid || sinir.key;
       if (seenHatch.has(anahtar)) continue; seenHatch.add(anahtar);
       const h = hatchInfo(sinir);
-      const ad = changed('hpat') ? String(vals.hpat) : h.pattern;
-      const sc = changed('hsc') ? numv('hsc') : h.scale;
+      const ad = String(changed('hpat') ? vals.hpat : h.pattern).toUpperCase();
+      // Ölçek: boş ya da 0 => OTOMATİK (alan büyüklüğünden türetilir); sayı olmayan metin hata.
+      const scMetin = changed('hsc') ? String(vals.hsc == null ? '' : vals.hsc).trim() : null;
+      const sc = scMetin === null ? h.scale : (scMetin === '' ? 0 : (numv('hsc') == null ? null : Math.max(0, numv('hsc'))));
       const an = changed('hang') ? numv('hang') : h.angle;
-      if (!HATCH_PATTERNS[String(ad).toUpperCase()] || !(sc > 0) || an == null) continue;
+      if (!HATCH_PATTERNS[ad]) { basarisiz.push('desen'); continue; }          // dosyanın kendi deseni korunur, dolguya çevrilmez
+      if (sc == null || an == null) { basarisiz.push('deger'); continue; }
       const pts = sinir.ops.filter(o => o[0] === 0 || o[0] === 1).map(o => [o[1], o[2], o[3] || 0]);
-      if (pts.length < 3) continue;
-      const r = hatchEnts(pts, { pattern: ad, scale: sc, angle: an, gid: gid || newId(), layer: sinir.lay, color: sinir.info ? sinir.info.ci : 256, alpha: sinir.alpha == null ? 1 : sinir.alpha });
-      if (!r) continue;
+      if (pts.length < 3) { basarisiz.push('sinir'); continue; }
+      // Aynı Uygula'da katman / renk de değiştiyse YENİ tarama onlarla üretilir: yoksa önce
+      // eski ilkellere uygulanır, hemen ardından silinirlerdi ve değişiklik kaybolurdu.
+      const lay = genel && genel.layer != null ? genel.layer : sinir.lay;
+      const ci = genel && genel.color != null ? genel.color : (sinir.info ? sinir.info.ci : 256);
+      const r = hatchEnts(pts, { pattern: ad, scale: sc, angle: an, gid: gid || newId(), layer: lay, color: ci, alpha: sinir.alpha == null ? 1 : sinir.alpha });
+      if (!r) { basarisiz.push('uretim'); continue; }
+      if (r.dustu) basarisiz.push('yogun');                                    // desen hiçbir ölçekte sığmadı
+      else if (r.oto) uyarlanan.push(r.scale);                                 // ölçek kendiliğinden açıldı
       const eski = gid ? S.prims.filter(q => q.info && q.info.gid === gid).map(q => q.key) : [sinir.key];
       cmds.push({ op: 'delete', keys: eski });
-      cmds.push({ op: 'add', ents: r.ents.map(e => ({ ...e, id: newId(), layer: e.layer || sinir.lay, color: e.color == null ? (sinir.info ? sinir.info.ci : 256) : e.color })) });
+      cmds.push({ op: 'add', ents: r.ents.map(e => ({ ...e, id: newId(), layer: e.layer || lay, color: e.color == null ? ci : e.color })) });
       continue;
     }
     if (p.k === 1) {
@@ -1223,16 +1259,25 @@ function showProps(all) {
   if (!needModel()) return;
   if (!ed.sel.size) { api.toast(t('selectFirstQ')); return; }
   const tam = all || [...ed.sel];
-  const typeOf = (p) => (p.info && p.info.t) || p.et || ('k' + p.k);
-  const counts = new Map(); for (const p of tam) counts.set(typeOf(p), (counts.get(typeOf(p)) || 0) + 1);
+  /*
+   * TÜR, MANTIKSAL NESNENİN TÜRÜDÜR. Tarama sahnede iki ilkeldir (sınır + desen çizgileri);
+   * ham tür alınırsa ikisi 'HATCH' ve 'PATH' görünür, "hepsi aynı tür mü" denetimi düşer ve
+   * türe özgü alanlar — yani DESEN, ÖLÇEK, AÇI — hiç çizilmez. v7.77'de kusur buydu.
+   * Sayım da mantıksal nesne üzerindendir: iki parçalı tarama listede "Tarama (1)" görünür.
+   */
+  const typeOf = (p) => (p.info && p.info.t === 'HATCH' ? 'HATCH' : (hatchAnyPart(p) ? 'HATCH' : ((p.info && p.info.t) || p.et || ('k' + p.k))));
+  const nesneKey = (p) => (p.info && p.info.gid) || ((p.info && p.info.t === 'INSERT' && p.info.h) || p.key);
+  const counts = new Map(); { const g = new Set(); for (const p of tam) { const k = typeOf(p) + '|' + nesneKey(p); if (g.has(k)) continue; g.add(k); counts.set(typeOf(p), (counts.get(typeOf(p)) || 0) + 1); } }
   const cur = ed.sel.size === tam.length ? '' : typeOf([...ed.sel][0]);
-  const sel = [...ed.sel].filter(p => p.k !== 4), first = sel[0] || [...ed.sel][0];
+  const sel = [...ed.sel].filter(p => p.k !== 4);
+  // Temsilci ilkel: taramada SINIR (desen çizgileri değil), böylece alanlar gerçek desenden okunur
+  const first = sel.find(p => hatchBoundary(p) === p) || sel[0] || [...ed.sel][0];
   const tur = `<select id="pType"><option value=""${cur === '' ? ' selected' : ''}>${esc(t('selAllTypes'))} (${tam.length})</option>${[...counts].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0]))).map(([k, n]) => `<option value="${esc(k)}"${k === cur ? ' selected' : ''}>${esc(tt('ety_' + k, k))} (${n})</option>`).join('')}</select>`;
   const ltSel = `<select id="pLt"><option value="">${esc(t('selByLayer'))}</option>${Object.keys(S.ltypes || {}).map(k => `<option value="${esc(k)}"${(first.lt || '') === k ? ' selected' : ''}>${esc((S.ltypes[k] && S.ltypes[k].name) || k)}</option>`).join('')}</select>`;
   const L0 = S.layers.get(first.lay), lwCur = first.lw != null && first.lw >= 0 ? first.lw : (L0 ? L0.lw : 25);
   const lwSel = `<select id="pLw"><option value="-1">${esc(t('selByLayer'))}</option>${LW_LIST.map(v => `<option value="${v}"${v === lwCur ? ' selected' : ''}>${(v / 100).toFixed(2)} mm</option>`).join('')}</select>`;
   const F = propFields(first);
-  const same = sel.every(p => typeOf(p) === typeOf(first));
+  const same = sel.every(p => typeOf(p) === typeOf(first));   // artık mantıksal tür: taramanın iki parçası da 'HATCH'
   const rows = [[t('selType'), tur, 1], [t('layer'), layerSelectHtml('pLayer', first.lay), 1], [t('color'), colorSwatches(first.info ? first.info.ci : 256), 1], [t('ltype'), ltSel, 1], [t('lweight'), lwSel, 1]];
   if (same && F.length) {
     rows.push([`<div class="full opt-title">${esc(tt('ety_' + typeOf(first), typeOf(first)))}${sel.length > 1 ? ' · ' + sel.length : ''}</div>`]);
@@ -1252,6 +1297,8 @@ function showProps(all) {
   $('docBody').onclick = (ev) => { const b = ev.target.closest('[data-ci]'); if (b) { ci = Number(b.dataset.ci); document.querySelectorAll('#docBody [data-ci]').forEach(x => x.classList.toggle('active', x === b)); } };
   $('pType').onchange = () => {
     const v = $('pType').value;
+    // Süzgeç mantıksal nesneye göre daraltır: seçilen türdeki nesnenin BÜTÜN parçaları kalır,
+    // yoksa tarama grubu ikiye bölünür ve sonraki Sil / Taşı yarım gruba uygulanırdı.
     const keep = v ? tam.filter(p => typeOf(p) === v) : tam;
     ed.sel.clear(); for (const p of keep) ed.sel.add(p);
     api.drawOverlay(); refreshTiles(); haptic('toggle');
@@ -1270,15 +1317,28 @@ function showProps(all) {
     // Katman YALNIZ kullanıcı değiştirdiyse gönderilir: yoksa çok katmanlı seçimde renk değişikliği
     // bütün nesneleri ilk nesnenin katmanına taşırdı (props işlemi cmd.layer'ı hepsine uygular).
     if (genOn) cmds.push(gen);
+    const rapor = { basarisiz: [], uyarlanan: [] }, yeniGid = [];
     if (same && F.length) {
       const vals = {};
       document.querySelectorAll('#docBody [data-pg]').forEach(el => { const id = el.dataset.pg; vals[id] = el.type === 'checkbox' ? el.checked : el.value; });
-      for (const c of propCmds(sel, F, vals)) cmds.push(c);
+      for (const c of propCmds(sel, F, vals, genOn ? gen : null, rapor)) {
+        cmds.push(c);
+        if (c.op === 'add') for (const e of c.ents || []) if (e.gid && !yeniGid.includes(e.gid)) yeniGid.push(e.gid);
+      }
     }
-    if (!cmds.length) { api.hide('docPanel'); return; }
+    if (!cmds.length) {
+      // Sessiz kapanış yok: hiçbir şey uygulanmadıysa sebebi söylenir.
+      api.hide('docPanel');
+      api.toast(rapor.basarisiz.length ? t('hatchFail_' + rapor.basarisiz[0]) : t('noChanges'));
+      return;
+    }
     const ok = doc.run(cmds.length === 1 ? cmds[0] : { op: 'group', cmds });
     refreshUndo(); api.requestRender(); api.drawOverlay(); api.hide('docPanel');
-    api.toast(ok ? t('propsApplied') : t('error'));
+    if (!ok) { api.toast(t('error')); return; }
+    // Yeniden üretilen tarama seçili kalır: rozet kaybolmasın, art arda deneme yapılabilsin.
+    if (yeniGid.length) { ed.sel.clear(); for (const q of S.prims) if (q.info && yeniGid.includes(q.info.gid)) ed.sel.add(q); api.drawOverlay(); refreshTiles(); }
+    const ek = rapor.uyarlanan.length ? ' \u00b7 ' + t('hatchAutoScale').replace('%s', api.fmt(rapor.uyarlanan[0])) : (rapor.basarisiz.length ? ' \u00b7 ' + t('hatchFail_' + rapor.basarisiz[0]) : '');
+    api.toast(t('propsApplied') + ek, ek ? 3200 : 1800);
   };
 }
 

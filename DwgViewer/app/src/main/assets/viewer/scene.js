@@ -294,7 +294,21 @@ export class SceneBuilder {
     }
     if (e.type === 'TEXT' || e.type === 'MTEXT') { inf.text = textPlain(e.text); inf.style = e.styleName; }
     if (e.type === 'ATTRIB') { inf.text = textPlain(e.text ? e.text.text : ''); inf.tag = e.tag; }
-    if (e.type === 'HATCH') { inf.pattern = e.patternName; inf.solid = e.solidFill === 1; }
+    if (e.type === 'HATCH') {
+      inf.pattern = e.patternName; inf.solid = e.solidFill === 1;
+      /*
+       * Desenli tarama iki ilkele bölünür (desen çizgileri + saydam dolgu). İkisi AYNI grup
+       * kimliğini alır: dokunuşta ikisi birlikte seçilir, silinince ikisi birlikte gider ve
+       * Özellikler onları tek nesne sayar. Kimlik varlık tanıtıcısından türer, ek alan tutmaz.
+       * Ölçek, açı ve desen TANIM SATIRLARI da saklanır: Özellikler gerçek değeri gösterir ve
+       * DXF'e yazarken dosyanın kendi deseni (tablomuzda olmayan ANGLE, AR-CONC gibi) korunur.
+       */
+      if (e.handle != null) inf.gid = 'H' + e.handle;
+      if (typeof e.patternScale === 'number' && e.patternScale > 0) inf.hscale = e.patternScale;
+      if (typeof e.patternAngle === 'number') inf.hangle = e.patternAngle * 180 / Math.PI;
+      const dl = e.definitionLines || e.patternLines;
+      if (Array.isArray(dl) && dl.length) inf.hdefs = dl;
+    }
     if (e.type === 'IMAGE') { const d = this.imageDefs.get(e.imageDefHandle); if (d) inf.file = d.fileName; }
     if (e.xdata && e.xdata.length) {
       const xd = [];

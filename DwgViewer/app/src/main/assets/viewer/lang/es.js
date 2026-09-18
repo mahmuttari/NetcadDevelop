@@ -284,7 +284,7 @@ export default {
   attrEdit: 'Editar atributos',
   exploded: 'Descompuesto',
   noRegion: 'No se encontró un área cerrada',
-  hatchAdded: 'Sombreado añadido', hatchPatTitle: 'Patrón de sombreado', hatchScale: 'Escala del patrón', hatchAngle: 'Ángulo del patrón (°)', patSolid: 'Relleno sólido', tl_hatchpat: 'Patrón', th_hatchpat: 'Patrón, escala y ángulo para nuevos sombreados',
+  hatchAdded: 'Sombreado añadido', hatchPatTitle: 'Patrón de sombreado', hatchScale: 'Escala del patrón', autoWord: 'automática', hatchFromFile: 'patrón del archivo', hatchFail_sinir: 'No se encontró contorno: este sombreado no se puede reconstruir', hatchFail_desen: 'Este patrón pertenece al archivo; la aplicación no tiene equivalente y se conservó tal cual', hatchFail_deger: 'La escala y el ángulo deben ser números (escala mayor que cero)', hatchFail_uretim: 'No se pudo crear el sombreado', hatchFail_yogun: 'El patrón no cabe en esta área a ninguna escala; se aplicó un relleno sólido', hatchAutoScale: 'escala ajustada automáticamente a %s', hatchAngle: 'Ángulo del patrón (°)', patSolid: 'Relleno sólido', tl_hatchpat: 'Patrón', th_hatchpat: 'Patrón, escala y ángulo para nuevos sombreados',
   dimFail: 'No se pudo crear la cota',
   balloonStart: 'Número inicial',
   leaderPrompt: 'Texto de la directriz',

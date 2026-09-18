@@ -837,11 +837,14 @@ export class ToolManager {
       return;
     }
     // Desen, araç çubuğundaki "Desen" karosundan gelir; SOLID varsayılandır (eski davranış).
-    const hp = (A.hatchPattern && A.hatchPattern()) || { name: 'SOLID', scale: 1, angle: 0 };
+    const hp = (A.hatchPattern && A.hatchPattern()) || { name: 'SOLID', scale: 0, angle: 0 };
     const r = hatchEnts(pts, { pattern: hp.name, scale: hp.scale, angle: hp.angle, gid: newId(), layer: A.layer(), color: A.color(), alpha: 1 });
     if (!r) { A.toast(t('error')); return; }
     this.commitMany(r.ents);
-    A.toast(t('hatchAdded') + ' \u00b7 ' + (r.pattern === 'SOLID' ? t('patSolid') : r.pattern) + ' \u00b7 ' + A.fmt(reg.area) + (u ? u + '\u00b2' : ''));
+    // Desen istendiği hâlde uygulanamadıysa ya da ölçek kendiliğinden açıldıysa KULLANICIYA SÖYLENİR:
+    // sessizce düz dolgu vermek, "desen uygulanmıyor" diye görünen asıl kusurdu.
+    const ek = r.dustu ? ' \u00b7 ' + t('hatchFail_yogun') : (r.oto ? ' \u00b7 ' + t('hatchAutoScale').replace('%s', A.fmt(r.scale)) : '');
+    A.toast(t('hatchAdded') + ' \u00b7 ' + (r.pattern === 'SOLID' ? t('patSolid') : r.pattern) + ek + ' \u00b7 ' + A.fmt(reg.area) + (u ? u + '\u00b2' : ''), ek ? 3600 : 2200);
   }
   /** Açıklama üreticilerine verilen ortak seçenekler (yazı yüksekliği, katman, renk, grup) */
   annotOpts(extra) {

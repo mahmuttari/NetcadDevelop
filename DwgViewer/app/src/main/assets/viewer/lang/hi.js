@@ -284,7 +284,7 @@ export default {
   attrEdit: 'विशेषताएँ संपादित करें',
   exploded: 'विखंडित किया गया',
   noRegion: 'कोई बंद क्षेत्र नहीं मिला',
-  hatchAdded: 'हैच जोड़ा गया', hatchPatTitle: 'हैच पैटर्न', hatchScale: 'पैटर्न स्केल', hatchAngle: 'पैटर्न कोण (°)', patSolid: 'ठोस भराव', tl_hatchpat: 'पैटर्न', th_hatchpat: 'नई हैच के लिए पैटर्न, स्केल और कोण',
+  hatchAdded: 'हैच जोड़ा गया', hatchPatTitle: 'हैच पैटर्न', hatchScale: 'पैटर्न स्केल', autoWord: 'स्वतः', hatchFromFile: 'फ़ाइल का पैटर्न', hatchFail_sinir: 'सीमा नहीं मिली: यह हैच फिर से नहीं बनाया जा सकता', hatchFail_desen: 'यह पैटर्न फ़ाइल का अपना है; ऐप में समकक्ष नहीं है, इसलिए यथावत रखा गया', hatchFail_deger: 'स्केल और कोण संख्या होने चाहिए (स्केल शून्य से बड़ा)', hatchFail_uretim: 'हैच नहीं बनाया जा सका', hatchFail_yogun: 'पैटर्न किसी भी स्केल पर इस क्षेत्र में नहीं समाता; ठोस भराव लगाया गया', hatchAutoScale: 'स्केल स्वतः %s कर दिया गया', hatchAngle: 'पैटर्न कोण (°)', patSolid: 'ठोस भराव', tl_hatchpat: 'पैटर्न', th_hatchpat: 'नई हैच के लिए पैटर्न, स्केल और कोण',
   dimFail: 'विमा नहीं बनाई जा सकी',
   balloonStart: 'आरंभिक संख्या',
   leaderPrompt: 'लीडर का पाठ',

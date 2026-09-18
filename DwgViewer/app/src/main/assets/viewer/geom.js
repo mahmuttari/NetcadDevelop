@@ -1221,6 +1221,32 @@ export function patternDefs(name, scale = 1, angleDeg = 0) {
     };
   });
 }
+/** Desenin 1 ölçekteki DİK aralığı (en sık çizgi ailesi); otomatik ölçek bunun üstüne kurulur */
+export function patternStep(name) {
+  let m = Infinity;
+  for (const d of patternDefs(name, 1, 0)) { const s = Math.abs((d.offset && d.offset.y) || 0); if (s > 1e-12 && s < m) m = s; }
+  return isFinite(m) ? m : 0;
+}
+/**
+ * OTOMATİK DESEN ÖLÇEĞİ. acad.pat desenleri İNÇ tabanlıdır (ANSI31'in aralığı 0,125 birim).
+ * Milimetre birimli bir projede 2 m x 2 m'lik bir alan bu aralıkla 22 binden fazla çizgi ister:
+ * çizici bütçeyi aşar ve tarama sessizce düz dolguya düşerdi. Burada alanın kısa kenarına göre
+ * okunabilir bir aralık seçilir (kısa kenarın ~1/40'ı) ve 1-2-5 basamağına yuvarlanır.
+ * polys: [[ [x,y], … ], …]  ·  dönüş: ölçek (>0) ya da desen bilinmiyorsa 1
+ */
+export function autoHatchScale(name, polys) {
+  const step = patternStep(name);
+  if (!(step > 0)) return 1;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const pl of polys || []) for (const q of pl) { if (q[0] < x0) x0 = q[0]; if (q[1] < y0) y0 = q[1]; if (q[0] > x1) x1 = q[0]; if (q[1] > y1) y1 = q[1]; }
+  const kisa = Math.min(x1 - x0, y1 - y0);
+  if (!(kisa > 0) || !isFinite(kisa)) return 1;
+  const ham = (kisa / 40) / step;
+  if (!(ham > 0) || !isFinite(ham)) return 1;
+  const us = Math.pow(10, Math.floor(Math.log10(ham)));
+  const k = ham / us;
+  return (k < 1.5 ? 1 : k < 3.5 ? 2 : k < 7.5 ? 5 : 10) * us;
+}
 /**
  * Kapalı çokgenleri desen tanımına göre çizgi parçalarına böler.
  * polys: [[ [x,y], … ], …] · defs: patternDefs çıktısı ya da DXF/DWG tanım satırları
