@@ -245,7 +245,9 @@ const etiket = (act) => ev((a) => { const b = document.querySelector(`#toolbar [
 // 8) Komut listesi ekranı
 // ---------------------------------------------------------------------------------
 {
-  await ev(() => document.querySelector('#cmdBtns [data-cmd-help]').click());
+  // v7.82: "?" #cmdBtns'ten İSTEM SATIRINA taşındı (#cmdHelp) — orada 40 px sözleşmesi dışındadır
+  // ve boştaki çubuğu 40 px'te tutmuyor. Eylem düğmeleri (Bitir · Geri · İptal) #cmdBtns'te kalır.
+  await ev(() => document.getElementById('cmdHelp').click());
   await page.waitForTimeout(250);
   const d = await ev(() => {
     const p = document.getElementById('docPanel');
@@ -300,8 +302,15 @@ const etiket = (act) => ev((a) => { const b = document.querySelector(`#toolbar [
     return { bosta: bar.classList.contains('idle'), h: bar.offsetHeight, giris: inp.offsetHeight,
       gizle: hb ? { gorunur: !hb.hidden, h: hb.offsetHeight } : null };
   });
-  // Çubuk incelir ama DOKUNMA HEDEFİ küçülmez: uygulamanın kendi sözleşmesi 40 px'tir (test_shell 46).
-  ok('11a boştaki çubuk TEK satır ve ince (60 px altı), giriş 40 px dokunma hedefini korur', a.bosta === true && a.h > 0 && a.h < 60 && a.giris >= 40, JSON.stringify(a));
+  /*
+   * YOĞUN ÇUBUK (v7.82). v7.79'da çubuk iki satırdan bire indi; geriye kalan yüksekliğin tamamı
+   * denetimlerin kendisiydi (40 px). Kullanıcı "%50 küçültelim" dediği için taban 40 px'ten
+   * WCAG 2.2 AA "Target Size (Minimum)" ölçütünün sayısal tabanına — 24 px'e — çekildi ve giriş
+   * 26 px'e indi. ALTINA İNİLMEZ: 24 px erişilebilirlik ölçütünün kendisidir. Şerit, paneller ve
+   * gezinme 40/48/52 px sözleşmesinde kalır (test_shell 46, test_lock 13) — gevşeme yalnız
+   * komut çubuğundadır. Eldiven kipi burada da 52 px'i geri getirir (11c).
+   */
+  ok('11a boştaki çubuk TEK satır ve YOĞUN (40 px altı), giriş WCAG tabanı 24 px üstünde', a.bosta === true && a.h > 0 && a.h < 40 && a.giris >= 24, JSON.stringify(a));
   ok('11b boşta Gizle düğmesi görünür', !!a.gizle && a.gizle.gorunur === true, JSON.stringify(a));
 
   const b = await ev(async () => {

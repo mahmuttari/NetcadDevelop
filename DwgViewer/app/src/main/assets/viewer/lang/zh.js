@@ -389,4 +389,6 @@ export default {
   tl_xrefs: '外部参照', th_xrefs: '附着外部参照（XATTACH）、剪裁、绑定、拆离、淡显',
   // --- v7.81
   p3Line1: '直线：起点', p3Line2: '直线：下一点（完成结束）', segmentsN: '段', line3Added: '已添加三维直线（%s 段）', p3Copy1: '复制：基点', p3Copy2: '复制：目标点', copied3: '已复制', p3Rot1: '旋转：旋转中心（Z 轴）', rot3Prompt: '旋转角度（度）：', rotated3: '已旋转', rot3Bad: '角度必须是非零数值', p3Scale1: '缩放：基点', scale3Prompt: '缩放比例：', scaled3: '已缩放', scale3Bad: '比例必须是大于零的数值', p3Mirror1: '镜像：镜像平面第一点', p3Mirror2: '镜像：镜像平面第二点', mirrored3: '已镜像', mirror3Vertical: '两点重合，无法确定镜像平面', 'tl_3:line': '直线（三维）', 'th_3:line': '三维直线；每个新点接续上一点', 'tl_3:copy': '复制（三维）', 'th_3:copy': '按基点和目标点三维复制所选对象', 'tl_3:rotate': '旋转（三维）', 'th_3:rotate': '绕经过所点位置的 Z 轴旋转；角度以度输入', 'tl_3:scale': '缩放（三维）', 'th_3:scale': '以所点位置为基准在三个轴向同时缩放（高程也缩放）', 'tl_3:mirror': '镜像（三维）', 'th_3:mirror': '以过两点的竖直平面做镜像', tl_snap3: '三维捕捉', th_snap3: '在三维中捕捉端点、中点、圆心、垂足和最近点', tl_snap3set: '三维捕捉模式', th_snap3set: '三维中启用哪些捕捉模式',
+  // --- v7.82
+  denseBars: '紧凑栏（细命令行）',
 };

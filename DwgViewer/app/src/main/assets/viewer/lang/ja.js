@@ -588,4 +588,6 @@ export default {
   tl_xrefs: '外部参照', th_xrefs: '外部参照のアタッチ（XATTACH）、クリップ、バインド、デタッチ、淡色表示',
   // --- v7.81
   p3Line1: '線分: 始点', p3Line2: '線分: 次の点（終了で完了）', segmentsN: 'セグメント', line3Added: '3D 線分を追加しました（%s セグメント）', p3Copy1: 'コピー: 基点', p3Copy2: 'コピー: 目的点', copied3: 'コピーしました', p3Rot1: '回転: 回転中心（Z 軸）', rot3Prompt: '回転角度（度）:', rotated3: '回転しました', rot3Bad: '角度は 0 以外の数値でなければなりません', p3Scale1: '尺度: 基点', scale3Prompt: '尺度係数:', scaled3: '尺度変更しました', scale3Bad: '係数は 0 より大きい数値でなければなりません', p3Mirror1: '鏡像: 鏡像平面の 1 点目', p3Mirror2: '鏡像: 鏡像平面の 2 点目', mirrored3: '鏡像化しました', mirror3Vertical: '2 点が重なっています。鏡像平面を作れません', 'tl_3:line': '線分（3D）', 'th_3:line': '3D 線分。新しい点は前の点から続きます', 'tl_3:copy': 'コピー（3D）', 'th_3:copy': '基点と目的点で選択を 3D 複写します', 'tl_3:rotate': '回転（3D）', 'th_3:rotate': 'タップした点を通る Z 軸まわりに回転します。角度は度で入力', 'tl_3:scale': '尺度（3D）', 'th_3:scale': 'タップした点を基準に 3 軸とも尺度変更します（標高も）', 'tl_3:mirror': '鏡像（3D）', 'th_3:mirror': '2 点を通る鉛直面で反転します', tl_snap3: '3D スナップ', th_snap3: '3D で端点・中点・中心・垂線・近接点にスナップします', tl_snap3set: '3D スナップ設定', th_snap3set: '3D で有効にするスナップモード',
+  // --- v7.82
+  denseBars: '高密度バー（細いコマンドライン）',
 };

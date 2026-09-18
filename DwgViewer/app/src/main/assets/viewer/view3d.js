@@ -1204,9 +1204,21 @@ export class View3D {
     return out.toDataURL('image/png');
   }
   /** durum çubuğu / HUD metni */
-  hudText() {
+/*
+   * HUD metni. YOĞUN kipte İZDÜŞÜM TÜRÜ yazılmaz: "3B · Paralel" durum çubuğunda (#stMode,
+   * editor.statusMode3D) 3B açıkken her zaman durur — aynı bilgiyi iki yerde göstermek kutuyu
+   * bir satır uzatıyordu. Bir satır eksilince kutu 32 px'ten 16 px'e iner.
+   *
+   * IZGARA ADIMI ÇIKARILMAZ, ÇÜNKÜ YİNELENME DEĞİLDİR. Durum çubuğundaki "Izgara" çipi 2B
+   * ızgarayı yazar (gridState.step) ve 2B ızgara kapalıyken hiç görünmez; buradaki this.gridStep
+   * ise 3B sınır kutusundan türeyen ÜÇ BOYUTLU zemin ızgarasının adımıdır (bkz. yukarıdaki
+   * niceStep(ext / 10)). İkisi çoğu çizimde aynı çıkar ama aynı şey değildir; onu atmak
+   * kullanıcıdan gerçek bir ölçüyü saklamak olurdu.
+   */
+  hudText(dense = false) {
     const c = this.cam, u = this.units ? ' ' + this.units : '';
-    let s = `${t('hudYaw')} ${fmtNum(c.yaw * 180 / Math.PI, 0)}°  ${t('hudPitch')} ${fmtNum(c.pitch * 180 / Math.PI, 0)}°  Z×${fmtNum(this.zScale, 2)}  ${t('hudGrid')} ${fmtNum(this.gridStep)}${u}  ${c.persp ? t('hudPersp') : t('hudOrtho')}`;
+    let s = `${t('hudYaw')} ${fmtNum(c.yaw * 180 / Math.PI, 0)}°  ${t('hudPitch')} ${fmtNum(c.pitch * 180 / Math.PI, 0)}°  Z×${fmtNum(this.zScale, 2)}  ${t('hudGrid')} ${fmtNum(this.gridStep)}${u}`;
+    if (!dense) s += `  ${c.persp ? t('hudPersp') : t('hudOrtho')}`;
     if (!this._hasFaces()) s += ' · ' + t('hudNoFaces');
     return s;
   }
@@ -1224,7 +1236,8 @@ export class View3D {
     const accent = toCss(this.selColor);
     c.save();
     c.textBaseline = 'top'; c.textAlign = 'left';
-    const mono = `${Math.round(10 * fs)}px ui-monospace, "Roboto Mono", monospace`;
+    const dense = !!host.dense;
+    const mono = `${Math.round((dense ? 9 : 10) * fs)}px ui-monospace, "Roboto Mono", monospace`;
     const sans = `${Math.round(12 * fs)}px system-ui, sans-serif`;
     // eksen etiketleri
     if (o.axes && o.axisLabels && this.bb) {
@@ -1236,16 +1249,24 @@ export class View3D {
     // kamera metni
     if (o.hud) {
       c.font = mono;
-      const l1 = this.hudText();
+      const l1 = this.hudText(dense);
       const bb = this.bb, cl = o.clip;
       const l2 = cl ? `Z: ${f(cl[2])} … ${f(cl[5])}` : bb ? `Z: ${f(bb[2])} … ${f(bb[5])}` : '';
       // İNCE HUD (v7.79): satır yüksekliği 14 → 12, iç boşluk 5 → 4, kutu daha sönük.
+      // YOĞUN HUD (v7.82): 12 → 10, 4 → 3, yazı 10 → 9 px ve Z aralığı KENDİ SATIRINI BIRAKIR,
+      // kamera satırının sonuna eklenir. Kutu 32 px'ten 16 px'e iner — kullanıcının istediği yarı.
       // Kutu çizimin üstünde durur; kalınlığı azaldıkça altındaki geometri daha çok görünür.
-      const lh = Math.round(12 * fs), pad = 4;
-      // dar tuvalde (360 px) kamera satırı sığmazsa çift boşluktan ikiye bölünür
-      let top = [l1];
-      if (c.measureText(l1).width + pad * 2 > W - 16) { const parts = l1.split('  '); const mid = Math.ceil(parts.length / 2); top = [parts.slice(0, mid).join('  '), parts.slice(mid).join('  ')]; }
-      const lines = l2 ? [...top, l2] : top;
+      const lh = Math.round((dense ? 10 : 12) * fs), pad = dense ? 3 : 4;
+      // Yoğun kipte tek satır denenir; sığmazsa aşağıdaki bölme eski iki satırlı düzene döner.
+      const tek = dense && l2 ? `${l1}  ${l2}` : l1;
+      let top = [tek];
+      let ayri = !dense || !l2;   // Z aralığı ayrı satırda mı yazılacak
+      if (c.measureText(tek).width + pad * 2 > W - 16) {
+        if (dense && l2) { top = [l1]; ayri = true; }   // sığmadı: Z aralığı yine kendi satırına
+        else { const parts = l1.split('  '); const mid = Math.ceil(parts.length / 2); top = [parts.slice(0, mid).join('  '), parts.slice(mid).join('  ')]; }
+      }
+      if (dense && l2 && ayri && c.measureText(l1).width + pad * 2 > W - 16) { const parts = l1.split('  '); const mid = Math.ceil(parts.length / 2); top = [parts.slice(0, mid).join('  '), parts.slice(mid).join('  ')]; }
+      const lines = (l2 && ayri) ? [...top, l2] : top;
       const w = Math.max(...lines.map(s => c.measureText(s).width)) + pad * 2, h = lh * lines.length + pad * 2;
       const x = 8, y = o.hudPos === 'bl' ? H - 8 - h : 8;
       this._hudBox = { x, y, w, h };   // pusula bu kutudan kaçınır
@@ -1253,7 +1274,7 @@ export class View3D {
       if (c.roundRect) c.roundRect(x, y, w, h, 5); else c.rect(x, y, w, h);
       c.fill();
       c.fillStyle = fg; top.forEach((s, i) => c.fillText(s, x + pad, y + pad + lh * i));
-      if (l2) { c.fillStyle = cl ? accent : fg; c.fillText(l2, x + pad, y + pad + lh * top.length); }
+      if (l2 && ayri) { c.fillStyle = cl ? accent : fg; c.fillText(l2, x + pad, y + pad + lh * top.length); }
     }
     // kot lejantı (sağda dikey)
     if (o.colorMode === 'elevation') {

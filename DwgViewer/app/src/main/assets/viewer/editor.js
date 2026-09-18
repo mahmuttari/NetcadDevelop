@@ -47,7 +47,7 @@ const ed = { is3D: () => !!(v3 && !$('cv3d').hidden), tools: null, doc: null, cu
 // ---------------------------------------------------------------------------------
 // Kullanım tercihleri (ui) — kalıcı anahtar 'ui'
 // ---------------------------------------------------------------------------------
-const UI_DEFAULTS = { favs: [], tbCollapsed: { portrait: false, landscape: false }, hints: {}, fontScale: 1, glove: false, leftHand: false, contrast: false, reduceMotion: false, haptics: true, dpad: false, compactStatus: false, showLocked: true, gizmo: true, infoTap: true, infoFull: false, pick3: 'auto', snap3: true, snap3Modes: DEFAULT_MODES3.slice(), grips: false, palmReject: true, penHover: true, penPressure: true, penDraw: false, penBarrel: 'menu', cmdLine: true, desktop: true, deskRight: 'enter' };
+const UI_DEFAULTS = { favs: [], tbCollapsed: { portrait: false, landscape: false }, hints: {}, fontScale: 1, glove: false, leftHand: false, contrast: false, reduceMotion: false, haptics: true, dpad: false, compactStatus: false, denseBars: true, showLocked: true, gizmo: true, infoTap: true, infoFull: false, pick3: 'auto', snap3: true, snap3Modes: DEFAULT_MODES3.slice(), grips: false, palmReject: true, penHover: true, penPressure: true, penDraw: false, penBarrel: 'menu', cmdLine: true, desktop: true, deskRight: 'enter' };
 export const ui = (() => {
   const o = JSON.parse(JSON.stringify(UI_DEFAULTS));
   const st = store.json('ui', null);
@@ -76,6 +76,8 @@ export function applyUi(o = {}) {
   if (app) { app.style.setProperty('--fs', String(ui.fontScale)); app.style.setProperty('--tile', ui.glove ? '64px' : '58px'); app.style.setProperty('--tb-h', ui.glove ? '64px' : '56px'); }
   b.classList.toggle('glove', !!ui.glove); b.classList.toggle('left-hand', !!ui.leftHand); b.classList.toggle('contrast', !!ui.contrast);
   b.classList.toggle('reduce-motion', !!ui.reduceMotion); b.classList.toggle('compact-status', !!ui.compactStatus);
+  // Yoğun çubuklar: komut satırı ve 3B bilgi satırı yarı yüksekliğe iner (bkz. app.css body.dense-bars)
+  b.classList.toggle('dense-bars', ui.denseBars !== false);
   applyCollapse();
   if (o.store !== false) store.set('ui', JSON.stringify(ui));
   try { window.dispatchEvent(new CustomEvent('dwg:ui', { detail: ui })); } catch (_) { /* yok */ }
@@ -161,6 +163,20 @@ const DRAW_3D = [
     T('snap3', 'i-snap', '3B yakalama', '3D osnap', 'Üç boyutta uç, orta, merkez, dik ve en yakın noktaya oturur', 'Snaps to endpoint, midpoint, center, perpendicular and nearest in 3D'),
     T('snap3set', 'i-sliders', '3B yakalama kipleri', '3D osnap settings', 'Hangi yakalama kiplerinin çalışacağı', 'Which 3D object snap modes are active'),
     T('target3', 'i-snap', 'Hedef', 'Target', 'Köşe / yüzey / otomatik: 3B dokunuşu neye oturur', 'Vertex / surface / auto: what a 3D tap snaps to'),
+  ] },
+  /*
+   * GEÇERLİ KATMAN / RENK ve GERİ AL / YİNELE — 2B Çiz şeridinin aynısı. 3B'de çizilen çizgi de
+   * ed.curLayer ve ed.curColor'a yazılır; onları değiştirecek bir yol olmadan 3B çizim yarım kalırdı.
+   * Geri al / yinele durum çubuğunda da durur (v7.81'de 3B'de yeniden görünür oldu); şeritte de
+   * bulunması 2B Çiz şeridiyle simetriyi kurar — kullanıcı sekme değiştirince tuş yer değiştirmez.
+   */
+  { cap: 'grpCur', items: [
+    T('layer', 'i-layers', 'Katman', 'Layer', 'Geçerli katman ve yeni katman', 'Current layer'),
+    T('color', 'i-palette', 'Renk', 'Color', 'Geçerli renk (ACI)', 'Current color'),
+  ] },
+  { cap: 'grpHist', items: [
+    T('undo', 'i-undo', 'Geri al', 'Undo'),
+    T('redo', 'i-redo', 'Yinele', 'Redo'),
   ] },
 ];
 const DISPLAY_2D = [
@@ -962,7 +978,7 @@ function showPrompt(text, opts = {}) {
   { const en = $('cmdEnter'); if (en) en.hidden = !opts.input; }   // giriş yokken Enter da yok: seçim kipinde işlevsizdi, yer kaplıyordu
   syncOrthoBtn(opts.input === 'point');                             // Ortho yalnız NOKTA istenirken: sayı ve seçim istemlerinde anlamsız
   syncTtBtn(opts.input === 'point');                                // İz noktası (TT) de yalnız nokta isteminde
-  syncHideBtn(false);                                               // Gizle yalnız BOŞTA: çalışan komutun istemi kapatılamaz
+  syncHideBtn(false); syncHelpBtn(false);                           // Gizle ve ? yalnız BOŞTA: çalışan komutun istemi kapatılamaz, satırı da dardır
   inp.placeholder = opts.input === 'number' ? t('numberPh') : t('coordPh');
   inp.type = 'text';
   // Kutudaki tek sayı doğrudan uzaklık girişidir (Çizgi / Polyline): istem tazelenince silinmez, dokunuşta kullanılır
@@ -997,11 +1013,18 @@ function idlePrompt() {
   const inp = $('cmdInput');
   inp.hidden = false; inp.type = 'text'; inp.value = ''; inp.placeholder = t('cmdPh');
   { const en = $('cmdEnter'); if (en) en.hidden = false; }
-  syncOrthoBtn(false); syncTtBtn(false); syncHideBtn(true);
+  syncOrthoBtn(false); syncTtBtn(false); syncHideBtn(true); syncHelpBtn(true);
   bar.classList.add('idle');   // boşta istem satırı girişle aynı satırda durur (bir satır kazanılır)
-  // Komut listesine tek kapı: boştaki çubuğun "?" düğmesi. Menüye gömülseydi komut satırını
-  // yeni gören kullanıcı hangi adları yazabileceğini hiç öğrenemezdi.
-  $('cmdBtns').innerHTML = `<button type="button" class="icon" data-cmd-help="1" aria-label="${esc(t('cmdHelp'))}" title="${esc(t('cmdHelp'))}"><svg class="ic" aria-hidden="true"><use href="#i-help"/></svg></button>`;
+  /*
+   * Komut listesine tek kapı: boştaki çubuğun "?" düğmesi. Menüye gömülseydi komut satırını
+   * yeni gören kullanıcı hangi adları yazabileceğini hiç öğrenemezdi.
+   *
+   * v7.82'de #cmdBtns'ten İSTEM SATIRINA taşındı. Sebep ölçüdür: #cmdBtns'teki düğmeler komut
+   * ortasında basılan EYLEM düğmeleridir (Bitir · Geri · İptal) ve 40 px'lik dokunma hedefi
+   * sözleşmesindedir; "?" ise kalıcı bir yardım gerecidir ve Ortho / İz noktası / Gizle ile aynı
+   * ailedendir. #cmdBtns'te kaldığı sürece BOŞTAKİ çubuk o 40 px yüzünden incelemiyordu.
+   */
+  $('cmdBtns').innerHTML = '';
   closeSuggest();
 }
 function closeSuggest() { const el = $('cmdSug'); if (el) { el.hidden = true; el.innerHTML = ''; } }
@@ -1063,10 +1086,13 @@ function zoomOption(arg) {
 const geriYolu = (id) => t('tabDisplay') + ' \u25b8 ' + tileLabel(id);
 /** Gizle düğmesi yalnız boştaki çubukta görünür (çalışan komutun istemi gizlenemez) */
 function syncHideBtn(goster) { const b = $('cmdHide'); if (b) b.hidden = !goster; }
+/** Komut listesi ("?") yalnız BOŞTA görünür: komut çalışırken istem satırının yeri dardır */
+function syncHelpBtn(goster) { const b = $('cmdHelp'); if (b) b.hidden = !goster; }
 function bindCmdBar() {
   // Komut satırını tek dokunuşla kapatır. Geri getirmek Ekran ▸ Komut satırı karosundadır;
   // kullanıcı kapattığı şeyi nasıl geri açacağını bilsin diye ileti bunu söyler.
   { const hb = $('cmdHide'); if (hb && !hb.dataset.bound) { hb.dataset.bound = '1'; hb.addEventListener('click', () => { toggleCmdLine(); api.toast(t('cmdHidden').replace('%s', geriYolu('cmdline')), 3200); }); } }
+  { const qb = $('cmdHelp'); if (qb && !qb.dataset.bound) { qb.dataset.bound = '1'; qb.addEventListener('click', () => showCmdList()); } }
   { const ob = $('cmdOrtho'); if (ob && !ob.dataset.bound) { ob.dataset.bound = '1'; ob.addEventListener('click', () => toggleOrtho()); } }   // giriş satırındaki Ortho düğmesi (odak vermez: klavye açılmasın)
   // İz noktası (AutoCAD TT): sonraki dokunuş nokta sayılmaz, iz noktası edinir — izleme kapalıyken de çalışır (geçici iz noktası).
   // İstem satırındadır: komut düğmesi satırına beşinci düğme (Bitir · Kapat · Geri · TT · İptal) 412 px telefonda üçüncü satır açıp tuvali örtüyordu.
@@ -2875,7 +2901,7 @@ function overlay3D() {
   if (!ed.is3D()) return;
   const ov = $('ov'), c = ov.getContext('2d');
   c.setTransform(S.dpr, 0, 0, S.dpr, 0, 0); c.clearRect(0, 0, S.W, S.H);
-  try { v3.drawHud(c, { fg: fgColor(), W: S.W, H: S.H, units: S.units || '', fmt, sel: ed.sel, gestureActive: S.gestureActive, fontScale: ui.fontScale }); } catch (e) { console.warn(e); }
+  try { v3.drawHud(c, { fg: fgColor(), W: S.W, H: S.H, units: S.units || '', fmt, sel: ed.sel, gestureActive: S.gestureActive, fontScale: ui.fontScale, dense: ui.denseBars !== false }); } catch (e) { console.warn(e); }
   c.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);
   const acc = S.selColor || '#ff9f0a';
   c.font = `${Math.round(11 * ui.fontScale)}px sans-serif`; c.textBaseline = 'top'; c.textAlign = 'left';
@@ -2996,7 +3022,7 @@ export function accessibilitySection() {
   const sw = (key, label) => `<div class="opt-row"><span class="opt-lb">${esc(label)}</span><label class="switch"><input type="checkbox" data-key="${key}" ${ui[key] ? 'checked' : ''}><span class="knob"></span></label></div>`;
   const html = `<div class="opt-sec a11y-sec full"><div class="opt-title">${esc(t('a11yTitle'))}</div>` +
     `<div class="opt-row"><span class="opt-lb">${esc(t('fontScale'))}</span><div class="seg" data-key="fontScale">${[[0.9, 'A−'], [1, 'A'], [1.15, 'A+'], [1.3, 'A++']].map(([v, l]) => `<button type="button" data-val="${v}" class="${Math.abs(ui.fontScale - v) < 0.01 ? 'on' : ''}">${l}</button>`).join('')}</div></div>` +
-    sw('glove', t('glove')) + sw('leftHand', t('leftHand')) + sw('contrast', t('contrast')) + sw('reduceMotion', t('reduceMotion')) + sw('haptics', t('haptics')) + sw('dpad', t('dpad')) + sw('compactStatus', t('compactStatus')) +
+    sw('glove', t('glove')) + sw('leftHand', t('leftHand')) + sw('contrast', t('contrast')) + sw('reduceMotion', t('reduceMotion')) + sw('haptics', t('haptics')) + sw('dpad', t('dpad')) + sw('compactStatus', t('compactStatus')) + sw('denseBars', t('denseBars')) +
     sw('gizmo', t('gizmoOn')) + sw('grips', t('gripsOn')) + sw('cmdLine', t('cmdLineOn')) + sw('infoTap', t('infoTap')) +
     (rank(tier()) < rank('super') ? sw('showLocked', t('showLocked')) : '') +
     `<div class="opt-row"><button type="button" class="btn small" data-do="hints">${esc(t('hintsReset'))}</button></div></div>` + penSection();

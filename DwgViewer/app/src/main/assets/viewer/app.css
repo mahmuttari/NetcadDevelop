@@ -6,6 +6,9 @@
   --bg: #161c25; --bar: #1f2a37; --fg: #e6eaf0; --muted: #94a3b8; --accent: #f5b342; --accent-fg: #1a1a1a;
   --panel: #1b2430; --cad-hi: #46cdf2; --cad-dim: #9bb8d2; --line: #2c3a4b; --btn: #2a3646; --btn-on: #3b4d63; --danger: #ff453a; --ok: #30d158;
   --safe-top: env(safe-area-inset-top, 0px); --safe-bottom: env(safe-area-inset-bottom, 0px); --safe-left: env(safe-area-inset-left, 0px); --safe-right: env(safe-area-inset-right, 0px);
+  /* --cmd-h: komut çubuğunun gerçek yüksekliği; editor.syncCmd onu #viewport'a yazar ve
+     ResizeObserver tazeler. Buradaki değer YALNIZ ilk karedeki yedektir (yoğun boş çubuk). */
+  --cmd-h: 29px;
   --fs: 1; --tile: 58px; --tb-h: 56px; --radius: 10px; --shadow: 0 6px 24px rgba(0,0,0,.45);
   /* Paket kimlik renkleri: kartın şeridi, rozeti ve onay imleri bunu alır. Vurgu renginden
      AYRI tutulur, çünkü üç paket yan yana durduğunda birbirinden ayrılmaları gerekir. */
@@ -84,7 +87,19 @@ button.st-chip:empty { display: none; }
 .st-mode { color: var(--accent); border-color: var(--accent); flex: 0 1 auto; min-width: 0; display: block; line-height: 24px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #stGps { color: var(--ok); }
 #stCount { flex: 0 1 auto; min-width: 64px; overflow: hidden; text-overflow: ellipsis; }
-body.mode3d .st-quick, body.mode3d #stCoord { display: none; }   /* 2B hızlı anahtarlar ve 2B imleç koordinatı 3B'de anlamsız; yer çipe ve sayaca kalır */
+/*
+ * 3B'de DURUM ÇUBUĞU. Izgara, çizgi kalınlığı, yazı ve 2B nesne yakalama anahtarları üç boyutta
+ * anlamsızdır; 2B imleç koordinatı da öyle (3B'de imleç yoktur, dokunulan nokta vardır). Bunlar
+ * gizlenir, yer çipe ve varlık sayacına kalır.
+ *
+ * GERİ AL / YİNELE GİZLENMEZ. Eskiden bütün .st-quick satırı kapatılıyordu; o karar 3B yalnız
+ * BAKILAN bir görünümken doğruydu. v7.81 ile 3B'de çizgi çiziliyor, taşınıyor, döndürülüyor,
+ * ölçekleniyor — geri alınamayan bir düzenleme kipi olmaz. İki düğme (ve adım sayısı rozetleri)
+ * üç boyutta da el altında durur.
+ */
+body.mode3d .st-quick [data-quick="grid"], body.mode3d .st-quick [data-quick="lw"],
+body.mode3d .st-quick [data-quick="text"], body.mode3d .st-quick [data-quick="osnap"],
+body.mode3d #stCoord { display: none; }
 body.compact-status #stCount { display: none; }
 
 /* --- ana ekran (home.js): çizim / belge yokken #main'i kaplar; alt gezinme Ev · Dosya · Bulut · Araçlar --- */
@@ -264,7 +279,7 @@ body.has-mouse.docmode #viewport { cursor: default; }
 .cmd-list i { opacity: .6; font-style: normal; }
 /* Komut önerisi: komut çubuğunun HEMEN ÜSTÜNDE durur, çubuğu yukarı itmez (mutlak konum),
    yoksa yazarken çizim alanı zıplardı. Yükseklik sınırlıdır; taşarsa kendi içinde kayar. */
-.cmd-sug { position: absolute; inset-inline: 0; bottom: var(--cmd-h, 44px); z-index: 6; max-height: 40vh; overflow-y: auto;
+.cmd-sug { position: absolute; inset-inline: 0; bottom: var(--cmd-h); z-index: 6; max-height: 40vh; overflow-y: auto;
   background: var(--panel, #141a22); border-block-start: 1px solid var(--line, #2a3340); display: flex; flex-direction: column; }
 .cmd-sug[hidden] { display: none; }
 .cmd-sug button { display: flex; gap: 8px; align-items: baseline; width: 100%; padding: calc(9px * var(--fs)) 12px; background: none; border: 0;
@@ -453,7 +468,7 @@ body.glove .ask-field .opt-text { min-height: 52px; }
   padding: 10px 14px; z-index: 50; max-width: 92vw; font-size: calc(13px * var(--fs)); display: flex; align-items: center; gap: 8px; box-shadow: var(--shadow); }
 .toast .tx { flex: 1 1 auto; min-width: 0; }
 .toast .act { pointer-events: auto; margin-left: 4px; border: 0; border-radius: 8px; background: var(--accent); color: var(--accent-fg); padding: 8px 12px; font-weight: 600; font-size: calc(13px * var(--fs)); min-height: 36px; }
-.cmdbar:not([hidden]) ~ .toast { bottom: calc(var(--cmd-h, 70px) + 12px); }
+.cmdbar:not([hidden]) ~ .toast { bottom: calc(var(--cmd-h) + 12px); }
 .notesbar:not([hidden]) ~ .toast { bottom: 150px; }
 .toast.error { border-left: 4px solid var(--danger); } .toast.warn { border-left: 4px solid var(--accent); } .toast.ok { border-left: 4px solid var(--ok); }
 .legend { display: flex; gap: 12px; font-size: calc(12px * var(--fs)); }
@@ -476,14 +491,14 @@ body.glove .ask-field .opt-text { min-height: 52px; }
 .cmdbar.idle .cmd-head { flex: 0 1 auto; }
 .cmdbar.idle #cmdText { flex: 0 1 auto; white-space: nowrap; }
 .cmdbar #cmdText { flex: 1 1 auto; min-width: 0; color: var(--accent); font-weight: 600; font-size: calc(12.5px * var(--fs)); }
-#cmdOrtho, #cmdTt, #cmdHide { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 32px; padding: 0; border: 1px solid var(--line); border-radius: 9px; background: var(--btn); color: var(--fg); cursor: pointer; }
-#cmdOrtho svg.ic, #cmdTt svg.ic, #cmdHide svg.ic { width: 20px; height: 20px; }
+#cmdOrtho, #cmdTt, #cmdHide, #cmdHelp { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 32px; padding: 0; border: 1px solid var(--line); border-radius: 9px; background: var(--btn); color: var(--fg); cursor: pointer; }
+#cmdOrtho svg.ic, #cmdTt svg.ic, #cmdHide svg.ic, #cmdHelp svg.ic { width: 20px; height: 20px; }
 /* Gizle: çubuğu kapatan tek dokunuşluk kaçış. Nötr ve sönük durur, istem metnini bastırmaz. */
-#cmdHide { color: var(--muted); border-color: transparent; background: transparent; }
-#cmdHide:active { background: var(--btn); }
+#cmdHide, #cmdHelp { color: var(--muted); border-color: transparent; background: transparent; }
+#cmdHide:active, #cmdHelp:active { background: var(--btn); }
 #cmdOrtho.on, #cmdTt.on { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--btn)); }
 #cmdOrtho:active, #cmdTt:active { filter: brightness(1.2); }
-body.glove #cmdOrtho, body.glove #cmdTt, body.glove #cmdHide { height: 38px; width: 48px; }
+body.glove #cmdOrtho, body.glove #cmdTt, body.glove #cmdHide, body.glove #cmdHelp { height: 38px; width: 48px; }
 /* Komut çubuğu düğmeleri. Eskiden ↵ ve ? yazı tipinin ince karakterleriyle çizilen 40 px'lik yassı
    kutulardı ve telefonda güç okunuyordu. Şimdi: 44 px, 10 px köşe, 1 px kenarlık, 22 px SVG simge;
    Enter vurgu renginde BİRİNCİL düğmedir (çubuğun tek onay eylemi), ötekiler nötr. Simgeli metin
@@ -496,8 +511,9 @@ body.glove #cmdOrtho, body.glove #cmdTt, body.glove #cmdHide { height: 38px; wid
 .cmd-in input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); }
 .cmd-in button, #cmdBtns button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; border: 1px solid var(--line); border-radius: 9px; background: var(--btn); color: var(--fg); padding: 0 9px; font-size: calc(12.5px * var(--fs)); font-weight: 600; line-height: 1; min-height: 40px; min-width: 40px; cursor: pointer; white-space: nowrap; }
 .cmd-in button svg.ic, #cmdBtns button svg.ic { width: 20px; height: 20px; }
-/* Eldiven kipi eski (büyük) hedefleri korur */
-body.glove .cmd-in input, body.glove .cmd-in button, body.glove #cmdBtns button { min-height: 44px; }
+/* Eldiven kipi eski (büyük) hedefleri korur. Yükseklik AŞAĞIDA tek yerde (52 px) verilir; burada
+   bir zamanlar 44 px'lik ikinci bir kural daha vardı ve sonraki 52 px onu eziyordu — ölü kural
+   kaldırıldı, yoksa yoğun kip eklenince üç katmanlı bir karışıklık oluyordu. */
 body.glove .cmd-in button, body.glove #cmdBtns button { min-width: 44px; }
 .cmd-in button.icon, #cmdBtns button.icon { padding: 0; width: 44px; }
 .cmd-in button.primary, #cmdBtns button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
@@ -505,6 +521,44 @@ body.glove .cmd-in button, body.glove #cmdBtns button { min-width: 44px; }
 body.glove .cmd-in input, body.glove .cmd-in button, body.glove #cmdBtns button { min-height: 52px; }
 body.glove .cmd-in button.icon, body.glove #cmdBtns button.icon { width: 52px; }
 #cmdBtns { display: flex; gap: 4px; flex-wrap: wrap; }
+/*
+ * YOĞUN ÇUBUK (v7.82) — body.dense-bars. Kullanıcının isteği: "komut satırı ... %50 küçültelim,
+ * ekranda daha çok yer kalsın". v7.79'da boştaki çubuk iki satırdan bire indi (81 → 49 px); geriye
+ * kalan yüksekliğin tamamı DENETİMLERİN kendisidir (40 px) — yani çubuğu daha da inceltmenin tek
+ * yolu düğmeleri küçültmektir.
+ *
+ * NEREYE DOKUNULUR, NEREYE DOKUNULMAZ. Küçülen şeyler istem satırı (#cmdText, Ortho, İz noktası,
+ * Gizle), giriş kutusu ve Enter'dır — boştaki çubuğu oluşturan ve kullanıcının şikâyet ettiği
+ * satır budur: 49 px → 29 px (%41). #cmdBtns'teki EYLEM DÜĞMELERİ (Bitir · Geri · İptal ·
+ * Pencere · Çokgen) DOKUNULMADAN 40 px'te kalır: onlar komut ortasında, çoğu zaman acele ve
+ * sahada basılır; uygulamanın 40 px'lik dokunma hedefi sözleşmesi (test_shell 46) onlar içindir
+ * ve bir yerleşim isteği uğruna gevşetilmez.
+ *
+ * TABAN 24 PX'TİR. Küçülen denetimlerde bile 24 px, WCAG 2.2 AA "Target Size (Minimum)"
+ * ölçütünün sayısal tabanıdır; altına inilmez. Eldiven kipi (body.glove) her şeyi geri büyütür:
+ * eşit özgüllükte kaynak sırası karar verdiği için glove geçersiz kılmaları bu bloğun ALTINDA
+ * ve iki sınıflı (body.dense-bars.glove) yazılmıştır.
+ */
+body.dense-bars .cmdbar { padding: 1px 6px; gap: 4px; font-size: calc(11px * var(--fs)); }
+body.dense-bars .cmdbar #cmdText { font-size: calc(11.5px * var(--fs)); }
+/* Kırılma eşiği de daralır: düğmeler küçülünce 360 px telefonda Bitir · Geri · İptal girişle aynı
+   satıra sığar ve ÜÇÜNCÜ satır kalkar — çizim alanından 30 px daha kazanılır. */
+body.dense-bars .cmd-in { gap: 4px; min-width: 104px; }
+body.dense-bars .cmd-in input { min-width: 64px; }
+body.dense-bars .cmd-in input { min-height: 26px; padding: 2px 8px; border-radius: 7px; font-size: calc(12.5px * var(--fs)); }
+body.dense-bars .cmd-in button { min-height: 26px; min-width: 26px; border-radius: 7px; padding: 0 7px; font-size: calc(11.5px * var(--fs)); }
+body.dense-bars .cmd-in button svg.ic { width: 17px; height: 17px; }
+body.dense-bars .cmd-in button.icon { width: 30px; }
+body.dense-bars #cmdOrtho, body.dense-bars #cmdTt, body.dense-bars #cmdHide, body.dense-bars #cmdHelp { width: 30px; height: 24px; border-radius: 7px; }
+body.dense-bars #cmdOrtho svg.ic, body.dense-bars #cmdTt svg.ic, body.dense-bars #cmdHide svg.ic, body.dense-bars #cmdHelp svg.ic { width: 17px; height: 17px; }
+/* Eldiven kipi yoğun kipi EZER: büyük hedefe ihtiyacı olan kullanıcı ayarı açık unutmuş olabilir */
+body.dense-bars.glove .cmd-in input, body.dense-bars.glove .cmd-in button { min-height: 52px; }
+body.dense-bars.glove .cmd-in button { min-width: 44px; }
+body.dense-bars.glove .cmd-in button.icon { width: 52px; }
+body.dense-bars.glove #cmdOrtho, body.dense-bars.glove #cmdTt, body.dense-bars.glove #cmdHide, body.dense-bars.glove #cmdHelp { height: 38px; width: 48px; }
+body.dense-bars.glove .cmdbar { padding: 4px 8px; gap: 6px; }
+body.dense-bars.glove .cmd-in button svg.ic,
+body.dense-bars.glove #cmdOrtho svg.ic, body.dense-bars.glove #cmdTt svg.ic, body.dense-bars.glove #cmdHide svg.ic, body.dense-bars.glove #cmdHelp svg.ic { width: 20px; height: 20px; }
 
 /* --- şerit (araç çubuğu): sekmeler + gruplu karolar --- */
 #toolbar { background: var(--bar); border-top: 1px solid var(--line); display: flex; flex-direction: column; min-width: 0; }
@@ -610,7 +664,7 @@ body.glove .st-quick button { width: 48px; height: 48px; }
 .dpad [data-pan=up] { grid-column: 2; grid-row: 1; } .dpad [data-pan=left] { grid-column: 1; grid-row: 2; } .dpad [data-pan=right] { grid-column: 3; grid-row: 2; } .dpad [data-pan=down] { grid-column: 2; grid-row: 3; }
 body.left-hand .navfabs { right: auto; left: 12px; }
 body.left-hand .dpad { left: auto; right: 12px; }
-.cmdbar:not([hidden]) ~ .navfabs, .cmdbar:not([hidden]) ~ .dpad { bottom: calc(var(--cmd-h, 70px) + 12px); }
+.cmdbar:not([hidden]) ~ .navfabs, .cmdbar:not([hidden]) ~ .dpad { bottom: calc(var(--cmd-h) + 12px); }
 .cube { position: absolute; right: 10px; top: 10px; width: 92px; padding: 4px; border-radius: 12px; background: color-mix(in srgb, var(--panel) 70%, transparent); border: 1px solid var(--line); color: var(--fg); touch-action: none; }
 .cube .cube-svg { width: 84px; height: 84px; }
 .cube.below-hud { top: 62px; }

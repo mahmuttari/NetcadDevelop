@@ -74,9 +74,29 @@ await page.screenshot({ path: `${out}/e_2d_after.png` });
     if (!v.opts.hud) { E.act('hud3'); await new Promise(r => setTimeout(r, 200)); }
     v.render(); E.act('hud3'); E.act('hud3');   // çizim tazelensin, kutu ölçülsün
     await new Promise(r => setTimeout(r, 300));
-    return { hud: v.opts.hud, kutu: v._hudBox ? { w: Math.round(v._hudBox.w), h: v._hudBox.h } : null };
+    // Kutuya çizilen metni yeniden kur: yoğun kipte hudText(true) + Z aralığı aynı satırdadır
+    const bb = v.bb, cl = v.opts.clip, F = window.dwgApp.editor.fmt || ((n) => String(n));
+    const z = cl ? `Z: ${F(cl[2])} … ${F(cl[5])}` : bb ? `Z: ${F(bb[2])} … ${F(bb[5])}` : '';
+    return { hud: v.opts.hud, kutu: v._hudBox ? { w: Math.round(v._hudBox.w), h: v._hudBox.h } : null,
+      metin: v.hudText(true) + '  ' + z, tam: v.hudText() };
   });
-  ok('8a bilgi satırı ince: iki satırlık kutu 40 px altında', !!h1.kutu && h1.kutu.h > 0 && h1.kutu.h <= 40, JSON.stringify(h1));
+  /*
+   * YOĞUN BİLGİ SATIRI (v7.82). v7.79'da kutu iki satır ve 32 px'ti. Kullanıcı "%50 küçültelim"
+   * dedi; kazanç metni kısaltmaktan geldi: "Izgara N m" ve "Paralel/Perspektif" durum çubuğunda
+   * (#stGrid, #stMode) ZATEN yazıyordu, HUD'dan çıkarıldı ve Z aralığı kamera satırının sonuna
+   * alındı. Tek satır kaldı: satır yüksekliği 12 → 10, iç boşluk 4 → 3, yazı 10 → 9 px → 16 px.
+   * Üst sınır 20 px: iki satıra dönerse (çok dar tuval) bu denetim uyarır.
+   */
+  ok('8a bilgi satırı YOĞUN: tek satırlık kutu 20 px altında (v7.79\'da 32 px idi)', !!h1.kutu && h1.kutu.h > 0 && h1.kutu.h <= 20, JSON.stringify(h1));
+  /*
+   * Yoğun HUD yalnız GERÇEK yinelenmeyi atar: "Paralel / Perspektif" durum çubuğundaki #stMode
+   * çipinde ("3B · Paralel") 3B açıkken her zaman yazar. IZGARA ATILMAZ — durum çubuğundaki çip
+   * 2B ızgarayı gösterir ve 2B ızgara kapalıyken hiç görünmez; HUD'daki adım ise 3B zemin
+   * ızgarasınındır. İkisi ayrı ölçüdür.
+   */
+  ok('8a2 yoğun HUD izdüşümü YİNELEMEZ (durum çubuğunda "3B · Paralel" yazar)', !/Paralel|Persp/.test(h1.metin || ''), JSON.stringify(h1.metin));
+  ok('8a2b ama 3B ızgara adımını SAKLAMAZ (2B çipiyle aynı ölçü değildir)', /Izgara/.test(h1.metin || ''), JSON.stringify(h1.metin));
+  ok('8a3 yoğun HUD kamera açılarını ve Z aralığını TEK satırda verir', /Yaw/.test(h1.metin || '') && /Z:/.test(h1.metin || ''), JSON.stringify(h1.metin));
 
   const h2 = await page.evaluate(async () => {
     const E = window.dwgApp.editor, v = E.view3d();
@@ -388,6 +408,101 @@ await page.screenshot({ path: `${out}/e_2d_after.png` });
   `);
   ok('10i seçim yokken hiçbir 3B düzenleme komutu açılmaz (Kot ata kutu bile açmaz)',
     ['3:move', '3:copy', '3:rotate', '3:scale', '3:mirror', '3:setz', '3:del'].every(k => y9[k] === null), JSON.stringify(y9));
+}
+
+// ---------------------------------------------------------------------------------
+// 11 · v7.82: 3B'de Geri al / Yinele görünür, yoğun çubuklar, Çiz şeridinde katman / renk
+// ---------------------------------------------------------------------------------
+{
+  /*
+   * KULLANICININ BİLDİRİMİ: "3d çizim yaparken redo undo tuşları görünmüyor."
+   * Kök neden CSS'teydi: body.mode3d BÜTÜN .st-quick satırını gizliyordu. O karar 3B yalnız
+   * BAKILAN bir görünümken doğruydu (ızgara, çizgi kalınlığı, yazı, 2B yakalama gerçekten
+   * anlamsız); v7.81 ile 3B'de çizgi çiziliyor, taşınıyor, döndürülüyor — geri alınamayan bir
+   * düzenleme kipi olmaz. Artık yalnız 2B'ye özgü dört anahtar gizlenir.
+   */
+  const u1 = await page.evaluate(async () => {
+    const E = window.dwgApp.editor;
+    if (!E.is3D()) { E.act('3d'); await new Promise(r => setTimeout(r, 700)); }
+    const gor = (sel) => { const b = document.querySelector(sel); if (!b) return null; const r = b.getBoundingClientRect(); return { v: getComputedStyle(b).display !== 'none' && r.width > 0 && r.height > 0, w: Math.round(r.width), h: Math.round(r.height), kapali: b.disabled }; };
+    return {
+      uc: E.is3D(),
+      undo: gor('#stQuick [data-quick="undo"]'), redo: gor('#stQuick [data-quick="redo"]'),
+      grid: gor('#stQuick [data-quick="grid"]'), text: gor('#stQuick [data-quick="text"]'),
+      osnap: gor('#stQuick [data-quick="osnap"]'), lw: gor('#stQuick [data-quick="lw"]'),
+      koord: gor('#stCoord'),
+    };
+  });
+  ok('11a 3B\'de Geri al ve Yinele durum çubuğunda GÖRÜNÜR', u1.uc === true && !!u1.undo && u1.undo.v === true && !!u1.redo && u1.redo.v === true, JSON.stringify(u1));
+  ok('11a2 iki düğme de 40 px dokunma hedefini korur', !!u1.undo && u1.undo.w >= 40 && u1.undo.h >= 40 && u1.redo.w >= 40 && u1.redo.h >= 40, JSON.stringify({ undo: u1.undo, redo: u1.redo }));
+  ok('11b 2B\'ye özgü dört anahtar ve 2B imleç koordinatı 3B\'de GİZLİ kalır',
+    [u1.grid, u1.lw, u1.text, u1.osnap, u1.koord].every(x => x && x.v === false), JSON.stringify({ grid: u1.grid, lw: u1.lw, text: u1.text, osnap: u1.osnap, koord: u1.koord }));
+
+  // Geri al gerçekten çalışır: 3B'de bir çizgi çiz, durum çubuğundaki düğmeyle geri al
+  const u2 = await page.evaluate(async () => {
+    const E = window.dwgApp.editor, P = () => window.dwgApp.state.scene.layouts[0].prims;
+    const say = () => P().filter(q => q.ent && q.ent.type === 'LINE').length;
+    E.act('tab:draw'); await new Promise(r => setTimeout(r, 200));
+    const once = say();
+    E.act('3:line'); await new Promise(r => setTimeout(r, 250));
+    const yaz = async (t) => { const i = document.getElementById('cmdInput'); i.value = t; document.getElementById('cmdEnter').click(); await new Promise(r => setTimeout(r, 250)); };
+    await yaz('5,5,1'); await yaz('15,5,1');
+    const btn = document.querySelector('#cmdBtns [data-cmd3="finish"]'); if (btn) btn.click();
+    await new Promise(r => setTimeout(r, 250));
+    const cizildi = say();
+    const ub = document.querySelector('#stQuick [data-quick="undo"]');
+    const kapaliydi = ub.disabled;
+    ub.click(); await new Promise(r => setTimeout(r, 500));
+    return { once, cizildi, sonra: say(), kapaliydi, rozet: ub.querySelector('.st-ct') ? ub.querySelector('.st-ct').textContent : null };
+  });
+  ok('11c 3B çizgi çizildi, durum çubuğundaki Geri al onu geri aldı', u2.cizildi === u2.once + 1 && u2.sonra === u2.once && u2.kapaliydi === false, JSON.stringify(u2));
+
+  // Çiz şeridi 3B'de artık katman / renk ve geri al / yinele de gösterir (2B Çiz şeridiyle simetri)
+  const u3 = await page.evaluate(async () => {
+    const E = window.dwgApp.editor;
+    if (!E.is3D()) { E.act('3d'); await new Promise(r => setTimeout(r, 700)); }
+    E.act('tab:draw'); await new Promise(r => setTimeout(r, 250));
+    const row = document.querySelector('#toolbar .tb-row[data-for="draw"]');
+    const k = row ? [...row.querySelectorAll('[data-act]')].map(b => b.dataset.act) : [];
+    const tekil = k.length === new Set(k).size;
+    return { karolar: k, tekil };
+  });
+  ok('11d 3B Çiz şeridinde Katman, Renk, Geri al ve Yinele var', ['layer', 'color', 'undo', 'redo'].every(a => u3.karolar.includes(a)), JSON.stringify(u3.karolar));
+  ok('11d2 şeritte aynı karo iki kez çizilmedi', u3.tekil === true, JSON.stringify(u3.karolar));
+
+  /*
+   * YOĞUN ÇUBUKLAR. Ölçüm BOŞTAKİ çubukta yapılır — kullanıcının ekran görüntüsündeki durum odur.
+   * Çalışan komutun çubuğu istem metnine kendi satırını verir (iki satır) ve zaten daha yüksektir;
+   * onu yoğun kiple karşılaştırmak elmayla armudu ölçmek olurdu.
+   * Ortho düğmesinin yoğun ölçüsü (30 x 24) test_ortho 1b'nin sözleşmesidir: Ortho bir 2B kısıtıdır,
+   * 3B'de hiç gösterilmez (burada offsetWidth 0 döner).
+   */
+  const u4 = await page.evaluate(async () => {
+    const M = await import('./editor.js'), E = window.dwgApp.editor;
+    if (E.m3) { E.m3 = null; }
+    if (E.is3D()) { E.act('3d'); await new Promise(r => setTimeout(r, 500)); }   // 2B: boşta çubuk burada
+    if (E.tools && E.tools.running) E.tools.cancel();
+    const bar = document.getElementById('cmdBar');
+    if (bar.hidden) { E.act('cmdline'); await new Promise(r => setTimeout(r, 200)); }
+    if (bar.hidden) { E.act('cmdline'); await new Promise(r => setTimeout(r, 200)); }
+    await new Promise(r => setTimeout(r, 250));
+    const olc = () => {
+      const inp = document.getElementById('cmdInput'), en = document.getElementById('cmdEnter');
+      return { bar: bar.offsetHeight, bosta: bar.classList.contains('idle'), giris: inp.offsetHeight, enter: en ? en.offsetHeight : null };
+    };
+    const yogun = olc();
+    M.ui.denseBars = false; M.applyUi(); await new Promise(r => setTimeout(r, 250));
+    const genis = olc();
+    M.ui.denseBars = true; M.ui.glove = true; M.applyUi(); await new Promise(r => setTimeout(r, 250));
+    const eldiven = olc();
+    M.ui.glove = false; M.applyUi(); await new Promise(r => setTimeout(r, 250));
+    return { yogun, genis, eldiven, acik: M.ui.denseBars };
+  });
+  ok('11e yoğun kip öntanımlı AÇIK ve giriş 26 px (eski 40 px)', u4.acik === true && u4.yogun.giris === 26, JSON.stringify(u4));
+  ok('11e2 yoğun kapatılınca eski 40 px geri gelir', u4.genis.giris === 40, JSON.stringify(u4));
+  ok('11e3 eldiven kipi yoğun kipi EZER (52 px)', u4.eldiven.giris === 52 && u4.eldiven.bar > u4.genis.bar, JSON.stringify(u4));
+  ok('11e4 boştaki yoğun çubuk 32 px altında ve genişten en az %30 kısa', u4.yogun.bosta === true && u4.yogun.bar > 0 && u4.yogun.bar < 32 && u4.yogun.bar <= u4.genis.bar * 0.7, JSON.stringify({ yogun: u4.yogun.bar, genis: u4.genis.bar, eldiven: u4.eldiven.bar }));
+  ok('11e5 Enter düğmesi de küçülür ama WCAG 24 px tabanının üstünde kalır', u4.yogun.enter >= 24 && u4.yogun.enter < u4.genis.enter, JSON.stringify({ y: u4.yogun.enter, g: u4.genis.enter, e: u4.eldiven.enter }));
 }
 
 ok('7 sayfa hatası yok', errors.length === 0, errors.join(' | ').slice(0, 200));
