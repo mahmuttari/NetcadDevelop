@@ -827,12 +827,14 @@ function showPrompt(text, opts = {}) {
   if (!text) { markActive(null); if (cmdLineOn()) { idlePrompt(); return; } bar.hidden = true; closeSuggest(); return; }
   bar.hidden = false;
   cmdIdle = false; closeSuggest();
+  bar.classList.remove('idle');   // çalışan komutun istemi uzundur: kendi satırında kalır
   $('cmdText').textContent = text;
   const inp = $('cmdInput');
   inp.hidden = !opts.input;
   { const en = $('cmdEnter'); if (en) en.hidden = !opts.input; }   // giriş yokken Enter da yok: seçim kipinde işlevsizdi, yer kaplıyordu
   syncOrthoBtn(opts.input === 'point');                             // Ortho yalnız NOKTA istenirken: sayı ve seçim istemlerinde anlamsız
   syncTtBtn(opts.input === 'point');                                // İz noktası (TT) de yalnız nokta isteminde
+  syncHideBtn(false);                                               // Gizle yalnız BOŞTA: çalışan komutun istemi kapatılamaz
   inp.placeholder = opts.input === 'number' ? t('numberPh') : t('coordPh');
   inp.type = 'text';
   // Kutudaki tek sayı doğrudan uzaklık girişidir (Çizgi / Polyline): istem tazelenince silinmez, dokunuşta kullanılır
@@ -867,7 +869,8 @@ function idlePrompt() {
   const inp = $('cmdInput');
   inp.hidden = false; inp.type = 'text'; inp.value = ''; inp.placeholder = t('cmdPh');
   { const en = $('cmdEnter'); if (en) en.hidden = false; }
-  syncOrthoBtn(false); syncTtBtn(false);
+  syncOrthoBtn(false); syncTtBtn(false); syncHideBtn(true);
+  bar.classList.add('idle');   // boşta istem satırı girişle aynı satırda durur (bir satır kazanılır)
   // Komut listesine tek kapı: boştaki çubuğun "?" düğmesi. Menüye gömülseydi komut satırını
   // yeni gören kullanıcı hangi adları yazabileceğini hiç öğrenemezdi.
   $('cmdBtns').innerHTML = `<button type="button" class="icon" data-cmd-help="1" aria-label="${esc(t('cmdHelp'))}" title="${esc(t('cmdHelp'))}"><svg class="ic" aria-hidden="true"><use href="#i-help"/></svg></button>`;
@@ -928,7 +931,14 @@ function zoomOption(arg) {
   if (m && parseFloat(m[1]) > 0) { call(api.zoomBy, parseFloat(m[1])); return; }
   api.toast(t('zoomBadOpt'), 2400);
 }
+/** Geri getirme yolu: "Ekran ▸ <karo adı>" — adlar çalışma anında okunur, çeviriyle uyumlu kalır */
+const geriYolu = (id) => t('tabDisplay') + ' \u25b8 ' + tileLabel(id);
+/** Gizle düğmesi yalnız boştaki çubukta görünür (çalışan komutun istemi gizlenemez) */
+function syncHideBtn(goster) { const b = $('cmdHide'); if (b) b.hidden = !goster; }
 function bindCmdBar() {
+  // Komut satırını tek dokunuşla kapatır. Geri getirmek Ekran ▸ Komut satırı karosundadır;
+  // kullanıcı kapattığı şeyi nasıl geri açacağını bilsin diye ileti bunu söyler.
+  { const hb = $('cmdHide'); if (hb && !hb.dataset.bound) { hb.dataset.bound = '1'; hb.addEventListener('click', () => { toggleCmdLine(); api.toast(t('cmdHidden').replace('%s', geriYolu('cmdline')), 3200); }); } }
   { const ob = $('cmdOrtho'); if (ob && !ob.dataset.bound) { ob.dataset.bound = '1'; ob.addEventListener('click', () => toggleOrtho()); } }   // giriş satırındaki Ortho düğmesi (odak vermez: klavye açılmasın)
   // İz noktası (AutoCAD TT): sonraki dokunuş nokta sayılmaz, iz noktası edinir — izleme kapalıyken de çalışır (geçici iz noktası).
   // İstem satırındadır: komut düğmesi satırına beşinci düğme (Bitir · Kapat · Geri · TT · İptal) 412 px telefonda üçüncü satır açıp tuvali örtüyordu.
@@ -2400,6 +2410,20 @@ function pick3At(sx, sy) {
   return s2 ? { p: s2.p, prim: s2.prim, kind: 'srf', n: s2.n } : null;
 }
 function tap3D(sx, sy) {
+  /*
+   * BİLGİ SATIRINA DOKUNUŞ ONU GİZLER. Kutu tuvale çizilir, DOM düğmesi değildir; bu yüzden
+   * vuruş denetimi burada yapılır. Geri getirmek Ekran ▸ 3B seçenekleri ▸ Bilgi satırı
+   * karosundadır ve ileti bunu söyler — kullanıcı kapattığı şeyi geri açamaz durumda kalmasın.
+   */
+  if (v3 && v3.opts && v3.opts.hud && v3._hudBox) {
+    const b = v3._hudBox;
+    if (sx >= b.x && sx <= b.x + b.w && sy >= b.y && sy <= b.y + b.h) {
+      v3.set('hud', false); syncCube();
+      haptic('toggle'); refreshTiles(); render3D();
+      api.toast(t('hudHidden').replace('%s', geriYolu('hud3')), 3200);
+      return;
+    }
+  }
   const hit = pick3At(sx, sy);
   if (!ed.m3) {
     ed.sel.clear();

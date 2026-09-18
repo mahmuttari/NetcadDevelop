@@ -286,6 +286,52 @@ const etiket = (act) => ev((a) => { const b = document.querySelector(`#toolbar [
   await page.waitForTimeout(150);
 }
 
+// ---------------------------------------------------------------------------------
+// 11 · v7.79: ince komut çubuğu ve tek dokunuşla gizleme
+// ---------------------------------------------------------------------------------
+{
+  const a = await ev(async () => {
+    const E = window.dwgApp.editor;
+    if (E.tools.running) E.tools.cancel();
+    E.act('cmdline'); await new Promise(r => setTimeout(r, 120));   // kapalıysa aç
+    if (document.getElementById('cmdBar').hidden) { E.act('cmdline'); await new Promise(r => setTimeout(r, 120)); }
+    await new Promise(r => setTimeout(r, 250));
+    const bar = document.getElementById('cmdBar'), inp = document.getElementById('cmdInput'), hb = document.getElementById('cmdHide');
+    return { bosta: bar.classList.contains('idle'), h: bar.offsetHeight, giris: inp.offsetHeight,
+      gizle: hb ? { gorunur: !hb.hidden, h: hb.offsetHeight } : null };
+  });
+  // Çubuk incelir ama DOKUNMA HEDEFİ küçülmez: uygulamanın kendi sözleşmesi 40 px'tir (test_shell 46).
+  ok('11a boştaki çubuk TEK satır ve ince (60 px altı), giriş 40 px dokunma hedefini korur', a.bosta === true && a.h > 0 && a.h < 60 && a.giris >= 40, JSON.stringify(a));
+  ok('11b boşta Gizle düğmesi görünür', !!a.gizle && a.gizle.gorunur === true, JSON.stringify(a));
+
+  const b = await ev(async () => {
+    document.getElementById('cmdHide').click();
+    await new Promise(r => setTimeout(r, 250));
+    const el = document.getElementById('toast');
+    return { gizli: document.getElementById('cmdBar').hidden,
+      ileti: el && !el.hidden ? (el.querySelector('.tx') || el).textContent : '' };
+  });
+  ok('11c Gizle çubuğu kapatır ve geri getirme yolunu söyler', b.gizli === true && /\u25b8/.test(b.ileti) && b.ileti.length > 10, JSON.stringify(b));
+
+  const c2 = await ev(async () => {
+    window.dwgApp.editor.act('cmdline');   // Ekran ▸ Komut satırı ile geri gelir
+    await new Promise(r => setTimeout(r, 250));
+    return { gizli: document.getElementById('cmdBar').hidden };
+  });
+  ok('11d karo çubuğu geri getirir', c2.gizli === false, JSON.stringify(c2));
+
+  const d = await ev(async () => {
+    const E = window.dwgApp.editor;
+    E.act('t:line'); await new Promise(r => setTimeout(r, 250));
+    const hb = document.getElementById('cmdHide'), bar = document.getElementById('cmdBar');
+    const r = { gizle: hb ? !hb.hidden : null, bosta: bar.classList.contains('idle') };
+    if (E.tools.running) E.tools.cancel();
+    await new Promise(r2 => setTimeout(r2, 200));
+    return r;
+  });
+  ok('11e komut çalışırken Gizle YOK ve istem kendi satırında (çalışan komut kapatılamaz)', d.gizle === false && d.bosta === false, JSON.stringify(d));
+}
+
 ok('10 sayfa hatası yok', errors.length === 0, errors.slice(0, 3).join(' | '));
 
 await browser.close(); await srv.kill();

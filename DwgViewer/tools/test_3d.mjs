@@ -64,6 +64,41 @@ await page.screenshot({ path: `${out}/e_3d_pline.png` });
 await page.evaluate(() => window.dwgApp.onBack()); await page.waitForTimeout(200);
 ok('6 2B görünüme dönüldü', await page.locator('#cv3d').isHidden());
 await page.screenshot({ path: `${out}/e_2d_after.png` });
+// ---------------------------------------------------------------------------------
+// 8 · v7.79: ince bilgi satırı (HUD) ve ona dokunarak gizleme
+// ---------------------------------------------------------------------------------
+{
+  const h1 = await page.evaluate(async () => {
+    const E = window.dwgApp.editor, v = E.view3d();
+    if (!v.opts.hud) { E.act('hud3'); await new Promise(r => setTimeout(r, 200)); }
+    v.render(); E.act('hud3'); E.act('hud3');   // çizim tazelensin, kutu ölçülsün
+    await new Promise(r => setTimeout(r, 300));
+    return { hud: v.opts.hud, kutu: v._hudBox ? { w: Math.round(v._hudBox.w), h: v._hudBox.h } : null };
+  });
+  ok('8a bilgi satırı ince: iki satırlık kutu 40 px altında', !!h1.kutu && h1.kutu.h > 0 && h1.kutu.h <= 40, JSON.stringify(h1));
+
+  const h2 = await page.evaluate(async () => {
+    const E = window.dwgApp.editor, v = E.view3d();
+    if (!v._hudBox) return { kutuYok: true };
+    const b = v._hudBox, cv = document.getElementById('cv3d') || document.getElementById('cv');
+    const r0 = cv.getBoundingClientRect();
+    const opt = { bubbles: true, cancelable: true, clientX: r0.left + b.x + b.w / 2, clientY: r0.top + b.y + b.h / 2, pointerId: 1, pointerType: 'touch', isPrimary: true, button: 0, buttons: 1 };
+    cv.dispatchEvent(new PointerEvent('pointerdown', opt));
+    cv.dispatchEvent(new PointerEvent('pointerup', { ...opt, buttons: 0 }));
+    await new Promise(r => setTimeout(r, 350));
+    const el = document.getElementById('toast');
+    return { hud: v.opts.hud, ileti: el && !el.hidden ? (el.querySelector('.tx') || el).textContent : '' };
+  });
+  ok('8b bilgi satırına dokunmak onu gizler ve geri getirme yolunu söyler', h2.hud === false && /\u25b8/.test(h2.ileti), JSON.stringify(h2));
+
+  const h3 = await page.evaluate(async () => {
+    const E = window.dwgApp.editor, v = E.view3d();
+    E.act('hud3'); await new Promise(r => setTimeout(r, 250));
+    return { hud: v.opts.hud };
+  });
+  ok('8c karo bilgi satırını geri getirir', h3.hud === true, JSON.stringify(h3));
+}
+
 ok('7 sayfa hatası yok', errors.length === 0, errors.join(' | ').slice(0, 200));
 C.summary(errors);
 await browser.close(); srv.kill();

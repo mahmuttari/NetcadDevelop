@@ -284,7 +284,7 @@ export default {
   attrEdit: '속성 편집',
   exploded: '분해했습니다',
   noRegion: '닫힌 영역을 찾지 못했습니다',
-  hatchAdded: '해치를 추가했습니다', hatchPatTitle: '해치 패턴', hatchScale: '패턴 축척', autoWord: '자동', hatchFromFile: '파일 패턴', hatchFail_sinir: '경계를 찾을 수 없습니다: 이 해치는 다시 만들 수 없습니다', hatchFail_desen: '이 패턴은 파일 고유의 것입니다. 앱에 해당하는 것이 없어 그대로 유지했습니다', hatchFail_deger: '축척과 각도는 숫자여야 합니다 (축척은 0보다 커야 함)', hatchFail_uretim: '해치를 만들 수 없습니다', hatchFail_yogun: '어떤 축척으로도 패턴이 이 영역에 맞지 않아 솔리드 채우기를 적용했습니다', hatchAutoScale: '축척을 자동으로 %s(으)로 설정했습니다', hatchAngle: '패턴 각도 (°)', patSolid: '단색 채우기', tl_hatchpat: '패턴', th_hatchpat: '새 해치의 패턴, 축척, 각도',
+  hatchAdded: '해치를 추가했습니다', hatchPatTitle: '해치 패턴', hatchScale: '패턴 축척', autoWord: '자동', cmdHideBtn: '명령행 숨기기', cmdHidden: '명령행을 숨겼습니다 · %s에서 되돌립니다', hudHidden: '정보 줄을 숨겼습니다 · %s에서 되돌립니다', hatchFromFile: '파일 패턴', hatchFail_sinir: '경계를 찾을 수 없습니다: 이 해치는 다시 만들 수 없습니다', hatchFail_desen: '이 패턴은 파일 고유의 것입니다. 앱에 해당하는 것이 없어 그대로 유지했습니다', hatchFail_deger: '축척과 각도는 숫자여야 합니다 (축척은 0보다 커야 함)', hatchFail_uretim: '해치를 만들 수 없습니다', hatchFail_yogun: '어떤 축척으로도 패턴이 이 영역에 맞지 않아 솔리드 채우기를 적용했습니다', hatchAutoScale: '축척을 자동으로 %s(으)로 설정했습니다', hatchAngle: '패턴 각도 (°)', patSolid: '단색 채우기', tl_hatchpat: '패턴', th_hatchpat: '새 해치의 패턴, 축척, 각도',
   dimFail: '치수를 만들지 못했습니다',
   balloonStart: '시작 번호',
   leaderPrompt: '지시선 문자',

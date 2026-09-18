@@ -1224,7 +1224,7 @@ export class View3D {
     const accent = toCss(this.selColor);
     c.save();
     c.textBaseline = 'top'; c.textAlign = 'left';
-    const mono = `${Math.round(11 * fs)}px ui-monospace, "Roboto Mono", monospace`;
+    const mono = `${Math.round(10 * fs)}px ui-monospace, "Roboto Mono", monospace`;
     const sans = `${Math.round(12 * fs)}px system-ui, sans-serif`;
     // eksen etiketleri
     if (o.axes && o.axisLabels && this.bb) {
@@ -1239,7 +1239,9 @@ export class View3D {
       const l1 = this.hudText();
       const bb = this.bb, cl = o.clip;
       const l2 = cl ? `Z: ${f(cl[2])} … ${f(cl[5])}` : bb ? `Z: ${f(bb[2])} … ${f(bb[5])}` : '';
-      const lh = Math.round(14 * fs), pad = 5;
+      // İNCE HUD (v7.79): satır yüksekliği 14 → 12, iç boşluk 5 → 4, kutu daha sönük.
+      // Kutu çizimin üstünde durur; kalınlığı azaldıkça altındaki geometri daha çok görünür.
+      const lh = Math.round(12 * fs), pad = 4;
       // dar tuvalde (360 px) kamera satırı sığmazsa çift boşluktan ikiye bölünür
       let top = [l1];
       if (c.measureText(l1).width + pad * 2 > W - 16) { const parts = l1.split('  '); const mid = Math.ceil(parts.length / 2); top = [parts.slice(0, mid).join('  '), parts.slice(mid).join('  ')]; }
@@ -1248,7 +1250,7 @@ export class View3D {
       const x = 8, y = o.hudPos === 'bl' ? H - 8 - h : 8;
       this._hudBox = { x, y, w, h };   // pusula bu kutudan kaçınır
       c.fillStyle = boxBg; c.beginPath();
-      if (c.roundRect) c.roundRect(x, y, w, h, 6); else c.rect(x, y, w, h);
+      if (c.roundRect) c.roundRect(x, y, w, h, 5); else c.rect(x, y, w, h);
       c.fill();
       c.fillStyle = fg; top.forEach((s, i) => c.fillText(s, x + pad, y + pad + lh * i));
       if (l2) { c.fillStyle = cl ? accent : fg; c.fillText(l2, x + pad, y + pad + lh * top.length); }

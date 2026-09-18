@@ -283,7 +283,7 @@ export default {
   attrEdit: 'تحرير السمات',
   exploded: 'تم التفكيك',
   noRegion: 'لم يُعثر على منطقة مغلقة',
-  hatchAdded: 'أُضيف التظليل', hatchPatTitle: 'نمط التظليل', hatchScale: 'مقياس النمط', autoWord: 'تلقائي', hatchFromFile: 'نمط الملف', hatchFail_sinir: 'لم يُعثر على حد: لا يمكن إعادة بناء هذه التظليل', hatchFail_desen: 'هذا النمط يخص الملف؛ لا يوجد مكافئ في التطبيق، فتُرك كما هو', hatchFail_deger: 'يجب أن يكون المقياس والزاوية أرقامًا (المقياس أكبر من صفر)', hatchFail_uretim: 'تعذّر إنشاء التظليل', hatchFail_yogun: 'النمط لا يناسب هذه المساحة بأي مقياس؛ طُبّق ملء صلب', hatchAutoScale: 'ضُبط المقياس تلقائيًا على %s', hatchAngle: 'زاوية النمط (°)', patSolid: 'تعبئة صلبة', tl_hatchpat: 'النمط', th_hatchpat: 'النمط والمقياس والزاوية للتظليل الجديد',
+  hatchAdded: 'أُضيف التظليل', hatchPatTitle: 'نمط التظليل', hatchScale: 'مقياس النمط', autoWord: 'تلقائي', cmdHideBtn: 'إخفاء سطر الأوامر', cmdHidden: 'تم إخفاء سطر الأوامر · أعده من %s', hudHidden: 'تم إخفاء سطر المعلومات · أعده من %s', hatchFromFile: 'نمط الملف', hatchFail_sinir: 'لم يُعثر على حد: لا يمكن إعادة بناء هذه التظليل', hatchFail_desen: 'هذا النمط يخص الملف؛ لا يوجد مكافئ في التطبيق، فتُرك كما هو', hatchFail_deger: 'يجب أن يكون المقياس والزاوية أرقامًا (المقياس أكبر من صفر)', hatchFail_uretim: 'تعذّر إنشاء التظليل', hatchFail_yogun: 'النمط لا يناسب هذه المساحة بأي مقياس؛ طُبّق ملء صلب', hatchAutoScale: 'ضُبط المقياس تلقائيًا على %s', hatchAngle: 'زاوية النمط (°)', patSolid: 'تعبئة صلبة', tl_hatchpat: 'النمط', th_hatchpat: 'النمط والمقياس والزاوية للتظليل الجديد',
   dimFail: 'تعذّر إنشاء البُعد',
   balloonStart: 'رقم البداية',
   leaderPrompt: 'نص خط الإشارة',

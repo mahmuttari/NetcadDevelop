@@ -453,7 +453,7 @@ body.glove .ask-field .opt-text { min-height: 52px; }
   padding: 10px 14px; z-index: 50; max-width: 92vw; font-size: calc(13px * var(--fs)); display: flex; align-items: center; gap: 8px; box-shadow: var(--shadow); }
 .toast .tx { flex: 1 1 auto; min-width: 0; }
 .toast .act { pointer-events: auto; margin-left: 4px; border: 0; border-radius: 8px; background: var(--accent); color: var(--accent-fg); padding: 8px 12px; font-weight: 600; font-size: calc(13px * var(--fs)); min-height: 36px; }
-.cmdbar:not([hidden]) ~ .toast { bottom: calc(var(--cmd-h, 96px) + 12px); }
+.cmdbar:not([hidden]) ~ .toast { bottom: calc(var(--cmd-h, 70px) + 12px); }
 .notesbar:not([hidden]) ~ .toast { bottom: 150px; }
 .toast.error { border-left: 4px solid var(--danger); } .toast.warn { border-left: 4px solid var(--accent); } .toast.ok { border-left: 4px solid var(--ok); }
 .legend { display: flex; gap: 12px; font-size: calc(12px * var(--fs)); }
@@ -462,16 +462,28 @@ body.glove .ask-field .opt-text { min-height: 52px; }
 /* --- düzenleyici tuval katmanları ve komut satırı --- */
 #cv3d { z-index: 3; touch-action: none; }
 #ov { z-index: 4; }
-.cmdbar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 7; display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--bar); opacity: .97; border-top: 1px solid var(--line); font-size: calc(13px * var(--fs)); flex-wrap: wrap; }
+/* İNCE ÇUBUK (v7.79). Kazanç iki yerden gelir: (1) BOŞTAKİ çubukta istem satırı girişle aynı satıra
+   iner (96 px → ~48 px), (2) iç boşluk, yazı ve köşe yarıçapları daralır. Denetimler 44 px'ten 40 px'e
+   iner ama DAHA AŞAĞI İNMEZ: 40 px uygulamanın kendi dokunma hedefi sözleşmesidir (test_shell 46).
+   Eldiven kipi (body.glove) eski 44 px'lik hedefleri korur. */
+.cmdbar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 7; display: flex; align-items: center; gap: 6px; padding: 4px 8px; background: var(--bar); opacity: .97; border-top: 1px solid var(--line); font-size: calc(12px * var(--fs)); flex-wrap: wrap; }
 /* İstem satırı: metin solda, İz noktası (TT) ve Ortho düğmeleri sağda (40 px: iki düğmeyle 296 px metin kalır, "Çizgi: İkinci noktayı seçin (devam eder)" 289 px tek satırda durur; Yakalama izi anahtarı karodadır — üçüncü düğme istemi sarıp çubuğu büyütüyordu) — giriş satırına düğme eklemek Bitir · Geri · İptal'i üçüncü satıra taşırıp
    tuvalden 50 px yiyordu (v7.61–7.62 kusuru); istem satırında zaten boş yer vardır, ek satır maliyeti yoktur */
-.cmd-head { flex: 1 1 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
-.cmdbar #cmdText { flex: 1 1 auto; min-width: 0; color: var(--accent); font-weight: 600; }
-#cmdOrtho, #cmdTt { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 32px; padding: 0; border: 1px solid var(--line); border-radius: 9px; background: var(--btn); color: var(--fg); cursor: pointer; }
-#cmdOrtho svg.ic, #cmdTt svg.ic { width: 20px; height: 20px; }
+.cmd-head { flex: 1 1 100%; display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0; line-height: 1.25; }
+/* BOŞTAKİ ÇUBUK TEK SATIR (v7.79). Komut çalışırken istem uzundur ve kendi satırını hak eder;
+   boştayken ise yalnız "Komut:" yazar — girişle aynı satıra alınca çubuk 81 px'ten ~48 px'e iner.
+   Dar ekranda flex-wrap yine devreye girer, metin sıkışmaz. */
+.cmdbar.idle .cmd-head { flex: 0 1 auto; }
+.cmdbar.idle #cmdText { flex: 0 1 auto; white-space: nowrap; }
+.cmdbar #cmdText { flex: 1 1 auto; min-width: 0; color: var(--accent); font-weight: 600; font-size: calc(12.5px * var(--fs)); }
+#cmdOrtho, #cmdTt, #cmdHide { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 32px; padding: 0; border: 1px solid var(--line); border-radius: 9px; background: var(--btn); color: var(--fg); cursor: pointer; }
+#cmdOrtho svg.ic, #cmdTt svg.ic, #cmdHide svg.ic { width: 20px; height: 20px; }
+/* Gizle: çubuğu kapatan tek dokunuşluk kaçış. Nötr ve sönük durur, istem metnini bastırmaz. */
+#cmdHide { color: var(--muted); border-color: transparent; background: transparent; }
+#cmdHide:active { background: var(--btn); }
 #cmdOrtho.on, #cmdTt.on { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--btn)); }
 #cmdOrtho:active, #cmdTt:active { filter: brightness(1.2); }
-body.glove #cmdOrtho, body.glove #cmdTt { height: 38px; width: 48px; }
+body.glove #cmdOrtho, body.glove #cmdTt, body.glove #cmdHide { height: 38px; width: 48px; }
 /* Komut çubuğu düğmeleri. Eskiden ↵ ve ? yazı tipinin ince karakterleriyle çizilen 40 px'lik yassı
    kutulardı ve telefonda güç okunuyordu. Şimdi: 44 px, 10 px köşe, 1 px kenarlık, 22 px SVG simge;
    Enter vurgu renginde BİRİNCİL düğmedir (çubuğun tek onay eylemi), ötekiler nötr. Simgeli metin
@@ -480,10 +492,13 @@ body.glove #cmdOrtho, body.glove #cmdTt { height: 38px; width: 48px; }
    İptal 412 px telefonda girişle AYNI satıra sığar ve çubuk iki satırda kalır (üçüncü satır çizim alanının
    %20'sini örter ve alt köşelere yapılan dokunuşları yutar). */
 .cmd-in { display: flex; gap: 6px; flex: 1 1 0; min-width: 134px; }   /* taban 0: satır kırma kararı en küçük genişliğe (84 + 6 + 44) bakar, sonra artan yeri giriş alır */
-.cmd-in input { flex: 1 1 0; min-width: 84px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font-size: calc(15px * var(--fs)); min-height: 44px; }
+.cmd-in input { flex: 1 1 0; min-width: 84px; padding: 6px 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font-size: calc(14px * var(--fs)); min-height: 40px; }
 .cmd-in input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); }
-.cmd-in button, #cmdBtns button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; border: 1px solid var(--line); border-radius: 10px; background: var(--btn); color: var(--fg); padding: 0 10px; font-size: calc(13px * var(--fs)); font-weight: 600; line-height: 1; min-height: 44px; min-width: 44px; cursor: pointer; white-space: nowrap; }
-.cmd-in button svg.ic, #cmdBtns button svg.ic { width: 22px; height: 22px; }
+.cmd-in button, #cmdBtns button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; border: 1px solid var(--line); border-radius: 9px; background: var(--btn); color: var(--fg); padding: 0 9px; font-size: calc(12.5px * var(--fs)); font-weight: 600; line-height: 1; min-height: 40px; min-width: 40px; cursor: pointer; white-space: nowrap; }
+.cmd-in button svg.ic, #cmdBtns button svg.ic { width: 20px; height: 20px; }
+/* Eldiven kipi eski (büyük) hedefleri korur */
+body.glove .cmd-in input, body.glove .cmd-in button, body.glove #cmdBtns button { min-height: 44px; }
+body.glove .cmd-in button, body.glove #cmdBtns button { min-width: 44px; }
 .cmd-in button.icon, #cmdBtns button.icon { padding: 0; width: 44px; }
 .cmd-in button.primary, #cmdBtns button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
 .cmd-in button:active, #cmdBtns button:active { filter: brightness(1.2); }
@@ -595,7 +610,7 @@ body.glove .st-quick button { width: 48px; height: 48px; }
 .dpad [data-pan=up] { grid-column: 2; grid-row: 1; } .dpad [data-pan=left] { grid-column: 1; grid-row: 2; } .dpad [data-pan=right] { grid-column: 3; grid-row: 2; } .dpad [data-pan=down] { grid-column: 2; grid-row: 3; }
 body.left-hand .navfabs { right: auto; left: 12px; }
 body.left-hand .dpad { left: auto; right: 12px; }
-.cmdbar:not([hidden]) ~ .navfabs, .cmdbar:not([hidden]) ~ .dpad { bottom: calc(var(--cmd-h, 96px) + 12px); }
+.cmdbar:not([hidden]) ~ .navfabs, .cmdbar:not([hidden]) ~ .dpad { bottom: calc(var(--cmd-h, 70px) + 12px); }
 .cube { position: absolute; right: 10px; top: 10px; width: 92px; padding: 4px; border-radius: 12px; background: color-mix(in srgb, var(--panel) 70%, transparent); border: 1px solid var(--line); color: var(--fg); touch-action: none; }
 .cube .cube-svg { width: 84px; height: 84px; }
 .cube.below-hud { top: 62px; }
