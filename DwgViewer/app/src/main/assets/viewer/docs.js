@@ -3,7 +3,8 @@
  *
  *  - Android'de PDF sayfaları PdfRenderer ile çizilir (/file/pdfpage_<id>_<sayfa>_<genişlik>);
  *    tarayıcıda yerleşik PDF görüntüleyici (embed) kullanılır.
- *  - ZIP: tarayıcıda DecompressionStream'li yerleşik okuyucu, Android'de arcList/arcExtract (RAR dâhil).
+ *  - ZIP: tarayıcıda DecompressionStream'li yerleşik okuyucu, Android'de arcList/arcExtract
+ *    (RAR 2/3/4 junrar ile, RAR5 kendi saf Java çözücümüzle — Rar5.java).
  *  - DOCX / XLSX: OOXML → HTML (paragraf, başlık, liste, tablo, resim, köprü; hücre, birleştirilmiş hücre).
  *  - DOC (Word 97-2003, MS-DOC ikili): doc.js docToHtml aynı HTML şeklini üretir; Word görünümü ortaktır. ".doc" uzantılı
  *    RTF / Word HTML / MHTML / DOCX / düz metin içerik baytlardan tanınır (docalt.js sniffDoc) ve uygun yolla açılır.

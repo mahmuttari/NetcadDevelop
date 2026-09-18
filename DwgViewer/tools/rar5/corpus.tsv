@@ -1,0 +1,33 @@
+# arşiv	girdi	boy	md5  — beklenen açılmış içerik (rar 7.12 ile üretildi)
+# girdi sırası arşivdeki sıradır: katı arşivde rar dosyaları uzantıya göre yeniden dizer
+mini_temel.rar	cizim.dwg	2784	c0e4acaa882ff470114d8c7c59163221
+mini_temel.rar	proje.dxf	2192	8bb1cb0969f089550df36497758d4f8e
+mini_temel.rar	metin.txt	76500	17847d7b77a458ceb8c009fb5fc82ce8
+mini_temel.rar	bos.txt	0	d41d8cd98f00b204e9800998ecf8427e
+mini_temel.rar	alt klasör/çizim ölçüsü.dxf	2192	8bb1cb0969f089550df36497758d4f8e
+mini_store.rar	cizim.dwg	2784	c0e4acaa882ff470114d8c7c59163221
+mini_store.rar	proje.dxf	2192	8bb1cb0969f089550df36497758d4f8e
+mini_solid.rar	cizim.dwg	2784	c0e4acaa882ff470114d8c7c59163221
+mini_solid.rar	proje.dxf	2192	8bb1cb0969f089550df36497758d4f8e
+mini_solid.rar	metin.txt	76500	17847d7b77a458ceb8c009fb5fc82ce8
+mini_wrap.rar	exe.bin	250000	291922732cc7a68b54f3b1c96e7025ad
+mini_filt.rar	ses.raw	200000	83fa87bda2ca3619a5dbb155a5573c92
+mini_filt.rar	exe.bin	250000	291922732cc7a68b54f3b1c96e7025ad
+
+# hata bekleyen arşivler: arşiv	iletide geçmesi gereken söz
+!err_sifreli.rar	Şifreli
+!err_basliksifreli.rar	Şifreli
+!err_parcali.part01.rar	parça
+
+# RAR 2/3/4 (junrar yolu, Rar4.java katı zinciriyle): arşiv	girdi	boy	md5
+4rar4.rar	cizim.dwg	2784	c0e4acaa882ff470114d8c7c59163221
+4rar4.rar	proje.dxf	2192	8bb1cb0969f089550df36497758d4f8e
+4rar4.rar	metin.txt	76500	17847d7b77a458ceb8c009fb5fc82ce8
+4rar4.rar	alt klasör/çizim ölçüsü.dxf	2192	8bb1cb0969f089550df36497758d4f8e
+4rar4solid.rar	cizim.dwg	2784	c0e4acaa882ff470114d8c7c59163221
+4rar4solid.rar	proje.dxf	2192	8bb1cb0969f089550df36497758d4f8e
+4rar4solid.rar	metin.txt	76500	17847d7b77a458ceb8c009fb5fc82ce8
+
+# RAR5 olmayan: imza denetimi false dönmeli
+?rar4.rar
+?rar4solid.rar
