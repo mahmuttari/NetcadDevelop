@@ -564,7 +564,7 @@ export default {
   wblockSrc: 'ソース', purgeTitle: '名前削除', purgeBlocks: '未使用のブロック定義（%s）', purgeLayers: '空の画層（%s）', purgeNone: '削除するものはありません', purged: '%s 項目を削除しました',
   baseOnlyBedit: '基点はブロックエディタでのみ変更できます', baseSet: '基点',
   droMode: '順序', droFront: '最前面へ', droBack: '最背面へ', droAbove: 'オブジェクトの上', droBelow: 'オブジェクトの下', droHint: '最後に描いたものが上になります。上 / 下は基準オブジェクトをタップします', droSelfRef: '基準オブジェクトは選択の外にある必要があります', droDone: '%s 個の表示順序を変更しました', droNone: '移動するものがありません', droHatchBackOff: '表示設定「ハッチングと塗りを背面に」をオフにしました: 順序はファイルどおり',
-  wipePolyHint: '閉じたポリラインをタップ', wipePolyBtn: 'ポリライン', wipeAdded: 'ワイプアウトを追加しました', wipeMin3: '頂点は3つ以上', wipeNotClosed: '閉じたポリラインが必要です', wipeErasePoly: 'ポリラインを削除しますか？', wipeFrameOn: 'ワイプアウト枠オン', wipeFrameOff: 'ワイプアウト枠オフ',
+  wipePolyHint: '閉じたポリラインをタップ', wipePolyBtn: 'ポリライン', hatchPatBtn: 'パターン', wipeAdded: 'ワイプアウトを追加しました', wipeMin3: '頂点は3つ以上', wipeNotClosed: '閉じたポリラインが必要です', wipeErasePoly: 'ポリラインを削除しますか？', wipeFrameOn: 'ワイプアウト枠オン', wipeFrameOff: 'ワイプアウト枠オフ',
   ncopyDone: 'オブジェクトのコピーを図面に追加しました', notXref: '外部参照ではありません',
   beditOn: 'ブロック「%s」を編集中 — 上のバーで保存 / 閉じる', refeditOn: '「%s」をインプレイス編集中 — 他は淡色表示', beditCloseFirst: '先にブロックエディタを閉じてください', beditEmpty: 'ブロックを空にはできません', beditSaved: '「%s」を保存し、挿入を更新しました', beditSaveAsk: 'ブロック「%s」の変更を保存しますか？', beditClosed: 'ブロックエディタを閉じました', bsave: '保存', bclose: '閉じる',
   bparamOnlyBedit: 'ブロックエディタ内のみ（BEDIT）', bpParams: 'パラメータ', bpAdd: 'パラメータを追加', bpNone: 'パラメータなし — 追加するとダイナミックブロックになり、挿入にグリップが付きます', bpAllObjs: 'すべてのオブジェクト',

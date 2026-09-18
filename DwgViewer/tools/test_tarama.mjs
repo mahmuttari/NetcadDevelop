@@ -156,6 +156,103 @@ const bosNokta = () => ev(() => { const S = window.dwgApp.state; let mx = -Infin
   await ev(() => document.querySelector('#askField .ask-cell[data-v="SOLID"]').click()); await page.click('#askOk'); await bekle(200);
 }
 
+// ---------------------------------------------------------------------------------
+// D · Seçilen desenle tarama, tek nesne olarak; desen Özellikler'den değiştirilebilir
+// ---------------------------------------------------------------------------------
+{
+  await iptal();
+  // D1 · Tarama aracı çalışırken komut çubuğunda Desen düğmesi ve istemde geçerli desen
+  const d1 = await ev(async () => {
+    const E = window.dwgApp.editor;
+    E.act('t:hatch');
+    await new Promise(r => setTimeout(r, 200));
+    return { istem: (document.getElementById('cmdText') || {}).textContent || '',
+      btns: [...document.querySelectorAll('#cmdBtns [data-cmd]')].map(b => b.dataset.cmd) };
+  });
+  ok('D1 Tarama komutunda "Desen" düğmesi var, istem geçerli deseni yazar', d1.btns.includes('hatchpat') && /Düz dolgu|Solid/.test(d1.istem), J(d1));
+
+  // D2 · Düğmeden ANSI31 ×200 seçilir, istem anında güncellenir
+  const d2 = await ev(async () => {
+    document.querySelector('#cmdBtns [data-cmd="hatchpat"]').click();
+    await new Promise(r => setTimeout(r, 350));
+    const k = [...document.querySelectorAll('#askField .ask-cell')].find(x => x.dataset.v === 'ANSI31');
+    if (!k) return { kartYok: true };
+    k.click();
+    document.getElementById('askF_scale').value = '200';
+    document.getElementById('askOk').click();
+    await new Promise(r => setTimeout(r, 350));
+    return { desen: window.dwgApp.editor.curPattern, istem: (document.getElementById('cmdText') || {}).textContent || '' };
+  });
+  ok('D2 komut çubuğundan seçilen desen ve ölçek isteme yansır', d2.desen && d2.desen.name === 'ANSI31' && d2.desen.scale === 200 && /ANSI31/.test(d2.istem), J(d2));
+
+  // D3 · Kapalı alana tarama: SEÇİLEN desenle üretilir ve iki parça TEK grup olur
+  const d3 = await ev(async () => {
+    const A = window.dwgApp, E = A.editor, S = A.state;
+    const x0 = 1000, y0 = 1000, w = 400;
+    E.doc.run({ op: 'add', ents: [{ id: 'TRM_RECT', type: 'LWPOLYLINE', layer: '0', color: 256, closed: true,
+      pts: [[x0, y0, 0], [x0 + w, y0, 0], [x0 + w, y0 + w, 0], [x0, y0 + w, 0]] }] });
+    A.requestRender();
+    await new Promise(r => setTimeout(r, 150));
+    const once = S.prims.length;
+    E.act('t:hatch');
+    await new Promise(r => setTimeout(r, 150));
+    await E.tools.regionTap([x0 + w / 2, y0 + w / 2, 0]);
+    await new Promise(r => setTimeout(r, 350));
+    const yeni = S.prims.slice(once);
+    return { n: yeni.length, turler: yeni.map(p => p.et || ('k' + p.k)),
+      desen: [...new Set(yeni.map(p => p.info && p.info.pattern).filter(Boolean))],
+      olcek: [...new Set(yeni.map(p => p.info && p.info.hscale).filter(v => v != null))],
+      grup: [...new Set(yeni.map(p => p.info && p.info.gid).filter(Boolean))].length };
+  });
+  ok('D3 tarama SEÇİLEN desenle üretilir (ANSI31 ×200), sınır + desen çizgileri', d3.n === 2 && J(d3.turler) === J(['HATCH', 'PATH']) && J(d3.desen) === J(['ANSI31']) && J(d3.olcek) === J([200]), J(d3));
+  ok('D3b iki parça TEK grup kimliği taşır (birlikte seçilir, birlikte silinir)', d3.grup === 1, J(d3));
+
+  // D4 · Özellikler: desen / ölçek / açı alanları var ve uygulanınca tarama yeniden üretilir
+  const d4 = await ev(async () => {
+    const A = window.dwgApp, E = A.editor, S = A.state;
+    const h = [...S.prims].reverse().find(p => (p.info && p.info.t) === 'HATCH' || p.et === 'HATCH');
+    if (!h) return { taramaYok: true };
+    E.sel.clear(); E.sel.add(h);
+    E.act('props');
+    await new Promise(r => setTimeout(r, 400));
+    const alanlar = [...document.querySelectorAll('#docBody [data-pg]')].map(i => i.dataset.pg);
+    const sel = document.querySelector('#docBody [data-pg="hpat"]');
+    if (!sel) return { alanlar, desenAlaniYok: true };
+    const oncekiN = S.prims.length;
+    sel.value = 'ANSI37';
+    document.querySelector('#docBody [data-pg="hsc"]').value = '300';
+    document.querySelector('#docBody [data-pg="hang"]').value = '15';
+    document.getElementById('pOk').click();
+    await new Promise(r => setTimeout(r, 400));
+    const son = [...S.prims].reverse().find(p => (p.info && p.info.t) === 'HATCH' || p.et === 'HATCH');
+    return { alanlar, oncekiN, sonN: S.prims.length,
+      desen: son && son.info && son.info.pattern, olcek: son && son.info && son.info.hscale, aci: son && son.info && son.info.hangle };
+  });
+  ok('D4 Özellikler taramada desen / ölçek / açı alanlarını gösterir', J(d4.alanlar) === J(['hpat', 'hsc', 'hang']), J(d4));
+  ok('D4b desen değişikliği uygulanır: tarama yeni desen, ölçek ve açıyla yeniden üretilir', d4.desen === 'ANSI37' && d4.olcek === 300 && d4.aci === 15, J(d4));
+
+  // D5 · Deseni geri SOLID'e çevirmek de çalışır (dolu tarama da düzenlenebilir)
+  const d5 = await ev(async () => {
+    const A = window.dwgApp, E = A.editor, S = A.state;
+    const h = [...S.prims].reverse().find(p => (p.info && p.info.t) === 'HATCH' || p.et === 'HATCH');
+    E.sel.clear(); E.sel.add(h);
+    E.act('props');
+    await new Promise(r => setTimeout(r, 400));
+    const sel = document.querySelector('#docBody [data-pg="hpat"]');
+    if (!sel) return { alanYok: true };
+    sel.value = 'SOLID';
+    document.getElementById('pOk').click();
+    await new Promise(r => setTimeout(r, 400));
+    const son = [...S.prims].reverse().find(p => (p.info && p.info.t) === 'HATCH' || p.et === 'HATCH');
+    return { desen: son && son.info && son.info.pattern, dolu: !!(son && son.fill) };
+  });
+  ok('D5 desenli tarama SOLID\'e çevrilebilir (dolgu olur)', d5.desen === 'SOLID' && d5.dolu === true, J(d5));
+
+  await ev(() => { window.dwgApp.editor.act('hatchpat'); }); await bekle(300);
+  await ev(() => document.querySelector('#askField .ask-cell[data-v="SOLID"]').click()); await page.click('#askOk'); await bekle(200);
+  await iptal();
+}
+
 ok('X sayfa hatası yok', errors.length === 0, J(errors.slice(0, 3)));
 await browser.close(); await srv.kill();
 C.summary(); C.exit();

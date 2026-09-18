@@ -19,7 +19,7 @@ import { FG, ACI } from './scene.js';
 import { toScreen, toWorld, fmt, store } from './state.js';
 import { bgColor, fgColor } from './render.js';
 import { t, applyI18n, addStrings } from './i18n.js';
-import { TAU, meshMetrics, mul, flatten } from './geom.js';
+import { TAU, meshMetrics, mul, flatten, HATCH_PATTERNS } from './geom.js';
 import * as D from './display.js';
 import { askText, askForm, askConfirm } from './dialog.js';
 import { leaderEnts, hatchEnts } from './annot.js';
@@ -800,13 +800,15 @@ const BTN = { finish: ['finishBtn', () => tools.finish()], close: ['close', () =
   mirrorx: ['mirrorXBtn', () => tools.setMirrorAxis('x')], mirrory: ['mirrorYBtn', () => tools.setMirrorAxis('y')],
   // Hizala: nesneler hizalama noktalarına göre ölçeklensin mi (AutoCAD'in son sorusu) · Maske: polyline'dan (WIPEOUT Polyline seçeneği)
   alignscale: ['alignScaleBtn', () => tools.toggleAlignScale()], wipepoly: ['wipePolyBtn', () => tools.setWipePoly()],
+  // Tarama: desen seçici komut çubuğundan açılır; seçim bitince istem yeni desen adıyla tazelenir
+  hatchpat: ['hatchPatBtn', () => { void hatchPatPop().then(() => { if (tools && tools.active === 'hatch') tools.say(); }); }],
   cancel: ['cancelBtn', () => { tools.cancel(); markActive(null); ed.sel.clear(); api.drawOverlay(); }] };
 /*
  * Komut çubuğu düğmesi: SVG simge + etiket. Çeviri metinlerinin başındaki ince Unicode imleri
  * (✓ ↶ ✕) atılır; simgeyi yazı tipi değil SVG çizer, böylece her dilde aynı dolgunlukta görünür.
  * Bitir birincil (vurgu renkli) düğmedir: çubuğun onay eylemi odur.
  */
-const CMD_ICON = { finish: 'i-check', close: 'i-closepath', back: 'i-undo', selall: 'i-selectall', cancel: 'i-close', selbox: 'i-selbox', sellasso: 'i-lasso', modescreen: 'i-crosshair', modevalue: 'i-ruler', mirrorkeep: 'i-copyobj', mirrorx: 'i-mirror-x', mirrory: 'i-mirror', alignscale: 'i-scale', wipepoly: 'i-pline' };
+const CMD_ICON = { finish: 'i-check', close: 'i-closepath', back: 'i-undo', selall: 'i-selectall', cancel: 'i-close', selbox: 'i-selbox', sellasso: 'i-lasso', modescreen: 'i-crosshair', modevalue: 'i-ruler', mirrorkeep: 'i-copyobj', mirrorx: 'i-mirror-x', mirrory: 'i-mirror', alignscale: 'i-scale', wipepoly: 'i-pline', hatchpat: 'i-hatch' };
 const CMD_ICON_ONLY = new Set(['selbox', 'sellasso', 'mirrorx', 'mirrory']);   // yalnız simge: beş düğme 412 px'te tek satıra sığsın; ad başlık / aria-label'da
 function cmdBtnHtml(attr, k, label) {
   const lbl = String(label == null ? '' : label).replace(/^[✓↶✕⟲←]+\s*/, '');
@@ -1061,6 +1063,26 @@ function pickColor() {
  */
 const LW_LIST = [0, 5, 9, 13, 15, 18, 20, 25, 30, 35, 40, 50, 53, 60, 70, 80, 90, 100, 106, 120, 140, 158, 200, 211];
 const fx12 = (v) => (typeof v === 'number' && isFinite(v) ? String(+v.toPrecision(12)) : '');
+/**
+ * İlkel bir TARAMA mı? Sınır ilkeli (et 'HATCH') ya da onun desen çizgileri (ent.hpart) olabilir;
+ * ikisi de aynı gid'i taşır. Dönüş { pattern, scale, angle } ya da null.
+ */
+function hatchInfo(p) {
+  if (!p) return null;
+  const inf = p.info || {};
+  const tarama = (inf.t || p.et) === 'HATCH' || !!(p.ent && p.ent.hpart);
+  if (!tarama) return null;
+  const k = hatchBoundary(p) || p;
+  const ki = k.info || {};
+  return { pattern: String(ki.pattern || 'SOLID').toUpperCase(), scale: ki.hscale == null ? 1 : ki.hscale, angle: ki.hangle == null ? 0 : ki.hangle };
+}
+/** Taramanın SINIR ilkeli: aynı gruptaki (gid) et === 'HATCH' ilkeli */
+function hatchBoundary(p) {
+  const gid = p.info && p.info.gid;
+  if ((p.info && p.info.t) === 'HATCH' || p.et === 'HATCH') return p;
+  if (!gid) return null;
+  return S.prims.find(q => q.info && q.info.gid === gid && ((q.info.t || q.et) === 'HATCH')) || null;
+}
 function propFields(p) {
   const F = [], inf = p.info || {}, top = inf.t || p.et;
   const num = (id, label, v) => F.push({ id, label, type: 'number', value: fx12(v) });
@@ -1088,14 +1110,26 @@ function propFields(p) {
     if (!full) { num('a0', t('start') + ' (°)', o[4] * 180 / Math.PI); num('a1', t('end') + ' (°)', o[5] * 180 / Math.PI); }
     return F;
   }
-  if (p.fill || p.bg) return F;
-  if (ops.length === 2 && ops[1][0] === 1 && !p.closed) { num('x1', t('start') + ' X', ops[0][1]); num('y1', t('start') + ' Y', ops[0][2]); num('x2', t('end') + ' X', ops[1][1]); num('y2', t('end') + ' Y', ops[1][2]); return F; }
+  if (hatchInfo(p)) {
+    /*
+     * TARAMA: desen, ölçek ve açı düzenlenebilir (AutoCAD'in HATCHEDIT'i). Dolgulu (SOLID) tarama
+     * da buraya girer — böylece SOLID bir tarama desenliye, desenli olan SOLID'e çevrilebilir.
+     * Uygulanınca tarama sınırı korunarak yeniden üretilir (aşağıda propCmds).
+     */
+    const h = hatchInfo(p);
+    F.push({ id: 'hpat', label: t('hatchPatTitle'), type: 'select', value: h.pattern,
+      options: Object.keys(HATCH_PATTERNS).map(n => [n, n === 'SOLID' ? t('patSolid') : n]) });
+    num('hsc', t('hatchScale'), h.scale); num('hang', t('hatchAngle'), h.angle);
+    return F;
+  }
+  if (p.bg) return F;   // maske (WIPEOUT): sınırı tutamakla düzenlenir, sayısal alanı yok
+  if (ops.length === 2 && ops[1][0] === 1 && !p.closed) { num('x1', t('start') + ' X', ops[0][1]); num('y1', t('start') + ' Y', ops[0][2]); num('z1', t('start') + ' Z', ops[0][3] || 0); num('x2', t('end') + ' X', ops[1][1]); num('y2', t('end') + ' Y', ops[1][2]); num('z2', t('end') + ' Z', ops[1][3] || 0); return F; }
   F.push({ id: 'closed', label: t('closed'), type: 'check', value: !!p.closed }); num('width', t('width'), p.w || 0);
   return F;
 }
 /** Değişen alanlardan komutlar (seçimdeki aynı türden her nesne için); yerleştirme grubu tek nesne sayılır */
 function propCmds(sel, F, vals) {
-  const cmds = [], seenIns = new Set();
+  const cmds = [], seenIns = new Set(), seenHatch = new Set();
   const changed = (id) => vals[id] !== undefined && F.some(f => f.id === id) && String(vals[id]) !== String(F.find(f => f.id === id).value);
   const numv = (id) => { const n = parseFloat(String(vals[id]).replace(',', '.')); return isFinite(n) ? n : null; };
   const D2R = Math.PI / 180;
@@ -1122,6 +1156,31 @@ function propCmds(sel, F, vals) {
       continue;
     }
     if (top === 'DIMENSION') continue;
+    /*
+     * TARAMA: desen / ölçek / açı değişince tarama YENİDEN ÜRETİLİR — sınır çokgeni korunur,
+     * eski sınır ve desen çizgileri silinip yenileri aynı gid, katman ve renkle eklenir.
+     * Grup bir kez işlenir (sınır ve çizgiler aynı seçimde gelir).
+     */
+    if (hatchInfo(p) && (changed('hpat') || changed('hsc') || changed('hang'))) {
+      const sinir = hatchBoundary(p);
+      if (!sinir || !Array.isArray(sinir.ops) || sinir.ops.length < 3) continue;
+      const gid = (sinir.info && sinir.info.gid) || null;
+      const anahtar = gid || sinir.key;
+      if (seenHatch.has(anahtar)) continue; seenHatch.add(anahtar);
+      const h = hatchInfo(sinir);
+      const ad = changed('hpat') ? String(vals.hpat) : h.pattern;
+      const sc = changed('hsc') ? numv('hsc') : h.scale;
+      const an = changed('hang') ? numv('hang') : h.angle;
+      if (!HATCH_PATTERNS[String(ad).toUpperCase()] || !(sc > 0) || an == null) continue;
+      const pts = sinir.ops.filter(o => o[0] === 0 || o[0] === 1).map(o => [o[1], o[2], o[3] || 0]);
+      if (pts.length < 3) continue;
+      const r = hatchEnts(pts, { pattern: ad, scale: sc, angle: an, gid: gid || newId(), layer: sinir.lay, color: sinir.info ? sinir.info.ci : 256, alpha: sinir.alpha == null ? 1 : sinir.alpha });
+      if (!r) continue;
+      const eski = gid ? S.prims.filter(q => q.info && q.info.gid === gid).map(q => q.key) : [sinir.key];
+      cmds.push({ op: 'delete', keys: eski });
+      cmds.push({ op: 'add', ents: r.ents.map(e => ({ ...e, id: newId(), layer: e.layer || sinir.lay, color: e.color == null ? (sinir.info ? sinir.info.ci : 256) : e.color })) });
+      continue;
+    }
     if (p.k === 1) {
       if (changed('text') && String(vals.text).trim()) cmds.push({ op: 'edittext', keys: [p.key], text: String(vals.text) });
       if (changed('th') && numv('th') > 0) cmds.push({ op: 'textheight', keys: [p.key], h: numv('th') });
@@ -1146,13 +1205,14 @@ function propCmds(sel, F, vals) {
       cmds.push({ op: 'reshape', items: [{ key: p.key, ops: [[0, cx + r * Math.cos(a0), cy + r * Math.sin(a0), z], [o[0], cx, cy, r, a0, a1, z]], closed: !!p.closed }] });
       continue;
     }
-    if (p.fill || p.bg) continue;
+    if (p.bg) continue;
     if (ops.length === 2 && ops[1][0] === 1 && !p.closed) {
-      if (!['x1', 'y1', 'x2', 'y2'].some(changed)) continue;
+      if (!['x1', 'y1', 'z1', 'x2', 'y2', 'z2'].some(changed)) continue;
       const g = (id, d) => (changed(id) ? numv(id) : d);
-      const x1 = g('x1', ops[0][1]), y1 = g('y1', ops[0][2]), x2 = g('x2', ops[1][1]), y2 = g('y2', ops[1][2]);
-      if ([x1, y1, x2, y2].some(v => v == null)) continue;
-      cmds.push({ op: 'reshape', items: [{ key: p.key, ops: [[0, x1, y1, ops[0][3] || 0], [1, x2, y2, ops[1][3] || 0]], closed: false }] });
+      const x1 = g('x1', ops[0][1]), y1 = g('y1', ops[0][2]), z1 = g('z1', ops[0][3] || 0);
+      const x2 = g('x2', ops[1][1]), y2 = g('y2', ops[1][2]), z2 = g('z2', ops[1][3] || 0);
+      if ([x1, y1, z1, x2, y2, z2].some(v => v == null)) continue;
+      cmds.push({ op: 'reshape', items: [{ key: p.key, ops: [[0, x1, y1, z1], [1, x2, y2, z2]], closed: false }] });
       continue;
     }
     if (changed('closed') || changed('width')) { const it = { key: p.key, ops: ops.map(o => o.slice()) }; if (changed('closed')) it.closed = !!vals.closed; if (changed('width') && numv('width') != null && numv('width') >= 0) it.w = numv('width'); cmds.push({ op: 'reshape', items: [it] }); }

@@ -257,7 +257,9 @@ export function hatchEnts(pts, o = {}) {
   if (!pts || pts.length < 3) return null;
   const ad = String(o.pattern || 'SOLID').toUpperCase();
   const z = (pts[0] && pts[0][2]) || 0;
-  const ortak = { layer: o.layer, color: o.color, group: o.group };
+  // gid: sınır ile desen çizgileri TEK nesne gibi seçilir ve birlikte silinir. v7.76'ya kadar
+  // burada 'group' yazıyordu; edit.js ent.gid okur, o yüzden tarama iki ayrı nesne kalıyordu.
+  const ortak = { layer: o.layer, color: o.color, gid: o.gid || o.group };
   if (ad === 'SOLID') return { ents: [{ ...ortak, type: 'HATCH', pts: pts.map(p => [p[0], p[1], z]), pattern: 'SOLID', alpha: o.alpha == null ? 1 : o.alpha }], pattern: 'SOLID', segs: 0 };
   const defs = patternDefs(ad, o.scale || 1, o.angle || 0);
   const r = defs.length ? hatchLines([pts.map(p => [p[0], p[1]])], defs, { maxSeg: 20000, maxWork: 1e6 }) : null;

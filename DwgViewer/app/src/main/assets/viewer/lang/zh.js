@@ -365,7 +365,7 @@ export default {
   wblockSrc: '来源', purgeTitle: '清理', purgeBlocks: '未使用的块定义（%s）', purgeLayers: '空图层（%s）', purgeNone: '没有可清理的内容', purged: '已清理 %s 项',
   baseOnlyBedit: '基点只能在块编辑器中更改', baseSet: '基点',
   droMode: '次序', droFront: '前置', droBack: '后置', droAbove: '置于对象之上', droBelow: '置于对象之下', droHint: '最后绘制的在最上面；上 / 下需点按参照对象', droSelfRef: '参照对象必须在选择集之外', droDone: '已更改 %s 个对象的绘图次序', droNone: '没有可移动的对象', droHatchBackOff: '已关闭显示选项“填充在后”：次序与文件一致',
-  wipePolyHint: '点按闭合多段线', wipePolyBtn: '多段线', wipeAdded: '已添加区域覆盖', wipeMin3: '至少三个角点', wipeNotClosed: '需要闭合多段线', wipeErasePoly: '删除多段线？', wipeFrameOn: '区域覆盖边框开', wipeFrameOff: '区域覆盖边框关',
+  wipePolyHint: '点按闭合多段线', wipePolyBtn: '多段线', hatchPatBtn: '图案', wipeAdded: '已添加区域覆盖', wipeMin3: '至少三个角点', wipeNotClosed: '需要闭合多段线', wipeErasePoly: '删除多段线？', wipeFrameOn: '区域覆盖边框开', wipeFrameOff: '区域覆盖边框关',
   ncopyDone: '对象副本已添加到图形', notXref: '不是外部参照',
   beditOn: '正在编辑块“%s” — 在上方栏中保存 / 关闭', refeditOn: '正在在位编辑“%s” — 其他对象淡显', beditCloseFirst: '请先关闭块编辑器', beditEmpty: '块不能为空', beditSaved: '“%s”已保存，插入已更新', beditSaveAsk: '保存块“%s”的更改？', beditClosed: '块编辑器已关闭', bsave: '保存', bclose: '关闭',
   bparamOnlyBedit: '仅限块编辑器（BEDIT）', bpParams: '参数', bpAdd: '添加参数', bpNone: '没有参数 — 添加后块成为动态块，插入将带有夹点', bpAllObjs: '全部对象',

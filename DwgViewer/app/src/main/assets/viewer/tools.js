@@ -270,6 +270,7 @@ export class ToolManager {
     else if (this.active === 'wipeout' && this.wipePoly) text += t('wipePolyHint');   // polyline'dan maske: kapalı yola dokunulur
     else text += toolStep(this.active, Math.min(this.step, def.steps.length - 1));
     if (this.active === 'polygon' && this.step === 0) text += ` <${this.api.fmt(this.lastVal.polygon || 6, 0)}>`;   // AutoCAD <öntanımlı>: boş Enter son kenar sayısını alır
+    if (this.active === 'hatch') { const hp = (this.api.hatchPattern && this.api.hatchPattern()) || null; if (hp) text += ' \u00b7 ' + (hp.name === 'SOLID' ? t('patSolid') : hp.name) + (hp.scale && hp.scale !== 1 ? ' \u00d7' + this.api.fmt(hp.scale) : '') + (hp.angle ? ' ' + this.api.fmt(hp.angle) + '\u00b0' : ''); }
     if (this.pendLen > 0 && DIRECT_DIST_TOOLS.has(this.active) && this.pts.length) text += ' \u00b7 ' + t('dirTapHint').replace('%s', this.api.fmt(this.pendLen));
     const sidesStep = this.active === 'polygon' && this.step === 0;   // kenar sayısı: sayı istemi, klavye açık; dokunuş öntanımlı kenar sayısıyla merkezi alır
     const wantsNumber = (NUMBER_STEP[this.active] != null && this.step === NUMBER_STEP[this.active] && !this.selecting) || sidesStep;
@@ -278,6 +279,9 @@ export class ToolManager {
     if (['pline', 'area', 'cloud', 'wipeout'].includes(this.active) && this.pts.length > 2) buttons.push('close');
     if (this.active === 'wipeout' && !this.pts.length && !this.wipePoly) buttons.push('wipepoly');   // AutoCAD WIPEOUT "Polyline" seçeneği
     if (this.active === 'align' && !this.selecting) buttons.push('alignscale');                    // "Scale objects based on alignment points?"
+    // AutoCAD'de HATCH komutu deseni kendi şeridinde sorar. Burada desen KOMUT ÇUBUĞUNDAN seçilir:
+    // araç çalışırken "Desen" düğmesi seçiciyi açar, istemde geçerli desen adı yazar.
+    if (this.active === 'hatch') buttons.push('hatchpat');
 
     if (this.pts.length) buttons.push('back');
     if (this.selecting) buttons.push('selbox', 'sellasso', 'selall');
@@ -834,7 +838,7 @@ export class ToolManager {
     }
     // Desen, araç çubuğundaki "Desen" karosundan gelir; SOLID varsayılandır (eski davranış).
     const hp = (A.hatchPattern && A.hatchPattern()) || { name: 'SOLID', scale: 1, angle: 0 };
-    const r = hatchEnts(pts, { pattern: hp.name, scale: hp.scale, angle: hp.angle, layer: A.layer(), color: A.color(), alpha: 1 });
+    const r = hatchEnts(pts, { pattern: hp.name, scale: hp.scale, angle: hp.angle, gid: newId(), layer: A.layer(), color: A.color(), alpha: 1 });
     if (!r) { A.toast(t('error')); return; }
     this.commitMany(r.ents);
     A.toast(t('hatchAdded') + ' \u00b7 ' + (r.pattern === 'SOLID' ? t('patSolid') : r.pattern) + ' \u00b7 ' + A.fmt(reg.area) + (u ? u + '\u00b2' : ''));

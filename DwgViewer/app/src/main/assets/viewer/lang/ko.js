@@ -564,7 +564,7 @@ export default {
   wblockSrc: '원본', purgeTitle: '소거', purgeBlocks: '사용하지 않는 블록 정의(%s)', purgeLayers: '빈 도면층(%s)', purgeNone: '소거할 항목이 없습니다', purged: '%s개 항목을 소거했습니다',
   baseOnlyBedit: '기준점은 블록 편집기에서만 바꿀 수 있습니다', baseSet: '기준점',
   droMode: '순서', droFront: '맨 앞으로', droBack: '맨 뒤로', droAbove: '객체 위', droBelow: '객체 아래', droHint: '마지막에 그린 것이 위에 옵니다. 위 / 아래는 기준 객체를 탭하세요', droSelfRef: '기준 객체는 선택 밖에 있어야 합니다', droDone: '%s개 객체의 그리기 순서를 바꿨습니다', droNone: '옮길 객체가 없습니다', droHatchBackOff: '"해치와 채우기를 뒤로" 표시 옵션을 껐습니다: 순서는 파일과 같음',
-  wipePolyHint: '닫힌 폴리선을 탭하세요', wipePolyBtn: '폴리선', wipeAdded: '와이프아웃을 추가했습니다', wipeMin3: '모서리가 세 개 이상 필요합니다', wipeNotClosed: '닫힌 폴리선이 필요합니다', wipeErasePoly: '폴리선을 지울까요?', wipeFrameOn: '와이프아웃 프레임 켜짐', wipeFrameOff: '와이프아웃 프레임 꺼짐',
+  wipePolyHint: '닫힌 폴리선을 탭하세요', wipePolyBtn: '폴리선', hatchPatBtn: '패턴', wipeAdded: '와이프아웃을 추가했습니다', wipeMin3: '모서리가 세 개 이상 필요합니다', wipeNotClosed: '닫힌 폴리선이 필요합니다', wipeErasePoly: '폴리선을 지울까요?', wipeFrameOn: '와이프아웃 프레임 켜짐', wipeFrameOff: '와이프아웃 프레임 꺼짐',
   ncopyDone: '객체 사본을 도면에 추가했습니다', notXref: '외부 참조가 아닙니다',
   beditOn: '블록 "%s" 편집 중 — 위 막대에서 저장 / 닫기', refeditOn: '"%s" 내부 편집 중 — 다른 객체는 흐리게 표시', beditCloseFirst: '먼저 블록 편집기를 닫으세요', beditEmpty: '블록은 비어 있을 수 없습니다', beditSaved: '"%s" 저장됨, 삽입 갱신됨', beditSaveAsk: '블록 "%s"의 변경 사항을 저장할까요?', beditClosed: '블록 편집기를 닫았습니다', bsave: '저장', bclose: '닫기',
   bparamOnlyBedit: '블록 편집기에서만(BEDIT)', bpParams: '매개변수', bpAdd: '매개변수 추가', bpNone: '매개변수 없음 — 추가하면 동적 블록이 되고 삽입에 그립이 생깁니다', bpAllObjs: '모든 객체',
