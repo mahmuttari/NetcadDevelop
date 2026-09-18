@@ -8,7 +8,7 @@
  *        itype: bilgi türü üstüne yazımı (ör. ok başı SOLID ama bilgide DIMENSION görünsün),
  *        gid:   grup kimliği — aynı ölçülendirmenin / balonun bütün parçaları birlikte seçilir }
  *  - entToPrim(): tanımı çizilebilir ilkele çevirir (scene.js ilkel biçimi)
- *  - transformPrim(): ilkele 2B afin dönüşüm + Δz uygular
+ *  - transformPrim(): ilkele 2B afin dönüşüm + kot dönüşümü (z * zs + dz) uygular
  *  - EditDoc: komut günlüğü (add/delete/xform/props/setz), geri al / yinele, kalıcılık
  *  - writeDxf(): sahne + düzenlemeler → ASCII DXF (AC1015); uygulamanın blok tanımları BLOCKS bölümüne, yerleştirmeleri
  *    INSERT (+ATTRIB) olarak, maskeler WIPEOUT olarak yazılır; DWG'den gelen ve benimsenmemiş yerleştirmeler patlatılmış kalır
@@ -162,16 +162,22 @@ export function entsToPrims(ent, layers, blocks) {
 // ---------------------------------------------------------------------------------------
 // İlkel dönüşümleri
 // ---------------------------------------------------------------------------------------
-/** ilkeli 2B afin m ile dönüştürür, z'ye dz ekler; yerinde değiştirir */
-export function transformPrim(p, m, dz = 0) {
+/*
+ * İlkeli 2B afin m ile dönüştürür ve kotu z' = z * zs + dz kuralıyla taşır; yerinde değiştirir.
+ *
+ * zs NEDEN VAR: üç boyutlu ÖLÇEKLE komutu bir cismi X ve Y'de büyütüp Z'de olduğu gibi bırakamaz —
+ * cisim eğrilir. zs (öntanımlı 1) kotu da aynı çarpanla büyütür; taban kotunun yerinde kalması için
+ * çağıran dz = z0 * (1 - zs) verir. zs = 1 iken davranış eskisiyle BİREBİR aynıdır.
+ */
+export function transformPrim(p, m, dz = 0, zs = 1) {
   if (p.k === 5) {                                    // ağ ilkeli: köşe ve kenar dizileri yerinde dönüştürülür
     const V = p.vtx, G = p.seg;
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     const put = (a, i, q, z) => { a[i] = q[0]; a[i + 1] = q[1]; a[i + 2] = z; if (q[0] < x0) x0 = q[0]; if (q[0] > x1) x1 = q[0]; if (q[1] < y0) y0 = q[1]; if (q[1] > y1) y1 = q[1]; };
-    for (let i = 0; i + 2 < V.length; i += 3) put(V, i, apply(m, V[i], V[i + 1]), V[i + 2] + dz);
-    for (let i = 0; i + 2 < G.length; i += 3) put(G, i, apply(m, G[i], G[i + 1]), G[i + 2] + dz);
+    for (let i = 0; i + 2 < V.length; i += 3) put(V, i, apply(m, V[i], V[i + 1]), V[i + 2] * zs + dz);
+    for (let i = 0; i + 2 < G.length; i += 3) put(G, i, apply(m, G[i], G[i + 1]), G[i + 2] * zs + dz);
     if (isFinite(x0)) p.bb = [x0, y0, x1, y1];
-    if (p.zmin != null) { p.zmin += dz; p.zmax += dz; }
+    if (p.zmin != null) { p.zmin = p.zmin * zs + dz; p.zmax = p.zmax * zs + dz; }
     return;
   }
   if (p.k === 0) {
@@ -179,29 +185,29 @@ export function transformPrim(p, m, dz = 0) {
     if (isSim(m)) {
       const s = simScale(m), r = simRot(m);
       out = p.ops.map(o => {
-        if (o[0] === 0 || o[0] === 1) { const q = apply(m, o[1], o[2]); return [o[0], q[0], q[1], o[3] != null ? o[3] + dz : undefined]; }
-        if (o[0] === 2 || o[0] === -2) { const q = apply(m, o[1], o[2]); return [o[0], q[0], q[1], o[3] * s, o[4] + r, o[5] + r, o[6] != null ? o[6] + dz : undefined]; }
+        if (o[0] === 0 || o[0] === 1) { const q = apply(m, o[1], o[2]); return [o[0], q[0], q[1], o[3] != null ? o[3] * zs + dz : undefined]; }
+        if (o[0] === 2 || o[0] === -2) { const q = apply(m, o[1], o[2]); return [o[0], q[0], q[1], o[3] * s, o[4] + r, o[5] + r, o[6] != null ? o[6] * zs + dz : undefined]; }
         const q = apply(m, o[1], o[2]); return [3, q[0], q[1], o[3] * s, o[4] * s, o[5] + r, o[6], o[7]];
       });
     } else {
       const mirror = det(m) < 0;
       out = [];
       for (const o of p.ops) {
-        if (o[0] === 0 || o[0] === 1) { const q = apply(m, o[1], o[2]); out.push([o[0], q[0], q[1], o[3] != null ? o[3] + dz : undefined]); continue; }
+        if (o[0] === 0 || o[0] === 1) { const q = apply(m, o[1], o[2]); out.push([o[0], q[0], q[1], o[3] != null ? o[3] * zs + dz : undefined]); continue; }
         if ((o[0] === 2 || o[0] === -2) && mirror && Math.abs(Math.abs(m[0]) - Math.abs(m[3])) < 1e-9) {
           // aynalama: yay yönü değişir
           const q = apply(m, o[1], o[2]);
           const s = Math.hypot(m[0], m[1]);
           const a0 = Math.atan2(m[1] * Math.cos(o[4]) + m[3] * Math.sin(o[4]), m[0] * Math.cos(o[4]) + m[2] * Math.sin(o[4]));
           const a1 = Math.atan2(m[1] * Math.cos(o[5]) + m[3] * Math.sin(o[5]), m[0] * Math.cos(o[5]) + m[2] * Math.sin(o[5]));
-          out.push([-o[0], q[0], q[1], o[3] * s, a0, a1, o[6] != null ? o[6] + dz : undefined]);
+          out.push([-o[0], q[0], q[1], o[3] * s, a0, a1, o[6] != null ? o[6] * zs + dz : undefined]);
           continue;
         }
         const pts = [];
         if (o[0] === 2) arcPts(o[1], o[2], o[3], o[4], o[5], pts);
         else if (o[0] === -2) { arcPts(o[1], o[2], o[3], o[5], o[4], pts); pts.reverse(); }
         else ellipsePts(o[1], o[2], o[3], o[4], o[5], o[6], o[7], pts);
-        for (let i = 0; i < pts.length; i++) { const q = apply(m, pts[i][0], pts[i][1]); out.push([out.length ? 1 : 0, q[0], q[1], o[6] != null ? o[6] + dz : undefined]); }
+        for (let i = 0; i < pts.length; i++) { const q = apply(m, pts[i][0], pts[i][1]); out.push([out.length ? 1 : 0, q[0], q[1], o[6] != null ? o[6] * zs + dz : undefined]); }
       }
     }
     p.ops = out; p.bb = opsBBox(out);
@@ -209,16 +215,16 @@ export function transformPrim(p, m, dz = 0) {
   } else if (p.k === 1) {
     const q = apply(m, p.x, p.y); p.x = q[0]; p.y = q[1];
     const s = Math.sqrt(Math.abs(det(m))); p.h *= s; p.rot += Math.atan2(m[1], m[0]);
-    if (p.z != null) p.z += dz;
+    if (p.z != null) p.z = p.z * zs + dz;
     const R = Math.hypot(Math.max(...p.lines.map(l => l.length)) * p.h * 0.75 * p.ws, p.h * (1 + 1.667 * (p.lines.length - 1)));
     p.bb = [p.x - R, p.y - R, p.x + R, p.y + R];
   } else if (p.k === 2 || p.k === 4) {
-    const q = apply(m, p.x, p.y); p.x = q[0]; p.y = q[1]; if (p.z != null) p.z += dz; p.bb = [p.x, p.y, p.x, p.y];
+    const q = apply(m, p.x, p.y); p.x = q[0]; p.y = q[1]; if (p.z != null) p.z = p.z * zs + dz; p.bb = [p.x, p.y, p.x, p.y];
   } else if (p.k === 3) {
     p.quad = p.quad.map(c => apply(m, c[0], c[1])); p.bb = [Math.min(...p.quad.map(c => c[0])), Math.min(...p.quad.map(c => c[1])), Math.max(...p.quad.map(c => c[0])), Math.max(...p.quad.map(c => c[1]))];
   }
   if (p.ent) { // tanım da güncellensin
-    p.ent.pts = (p.ent.pts || []).map(q => { const r = apply(m, q[0], q[1]); return [r[0], r[1], (q[2] || 0) + dz]; });
+    p.ent.pts = (p.ent.pts || []).map(q => { const r = apply(m, q[0], q[1]); return [r[0], r[1], (q[2] || 0) * zs + dz]; });
     if (p.ent.r) p.ent.r *= Math.sqrt(Math.abs(det(m)));
     if (p.ent.type === 'ARC') { const r = Math.atan2(m[1], m[0]); p.ent.a0 += r; p.ent.a1 += r; }
     if (p.ent.type === 'TEXT') p.ent.rot = (p.ent.rot || 0) + Math.atan2(m[1], m[0]);
@@ -226,7 +232,7 @@ export function transformPrim(p, m, dz = 0) {
       // Ölçü tanımı da taşınır / döner / ölçeklenir ki özellikler sonradan düzenlenince yeniden kurulan
       // ölçü geometrinin yeni yerine otursun (annot.transformDef: yatay / düşey / dönük doğrultu da döner).
       const s = Math.sqrt(Math.abs(det(m)));
-      p.ent = { ...p.ent, def: transformDef(p.ent.def, q => { const w = apply(m, q[0], q[1]); return [w[0], w[1], (q[2] || 0) + dz]; }, s, [m[0], m[1], m[2], m[3]]) };
+      p.ent = { ...p.ent, def: transformDef(p.ent.def, q => { const w = apply(m, q[0], q[1]); return [w[0], w[1], (q[2] || 0) * zs + dz]; }, s, [m[0], m[1], m[2], m[3]]) };
       // ölçülen değer de ölçeklenir (açı ölçüsü derecedir, ölçekten etkilenmez) — bilgi paneli bayat kalmasın
       if (typeof p.ent.measure === 'number' && !(Array.isArray(p.ent.arcs) && p.ent.arcs.length)) p.ent.measure *= s;
     }
@@ -323,9 +329,9 @@ function infoMapper(extra, insFn, ps) {
     return n;
   };
 }
-/** Yerleştirme bilgisinin matrisini m ile çarpar (x, y, rot, sx, sy türetilir); z'ye dz eklenir */
-function insXform(info, m, dz) {
-  const w = withMatrix({ z: info.z }, mul(m, insMatrix(info)), dz);
+/** Yerleştirme bilgisinin matrisini m ile çarpar (x, y, rot, sx, sy türetilir); kot z' = z * zs + dz olur */
+function insXform(info, m, dz, zs = 1) {
+  const w = withMatrix({ z: info.z }, mul(m, insMatrix(info)), dz, zs);
   return { ...info, m: w.m, x: w.x, y: w.y, z: w.z, rot: w.rot, sx: w.sx, sy: w.sy };
 }
 /** Yerleştirme grupları: tanıtıcı (info.h) başına { info, prims } — taşınmış eski dosyalarda info nesneleri kopyalanmış olabilir, tanıtıcı bağlar */
@@ -451,8 +457,9 @@ export class EditDoc {
         const ps = this.findWhole(cmd.keys);
         if (!ps.length) return null;
         const snaps = ps.map(p => clonePrim(p));
-        const ni = infoMapper({ edited: true }, (i) => insXform(i, cmd.m, cmd.dz || 0), ps);   // yerleştirme matrisi de döner / ölçeklenir / yansır
-        for (const p of ps) { transformPrim(p, cmd.m, cmd.dz || 0); p.info = ni(p.info); }
+        const zs = cmd.zs == null ? 1 : cmd.zs;   // kot çarpanı (3B ölçekle); 1 = eski davranış
+        const ni = infoMapper({ edited: true }, (i) => insXform(i, cmd.m, cmd.dz || 0, zs), ps);   // yerleştirme matrisi de döner / ölçeklenir / yansır
+        for (const p of ps) { transformPrim(p, cmd.m, cmd.dz || 0, zs); p.info = ni(p.info); }
         C.rebuild();
         return () => { ps.forEach((p, i) => Object.assign(p, snaps[i])); C.rebuild(); };
       }
@@ -460,17 +467,17 @@ export class EditDoc {
         const ps = this.findWhole(cmd.keys);
         if (!ps.length) return null;
         // Kopyalanan grup (ölçülendirme, balon) YENİ bir grup kimliği alır: kopya ile aslı birlikte seçilmesin
-        const gmap = new Map(), imap = new Map(), nk = cmd.newKeys || [];
+        const gmap = new Map(), imap = new Map(), nk = cmd.newKeys || [], zs = cmd.zs == null ? 1 : cmd.zs;
         const created = ps.map((p, i) => {
           const c = clonePrim(p);
           const ih = p.info && p.info.t === 'INSERT' && p.info.h ? p.info.h : null;
           // anahtarla istenmeyen grup üyesi (ekleme noktası işareti): anahtarı yeni tanıtıcıdan türer — yeniden oynatmada da aynı
           c.key = i < nk.length ? nk[i] : (ih && imap.has(ih) ? imap.get(ih).h + (p.k === 4 ? '#ins' : '#e' + i) : newId());
           // Yerleştirme ilkelleri ortak info'yu paylaşmayı sürdürür; kopyanın tanıtıcısı grubun İLK yeni anahtarıdır (yeniden oynatmada da aynı)
-          if (ih) { let ni = imap.get(ih); if (!ni) { ni = insXform({ ...p.info, h: c.key, edited: true }, cmd.m, cmd.dz || 0); imap.set(ih, ni); } c.info = ni; }
+          if (ih) { let ni = imap.get(ih); if (!ni) { ni = insXform({ ...p.info, h: c.key, edited: true }, cmd.m, cmd.dz || 0, zs); imap.set(ih, ni); } c.info = ni; }
           else { c.info = { ...p.info, h: c.key, edited: true }; if (c.info.gid) { if (!gmap.has(c.info.gid)) gmap.set(c.info.gid, newId()); c.info.gid = gmap.get(c.info.gid); } }
           if (c.ent) { c.ent = { ...c.ent, id: c.key, ...(c.ent.gid && !(p.info && p.info.t === 'INSERT') ? { gid: c.info.gid } : {}) }; }
-          transformPrim(c, cmd.m, cmd.dz || 0); C.insert(c); return c;
+          transformPrim(c, cmd.m, cmd.dz || 0, zs); C.insert(c); return c;
         });
         C.rebuild();
         return () => { for (const p of created) C.remove(p); C.rebuild(); };

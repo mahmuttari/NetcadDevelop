@@ -11,7 +11,7 @@
  *   savePng, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, isolateLayers, unisolate, settings, stamp, haptic,
  *   openDisplayOptions, setDisplay, getDisplay, toggleDisplay, display }
  */
-import { ToolManager, TOOLS } from './tools.js';
+import { ToolManager, TOOLS, rotM, mirrorM } from './tools.js';
 import { EditDoc, writeDxf, newId, entsToPrims } from './edit.js';
 import { View3D } from './view3d.js';
 import { openView3DOptions, buildViewCube, openCameraBookmarks, renderZScale, renderClip } from './view3d_panel.js';
@@ -29,6 +29,13 @@ import { cmdOf, namesOf, repeatable, resolve as acadResolve, suggest as acadSugg
 import * as Desk from './desktop.js';
 import * as B from './blocks.js';
 import { primToEnt, listBlocks, loadBlock, saveBlock, entsBBox } from './blocklib.js';
+/*
+ * NESNE YAKALAMA. İşaretleri (kare, üçgen, çember…) 2B ile 3B aynı çiziciden alır: kullanıcı
+ * END'i iki boyutta nasıl tanıyorsa üç boyutta da aynı simgeden tanır. osnap3.js saf modüldür —
+ * kamera, WebGL ve DOM bilmez; ekran izdüşümünü işlev olarak alır.
+ */
+import { drawMarker as snapMarker, markerSvg as snapMarkerSvg, nameOf as snapModeName } from './osnap.js';
+import { MODES3, DEFAULT_MODES3, snap3 } from './osnap3.js';
 
 const $ = (id) => document.getElementById(id);
 const tt = (k, tr) => { const v = t(k); return v === k ? tr : v; };
@@ -40,7 +47,7 @@ const ed = { is3D: () => !!(v3 && !$('cv3d').hidden), tools: null, doc: null, cu
 // ---------------------------------------------------------------------------------
 // Kullanım tercihleri (ui) — kalıcı anahtar 'ui'
 // ---------------------------------------------------------------------------------
-const UI_DEFAULTS = { favs: [], tbCollapsed: { portrait: false, landscape: false }, hints: {}, fontScale: 1, glove: false, leftHand: false, contrast: false, reduceMotion: false, haptics: true, dpad: false, compactStatus: false, showLocked: true, gizmo: true, infoTap: true, infoFull: false, pick3: 'auto', grips: false, palmReject: true, penHover: true, penPressure: true, penDraw: false, penBarrel: 'menu', cmdLine: true, desktop: true, deskRight: 'enter' };
+const UI_DEFAULTS = { favs: [], tbCollapsed: { portrait: false, landscape: false }, hints: {}, fontScale: 1, glove: false, leftHand: false, contrast: false, reduceMotion: false, haptics: true, dpad: false, compactStatus: false, showLocked: true, gizmo: true, infoTap: true, infoFull: false, pick3: 'auto', snap3: true, snap3Modes: DEFAULT_MODES3.slice(), grips: false, palmReject: true, penHover: true, penPressure: true, penDraw: false, penBarrel: 'menu', cmdLine: true, desktop: true, deskRight: 'enter' };
 export const ui = (() => {
   const o = JSON.parse(JSON.stringify(UI_DEFAULTS));
   const st = store.json('ui', null);
@@ -53,6 +60,8 @@ export const ui = (() => {
       else if (k === 'fontScale') { const n = Number(st.fontScale); if (n >= 0.8 && n <= 1.6) o.fontScale = n; }
       // 3B hedef kipi: 'vertex' (yalnız köşe — eski davranış), 'surface' (yalnız yüzey), 'auto'
       else if (k === 'pick3') { if (['vertex', 'surface', 'auto'].includes(st.pick3)) o.pick3 = st.pick3; }
+      // 3B yakalama kipleri: bilinmeyen adlar atılır, sıra KİP ÖNCELİĞİNE göre kurulur (END > MID > CEN > PER > NEA)
+      else if (k === 'snap3Modes') { if (Array.isArray(st.snap3Modes)) o.snap3Modes = MODES3.map(m => m.id).filter(id => st.snap3Modes.includes(id)); }
       else o[k] = !!st[k];
     }
   }
@@ -112,9 +121,7 @@ const TABS = [
   { id: '3d', i18n: 'tab3d', icon: 'i-cube', groups: [
     { cap: 'grpView3', items: [T('3d', 'i-3d', '3B aç/kapat', '3D on/off', 'Tek parmak döndürür, iki parmak kaydırır / yakınlaştırır', 'One finger orbits, two fingers pan / zoom'), T('fit3', 'i-fit', 'Sığdır', 'Fit'), T('v:iso', 'i-iso', 'İzometrik', 'Isometric'), T('v:top', 'i-top', 'Üst', 'Top'), T('v:front', 'i-front', 'Ön', 'Front'), T('v:left', 'i-left', 'Sol', 'Left'), T('v:right', 'i-right', 'Sağ', 'Right'), T('v:back', 'i-back', 'Arka', 'Back'), T('v:bottom', 'i-bottom', 'Alt', 'Bottom')] },
     { cap: 'grpCam3', items: [T('persp', 'i-eye', 'Perspektif', 'Perspective', 'Perspektif / ortografik', 'Perspective / orthographic'), T('zscale', 'i-zscale', 'Z abartı', 'Z scale', 'Düşey abartı çarpanı', 'Vertical exaggeration'), T('cam3', 'i-camera', 'Yer imleri', 'Bookmarks', 'Kamera konumlarını kaydeder', 'Save camera positions'), T('turn3', 'i-turn', 'Döner tabla', 'Turntable')] },
-    { cap: 'grpStyle3', items: [T('vstyle', 'i-vs-wireframe', 'Görsel stil', 'Visual style', 'Tel kafes, gizli çizgi, gölgeli, gerçekçi, kavramsal, gri, eskiz, röntgen', 'Wireframe, hidden, shaded, realistic, conceptual, gray, sketchy, x-ray'), T('edges3', 'i-edges', 'Kenarlar', 'Edges', 'Yüzey kenar çizgilerini aç/kapat (stilin varsayılanını geçersiz kılar)', 'Toggle face edge lines (overrides the style default)'), T('color3', 'i-palette', 'Renk', 'Color', 'Nesne, katman, kot, tek renk', 'Entity, layer, elevation, mono'), T('clip3', 'i-clip', 'Kesit', 'Clip', 'Z aralığı ve kesit kutusu', 'Z range and clip box')] },
-    { cap: 'grpTools3', items: [T('target3', 'i-snap', 'Hedef', 'Target', 'Köşe / yüzey / otomatik: 3B dokunuşu neye oturur', 'Vertex / surface / auto: what a 3D tap snaps to')] } ] },   // 3B ARAÇLARI ÇİZ ŞERİDİNDEDİR (DRAW_3D_IDS): bir karo iki şeritte birden durmaz.
-    // Burada yalnız 'Hedef' kalır — o bir araç değil, dokunuşun neye oturacağını söyleyen bir ayardır.
+    { cap: 'grpStyle3', items: [T('vstyle', 'i-vs-wireframe', 'Görsel stil', 'Visual style', 'Tel kafes, gizli çizgi, gölgeli, gerçekçi, kavramsal, gri, eskiz, röntgen', 'Wireframe, hidden, shaded, realistic, conceptual, gray, sketchy, x-ray'), T('edges3', 'i-edges', 'Kenarlar', 'Edges', 'Yüzey kenar çizgilerini aç/kapat (stilin varsayılanını geçersiz kılar)', 'Toggle face edge lines (overrides the style default)'), T('color3', 'i-palette', 'Renk', 'Color', 'Nesne, katman, kot, tek renk', 'Entity, layer, elevation, mono'), T('clip3', 'i-clip', 'Kesit', 'Clip', 'Z aralığı ve kesit kutusu', 'Z range and clip box')] } ] },   // 3B ARAÇLARI VE 3B DOKUNUŞ AYARLARI ÇİZ ŞERİDİNDEDİR (DRAW_3D): bir karo iki şeritte birden durmaz.
 ];
 /*
  * 3B ÇİZİM ARAÇLARI. Ekran satırındaki DISPLAY_2D / DISPLAY_3D ile aynı desen: sekme tanımının
@@ -125,13 +132,35 @@ const TABS = [
 const DRAW_3D = [
   { cap: 'grpTools3', items: [
     T('3:select', 'i-select', 'Seç', 'Select', '3B\'de nesne seçer', 'Select objects in 3D'),
+    T('3:line', 'i-line', 'Çizgi (3B)', 'Line (3D)', 'İki nokta arasına üç boyutlu çizgi; her yeni nokta bir öncekine bağlanır', 'A 3D line between two points; each new point continues from the last'),
     T('3:pline', 'i-pline3d', '3B Polyline', '3D Polyline', 'Köşelere ve yüzeylere oturan üç boyutlu çizgi', 'A 3D polyline snapped to vertices and surfaces'),
     T('3:note', 'i-note3', '3B açıklama', '3D note', 'Üç boyutlu noktaya açıklama', 'A note at a 3D point'),
     T('3:dist', 'i-dist', '3B mesafe', '3D distance', 'Köşeler arası eğik mesafe, ΔZ, eğim', 'Slope distance between vertices'),
     T('3:geo', 'i-geo3', '3B geometrik ölçüm', '3D geometry measure', 'Açı, düzlem, hacim, alan…', 'Angle, plane, volume, area…'),
-    T('3:move', 'i-move', 'Taşı (3B)', 'Move (3D)', 'Seçimi üç boyutta taşır', 'Move the selection in 3D'),
+  ] },
+  /*
+   * ÜÇ BOYUTLU DÜZENLEME. AutoCAD'in 3DMOVE / 3DROTATE / 3DSCALE / MIRROR3D ailesiyle aynı işi
+   * yapar: taban noktası üç boyutlu yakalamayla alınır, dönüşüm seçime uygulanır. Döndürme Z
+   * ekseni çevresindedir (AutoCAD'in geçerli UCS'i), aynalama düşey bir düzleme göredir —
+   * ikisi de tek bir 2B afin matrisle tam olarak ifade edilir, yaklaşık hesap yapılmaz.
+   */
+  { cap: 'grpXform', items: [
+    T('3:move', 'i-move', 'Taşı (3B)', 'Move (3D)', 'Seçimi üç boyutta taşır: taban ve hedef noktası', 'Move the selection in 3D: base and target point'),
+    T('3:copy', 'i-copyobj', 'Kopyala (3B)', 'Copy (3D)', 'Seçimin üç boyutlu kopyasını taban ve hedef noktasıyla koyar', 'Copy the selection in 3D by base and target point'),
+    T('3:rotate', 'i-rotate', 'Döndür (3B)', 'Rotate (3D)', 'Dokunulan noktadan geçen Z ekseni çevresinde döndürür; açı derece olarak yazılır', 'Rotate about the Z axis through the tapped point; the angle is typed in degrees'),
+    T('3:scale', 'i-scale', 'Ölçekle (3B)', 'Scale (3D)', 'Dokunulan noktaya göre üç eksende birlikte ölçekler (kot da ölçeklenir)', 'Scale about the tapped point in all three axes (elevation scales too)'),
+    T('3:mirror', 'i-mirror', 'Aynala (3B)', 'Mirror (3D)', 'İki noktadan geçen DÜŞEY düzleme göre yansıtır', 'Mirror about the VERTICAL plane through two points'),
     T('3:setz', 'i-z', 'Kot ata', 'Set Z', 'Seçime kot verir', 'Assign an elevation to the selection'),
     T('3:del', 'i-erase', 'Sil', 'Delete', 'Seçimi siler', 'Erase the selection'),
+  ] },
+  /*
+   * DOKUNUŞ AYARLARI. 'Hedef' 3B sekmesinden buraya alındı: dokunuşun neye oturacağı, çizim
+   * yapılırken elin altında olmalıdır — ayrı bir sekmeye gitmek gerekmesin.
+   */
+  { cap: 'grpHelpers', items: [
+    T('snap3', 'i-snap', '3B yakalama', '3D osnap', 'Üç boyutta uç, orta, merkez, dik ve en yakın noktaya oturur', 'Snaps to endpoint, midpoint, center, perpendicular and nearest in 3D'),
+    T('snap3set', 'i-sliders', '3B yakalama kipleri', '3D osnap settings', 'Hangi yakalama kiplerinin çalışacağı', 'Which 3D object snap modes are active'),
+    T('target3', 'i-snap', 'Hedef', 'Target', 'Köşe / yüzey / otomatik: 3B dokunuşu neye oturur', 'Vertex / surface / auto: what a 3D tap snaps to'),
   ] },
 ];
 const DISPLAY_2D = [
@@ -441,7 +470,7 @@ function refreshTiles() {
   if (S) {
     on.theme = !S.dark; on.sun = !!S.sun; on.text = S.show.text; on.hatch = S.show.hatch; on.dim = S.show.dim; on.points = S.show.point; on.images = S.show.image;
     on.lw = !!S.lw; on.mono = S.colorMode === 'mono'; on.ltype = S.show.ltype; on.grid = S.grid.on; on.crosshair = S.crosshair !== 'off'; on.rulers = !!S.rulers; on.fade = S.fade.on;
-    on.osnap = S.snapModes && S.snapModes.size > 0; on['3d'] = ed.is3D(); on.grips = !!ui.grips; on.cmdline = ui.cmdLine !== false; on.ortho = !!(S.desk && S.desk.ortho); on.polar = !!(S.desk && S.desk.polar);
+    on.osnap = S.snapModes && S.snapModes.size > 0; on.snap3 = snap3On(); on['3d'] = ed.is3D(); on.grips = !!ui.grips; on.cmdline = ui.cmdLine !== false; on.ortho = !!(S.desk && S.desk.ortho); on.polar = !!(S.desk && S.desk.polar);
     try { on.otrack = !!(api && api.osnap && api.osnap.opt().otrack); } catch (_) { on.otrack = false; }   // nesne yakalama izleme (F11) karosu
     on.unisoobj = !!(S.hideObj && (S.hideObj.size > 0 || !!S.isoObj));   // gizli / izole nesne varken "Hepsini göster" karosu yanar
     on.wipeframe = S.wipeFrame !== false; on.xreffade = S.xrefFade > 0; on.blocks = !!bses;
@@ -526,6 +555,48 @@ function targetPop(btn) {
     refreshTiles(); haptic('toggle'); prompt3D(); overlay3D();
   });
 }
+/*
+ * ÜÇ BOYUTLU NESNE YAKALAMA (3B OSNAP).
+ *
+ * 2B'de yakalama olmadan çizim yapılmaz; 3B'de de yapılmaz. Eskiden 3B dokunuş yalnız KÖŞEYE
+ * (ya da yüzeye) oturuyordu: bir duvarın ORTASINDAN ölçü almak, bir kirişe DİK inmek ya da bir
+ * dairenin MERKEZİNİ yakalamak olanaksızdı. Artık 2B'nin beş temel kipi üç boyutta da çalışır
+ * ve işaretleri aynıdır — END karesi, MID üçgeni, CEN çemberi.
+ *
+ * Kipler kullanıcıdadır (ui.snap3Modes), anahtar ayrıdır (ui.snap3): AutoCAD'de de F3 kipleri
+ * silmez, yalnız yakalamayı durdurur.
+ */
+const snap3On = () => !!ui.snap3 && (ui.snap3Modes || []).length > 0;
+function toggleSnap3() {
+  if (!gate('snap3')) return;
+  if (!needModel()) return;
+  if (!ed.is3D()) enter3D();
+  ui.snap3 = !ui.snap3;
+  // Bütün kipler kapatılmışsa anahtar tek başına işe yaramaz: açılışta öntanımlı üçlü geri gelir.
+  if (ui.snap3 && !(ui.snap3Modes || []).length) ui.snap3Modes = DEFAULT_MODES3.slice();
+  applyUi(); refreshTiles(); haptic('toggle');
+  api.toast(tileLabel('snap3') + ' · ' + t(snap3On() ? 'on' : 'off'), 1400);
+  prompt3D(); overlay3D();
+}
+function snap3Pop(btn) {
+  if (!gate('snap3')) return;
+  if (!v3 || !ed.is3D()) { if (!needModel()) return; enter3D(); }
+  if (!v3) return;
+  const html = `<div class="pop-title">${esc(tileLabel('snap3set'))}</div><div class="vs-grid">`
+    + MODES3.map(m => `<button type="button" data-s3="${m.id}" class="${(ui.snap3Modes || []).includes(m.id) ? 'on' : ''}">${snapMarkerSvg(m.id, 'ic')}<span>${esc(snapModeName(m.id))}</span></button>`).join('')
+    + '</div>';
+  const pop = openPop(btn, html);
+  pop.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-s3]'); if (!b) return;
+    const id = b.dataset.s3, acik = new Set(ui.snap3Modes || []);
+    if (acik.has(id)) acik.delete(id); else acik.add(id);
+    // Sıra KİP ÖNCELİĞİDİR (MODES3), kullanıcının dokunma sırası değil: END her zaman MID'in önünde kalır.
+    ui.snap3Modes = MODES3.map(m => m.id).filter(x => acik.has(x));
+    if (ui.snap3Modes.length) ui.snap3 = true;
+    applyUi(); b.classList.toggle('on', acik.has(id));
+    refreshTiles(); haptic('toggle'); prompt3D(); overlay3D();
+  });
+}
 // ---- uzun basış: ipucu + sık kullanılan ---------------------------------------------------------
 function bindLongPress(tb) {
   let timer = 0, start = null, target = null;
@@ -607,6 +678,13 @@ function optionPop(btn, renderFn, title) {
   if (!landscapeMq.matches) { const hh = pop.offsetHeight; let y = ar.top - pr.top - hh - 10; if (y < 8) y = 8; pop.style.top = y + 'px'; }
 }
 function needDoc() { if (!S.hasDoc) { api.toast(t('openFirst')); return false; } return true; }
+/*
+ * 2B araç kimliğinin 3B karşılığı ('t:line' → '3:line'). Liste, üç boyutta bir YAPI DÜZLEMİ
+ * gerektirmeden çalışabilen araçlardır: çizgi ve seçim nokta toplar, taşı / kopyala / döndür /
+ * ölçekle / aynala seçime dönüşüm uygular. Kavis, buda, tarama gibi araçlar burada YOKTUR —
+ * onların girdisi düzlemsel bir kesişimdir, 3B'de anlamı yoktur.
+ */
+const T2TO3 = { line: 'line', pline3d: 'pline', select: 'select', move: 'move', copy: 'copy', rotate: 'rotate', scale: 'scale', mirror: 'mirror', del: 'del', setz: 'setz' };
 /** belge açık olmadan da çalışan karolar; HIST kendi kapalılığını yönetir (refreshUndo / görünüm geçmişi) */
 const FREE = new Set(['more', 'display', 'drive', 'undo', 'redo', 'gps', 'basemap', 'theme', 'sun', 'open', 'new', 'about', 'settings', 'cmdhelp', 'closefile', 'osnapset', 'otrack']);
 const HIST = new Set(['undo', 'redo', 'prevview', 'nextview']);
@@ -622,7 +700,23 @@ function act(name, btn) {
   if (repeatable(name)) cmdLast = cmdOf(name);   // açma/kapama karoları (GRID, ORTHO…) yinelenmez: geri kapatırdı
   // 2B aracı 3B'den çağrıldıysa (komut satırı, kısayol, sık kullanılan) görünüm SESSİZCE değişmez:
   // neden söylenir. Çiz şeridi 3B'de zaten 2B araçlarını göstermez, bu yol yalnız yazarak gelenler içindir.
-  if (name.startsWith('t:')) { if (!needModel()) return; if (ed.is3D()) { const ad = tileLabel(name); exit3D(); api.toast(t('need2d').replace('%s', ad), 3000); } const tn = name.slice(2); if (tools.active === tn || (tn === 'array' && /^array/.test(tools.active || ''))) { tools.cancel(); markActive(null); } else { tools.start(tn); markActive(name); } return; }
+  if (name.startsWith('t:')) {
+    if (!needModel()) return;
+    const tn = name.slice(2);
+    /*
+     * 2B ARACIN 3B KARŞILIĞI. AutoCAD'de LINE, MOVE, ROTATE, SCALE, MIRROR üç boyutlu görünümde
+     * de çalışır; kullanıcı komutu yazdı diye görünümü kaybetmez. Karşılığı olan araç doğrudan
+     * 3B aracına gider. Karşılığı OLMAYANLAR (kavis, buda, tarama, ölçülendirme…) bir yapı
+     * düzlemi ister — onlarda 2B'ye dönülür ve nedeni söylenir; sessiz değişiklik yapılmaz.
+     */
+    if (ed.is3D()) {
+      const u3 = T2TO3[tn];
+      if (u3) { void start3DTool(u3); markActive('3:' + u3); return; }
+      const ad = tileLabel(name); exit3D(); api.toast(t('need2d').replace('%s', ad), 3000);
+    }
+    if (tools.active === tn || (tn === 'array' && /^array/.test(tools.active || ''))) { tools.cancel(); markActive(null); } else { tools.start(tn); markActive(name); }
+    return;
+  }
   if (name.startsWith('v:')) { if (!v3 || !ed.is3D()) { if (!needModel()) return; enter3D(); } if (v3) { v3.preset(name.slice(2), { animate: !ui.reduceMotion }); v3.render(); overlay3D(); } return; }
   if (name.startsWith('3:')) { if (!needModel()) return; if (!ed.is3D()) enter3D(); void start3DTool(name.slice(2)); markActive(name); return; }
   const tog = { text: 'showText', hatch: 'showHatch', dim: 'showDim', points: 'showPoint', images: 'showImage', lw: 'lw', mono: 'colorMode', ltype: 'showLtype', grid: 'grid', crosshair: 'crosshair', rulers: 'rulers', fade: 'fade', sun: 'sun', theme: 'theme' };
@@ -692,6 +786,8 @@ function act(name, btn) {
     case 'zscale': optionPop(btn, renderZScale, tt('zscaleTitle', 'Düşey abartı')); break;
     case 'vstyle': vstylePop(btn); break;
     case 'target3': targetPop(btn); break;
+    case 'snap3': toggleSnap3(); break;
+    case 'snap3set': snap3Pop(btn); break;
     case 'hatchpat': void hatchPatPop(); break;
     case 'clip3': optionPop(btn, renderClip, tt('clipTitle', 'Kesit')); break;
     case 'color3': call(api.openDisplayOptions, { seg: '3d', focus: 'colorMode' }); break;
@@ -2422,17 +2518,66 @@ function bind3D(cv) {
   cv.addEventListener('wheel', (ev) => { ev.preventDefault(); ev.stopPropagation(); v3.zoom(ev.deltaY < 0 ? 1.15 : 1 / 1.15); v3.render(); overlay3D(); statusMode3D(); }, { passive: false });
 }
 /*
- * 3B'de nokta toplama. Eskiden tek yol KÖŞEYE dokunmaktı: eğrisel bir yüzeyin ortasından ölçü
- * alınamıyordu, kullanıcı en yakın köşeye razı olmak zorundaydı. Artık üç kip var:
- *   vertex  — yalnız köşe (eski davranış; kot ve tutamak işleri için kesin nokta gerekir)
- *   surface — yalnız yüzey (ışın-üçgen kesişimi; yüzeyin üstünde serbest nokta)
- *   auto    — önce köşe, köşe yoksa yüzey (varsayılan)
- * Yüzey seçimi 'target3' kapısına bağlıdır; kapı kapalıysa kip zorla 'vertex' olur, yani
- * ücretsiz sürümde bugünkü davranış birebir korunur.
+ * YAKALAMA ADAYLARI. Kalabalık bir çizimde her dokunuşta yüz binlerce parça taranamaz; ama
+ * bütçeyle ilk N parçayı taramak da yanlıştır — liste sırası geometriye göre değildir, uzaktaki
+ * bir parça yakındakinin önüne geçer. Doğru eleme şudur: 3B'de ekran dokunuşu bir NOKTA değil
+ * bir IŞINDIR; ışının kot dilimindeki XY izdüşümü bir DOĞRU PARÇASIDIR. Model uzayının 2B
+ * indeksinden (S.modelTree) o parçanın kutusu sorgulanır ve aday sayısı yüzlere iner.
+ *
+ * Üstten bakışta parça kısalır (neredeyse nokta), yandan bakışta modeli boydan boya keser —
+ * ikisi de doğrudur: yandan bakan kullanıcı gerçekten de o doğrultudaki her şeyi görür.
  */
-function pick3At(sx, sy) {
+function nearPrims3(sx, sy, tolPx) {
+  const model = S.scene && S.scene.layouts ? S.scene.layouts[0] : null;
+  if (!model || !Array.isArray(model.prims) || !v3) return [];
+  const all = model.prims, tree = S.modelTree;
+  // Görünmeyen katman ve gizlenmiş nesne yakalanmaz: ekranda olmayan bir noktaya oturmak şaşırtır.
+  const uygun = (q) => q && q.k === 0 && !q.inf && objShown(q) && (() => { const l = S.layers.get(q.lay); return !l || l.visible; })();
+  if (!tree || all.length <= 3000) return all.filter(uygun);
+  let r;
+  try {
+    const ray = v3.screenRay(sx, sy), o = ray.o, d = ray.d;
+    const zs = v3.zScale || 1, zr = v3.zrange || [0, 0];
+    const z0 = Math.min(zr[0], zr[1]) * zs, z1 = Math.max(zr[0], zr[1]) * zs;
+    let t0, t1;
+    if (Math.abs(d[2]) > 1e-12) { t0 = (z0 - o[2]) / d[2]; t1 = (z1 - o[2]) / d[2]; }
+    else { t0 = 0; t1 = Math.max(1, v3.radius * 8); }     // yatay bakış: kot dilimi ışını sınırlamaz
+    if (t1 < t0) { const w = t0; t0 = t1; t1 = w; }
+    const ax = o[0] + d[0] * t0, ay = o[1] + d[1] * t0, bx = o[0] + d[0] * t1, by = o[1] + d[1] * t1;
+    if (![ax, ay, bx, by].every(isFinite)) return all.filter(uygun);
+    const m = Math.max(1e-9, tolPx * v3._worldPerPixel(v3.cam));
+    r = [Math.min(ax, bx) - m, Math.min(ay, by) - m, Math.max(ax, bx) + m, Math.max(ay, by) + m];
+  } catch (e) { console.warn(e); return all.filter(uygun); }
+  const out = [];
+  tree.search(r[0], r[1], r[2], r[3], (i) => { const q = all[i]; if (uygun(q)) out.push(q); });
+  return out;
+}
+/** Üç boyutlu yakalama denemesi; kapalıysa ya da aday yoksa null (çağıran köşe / yüzey yoluna düşer) */
+function snapHit3(sx, sy, tol, prev) {
+  if (!snap3On() || !has('snap3') || !v3) return null;
+  const list = nearPrims3(sx, sy, tol);
+  if (!list.length) return null;
+  const izd = (x, y, z) => { const q = v3.project(x, y, z); return q && q[2] >= -1 && q[2] <= 1 ? q : null; };
+  const h = snap3(list, izd, sx, sy, { tol, modes: ui.snap3Modes, prev: prev || null });
+  return h ? { p: h.p, prim: h.prim, kind: h.kind } : null;
+}
+/*
+ * 3B'de nokta toplama, üç basamaklı bir merdivendir ve sıra ANLAMLILIKTAN ham veriye doğrudur:
+ *   1) NESNE YAKALAMA — uç, orta, merkez, dik, en yakın (osnap3.js; açıksa ve kapı izin veriyorsa)
+ *   2) KÖŞE           — sahnenin ham köşesi (eski davranış; kot ve tutamak işleri için kesin nokta)
+ *   3) YÜZEY          — ışın-üçgen kesişimi; yüzeyin üstünde serbest nokta
+ * 2. ve 3. basamak arasındaki tercih 'Hedef' ayarıdır (vertex / surface / auto) ve 'target3'
+ * kapısına bağlıdır; kapı kapalıysa kip zorla 'vertex' olur, yani ücretsiz sürümde eski
+ * davranış birebir korunur.
+ *
+ * prev, DİK (PER) yakalamanın taban noktasıdır: komut sırasında en son toplanan nokta.
+ */
+function pick3At(sx, sy, prev) {
   const kip = has('target3') ? (ui.pick3 || 'auto') : 'vertex';
   const tol = ui.glove ? 30 : 22;
+  // Nesne yakalama önce gelir: uç / orta / merkez, ham köşeden daha ANLAMLI bir noktadır.
+  const sn = snapHit3(sx, sy, tol, prev);
+  if (sn) return sn;
   if (kip !== 'surface') {
     const h = v3.pickVertex(sx, sy, tol);
     if (h) return { p: h.p, prim: h.prim, kind: 'vtx' };
@@ -2456,7 +2601,9 @@ function tap3D(sx, sy) {
       return;
     }
   }
-  const hit = pick3At(sx, sy);
+  // DİK (PER) yakalama bir taban noktası ister: komut sırasında en son toplanan nokta odur.
+  const oncekiNokta = ed.m3 && ed.m3.pts.length ? ed.m3.pts[ed.m3.pts.length - 1] : null;
+  const hit = pick3At(sx, sy, oncekiNokta);
   if (!ed.m3) {
     ed.sel.clear();
     if (hit) { ed.sel.add(hit.prim); api.showInfo(hit.prim); haptic('snap'); } else api.hide('infoPanel');
@@ -2477,6 +2624,33 @@ function tap3D(sx, sy) {
     if (keys.length) { doc.run({ op: 'xform', keys, m: [1, 0, 0, 1, b[0] - a[0], b[1] - a[1]], dz: b[2] - a[2] }); refreshUndo(); api.toast(t('moved')); }
     ed.sel.clear(); ed.m3 = null; showPrompt(null); markActive(null);
     if (keys.length) refresh3D(); else v3.setSelection(ed.sel);   // sahne yalnız taşıma bitince yeniden kurulur
+  } else if (m.name === 'line') {
+    /*
+     * ÇİZGİ (3B). AutoCAD'in LINE'ı gibi zincirlemedir: her yeni nokta bir öncekiyle ayrı bir
+     * LINE varlığı kurar ve komut Bitir'e kadar sürer. POLYLINE3D değil LINE üretilir — kullanıcı
+     * "çizgi" dediğinde tek parça beklemez, birbirinden ayrı çizilebilen doğrular bekler.
+     */
+    if (m.pts.length >= 2) {
+      const a = m.pts[m.pts.length - 2], b = m.pts[m.pts.length - 1];
+      doc.run({ op: 'add', ents: [{ type: 'LINE', pts: [a.slice(), b.slice()], id: newId(), layer: ed.curLayer, color: ed.curColor }] });
+      refreshUndo(); refresh3D();
+    }
+  } else if (m.name === 'copy' && m.pts.length === 2) {
+    const [a, b] = m.pts; const keys = [...ed.sel].map(q => q.key);
+    if (keys.length) { doc.run({ op: 'copy', keys, newKeys: keys.map(() => newId()), m: [1, 0, 0, 1, b[0] - a[0], b[1] - a[1]], dz: b[2] - a[2] }); refreshUndo(); api.toast(t('copied3')); }
+    ed.sel.clear(); ed.m3 = null; showPrompt(null); markActive(null);
+    if (keys.length) refresh3D(); else v3.setSelection(ed.sel);
+  } else if (m.name === 'mirror' && m.pts.length === 2) {
+    // Ayna DÜZLEMİ: iki noktadan geçen DÜŞEY düzlem. Kotlar korunur, XY yansır — MIRROR3D'nin
+    // en çok kullanılan hâli budur ve tek bir 2B afin matrisle tam olarak ifade edilir.
+    const [a, b] = m.pts; const keys = [...ed.sel].map(q => q.key);
+    if (keys.length && Math.hypot(b[0] - a[0], b[1] - a[1]) > 1e-9) { doc.run({ op: 'xform', keys, m: mirrorM(a, b) }); refreshUndo(); api.toast(t('mirrored3')); }
+    else if (keys.length) api.toast(t('mirror3Vertical'), { type: 'warn' });
+    ed.sel.clear(); ed.m3 = null; showPrompt(null); markActive(null);
+    if (keys.length) refresh3D(); else v3.setSelection(ed.sel);
+  } else if ((m.name === 'rotate' || m.name === 'scale') && m.pts.length === 1) {
+    void xform3Step();
+    return;
   } else if (m.name === 'geo') {
     void geoStep();
     return;
@@ -2524,20 +2698,23 @@ ed.selection = () => [...ed.sel];
 ed.setSelection = (list) => { ed.sel.clear(); for (const p of list || []) ed.sel.add(p); if (ed.is3D() && v3) v3.setSelection(ed.sel); api.drawOverlay(); };
 ed.textHeight = textH;
 
+/** Önce nesne seçimi isteyen 3B araçları (AutoCAD'de de "Select objects:" ilk istemdir) */
+const SEC3 = new Set(['move', 'copy', 'rotate', 'scale', 'mirror', 'setz', 'del']);
 async function start3DTool(name) {
   if (!gate('3:' + name)) { markActive(null); return; }
   ed.m3 = { name, pts: [] };
+  // Seçime uygulanan araçlar: seçim yoksa komut hiç başlamaz (AutoCAD'de de "Select objects:"
+  // ilk istemdir). Bu kapı setz / del'den ÖNCEDİR — sonra olsaydı boş seçimle kutu açılır,
+  // silinecek nesne olmadan "Silindi" denirdi.
+  if (SEC3.has(name) && !ed.sel.size) { api.toast(t('select3First')); ed.m3 = null; markActive(null); return; }
   if (name === 'setz') {
-    if (!ed.sel.size) { api.toast(t('select3First')); ed.m3 = null; return; }
     const v = await askText(t('zPrompt'), '', { type: 'number' }); const z = parseFloat(String(v || '').replace(',', '.'));
     if (isFinite(z)) { doc.run({ op: 'setz', keys: [...ed.sel].map(p => p.key), z }); refreshUndo(); refresh3D(); v3.render(); api.toast(t('zSet')); }
     ed.m3 = null; markActive(null); return;
   }
   if (name === 'del') {
-    if (!ed.sel.size) { api.toast(t('select3First')); ed.m3 = null; return; }
     doc.run({ op: 'delete', keys: [...ed.sel].map(p => p.key) }); ed.sel.clear(); refreshUndo(); refresh3D(); v3.render(); overlay3D(); api.toast(t('deleted')); ed.m3 = null; markActive(null); return;
   }
-  if (name === 'move' && !ed.sel.size) { api.toast(t('select3First')); ed.m3 = null; return; }
   if (name === 'geo') {
     const M = await geoMod();
     if (!M) { ed.m3 = null; markActive(null); return; }
@@ -2548,6 +2725,40 @@ async function start3DTool(name) {
     ed.m3 = { name: 'geo', mode: res.mode, pts: [], need: M.needsOf(res.mode), min: md ? md.min : M.needsOf(res.mode) };
   }
   prompt3D();
+}
+/*
+ * DÖNDÜR / ÖLÇEKLE (3B). Taban noktası üç boyutlu yakalamayla alınır, değer yazılır.
+ *
+ * NEDEN İKİNCİ NOKTAYLA DEĞİL: 3B'de ekrana dokunulan ikinci nokta bir açıyı tek anlamlı
+ * belirlemez — aynı piksel, kameranın arkasındaki ve önündeki sonsuz noktaya karşılık gelir.
+ * AutoCAD bu yüzden 3DROTATE'te bir eksen tutamağı gösterir; burada eksen Z'dir (geçerli UCS)
+ * ve açı derece olarak yazılır: tek anlamlı, ölçülebilir, geri alınabilir.
+ *
+ * Ölçek üç eksende birliktedir: kot da aynı çarpanla büyür (edit.transformPrim'in zs'i). Taban
+ * noktasının yerinde kalması için kot ötelemesi dz = z0 * (1 - s) verilir.
+ */
+async function xform3Step() {
+  const m = ed.m3; if (!m || !m.pts.length) return;
+  const c0 = m.pts[0], donme = m.name === 'rotate';
+  const keys = [...ed.sel].map(q => q.key);
+  const v = await askText(t(donme ? 'rot3Prompt' : 'scale3Prompt'), donme ? '' : '1', { type: 'number' });
+  const iptal = v == null || String(v).trim() === '';
+  const n = parseFloat(String(iptal ? '' : v).replace(',', '.'));
+  const gecerli = isFinite(n) && (donme ? n !== 0 : n > 0);
+  let uygulandi = false;
+  if (keys.length && gecerli) {
+    const cmd = donme
+      ? { op: 'xform', keys, m: rotM(c0, n * Math.PI / 180) }
+      : { op: 'xform', keys, m: [n, 0, 0, n, c0[0] - n * c0[0], c0[1] - n * c0[1]], dz: (c0[2] || 0) * (1 - n), zs: n };
+    uygulandi = doc.run(cmd) === true;
+    if (uygulandi) { refreshUndo(); api.toast(t(donme ? 'rotated3' : 'scaled3')); }
+  } else if (keys.length && !iptal) api.toast(t(donme ? 'rot3Bad' : 'scale3Bad'), { type: 'warn' });
+  // İPTAL SEÇİMİ SİLMEZ: kullanıcı yanlış sayı yazdıysa ya da vazgeçtiyse nesneleri yeniden
+  // seçmek zorunda kalmasın (AutoCAD'de de iptal edilen komut seçimi bozmaz).
+  if (uygulandi) ed.sel.clear();
+  ed.m3 = null; showPrompt(null); markActive(null);
+  if (uygulandi) refresh3D(); else if (v3) v3.setSelection(ed.sel);
+  if (v3) { v3.render(); overlay3D(); }
 }
 /** 3B ölçüm çekirdeği yalnız kullanıldığında yüklenir */
 let geoM = null, geoLast = 'ptline';
@@ -2601,32 +2812,63 @@ function prompt3D() {
   // Altı noktalı düzlem-düzlem ölçümünde "köşelere dokunun" yetmez: hangi parçanın kaçıncı
   // noktasını verdiğini söylemek gerekir. measure3d.stepOf bunu üretiyordu ama hiç çağrılmıyordu.
   const adim = m.name === 'geo' && geoM && geoM.stepOf ? geoM.stepOf(m.mode, m.pts.length) : null;
-  const hedef = has('target3') && (ui.pick3 || 'auto') !== 'vertex' ? ' · ' + t(PICK3.find(x => x[0] === (ui.pick3 || 'auto'))[1]) : '';
+  // Dokunuşun neye oturacağı HER komutta yazar: kullanıcı yakalamanın açık olup olmadığını
+  // denemeden görsün (2B'deki durum çubuğu kipleriyle aynı okuma).
+  const hedef = (has('target3') && (ui.pick3 || 'auto') !== 'vertex' ? ' · ' + t(PICK3.find(x => x[0] === (ui.pick3 || 'auto'))[1]) : '')
+    + (snap3On() && has('snap3') ? ' · ' + ui.snap3Modes.map(id => id.toUpperCase()).join(' ') : '');
   const txt = m.name === 'geo'
     ? `${t('geo3_' + m.mode)} · ` + (adim
       ? `${t(adim.part)} · ${adim.index + 1}. ${t('pointsN')}${adim.optional ? ' (' + t('optionalPt') + ')' : ''} [${m.pts.length}/${m.need}]`
       : `${t('geo3Pick')} [${m.pts.length}/${m.need}]`)
     : m.name === 'note' ? t('p3Note')
-      : { select: `${t('p3Select')} [${ed.sel.size} ${t('selCount')}]`, dist: m.pts.length ? t('p3Dist2') : t('p3Dist1'), move: m.pts.length ? t('p3Move2') : t('p3Move1'), pline: `${t('p3Pline')} [${m.pts.length} ${t('pointsN')}] · ${t('finish')}` }[m.name];
+      : {
+        select: `${t('p3Select')} [${ed.sel.size} ${t('selCount')}]`,
+        dist: m.pts.length ? t('p3Dist2') : t('p3Dist1'),
+        move: m.pts.length ? t('p3Move2') : t('p3Move1'),
+        copy: m.pts.length ? t('p3Copy2') : t('p3Copy1'),
+        rotate: t('p3Rot1'),
+        scale: t('p3Scale1'),
+        mirror: m.pts.length ? t('p3Mirror2') : t('p3Mirror1'),
+        line: `${m.pts.length ? t('p3Line2') : t('p3Line1')} [${Math.max(0, m.pts.length - 1)} ${t('segmentsN')}]`,
+        pline: `${t('p3Pline')} [${m.pts.length} ${t('pointsN')}] · ${t('finish')}`,
+      }[m.name];
   // 3B istemi çubuğu showPrompt'tan GEÇMEDEN kurar; "boşta" bayrağı elle kapatılmazsa burada
   // yazılan koordinat komut adı sanılır ve 3B polyline'a nokta eklenemez.
   cmdIdle = false; closeSuggest();
-  $('cmdBar').hidden = false; $('cmdText').textContent = txt + (m.name === 'geo' || m.name === 'dist' ? hedef : '');
-  $('cmdInput').hidden = m.name !== 'pline'; $('cmdInput').placeholder = 'x,y,z';
-  $('cmdBtns').innerHTML = (m.name === 'pline' ? cmdBtnHtml('data-cmd3', 'finish', t('finishBtn')) : '') + (m.pts.length ? cmdBtnHtml('data-cmd3', 'back', t('backBtn')) : '') + cmdBtnHtml('data-cmd3', 'cancel', t('cancelBtn'));
+  $('cmdBar').hidden = false; $('cmdText').textContent = txt + (m.name === 'select' ? '' : hedef);
+  $('cmdInput').hidden = !TYPE3.has(m.name); $('cmdInput').placeholder = 'x,y,z';
+  $('cmdBtns').innerHTML = (TYPE3.has(m.name) ? cmdBtnHtml('data-cmd3', 'finish', t('finishBtn')) : '') + (m.pts.length ? cmdBtnHtml('data-cmd3', 'back', t('backBtn')) : '') + cmdBtnHtml('data-cmd3', 'cancel', t('cancelBtn'));
   $('cmdBtns').onclick = (ev) => {
     const b = ev.target.closest('[data-cmd3]'); if (!b) return;
     const k = b.dataset.cmd3;
     if (k === 'cancel') { ed.m3 = null; showPrompt(null); markActive(null); overlay3D(); }
-    else if (k === 'back') { m.pts.pop(); prompt3D(); overlay3D(); }
-    else if (k === 'finish') { if (m.pts.length >= 2) { doc.run({ op: 'add', ents: [{ type: 'POLYLINE3D', pts: m.pts.slice(), id: newId(), layer: ed.curLayer, color: ed.curColor }] }); refreshUndo(); refresh3D(); v3.render(); api.toast(t('pline3Added')); } m.pts = []; ed.m3 = null; showPrompt(null); markActive(null); overlay3D(); }
+    else if (k === 'back') {
+      // Çizgi zincirinde son nokta son PARÇAYI yazmıştı: nokta geri alınırken o da geri alınır.
+      if (m.name === 'line' && m.pts.length >= 2 && doc && doc.undo()) { refreshUndo(); refresh3D(); if (v3) v3.render(); }
+      m.pts.pop(); prompt3D(); overlay3D();
+    }
+    else if (k === 'finish') {
+      // ÇİZGİ parçalarını dokunuş anında yazar (zincir), POLYLINE tek varlığı bitişte yazar.
+      if (m.name === 'pline' && m.pts.length >= 2) { doc.run({ op: 'add', ents: [{ type: 'POLYLINE3D', pts: m.pts.slice(), id: newId(), layer: ed.curLayer, color: ed.curColor }] }); refreshUndo(); refresh3D(); v3.render(); api.toast(t('pline3Added')); }
+      else if (m.name === 'line' && m.pts.length >= 2) api.toast(t('line3Added').replace('%s', String(m.pts.length - 1)));
+      m.pts = []; ed.m3 = null; showPrompt(null); markActive(null); overlay3D();
+    }
   };
 }
+/** Koordinat yazılarak nokta verilebilen 3B araçları (Çizgi ve Polyline) */
+const TYPE3 = new Set(['line', 'pline']);
 function typed3D(v) {
-  const m = ed.m3; if (!m || m.name !== 'pline') return;
+  const m = ed.m3; if (!m || !TYPE3.has(m.name)) return;
   const parts = v.split(/[;,\s]+/).map(x => parseFloat(x.replace(',', '.'))).filter(x => isFinite(x));
   if (parts.length < 2) { api.toast(t('typeXyz')); return; }
-  m.pts.push([parts[0], parts[1], parts[2] || 0]); prompt3D(); overlay3D();
+  m.pts.push([parts[0], parts[1], parts[2] || 0]);
+  // Yazılan nokta da dokunulan nokta gibidir: çizgi zinciri hemen bir parça yazar.
+  if (m.name === 'line' && m.pts.length >= 2) {
+    const a = m.pts[m.pts.length - 2], b = m.pts[m.pts.length - 1];
+    doc.run({ op: 'add', ents: [{ type: 'LINE', pts: [a.slice(), b.slice()], id: newId(), layer: ed.curLayer, color: ed.curColor }] });
+    refreshUndo(); refresh3D(); if (v3) v3.render();
+  }
+  prompt3D(); overlay3D();
 }
 /** 3B üstüne 2B kaplama: HUD (kamera, eksen etiketleri, lejant, pusula), toplanan noktalar, yakalama işareti */
 function overlay3D() {
@@ -2653,12 +2895,24 @@ function overlay3D() {
     }
     c.restore();
   }
-  // Yakalanan nokta: KÖŞE kare, YÜZEY çemberdir — kullanıcı neye oturduğunu ayırt edebilmelidir
+  /*
+   * YAKALANAN NOKTA. Ham köşe karedir, yüzey noktası çemberdir; NESNE YAKALAMA kipleri ise
+   * 2B'nin kendi işaretleriyle (osnap.drawMarker) çizilir — END karesi, MID üçgeni, CEN çemberi,
+   * PER dik açısı, NEA kum saati. Kullanıcı aynı simgeyi iki boyutta öğrendi; üç boyutta yeni
+   * bir dil öğrenmek zorunda kalmasın. Kısaltma da yazılır: neye oturduğu okunabilir olsun.
+   */
   if (p3.snap) {
     const s = v3.project(p3.snap[0], p3.snap[1], p3.snap[2]);
-    c.strokeStyle = '#3ddc84'; c.lineWidth = 2;
-    if (p3.snapKind === 'srf') { c.beginPath(); c.arc(s[0], s[1], 7, 0, Math.PI * 2); c.stroke(); }
-    else c.strokeRect(s[0] - 7, s[1] - 7, 14, 14);
+    const k = p3.snapKind;
+    c.save();
+    c.strokeStyle = '#3ddc84'; c.fillStyle = '#3ddc84'; c.lineWidth = 2;
+    if (k === 'srf') { c.beginPath(); c.arc(s[0], s[1], 7, 0, Math.PI * 2); c.stroke(); }
+    else if (k && k !== 'vtx') {
+      snapMarker(c, s[0], s[1], k, 8);
+      c.font = `${Math.round(10 * ui.fontScale)}px sans-serif`; c.textBaseline = 'bottom'; c.textAlign = 'left';
+      c.fillText(k.toUpperCase(), s[0] + 11, s[1] - 9);
+    } else c.strokeRect(s[0] - 7, s[1] - 7, 14, 14);
+    c.restore();
   }
 }
 /** Kamera yer imleri (#docPanel içinde #camName / #camSave) */

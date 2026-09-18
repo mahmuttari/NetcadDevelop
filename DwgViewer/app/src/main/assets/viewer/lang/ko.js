@@ -586,4 +586,6 @@ export default {
   'tl_t:bedit': '블록 편집기', 'th_t:bedit': '정의를 별도 세션에서 편집. 저장하면 모든 삽입이 바뀝니다(매개변수: 동적 블록)', 'tl_t:refedit': '참조 편집', 'th_t:refedit': '삽입을 제자리에서 편집. 다른 객체는 흐리게',
   'tl_t:attdef': '속성 정의', 'th_t:attdef': '속성 정의(태그, 프롬프트, 값) 배치. 블록으로 만들면 속성이 됩니다', 'tl_t:ncopy': '중첩 복사', 'th_t:ncopy': '블록이나 참조 안의 객체를 도면으로 복사',
   tl_xrefs: '외부 참조', th_xrefs: '외부 참조 부착(XATTACH), 자르기, 결합, 분리, 흐리게',
+  // --- v7.81
+  p3Line1: '선: 시작점', p3Line2: '선: 다음 점 (완료로 종료)', segmentsN: '세그먼트', line3Added: '3D 선 추가됨 (%s 세그먼트)', p3Copy1: '복사: 기준점', p3Copy2: '복사: 대상점', copied3: '복사됨', p3Rot1: '회전: 회전 중심 (Z축)', rot3Prompt: '회전 각도(도):', rotated3: '회전됨', rot3Bad: '각도는 0이 아닌 숫자여야 합니다', p3Scale1: '축척: 기준점', scale3Prompt: '축척 비율:', scaled3: '축척 적용됨', scale3Bad: '비율은 0보다 큰 숫자여야 합니다', p3Mirror1: '대칭: 대칭 평면의 첫 번째 점', p3Mirror2: '대칭: 대칭 평면의 두 번째 점', mirrored3: '대칭 적용됨', mirror3Vertical: '두 점이 겹칩니다. 대칭 평면을 만들 수 없습니다', 'tl_3:line': '선 (3D)', 'th_3:line': '3D 선. 새 점은 이전 점에서 이어집니다', 'tl_3:copy': '복사 (3D)', 'th_3:copy': '기준점과 대상점으로 선택을 3D 복사', 'tl_3:rotate': '회전 (3D)', 'th_3:rotate': '누른 점을 지나는 Z축을 중심으로 회전. 각도는 도 단위', 'tl_3:scale': '축척 (3D)', 'th_3:scale': '누른 점을 기준으로 세 축 모두 축척 (표고도 함께)', 'tl_3:mirror': '대칭 (3D)', 'th_3:mirror': '두 점을 지나는 수직 평면을 기준으로 반전', tl_snap3: '3D 스냅', th_snap3: '3D에서 끝점·중간점·중심·수직·근처점에 스냅', tl_snap3set: '3D 스냅 설정', th_snap3set: '3D에서 사용할 스냅 모드',
 };

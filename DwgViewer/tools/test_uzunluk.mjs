@@ -124,7 +124,7 @@ await zoom([0, 0, 800, 600]);
   ok('4a kalem (600,260) üstünde: önizleme (200,200) + 300·u ≈ (496,6, 244,5)', !!h.hover && Array.isArray(h.pen) && yak(h.pen[0], 200 + 300 * ux, 0.5) && yak(h.pen[1], 200 + 300 * uy, 0.5), J(h));
   await kalem('pointerout', s[0], s[1]); await iptal();
   const a = await ev(async () => { const A = await import('./acad.js'); return { l: A.resolve('L').note, pl: A.resolve('PL').note, st: A.stats() }; });
-  ok('4b LINE ve PLINE notları doğrudan uzaklık girişini söyler; sayılar sabit', /Direct distance/.test(a.l || '') && /Direct distance/.test(a.pl || '') && a.st.total === 504 && a.st.names === 748, J(a));
+  ok('4b LINE ve PLINE notları doğrudan uzaklık girişini söyler; sayılar sabit', /Direct distance/.test(a.l || '') && /Direct distance/.test(a.pl || '') && a.st.total === 506 && a.st.names === 751, J(a));
   const dil = await ev(async () => { const I = await import('./i18n.js'); const tr = I.t('dirTapHint'); I.setLang('en'); const en = I.t('dirTapHint'); I.setLang('tr'); return { tr, en }; });
   ok('4c ipucu metni TR / EN', dil.tr === 'uzunluk %s → yöne dokunun' && dil.en === 'length %s → tap the direction', J(dil));
 }

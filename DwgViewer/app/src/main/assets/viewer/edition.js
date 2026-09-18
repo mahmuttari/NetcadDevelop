@@ -95,6 +95,8 @@ export const FEATURE_TIER = new Map([
   // --- 3B çizim ve düzenleme (yalnız Super)
   ['t:pline3d', 'super'], ['t:face3d', 'super'], ['t:setz', 'super'],
   ['3:move', 'super'], ['3:setz', 'super'], ['3:del', 'super'], ['3:pline', 'super'],
+  ['3:line', 'super'], ['3:copy', 'super'], ['3:rotate', 'super'], ['3:scale', 'super'], ['3:mirror', 'super'],
+  ['snap3', 'super'], ['snap3set', 'super'],   // 3B nesne yakalama: 'target3' ile aynı basamak (3B'de nişan alma)
   /*
    * Mühendislik eklentileri. Kot/eğim profili ve yalnız değişenleri DXF olarak teslim etme
    * Super'de kalır — rakipte bu ikisinin hiçbir kademede karşılığı yoktur, Super'i ayıran şey

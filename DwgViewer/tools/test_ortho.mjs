@@ -152,7 +152,7 @@ await zoom([0, 0, 800, 600]);
 // ---------------------------------------------------------------------------------
 {
   const a = await ev(async () => { const A = await import('./acad.js'); return { note: A.resolve('ORTHO').note, st: A.stats() }; });
-  ok('5a ORTHO notu komut çubuğundaki düğmeyi söyler; sayılar sabit', /command bar/.test(a.note || '') && /F8/.test(a.note || '') && a.st.total === 504 && a.st.names === 748, J(a));
+  ok('5a ORTHO notu komut çubuğundaki düğmeyi söyler; sayılar sabit', /command bar/.test(a.note || '') && /F8/.test(a.note || '') && a.st.total === 506 && a.st.names === 751, J(a));
   await ev(async (x) => { const I = await import('./i18n.js'); I.setLang(x); I.applyI18n(); window.dwgApp.getSettings().lang = x; }, 'de');
   await arac('t:line');
   const b = await dugme();

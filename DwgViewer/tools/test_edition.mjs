@@ -94,11 +94,14 @@ const fakeBridge = ({ price, prices }) => {
     const v = await row('view');
     ok('1f görünüm sekmesi: pdf/savedxf/savedelta/notes/compare/undo/redo ARTIK ÇİZİLİR', ['pdf', 'savedxf', 'savedelta', 'notes', 'compare', 'undo', 'redo'].every(a => v.includes(a)) && ['extents', 'layers', 'search', 'png', 'drive', 'display', 'more', 'gps', 'basemap', 'views', 'layouts'].every(a => v.includes(a)), v.join(','));
     ok('1f2 görünüm satırında rozet sözleşmesi', (await rowLock('view')).length === 0, (await rowLock('view')).join(','));
-    // v7.80: 3B ARAÇLARI Çiz şeridine taşındı (3B'deyken görünür); 3B sekmesinde görünüm,
-    // kamera ve stil denetimleri ile 'Hedef' ayarı kalır. Bir karo iki şeritte birden durmaz.
+    // v7.80: 3B ARAÇLARI Çiz şeridine taşındı (3B'deyken görünür); 3B sekmesinde yalnız görünüm,
+    // kamera ve stil denetimleri kalır. v7.81'de dokunuş ayarları ('Hedef', '3B yakalama',
+    // 'kipler') da Çiz şeridine geçti: çizim yaparken elin altında olmaları gerekir.
+    // Bir karo iki şeritte birden durmaz — bu satırın asıl sınadığı kural budur.
     const d3 = await row('3d');
-    ok('1g 3B sekmesi görünüm / kamera / stil denetimlerini çizer (araçlar Çiz şeridindedir)',
-      ['3d', 'fit3', 'v:iso', 'vstyle', 'clip3', 'persp', 'target3'].every(a => d3.includes(a)) && !d3.some(a => a.startsWith('3:')), d3.join(','));
+    ok('1g 3B sekmesi yalnız görünüm / kamera / stil denetimlerini çizer (araçlar ve dokunuş ayarları Çiz şeridindedir)',
+      ['3d', 'fit3', 'v:iso', 'vstyle', 'clip3', 'persp'].every(a => d3.includes(a))
+      && !d3.some(a => a.startsWith('3:')) && !d3.includes('target3') && !d3.includes('snap3') && !d3.includes('snap3set'), d3.join(','));
     ok('1g2 3B satırında rozet sözleşmesi', (await rowLock('3d')).length === 0, (await rowLock('3d')).join(','));
     // 3B'deki Çiz şeridi ve oradaki rozet sözleşmesi test_3d 9a-9e'de sınanır: burada henüz çizim açık değil.
     // Çağrı karosu (.lk-cta) data-act taşımaz, data-lk taşır: grup denetimi ikisini de sayar

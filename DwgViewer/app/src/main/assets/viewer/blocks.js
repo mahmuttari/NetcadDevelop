@@ -76,9 +76,10 @@ export function mirrorM(a, b) {
   return [A, B, B, -A, a[0] - A * a[0] - B * a[1], a[1] - B * a[0] + A * a[1]];
 }
 /** Yerleştirme varlığının matrisini günceller ve türetilmiş alanları yazar */
-export function withMatrix(ins, m, dz = 0) {
+export function withMatrix(ins, m, dz = 0, zs = 1) {
   const d = decompose(m);
-  return { ...ins, m: m.slice(), x: d.x, y: d.y, z: say(ins.z) + say(dz), rot: d.rot, sx: d.sx, sy: d.sy };
+  // kot: z' = z * zs + dz (zs = 1 → yalnız ötelenir; 3B ÖLÇEKLE zs ile gelir)
+  return { ...ins, m: m.slice(), x: d.x, y: d.y, z: say(ins.z) * (isFinite(zs) ? zs : 1) + say(dz), rot: d.rot, sx: d.sx, sy: d.sy };
 }
 
 // ---------------------------------------------------------------------------------------
