@@ -548,7 +548,7 @@ function trackDwell(sn) {
  */
 function trackAlign(w, tol, o) {
   const pts = o.imp ? S.track.pts.concat([o.imp]) : S.track.pts; if (!pts.length) return null;   // o.imp: örtük taban uzantısı (trackBase)
-  const d = S.desk;
+  const d = S.desk, opt = { ext: S.snapModes.has('ext') }, angs = Trk.angles(!!d.polar, d.polarStep);   // uzantı yolları AutoCAD'deki gibi EXT kipine bağlı
   let lock = null;
   if ((d.ortho || d.polar) && !o.grip && S.mode === 'view' && editor.tools && editor.tools.running) {
     const base = o.prev || edCall('lastToolPoint');
@@ -558,7 +558,11 @@ function trackAlign(w, tol, o) {
       if (L > 1e-9) lock = { base: [base[0], base[1]], dir: [dx / L, dy / L] };
     }
   }
-  return Trk.align(pts, w, tol, Trk.angles(!!d.polar, d.polarStep), lock, { ext: S.snapModes.has('ext') });   // uzantı yolları AutoCAD'deki gibi EXT kipine bağlı
+  // KUTUPSAL izleme AutoCAD'de kısıt değil yardımdır (F10): imleç bir hizalama yoluna (uzantı, kesişim, edinilmiş noktanın
+  // yolu) yakınsa o yol kazanır, kutupsal açı sonra gelir. ORTHO (F8) ise gerçek kısıttır: yalnız yolun kilit doğrusunu
+  // kestiği nokta alınır. Kutupsalda önce serbest hizalama denenir; yoksa kilit doğrusuyla kesişim.
+  if (lock && d.polar && !d.ortho) { const free = Trk.align(pts, w, tol, angs, null, opt); if (free) return free; }
+  return Trk.align(pts, w, tol, angs, lock, opt);
 }
 /*
  * GENİŞLETİLMİŞ KESİŞİM (AutoCAD extended intersection): tek bir yol üstündeyken o yolun imleç yakınında gerçek bir

@@ -176,6 +176,39 @@ ok('0 ortam: EXT ve izleme açık, ortho / kutupsal kapalı, açıklık 18 px', 
   await iptal(); await undo();
 }
 
+// ---------------------------------------------------------------------------------
+// 6 · KUTUPSAL açıkken (yardım, kısıt değil) uzantı yolu yine kazanır; ORTHO açıkken (gerçek kısıt) uzantı yolu yok, kilit
+// ---------------------------------------------------------------------------------
+{
+  const T = [P2[0] + 200 * U[0] + 8 * V[0], P2[1] + 200 * U[1] + 8 * V[1]];
+  await ev(() => { window.dwgApp.state.desk.polar = true; window.dwgApp.state.desk.ortho = false; });
+  await arac('t:line');
+  await dokun(P2[0], P2[1]);
+  const sP = await snapAt(T[0], T[1]);
+  await gez(T[0], T[1], 250);
+  const hP = (await track()).hover;
+  ok('6a kutupsal açık: imleç 36,87° uzantısında → yol kazanır (kutupsal 45° değil), ipucu EXT', sP && sP.kind === 'trk' && yak(perp(sP.p), 0, 1e-6) && hP && hP.ext[0] === true && !hP.lock, J([sP, hP]));
+  await dokun(T[0], T[1]);
+  const lP = await sonPrim();
+  ok('6b kutupsalda dokunuş uzantıya oturdu (kutupsal açıya değil)', yak(perp([lP.ops[1][1], lP.ops[1][2]]), 0, 1e-6), J(lP.ops));
+  await iptal(); await undo();
+  await ev(() => { window.dwgApp.state.desk.polar = false; window.dwgApp.state.desk.ortho = true; });
+  await arac('t:line');
+  await dokun(P2[0], P2[1]);
+  const sO = await snapAt(T[0], T[1]);
+  await gez(T[0], T[1], 250);
+  const hO = (await track()).hover;
+  ok('6c ortho açık: açılı uzantı yolu alınmaz (kilit doğrusunu kesmez) → izleme yok', sO === null && hO === null, J([sO, hO]));
+  // ortho kilidi × uzantı kesişimi: taban (P2) +x doğrusu, başka bir çizginin uzantısı onu keser
+  await ekle([{ type: 'LINE', id: 'LC', pts: [[P2[0] + 300, P2[1] + 200, 0], [P2[0] + 300, P2[1] + 100, 0]] }]);   // düşey, ucu (P2+300, P2+100)
+  await ev(([x, y]) => window.dwgApp.__trackAdd(x, y, 'end'), [P2[0] + 300, P2[1] + 100]);
+  await gez(P2[0] + 296, P2[1] + 15, 250);
+  const hX = (await track()).hover;
+  ok('6d ortho kilidi (+x) × düşey uzantı (x = P2+300) → kesişim (P2+300, P2y), kilit', hX && hX.lock && yak(hX.p[0], P2[0] + 300, 1e-6) && yak(hX.p[1], P2[1], 1e-6), J(hX));
+  await iptal(); await undo();
+  await ev(() => { window.dwgApp.state.desk.polar = false; window.dwgApp.state.desk.ortho = false; });
+}
+
 await browser.close();
 await srv.kill();
 C.summary(errors);
