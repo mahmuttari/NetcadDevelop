@@ -18,3 +18,7 @@ keystore.properties
 # Play bundle'ı depoya girmez: her sürümde ~7,6 MB'lık ikili birikir. CI her koşuda üretir
 # (DwgGoruntuleyici-aab çıktısı) ve v* etiketinde Releases sayfasına yükler.
 release/*.aab
+
+# Geçici deneme betikleri: bir akışı doğrulamak için yazılıp koşturulan, teslim edilmeyen
+# dosyalar. Kalıcı olanı tools/test_*.mjs adıyla yazılır ve takıma girer.
+tools/_deneme_*.mjs
