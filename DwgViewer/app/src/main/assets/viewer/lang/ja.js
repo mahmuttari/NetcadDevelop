@@ -516,7 +516,7 @@ export default {
   proSrcOwner: '開発者アカウント',
   // budama · uzatma · kavis · pah · köşe tutamakları
   notPath: 'このオブジェクトには直線の辺がありません', trimNoHit: '切断エッジと交差していません', trimSplit: '図形が 2 つに分割されました',
-  trimSelf: '切断エッジ自体はトリムできません', extendNoHit: '境界に届きません', filletFail: 'この角にはフィレットを作成できません',
+  trimSelf: '切断エッジ自体はトリムできません', extendNoHit: '境界に届きません', filletFail: 'この角にはフィレットを作成できません', filletSameSeg: '同じ線を2回タップしました。2本目の線を選んでください', filletParallel: '2本の線が平行です — 角がありません', filletOrder: '腕が角から離れています。角の近くをタップしてください',
   filletRadius: 'フィレット半径:', chamferDist: '面取り距離:', gripsOn: '選択したパスの頂点グリップ',
   gripsOnMsg: '頂点グリップ オン', gripsOffMsg: '頂点グリップ オフ', gripsTooMany: 'グリップを表示しません: オブジェクトあたり200頂点、合計400頂点、または100オブジェクトの上限を超えました',
   tool_trim: 'トリム', tstep_trim_0: '切断エッジをタップ', tstep_trim_1: '削除する部分をタップ (繰り返し)', tstep_trim_v0: '短くする端をタップ（繰り返し）',

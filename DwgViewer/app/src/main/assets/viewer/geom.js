@@ -778,22 +778,53 @@ export function lengthenPath(ops, closed, w, delta) {
 
 /**
  * İki dokunuşun tarif ettiği köşeyi çözer.
- * → { kind:'same'|'two', i, j, c, p0, p1 } ya da null
- * kind 'same': aynı ilkelde ARDIŞIK iki segment — ortak köşe zaten vardır, kavis içeri girer.
- * kind 'two': ayrı ilkeller — köşe, iki segmentin SONSUZ doğrularının kesişimidir; p0/p1 her
- * segmentin kesişimden UZAK ucudur, böylece kavis kullanıcının dokunduğu tarafa oturur.
+ * → { kind:'same'|'sameFar'|'two', i, j, c, p0, p1, drop? }
+ *   ya da BAŞARISIZLIK: { kind: null, neden:'noSeg'|'sameSeg'|'parallel'|'badOrder' }
+ *
+ * kind 'same'    : aynı ilkelde ARDIŞIK iki segment — ortak köşe zaten vardır, kavis içeri girer.
+ * kind 'sameFar' : aynı ilkelde ARALARINDA BAŞKA SEGMENT OLAN iki segment. AutoCAD FILLET burada
+ *                  aradaki segmentleri SİLER ve köşeyi iki kolun uzantısında kurar; biz de öyle
+ *                  yaparız. drop = [i+1, j-1] aralığı (kapsayıcı), çağıran o işlemleri atar.
+ * kind 'two'     : ayrı ilkeller — köşe, iki segmentin SONSUZ doğrularının kesişimidir.
+ * p0/p1 her kolun köşeden UZAK ucudur; kavis kullanıcının dokunduğu tarafa oturur.
+ *
+ * NEDEN DÖNDÜRÜLÜYOR (v7.92): eskiden her başarısızlık tek bir null'dı ve kullanıcı "Bu köşede
+ * kavis kurulamadı" iletisinden ne yaptığını anlayamıyordu — aynı doğruya iki kez dokunmakla
+ * paralel iki doğru seçmek aynı görünüyordu. Artık sebep adlandırılır, kabuk ona göre yazar.
  */
 export function cornerAt(opsA, closedA, wA, opsB, closedB, wB) {
   const sA = segAt(opsA, closedA, wA), sB = segAt(opsB, closedB, wB);
-  if (!sA || !sB) return null;
+  if (!sA || !sB) return { kind: null, neden: 'noSeg' };
+  const kesis = () => segIntersect([sA.a[0], sA.a[1], sA.b[0], sA.b[1]], [sB.a[0], sB.a[1], sB.b[0], sB.b[1]], true);
   if (opsA === opsB) {
-    if (sA.i === sB.i) return null;
+    if (sA.i === sB.i) return { kind: null, neden: 'sameSeg' };
     const [ilk, son] = sA.i < sB.i ? [sA, sB] : [sB, sA];
-    if (son.i !== ilk.i + 1) return null;               // yalnız ARDIŞIK segmentler
-    return { kind: 'same', i: ilk.i, j: son.i, c: [ilk.b[0], ilk.b[1]], p0: [ilk.a[0], ilk.a[1]], p1: [son.b[0], son.b[1]] };
+    if (son.i === ilk.i + 1) return { kind: 'same', i: ilk.i, j: son.i, c: [ilk.b[0], ilk.b[1]], p0: [ilk.a[0], ilk.a[1]], p1: [son.b[0], son.b[1]] };
+    /*
+     * KAPALI YOLUN BAŞLANGIÇ DÜĞÜMÜ. Kapanış segmenti i = ops.length ile gösterilir; onunla
+     * BİRİNCİ segment (i = 1) dizinde uzak görünür ama çizimde komşudur, ortak köşeleri
+     * ops[0]'dır. Eskiden bu köşe hiç kavis almıyordu. Köşe düğümü moveTo olduğu için i = 0
+     * verilir: kabuk ops[0]'ı teğet noktasına çeker, yayı hemen arkasına koyar, kapanış
+     * kenarı kendiliğinden yeni noktaya bağlanır.
+     */
+    if (closedA && ilk.i === 1 && son.i === opsA.length) {
+      return { kind: 'same', i: 0, j: 1, c: [ilk.a[0], ilk.a[1]], p0: [son.a[0], son.a[1]], p1: [ilk.b[0], ilk.b[1]] };
+    }
+    const c = kesis();
+    if (!c) return { kind: null, neden: 'parallel' };
+    /*
+     * YÖN DENETİMİ. Aradaki işlemler atılacağı için yol şöyle kalır: … → ilk kolun BAŞI → köşe →
+     * son kolun SONU → … Köşe, ilk kolun başından ileri yönde VE son kolun sonundan geri yönde
+     * olmalıdır. Uzaklık karşılaştırmasıyla bakılamaz (köşe kolun ORTASINA da düşebilir, zikzak
+     * bir polyline'da olağandır); ışın parametresinin işaretine bakılır. Katlanan seçim adıyla
+     * reddedilir: sessizce yapılsa yol kendi üstüne biner.
+     */
+    const ileri = (a, b) => { const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy; return l2 < 1e-18 ? -1 : ((c[0] - a[0]) * dx + (c[1] - a[1]) * dy) / l2; };
+    if (ileri(ilk.a, ilk.b) <= 1e-9 || ileri(son.b, son.a) <= 1e-9) return { kind: null, neden: 'badOrder' };
+    return { kind: 'sameFar', i: ilk.i, j: son.i, c, p0: [ilk.a[0], ilk.a[1]], p1: [son.b[0], son.b[1]], drop: [ilk.i + 1, son.i - 1] };
   }
-  const c = segIntersect([sA.a[0], sA.a[1], sA.b[0], sA.b[1]], [sB.a[0], sB.a[1], sB.b[0], sB.b[1]], true);
-  if (!c) return null;
+  const c = kesis();
+  if (!c) return { kind: null, neden: 'parallel' };
   const uzak = (s) => (Math.hypot(s.a[0] - c[0], s.a[1] - c[1]) >= Math.hypot(s.b[0] - c[0], s.b[1] - c[1]) ? [s.a[0], s.a[1]] : [s.b[0], s.b[1]]);
   return { kind: 'two', i: sA.i, j: sB.i, c, p0: uzak(sA), p1: uzak(sB) };
 }

@@ -516,7 +516,7 @@ export default {
   proSrcOwner: 'Akun pengembang',
   // budama · uzatma · kavis · pah · köşe tutamakları
   notPath: 'Objek ini tidak memiliki tepi lurus', trimNoHit: 'Tidak ada perpotongan dengan tepi pemotong', trimSplit: 'Bagian terbelah menjadi dua',
-  trimSelf: 'Tepi pemotong itu sendiri tidak dapat dipangkas', extendNoHit: 'Tidak mencapai batas', filletFail: 'Tidak dapat membuat filet di sudut ini',
+  trimSelf: 'Tepi pemotong itu sendiri tidak dapat dipangkas', extendNoHit: 'Tidak mencapai batas', filletFail: 'Tidak dapat membuat filet di sudut ini', filletSameSeg: 'Anda menyentuh garis yang sama dua kali; pilih garis KEDUA', filletParallel: 'Kedua garis sejajar — tidak ada sudut', filletOrder: 'Lengan menjauh dari sudut; sentuh lebih dekat ke sudut',
   filletRadius: 'Jari-jari filet:', chamferDist: 'Jarak champer:', gripsOn: 'Gagang titik pada jalur terpilih',
   gripsOnMsg: 'Gagang titik aktif', gripsOffMsg: 'Gagang titik nonaktif', gripsTooMany: 'Gagang tidak digambar: batas 200 simpul per objek, 400 total, atau 100 objek terlampaui',
   tool_trim: 'Pangkas', tstep_trim_0: 'Ketuk tepi pemotong', tstep_trim_1: 'Ketuk bagian yang dibuang (berulang)', tstep_trim_v0: 'Ketuk ujung yang dipendekkan (berulang)',

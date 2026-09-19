@@ -516,7 +516,7 @@ export default {
   proSrcOwner: 'Conta de programador',
   // budama · uzatma · kavis · pah · köşe tutamakları
   notPath: 'Este objeto não tem nenhuma aresta reta', trimNoHit: 'Sem interseção com a aresta de corte', trimSplit: 'O trecho foi dividido em dois',
-  trimSelf: 'A própria aresta de corte não pode ser aparada', extendNoHit: 'Não alcança o limite', filletFail: 'Não é possível criar concordância neste canto',
+  trimSelf: 'A própria aresta de corte não pode ser aparada', extendNoHit: 'Não alcança o limite', filletFail: 'Não é possível criar concordância neste canto', filletSameSeg: 'Tocou duas vezes na mesma linha; escolha uma SEGUNDA linha', filletParallel: 'As duas linhas são paralelas — não há canto', filletOrder: 'Os braços afastam-se do canto; toque mais perto do canto',
   filletRadius: 'Raio da concordância:', chamferDist: 'Distância do chanfro:', gripsOn: 'Alças de vértice nas polilinhas selecionadas',
   gripsOnMsg: 'Alças de vértice ativadas', gripsOffMsg: 'Alças de vértice desativadas', gripsTooMany: 'Alças não desenhadas: limite de 200 vértices por objeto, 400 no total ou 100 objetos excedido',
   tool_trim: 'Aparar', tstep_trim_0: 'Toque na aresta de corte', tstep_trim_1: 'Toque no trecho a remover (repete)', tstep_trim_v0: 'Toque na extremidade a encurtar (repete)',

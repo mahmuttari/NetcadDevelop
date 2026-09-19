@@ -358,7 +358,7 @@ export default {
   proSrcOwner: 'Tài khoản nhà phát triển',
   // budama · uzatma · kavis · pah · köşe tutamakları
   notPath: 'Đối tượng này không có cạnh thẳng', trimNoHit: 'Không giao với cạnh cắt', trimSplit: 'Đoạn đã được tách làm hai',
-  trimSelf: 'Không thể cắt chính cạnh cắt', extendNoHit: 'Không chạm tới biên', filletFail: 'Không tạo được bo tròn tại góc này',
+  trimSelf: 'Không thể cắt chính cạnh cắt', extendNoHit: 'Không chạm tới biên', filletFail: 'Không tạo được bo tròn tại góc này', filletSameSeg: 'Bạn đã chạm cùng một đường hai lần; hãy chọn đường THỨ HAI', filletParallel: 'Hai đường song song — không có góc', filletOrder: 'Hai nhánh hướng ra xa góc; hãy chạm gần góc hơn',
   filletRadius: 'Bán kính bo tròn:', chamferDist: 'Khoảng vát:', gripsOn: 'Nút đỉnh trên các đường đã chọn',
   gripsOnMsg: 'Đã bật nút đỉnh', gripsOffMsg: 'Đã tắt nút đỉnh', gripsTooMany: 'Không vẽ nút: vượt giới hạn 200 đỉnh mỗi đối tượng, 400 tổng cộng hoặc 100 đối tượng',
   tool_trim: 'Cắt tỉa', tstep_trim_0: 'Chạm vào cạnh cắt', tstep_trim_1: 'Chạm vào đoạn cần bỏ (lặp lại)', tstep_trim_v0: 'Chạm vào đầu cần rút ngắn (lặp lại)',

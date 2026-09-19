@@ -516,7 +516,7 @@ export default {
   proSrcOwner: 'Cuenta de desarrollador',
   // budama · uzatma · kavis · pah · köşe tutamakları
   notPath: 'Este objeto no tiene ninguna arista recta', trimNoHit: 'No hay intersección con la arista de corte', trimSplit: 'La pieza se dividió en dos',
-  trimSelf: 'La propia arista de corte no se puede recortar', extendNoHit: 'No llega al límite', filletFail: 'No se puede crear un empalme en esta esquina',
+  trimSelf: 'La propia arista de corte no se puede recortar', extendNoHit: 'No llega al límite', filletFail: 'No se puede crear un empalme en esta esquina', filletSameSeg: 'Ha tocado la misma línea dos veces; elija una SEGUNDA línea', filletParallel: 'Las dos líneas son paralelas: no hay esquina', filletOrder: 'Los brazos se alejan de la esquina; toque más cerca de la esquina',
   filletRadius: 'Radio del empalme:', chamferDist: 'Distancia del chaflán:', gripsOn: 'Pinzamientos de vértice en las polilíneas seleccionadas',
   gripsOnMsg: 'Pinzamientos de vértice activados', gripsOffMsg: 'Pinzamientos de vértice desactivados', gripsTooMany: 'Pinzamientos no dibujados: se superó el límite de 200 vértices por objeto, 400 en total o 100 objetos',
   tool_trim: 'Recortar', tstep_trim_0: 'Toque la arista de corte', tstep_trim_1: 'Toque la parte que se va a eliminar (se repite)', tstep_trim_v0: 'Toque el extremo a recortar (se repite)',

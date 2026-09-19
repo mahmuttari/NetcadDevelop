@@ -517,7 +517,7 @@ export default {
   proSrcOwner: 'Compte développeur',
   // budama · uzatma · kavis · pah · köşe tutamakları
   notPath: 'Cet objet n\'a aucune arête droite', trimNoHit: 'Aucune intersection avec l\'arête de coupe', trimSplit: 'La pièce a été coupée en deux',
-  trimSelf: 'L\'arête de coupe elle-même ne peut pas être ajustée', extendNoHit: 'N\'atteint pas la limite', filletFail: 'Aucun raccord possible sur ce coin',
+  trimSelf: 'L\'arête de coupe elle-même ne peut pas être ajustée', extendNoHit: 'N\'atteint pas la limite', filletFail: 'Aucun raccord possible sur ce coin', filletSameSeg: 'Vous avez touché deux fois la même ligne ; choisissez une DEUXIÈME ligne', filletParallel: 'Les deux lignes sont parallèles — il n\'y a pas de coin', filletOrder: 'Les branches s\'éloignent du coin ; touchez plus près du coin',
   filletRadius: 'Rayon du raccord :', chamferDist: 'Distance du chanfrein :', gripsOn: 'Poignées de sommet sur les tracés sélectionnés',
   gripsOnMsg: 'Poignées de sommet activées', gripsOffMsg: 'Poignées de sommet désactivées', gripsTooMany: 'Poignées non dessinées : limite de 200 sommets par objet, 400 au total ou 100 objets dépassée',
   tool_trim: 'Ajuster', tstep_trim_0: 'Touchez l\'arête de coupe', tstep_trim_1: 'Touchez la partie à supprimer (répété)', tstep_trim_v0: 'Touchez l’extrémité à raccourcir (répète)',

@@ -55,6 +55,7 @@ const yak = (a, b, e = 1e-6) => Math.abs(a - b) < e;
     const poly = [[0, 0, 0, 0], [1, 10, 0, 0], [1, 10, 10, 0]];
     const rect = [[0, 0, 0, 0], [1, 10, 0, 0], [1, 10, 10, 0], [1, 0, 10, 0]];
     const A = [[0, 0, 0, 0], [1, 8, 0, 0]], B = [[0, 10, 2, 0], [1, 10, 10, 0]];
+    const zikzak = [[0, 0, 0, 0], [1, 10, 0, 0], [1, 10, 4, 0], [1, 4, 4, 0], [1, 4, 12, 0]];
     return {
       sinirli: G.segIntersect([0, 0, 4, 0], [5, -5, 5, 5]),
       sonsuz: G.segIntersect([0, 0, 4, 0], [5, -5, 5, 5], true),
@@ -77,6 +78,11 @@ const yak = (a, b, e = 1e-6) => Math.abs(a - b) < e;
       kAyni: G.cornerAt(poly, false, [5, 0], poly, false, [10, 5]),
       kIki: G.cornerAt(A, false, [4, 0], B, false, [10, 8]),
       kParalel: G.cornerAt(A, false, [4, 0], [[0, 0, 5, 0], [1, 8, 5, 0]], false, [4, 5]),
+      // v7.92: aynı segmente iki kez dokunma, ATLAMALI segmentler ve kapalı yolun başlangıç düğümü
+      kAyniSeg: G.cornerAt(poly, false, [5, 0], poly, false, [7, 0]),
+      // [0,0]→[10,0]→[10,4]→[4,4]→[4,12]: 1. ve 4. segment arasında iki segment var, atılmalı
+      kAtlamali: G.cornerAt(zikzak, false, [5, 0], zikzak, false, [4, 9]),
+      kKapanis: G.cornerAt(rect, true, [5, 0], rect, true, [0, 5]),
       boyUc: G.pathLength3(G.trimPath([[0, 0, 0, 0], [1, 10, 0, 0]], false, [[5, -5, 5, 5]], [8, 0]).parts[0].ops, false),
       boyOrta: G.trimPath([[0, 0, 0, 0], [1, 10, 0, 0]], false, [[3, -5, 3, 5], [7, -5, 7, 5]], [5, 0]).parts.map(p => G.pathLength3(p.ops, false)),
       boyUzat: G.pathLength3(G.extendPath([[0, 0, 0, 0], [1, 4, 0, 0]], false, [[10, -5, 10, 5]], [4, 0]).ops, false),
@@ -127,7 +133,14 @@ const yak = (a, b, e = 1e-6) => Math.abs(a - b) < e;
   ok('6a cornerAt aynı ilkelde ardışık segmentleri çözer', g.kAyni && g.kAyni.kind === 'same' && g.kAyni.i === 1 && g.kAyni.j === 2 && yak(g.kAyni.c[0], 10) && yak(g.kAyni.c[1], 0), JSON.stringify(g.kAyni));
   ok('6b cornerAt iki ayrı ilkelde SONSUZ doğruların kesişimini alır, uzak uçları verir',
     g.kIki && g.kIki.kind === 'two' && yak(g.kIki.c[0], 10) && yak(g.kIki.c[1], 0) && yak(g.kIki.p0[0], 0) && yak(g.kIki.p1[1], 10), JSON.stringify(g.kIki));
-  ok('6c paralel doğrularda köşe yok', g.kParalel === null);
+  ok('6c paralel doğrularda köşe yok, SEBEBİ söylenir', g.kParalel && g.kParalel.kind === null && g.kParalel.neden === 'parallel', JSON.stringify(g.kParalel));
+  ok('6d aynı segmente iki kez dokunmak ayrı bir sebeptir (kullanıcı ne yaptığını görsün)',
+    g.kAyniSeg && g.kAyniSeg.kind === null && g.kAyniSeg.neden === 'sameSeg', JSON.stringify(g.kAyniSeg));
+  ok('6e ATLAMALI iki segment: köşe uzantıların kesişiminde, aradaki işlemler atılır (AutoCAD FILLET)',
+    g.kAtlamali && g.kAtlamali.kind === 'sameFar' && yak(g.kAtlamali.c[0], 4) && yak(g.kAtlamali.c[1], 0) &&
+    g.kAtlamali.drop[0] === 2 && g.kAtlamali.drop[1] === 3, JSON.stringify(g.kAtlamali));
+  ok('6f kapalı yolun BAŞLANGIÇ düğümü de köşedir (kapanış kenarı ile ilk kenar)',
+    g.kKapanis && g.kKapanis.kind === 'same' && g.kKapanis.i === 0 && yak(g.kKapanis.c[0], 0) && yak(g.kKapanis.c[1], 0), JSON.stringify(g.kKapanis));
 }
 
 // ---------------------------------------------------------------------------------
@@ -265,6 +278,53 @@ await page.click('#toolbar [data-tab="edit"]');
   ok('12d tek reshape komutu', (await undoLen()) === u0 + 1 && (await sonOp()) === 'reshape', String(await sonOp()));
   ok('12e yay içeren ops → ent PATH\'e çevrildi (blok/pano bayat kalmasın)', p.entType === 'PATH', String(p.entType));
   await shot('bd_fillet_ayni');
+  await page.click('#cmdBtns [data-cmd="cancel"]');
+  await sil(ids);
+}
+
+// ---------------------------------------------------------------------------------
+// 7b) Kavis — aynı polyline'ın ATLAMALI iki segmenti (v7.92) ve kapalı yolun BAŞLANGIÇ düğümü
+// ---------------------------------------------------------------------------------
+{
+  // [200,200] → [700,200] → [700,400] → [400,400] → [400,900]: 1. ve 4. segment
+  const ids = await ekle([{ type: 'LWPOLYLINE', pts: [[200, 200, 0], [700, 200, 0], [700, 400, 0], [400, 400, 0], [400, 900, 0]], closed: false }]);
+  await zoom([100, 100, 900, 1000]);
+  const n0 = await count(), u0 = await undoLen();
+  await page.click('#toolbar [data-act="t:fillet"]');
+  await page.click('#cmdBtns [data-cmd="modevalue"]'); await page.waitForTimeout(120);
+  await ev(() => window.dwgApp.editor.tools.typed('50'));
+  await tapWorld(300, 200);    // 1. segment
+  await tapWorld(400, 700);    // 4. segment
+  await page.waitForTimeout(250);
+  const p = await primOf(ids[0]);
+  const yay = p && p.ops.find(o => o[0] === 2 || o[0] === -2);
+  ok('12f ATLAMALI segmentlerde kavis KURULUR (eski sürüm "kavis kurulamadı" diyordu)', !!yay, JSON.stringify(p && p.ops));
+  ok('12g aradaki iki işlem atıldı: 5 işlem → 4 (baş · teğet · yay · son)', p && p.ops.length === 4, JSON.stringify(p && p.ops));
+  ok('12h yol L\'ye döndü: baş [200,200], son [400,900], yay yarıçapı 50',
+    p && yak(p.ops[0][1], 200) && yak(p.ops[0][2], 200) && yak(p.ops[3][1], 400) && yak(p.ops[3][2], 900) && yak(yay[3], 50, 1e-6), JSON.stringify(p && p.ops));
+  ok('12i tek reshape, ilkel sayısı değişmedi', (await count()) === n0 && (await undoLen()) === u0 + 1 && (await sonOp()) === 'reshape', String(await sonOp()));
+  await shot('bd_fillet_atlamali');
+  await page.click('#cmdBtns [data-cmd="cancel"]');
+  await sil(ids);
+}
+{
+  const ids = await ekle([{ type: 'LWPOLYLINE', pts: [[200, 200, 0], [700, 200, 0], [700, 700, 0], [200, 700, 0]], closed: true }]);
+  await zoom([100, 100, 800, 800]);
+  const u0 = await undoLen();
+  await page.click('#toolbar [data-act="t:fillet"]');
+  await page.click('#cmdBtns [data-cmd="modevalue"]'); await page.waitForTimeout(120);
+  await ev(() => window.dwgApp.editor.tools.typed('60'));
+  await tapWorld(400, 200);    // ilk kenar
+  await tapWorld(200, 450);    // KAPANIŞ kenarı — köşeleri ortak düğüm [200,200]
+  await page.waitForTimeout(250);
+  const p = await primOf(ids[0]);
+  const yay = p && p.ops.find(o => o[0] === 2 || o[0] === -2);
+  ok('12j kapalı yolun BAŞLANGIÇ düğümünde de kavis kurulur (eskiden hiç kurulamıyordu)', !!yay && p.closed === true, JSON.stringify(p && p.ops));
+  ok('12k başlangıç düğümü kapanış kenarındaki teğet noktasına çekildi ([200,260]); yay [260,200]\'de biter',
+    p && p.ops[0][0] === 0 && yak(p.ops[0][1], 200) && yak(p.ops[0][2], 260) &&
+    yak(p.ops[2][1], 700) && yak(p.ops[2][2], 200), JSON.stringify(p && p.ops.slice(0, 3)));
+  ok('12l tek reshape', (await undoLen()) === u0 + 1 && (await sonOp()) === 'reshape', String(await sonOp()));
+  await shot('bd_fillet_kapanis');
   await page.click('#cmdBtns [data-cmd="cancel"]');
   await sil(ids);
 }

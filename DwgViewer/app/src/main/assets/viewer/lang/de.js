@@ -335,7 +335,7 @@ export default {
   proSrcOwner: 'Entwicklerkonto',
   // budama · uzatma · kavis · pah · köşe tutamakları
   notPath: 'Dieses Objekt hat keine gerade Kante', trimNoHit: 'Kein Schnittpunkt mit der Schnittkante', trimSplit: 'Das Teil wurde in zwei geteilt',
-  trimSelf: 'Die Schnittkante selbst kann nicht gestutzt werden', extendNoHit: 'Erreicht die Grenze nicht', filletFail: 'An dieser Ecke ist keine Rundung möglich',
+  trimSelf: 'Die Schnittkante selbst kann nicht gestutzt werden', extendNoHit: 'Erreicht die Grenze nicht', filletFail: 'An dieser Ecke ist keine Rundung möglich', filletSameSeg: 'Sie haben dieselbe Linie zweimal angetippt; wählen Sie eine ZWEITE Linie', filletParallel: 'Die beiden Linien sind parallel — es gibt keine Ecke', filletOrder: 'Die Schenkel zeigen von der Ecke weg; näher an der Ecke antippen',
   filletRadius: 'Rundungsradius:', chamferDist: 'Fasenabstand:', gripsOn: 'Eckpunktgriffe an den gewählten Pfaden',
   gripsOnMsg: 'Eckpunktgriffe ein', gripsOffMsg: 'Eckpunktgriffe aus', gripsTooMany: 'Griffe nicht gezeichnet: Grenze von 200 Eckpunkten je Objekt, 400 insgesamt oder 100 Objekten überschritten',
   tool_trim: 'Stutzen', tstep_trim_0: 'Schnittkante antippen', tstep_trim_1: 'Zu entfernendes Teil antippen (wiederholt)', tstep_trim_v0: 'Zu kürzendes Ende antippen (wiederholt)',

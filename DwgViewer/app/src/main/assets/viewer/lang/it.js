@@ -516,7 +516,7 @@ export default {
   proSrcOwner: 'Account sviluppatore',
   // budama · uzatma · kavis · pah · köşe tutamakları
   notPath: 'Questo oggetto non ha alcun bordo rettilineo', trimNoHit: 'Nessuna intersezione con il bordo di taglio', trimSplit: 'Il tratto è stato diviso in due',
-  trimSelf: 'Il bordo di taglio stesso non può essere tagliato', extendNoHit: 'Non raggiunge il limite', filletFail: 'Non è possibile creare un raccordo in questo spigolo',
+  trimSelf: 'Il bordo di taglio stesso non può essere tagliato', extendNoHit: 'Non raggiunge il limite', filletFail: 'Non è possibile creare un raccordo in questo spigolo', filletSameSeg: 'Hai toccato due volte la stessa linea; scegli una SECONDA linea', filletParallel: 'Le due linee sono parallele: nessun angolo', filletOrder: 'I bracci si allontanano dall\'angolo; tocca più vicino all\'angolo',
   filletRadius: 'Raggio del raccordo:', chamferDist: 'Distanza dello smusso:', gripsOn: 'Grip dei vertici sulle polilinee selezionate',
   gripsOnMsg: 'Grip dei vertici attivi', gripsOffMsg: 'Grip dei vertici disattivati', gripsTooMany: 'Grip non disegnati: superato il limite di 200 vertici per oggetto, 400 in totale o 100 oggetti',
   tool_trim: 'Taglia', tstep_trim_0: 'Tocca il bordo di taglio', tstep_trim_1: 'Tocca il tratto da rimuovere (si ripete)', tstep_trim_v0: 'Tocca l’estremità da accorciare (ripete)',

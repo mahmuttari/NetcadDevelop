@@ -635,7 +635,16 @@ export class ToolManager {
     const c1 = this.c1;
     const ayni = p.key === c1.key;
     const k = cornerAt(ayni ? p.ops : c1.ops, ayni ? p.closed : c1.closed, c1.w, p.ops, p.closed, w);
-    if (!k) { A.toast(t('filletFail')); return; }
+    /*
+     * BAŞARISIZLIĞIN SEBEBİ SÖYLENİR (v7.92). Tek bir "kavis kurulamadı" iletisi kullanıcıya
+     * ne yanlış yaptığını göstermiyordu: aynı doğruya iki kez dokunmak, paralel iki doğru
+     * seçmek ve yolu kendi üstüne katlamak aynı görünüyordu.
+     */
+    if (!k.kind) {
+      const ileti = { sameSeg: 'filletSameSeg', parallel: 'filletParallel', badOrder: 'filletOrder', noSeg: 'notPath' }[k.neden] || 'filletFail';
+      A.toast(t(ileti), { type: 'warn' });
+      return;
+    }
     this.corner = { k, p: { key: p.key, ops: p.ops, closed: p.closed } };
     if (this.mode === 'value') { await this.cornerApply(this.val); return; }
     // Ekran: yarıçap / mesafe üçüncü dokunuştan (ya da o adımda yazılan sayıdan) gelir
@@ -677,11 +686,18 @@ export class ToolManager {
       ? [g.ccw ? 2 : -2, g.cx, g.cy, g.r, g.a0, g.a1, z]
       : [1, g.t1[0], g.t1[1], z]);
     let ok;
-    if (k.kind === 'same') {
+    if (k.kind === 'same' || k.kind === 'sameFar') {
       // Köşe düğümü teğet noktasına çekilir, ardına yay (ya da pah kenarı) girer: ops +1.
       const yeni = c1.ops.map(o => o.slice());
       yeni[k.i] = [yeni[k.i][0], g.t0[0], g.t0[1], z];
-      yeni.splice(k.i + 1, 0, yayOp());
+      /*
+       * 'sameFar': iki kol arasındaki işlemler ATILIR (AutoCAD FILLET'in çoklu segmentli
+       * polyline davranışı). Atma önce yapılır, yay atılan aralığın yerine girer; böylece
+       * ikinci kol yayın bittiği noktadan (t1) başlar.
+       */
+      let at = k.i + 1;
+      if (k.kind === 'sameFar') { yeni.splice(k.drop[0], k.drop[1] - k.drop[0] + 1); at = k.drop[0]; }
+      yeni.splice(at, 0, yayOp());
       // Yaydan sonraki düğüme dokunulmaz: o segment zaten t1'den başlayıp p1'de bitiyor.
       ok = A.run({ op: 'reshape', items: [{ key: c1.key, ops: yeni, closed: c1.closed }] });
     } else {

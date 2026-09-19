@@ -516,7 +516,7 @@ export default {
   proSrcOwner: '개발자 계정',
   // budama · uzatma · kavis · pah · köşe tutamakları
   notPath: '이 객체에는 직선 모서리가 없습니다', trimNoHit: '절단 모서리와 교차하지 않습니다', trimSplit: '선이 둘로 나뉘었습니다',
-  trimSelf: '절단 모서리 자체는 자를 수 없습니다', extendNoHit: '경계에 닿지 않습니다', filletFail: '이 모서리에는 모깎기를 만들 수 없습니다',
+  trimSelf: '절단 모서리 자체는 자를 수 없습니다', extendNoHit: '경계에 닿지 않습니다', filletFail: '이 모서리에는 모깎기를 만들 수 없습니다', filletSameSeg: '같은 선을 두 번 눌렀습니다. 두 번째 선을 선택하세요', filletParallel: '두 선이 평행합니다 — 모서리가 없습니다', filletOrder: '가지가 모서리 반대쪽을 향합니다. 모서리 가까이를 누르세요',
   filletRadius: '모깎기 반지름:', chamferDist: '모따기 거리:', gripsOn: '선택한 경로의 정점 그립',
   gripsOnMsg: '정점 그립 켜짐', gripsOffMsg: '정점 그립 꺼짐', gripsTooMany: '그립을 그리지 않습니다: 객체당 200개, 총 400개 꼭짓점 또는 100개 객체 한도를 초과했습니다',
   tool_trim: '자르기', tstep_trim_0: '절단 모서리를 누르세요', tstep_trim_1: '제거할 부분을 누르세요 (반복)', tstep_trim_v0: '줄일 끝을 탭하세요 (반복)',

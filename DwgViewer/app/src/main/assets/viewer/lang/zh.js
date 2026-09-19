@@ -317,7 +317,7 @@ export default {
   proSrcOwner: '开发者账号',
   // budama · uzatma · kavis · pah · köşe tutamakları
   notPath: '该对象没有直线边', trimNoHit: '与剪切边没有交点', trimSplit: '线段已被分成两段',
-  trimSelf: '不能修剪剪切边本身', extendNoHit: '未到达边界', filletFail: '无法在此角点创建圆角',
+  trimSelf: '不能修剪剪切边本身', extendNoHit: '未到达边界', filletFail: '无法在此角点创建圆角', filletSameSeg: '您两次点按了同一条线；请选择第二条线', filletParallel: '两条线平行 — 没有角点', filletOrder: '两臂背离角点；请点按靠近角点处',
   filletRadius: '圆角半径：', chamferDist: '倒角距离：', gripsOn: '所选路径的顶点夹点',
   gripsOnMsg: '顶点夹点已开启', gripsOffMsg: '顶点夹点已关闭', gripsTooMany: '未绘制夹点：超过每个对象 200 个顶点、总计 400 个顶点或 100 个对象的上限',
   tool_trim: '修剪', tstep_trim_0: '点击剪切边', tstep_trim_1: '点击要删除的部分（可重复）', tstep_trim_v0: '点击要缩短的端点（重复）',
