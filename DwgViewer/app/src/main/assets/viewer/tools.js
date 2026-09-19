@@ -601,6 +601,8 @@ export class ToolManager {
        * dokunur ve "şu parçayı at" der. Çizgi kuralı burada işlemez — alan açılırsa dolgu
        * taşar. Kalan parça kapalı kalır, yeni kenarı kesicinin KENDİ biçimidir.
        */
+      const th = this.taramaOf(p);
+      if (th) { await this.taramaBuda(th, w); return; }
       if (p.fill && p.closed) {
         const rr = trimRegion(p.ops, this.cut.segs, w);
         if (!rr) { A.toast(t('trimNoHit')); return; }
@@ -630,6 +632,61 @@ export class ToolManager {
     if (A.run({ op: 'reshape', items: [{ key: p.key, ops: r.ops }] })) A.render(); else A.toast(t('error'));
   }
 
+  /*
+   * TARAMA BÜTÜN OLARAK BUDANIR (v7.93).
+   *
+   * Desenli bir tarama ekranda İKİ ilkeldir: sınır (saydam dolgu) ve desen çizgileri. Kullanıcı
+   * desen çizgilerinden birine dokunduğunda eskiden yalnız O ÇİZGİ budanıyordu — tarama tek tek
+   * parçalara ayrılıyor, sınır olduğu yerde kalıyordu. Oysa tarama TEK nesnedir: sınırı budanır,
+   * desen o yeni sınıra göre YENİDEN ÜRETİLİR.
+   *
+   * İki tür tarama vardır ve ikisi de burada toplanır:
+   *   - uygulamanın kendi ürettiği tarama: sınır ile çizgiler ortak `info.gid` taşır
+   *   - dosyadan (DWG / DXF) okunan tarama: ortak olan `info.h` tutamağıdır
+   * Sınır ilkeli her ikisinde de `et === 'HATCH'` olandır.
+   */
+  taramaOf(p) {
+    const A = this.api;
+    if (!p || p.k !== 0) return null;
+    const inf = p.info || {};
+    const grup = (q) => {
+      const qi = q.info || {};
+      return (inf.gid && qi.gid === inf.gid) || (inf.h != null && qi.h === inf.h && qi.t === 'HATCH');
+    };
+    const hepsi = typeof A.allPrims === 'function' ? A.allPrims() : [];
+    const uyeler = (inf.gid || inf.h != null) ? hepsi.filter(grup) : [p];
+    const sinir = (p.et === 'HATCH' && p.ops) ? p : uyeler.find(q => q.et === 'HATCH' && q.k === 0 && q.ops);
+    if (!sinir) return null;
+    return { sinir, uyeler: uyeler.length ? uyeler : [sinir] };
+  }
+  /** Sınırı kesiciyle böler, dokunulan parçayı atar ve taramayı yeni sınıra göre yeniden kurar */
+  async taramaBuda(th, w) {
+    const A = this.api;
+    const rr = trimRegion(th.sinir.ops, this.cut.segs, w);
+    if (!rr) { A.toast(t('trimNoHit')); return; }
+    const inf = th.sinir.info || {}, ent = th.sinir.ent || {};
+    const ad = inf.pattern || ent.pattern || ent.patternName || (inf.solid === false ? 'ANSI31' : 'SOLID');
+    const r2 = hatchEnts(rr.ops.map(o => [o[1], o[2], o[3] || 0]), {
+      pattern: ad,
+      scale: inf.hscale != null ? inf.hscale : ent.hscale,
+      angle: inf.hangle != null ? inf.hangle : ent.hangle,
+      layer: th.sinir.lay || A.layer(),
+      color: inf.ci == null ? 256 : inf.ci,
+      alpha: th.sinir.alpha,
+      gid: newId(),
+    });
+    if (!r2 || !r2.ents.length) { A.toast(t('error')); return; }
+    const ents = r2.ents.map(e => ({ ...e, id: newId() }));
+    /*
+     * Eski tarama silinip yenisi eklenir; 'group' ikisini TEK geri alma adımı yapar. Yerinde
+     * 'reshape' olmaz: desen çizgilerinin sayısı da yeri de değişir, düğüm düğüm eşlenemez.
+     */
+    const ok = A.run({ op: 'group', cmds: [
+      { op: 'delete', keys: th.uyeler.map(q => q.key) },
+      { op: 'add', ents },
+    ] });
+    if (ok) A.render(); else A.toast(t('error'));
+  }
   /*
    * Kavis ve pah. İki doğruya dokunulur, yarıçap / mesafe sorulur.
    * Aynı yolun iki ARDIŞIK segmentinde köşe yolun içinde kalır (tek reshape, polyline tek parça).

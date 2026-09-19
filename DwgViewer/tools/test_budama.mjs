@@ -335,6 +335,55 @@ await page.click('#toolbar [data-tab="edit"]');
   await sil(ids);
 }
 // ---------------------------------------------------------------------------------
+// 5c) v7.93 · TARAMA BÜTÜN OLARAK budanır ve desen yeniden üretilir
+// ---------------------------------------------------------------------------------
+{
+  const ids = await ekle([
+    { type: 'LWPOLYLINE', pts: [[200, 800, 0], [800, 800, 0], [800, 1200, 0], [200, 1200, 0]], closed: true },
+    { type: 'LINE', pts: [[500, 700, 0], [500, 1300, 0]] },
+  ]);
+  await zoom([100, 700, 900, 1300]);
+  // Desenli tarama: sınır (saydam dolgu) + desen çizgileri = İKİ ilkel, ortak gid
+  await ev(() => { window.dwgApp.editor.curPattern = { name: 'ANSI31', scale: 0, angle: 0 }; });
+  await ev(() => window.dwgApp.editor.act('t:hatch')); await page.waitForTimeout(300);
+  await tapWorld(500, 1000); await page.waitForTimeout(500);
+  await ev(() => { const b = document.querySelector('#cmdBtns [data-cmd="cancel"]'); if (b) b.click(); }); await page.waitForTimeout(150);
+  // Örnek çizimde başka taramalar da var; YALNIZ bizim dikdörtgenimizin içindekiler sayılır
+  const tar = () => ev(() => {
+    const ic = (b) => b && b[0] > 150 && b[1] > 750 && b[2] < 850 && b[3] < 1250;
+    const P = window.dwgApp.state.prims.filter(x => x.info && x.info.gid && ic(x.bb) && (x.et === 'HATCH' || x.info.t === 'HATCH' || x.hp != null));
+    const s = P.find(x => x.et === 'HATCH');
+    return { n: P.length, sinir: s ? { bb: s.bb.map(v => Math.round(v)), kapali: !!s.closed, dolgu: !!s.fill } : null,
+      cizgi: P.filter(x => x !== s).reduce((a, x) => a + (x.ops ? x.ops.length : 0), 0) };
+  });
+  const t0 = await tar();
+  if (!t0.sinir) {
+    ok('12m (atlandı) desenli tarama üretilemedi', false, JSON.stringify(t0));
+  } else {
+    ok('12m desenli tarama iki ilkeldir: sınır + desen çizgileri', t0.n >= 2 && t0.cizgi > 10, JSON.stringify(t0));
+    const u0 = await undoLen();
+    await page.click('#toolbar [data-act="t:trim"]');
+    await tapWorld(500, 1300);     // kesici: düşey doğru
+    await tapWorld(300, 1000);     // hedef: taramanın SOL yarısı (desen çizgisinin üstüne denk gelebilir)
+    await page.waitForTimeout(400);
+    const t1 = await tar();
+    ok('12n tarama BÜTÜN olarak budandı: sınır sağ yarıya indi (x0 = 500)',
+      t1.sinir && Math.abs(t1.sinir.bb[0] - 500) <= 1 && Math.abs(t1.sinir.bb[2] - 800) <= 1, JSON.stringify(t1.sinir));
+    ok('12o sınır hâlâ KAPALI ve DOLGULU', t1.sinir && t1.sinir.kapali && t1.sinir.dolgu, JSON.stringify(t1.sinir));
+    ok('12p desen YENİDEN üretildi: çizgi düğümleri yarıya yakın azaldı',
+      t1.cizgi > 0 && t1.cizgi < t0.cizgi, `${t0.cizgi} → ${t1.cizgi}`);
+    ok('12r tek geri alma adımı (sil + ekle bir grup)', (await undoLen()) === u0 + 1 && (await sonOp()) === 'group', String(await sonOp()));
+    await shot('bd_tarama_buda');
+    await ev(() => window.dwgApp.editor.doc.undo()); await page.waitForTimeout(200);
+    const t2 = await tar();
+    ok('12s geri al taramayı eski hâline döndürür', t2.sinir && Math.abs(t2.sinir.bb[0] - 200) <= 1 && t2.cizgi === t0.cizgi, JSON.stringify(t2.sinir));
+    await page.click('#cmdBtns [data-cmd="cancel"]');
+  }
+  await ev(() => { const E = window.dwgApp.editor; const ic = (b) => b && b[0] > 150 && b[1] > 750 && b[2] < 850 && b[3] < 1250; const ks = window.dwgApp.state.prims.filter(x => x.info && x.info.gid && ic(x.bb)).map(x => x.key); if (ks.length) E.doc.run({ op: 'delete', keys: ks }); });
+  await sil(ids);
+}
+
+// ---------------------------------------------------------------------------------
 // 6) Uzat aracı
 // ---------------------------------------------------------------------------------
 {
