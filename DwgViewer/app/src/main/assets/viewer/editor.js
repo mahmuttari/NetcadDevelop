@@ -36,6 +36,7 @@ import { primToEnt, listBlocks, loadBlock, saveBlock, entsBBox } from './blockli
  */
 import { drawMarker as snapMarker, markerSvg as snapMarkerSvg, nameOf as snapModeName } from './osnap.js';
 import { MODES3, DEFAULT_MODES3, snap3 } from './osnap3.js';
+import { regionPick3 } from './sel3.js';
 
 const $ = (id) => document.getElementById(id);
 const tt = (k, tr) => { const v = t(k); return v === k ? tr : v; };
@@ -958,7 +959,9 @@ const CMD_ICON_ONLY = new Set(['selbox', 'sellasso', 'mirrorx', 'mirrory']);   /
 function cmdBtnHtml(attr, k, label) {
   const lbl = String(label == null ? '' : label).replace(/^[✓↶✕⟲←]+\s*/, '');
   const ic = CMD_ICON[k];
-  const on = !!tools && ((k === 'selbox' && tools.selMode === 'box') || (k === 'sellasso' && tools.selMode === 'lasso') || (k === 'modescreen' && tools.mode === 'screen') || (k === 'modevalue' && tools.mode === 'value') || (k === 'mirrorkeep' && tools.mirrorKeep === true) || (k === 'mirrorx' && tools.mirrorAxis === 'x') || (k === 'mirrory' && tools.mirrorAxis === 'y') || (k === 'alignscale' && tools.alignScale === true) || (k === 'wipepoly' && tools.wipePoly === true));
+  const m3 = ed.m3;
+  const on = (m3 ? ((k === 'selbox' && m3.selMode === 'box') || (k === 'sellasso' && m3.selMode === 'lasso')) : false)
+    || !!tools && ((k === 'selbox' && tools.selMode === 'box') || (k === 'sellasso' && tools.selMode === 'lasso') || (k === 'modescreen' && tools.mode === 'screen') || (k === 'modevalue' && tools.mode === 'value') || (k === 'mirrorkeep' && tools.mirrorKeep === true) || (k === 'mirrorx' && tools.mirrorAxis === 'x') || (k === 'mirrory' && tools.mirrorAxis === 'y') || (k === 'alignscale' && tools.alignScale === true) || (k === 'wipepoly' && tools.wipePoly === true));
   const cls = k === 'finish' ? 'primary' : (CMD_ICON_ONLY.has(k) ? 'icon' + (on ? ' on' : '') : (on ? 'on' : ''));
   const svg = ic ? `<svg class="ic" aria-hidden="true"><use href="#${ic}"/></svg>` : '';
   if (CMD_ICON_ONLY.has(k)) return `<button type="button" ${attr}="${k}" class="${cls}" title="${esc(lbl)}" aria-label="${esc(lbl)}" aria-pressed="${on}">${svg}</button>`;
@@ -2207,8 +2210,8 @@ function finishSelDrag(d) {
  * kadar pencere renginde çizilir. İşaretçinin yanında kipin adı yazar ki telefonda renk tek ipucu olmasın.
  */
 export const SEL_COLORS = { window: '#4da3ff', crossing: '#3ddc84' };
-function drawSelDrag(c) {
-  const d = selDrag; if (!d) return;
+function drawSelDrag(c, drag) {
+  const d = drag === undefined ? selDrag : drag; if (!d) return;
   const crossing = d.crossing === true, col = crossing ? SEL_COLORS.crossing : SEL_COLORS.window;
   const moved = Math.abs(d.x1 - d.x0) >= 6 || Math.abs(d.y1 - d.y0) >= 6 || d.pts.length > 2;
   if (!moved) return;
@@ -2229,6 +2232,9 @@ function drawSelDrag(c) {
 }
 /** Sınama ve durum çubuğu için: süren bölge seçiminin kipi ({ mode, crossing, implied }) ya da null */
 ed.selDragState = () => (selDrag ? { mode: selDrag.mode, crossing: selDrag.crossing, implied: !!selDrag.implied } : null);
+/** Sınama için: 3B bölge seçiminin durumu ve 3B yakalama işaretinin varlığı */
+ed.sel3DragState = () => (p3.region ? { mode: p3.region.mode, crossing: p3.region.crossing, implied: !!p3.region.implied } : null);
+ed.snap3State = () => (p3.snap ? { p: p3.snap.slice(), kind: p3.snapKind, aim: !!p3.aim } : null);
 /*
  * Çalışan araç şu an NESNE mi seçiyor (AutoCAD "Select objects:")? app.js imleci ve yakalamayı buna
  * bakarak seçer: nesne isteminde küçük kare (pickbox) çizilir ve yakalama aranmaz. Bölge sürüklemesi
@@ -2498,7 +2504,105 @@ export function onResize() {
   v3.render(); overlay3D();
 }
 export function onTheme() { if (ed.is3D()) { refresh3D(); v3.render(); overlay3D(); } }
-const p3 = { pointers: new Map(), last: null, d0: 0, mid0: null, ang0: 0, moved: false, snap: null, snapKind: null, pts: [], lastTap: 0, lastTapAt: null };
+const p3 = {
+  pointers: new Map(), last: null, d0: 0, mid0: null, ang0: 0, moved: false,
+  snap: null, snapKind: null, pts: [], lastTap: 0, lastTapAt: null,
+  region: null,      // süren bölge seçimi (2B selDrag ile aynı biçim): { mode, pts, x0, y0, x1, y1, crossing, implied }
+  aim: null,         // parmakla nişan: { sx, sy } — imleç parmağın altında, bırakınca nokta oraya işlenir
+  aimTimer: 0,
+};
+/*
+ * YAKALAMA İŞARETİ YALNIZ KOMUT SÜRERKEN DURUR. p3.snap bir komutun topladığı son noktayı
+ * gösterir; komut bitince ya da iptal edilince işaret de kalkar. Temizlenmediği sürümde
+ * (v7.83 ve öncesi) yeşil END karesi ekranda asılı kalıyor, kullanıcıya hâlâ bir şey
+ * yakalanıyormuş gibi görünüyordu.
+ */
+function clearSnap3() { p3.snap = null; p3.snapKind = null; }
+/*
+ * ÜÇ BOYUTTA BÖLGE SEÇİMİ (v7.84). 2B'deki kuralın aynısı: soldan sağa sürükleme PENCERE
+ * (tamamı içindekiler, mavi düz kenar), sağdan sola KESEN (değenler, yeşil kesik kenar).
+ * Fark yalnız hesabın yerindedir: 2B'de kutu dünya koordinatındadır, 3B'de EKRANDADIR —
+ * kullanıcının çizdiği çerçeve dünyada bir piramittir, bir dikdörtgen değil (bkz. sel3.js).
+ *
+ * Tek parmak bu sırada döndürmez, bölge çizer; döndürme iki parmakta durur. Boş yerden
+ * başlayan sürükleme ÖRTÜK pencere açar (2B'deki gibi), nesnenin üstünden başlayan dokunuş
+ * ise o nesneyi seçer.
+ */
+const bolgeAcik = () => !!(ed.m3 && ed.m3.name === 'select');
+/** 3B bölge seçiminde hangi ilkeller aranır: görünür katmanda, gizlenmemiş, yol ya da ağ gövdesi */
+const bolgeUygun = (q) => !!q && (q.k === 0 || q.k === 5) && !q.inf && objShown(q) && (() => { const l = S.layers.get(q.lay); return !l || l.visible; })();
+function bolgeBaslat(sx, sy) {
+  if (!bolgeAcik() || !v3) return false;
+  const kip = ed.m3.selMode || 'tap';
+  if (kip === 'box' || kip === 'lasso') { p3.region = { mode: kip, pts: [[sx, sy]], x0: sx, y0: sy, x1: sx, y1: sy, crossing: null }; return true; }
+  if (pick3At(sx, sy)) return false;   // nesnenin üstü: dokunuş onu seçsin, kutu açılmasın
+  p3.region = { mode: 'box', implied: true, pts: [[sx, sy]], x0: sx, y0: sy, x1: sx, y1: sy, crossing: null };
+  return true;
+}
+function bolgeSurukle(sx, sy) {
+  const d = p3.region; if (!d) return;
+  d.x1 = sx; d.y1 = sy;
+  if (d.mode === 'lasso') { const l = d.pts[d.pts.length - 1]; if (Math.hypot(sx - l[0], sy - l[1]) > 3) d.pts.push([sx, sy]); }
+  if (d.crossing == null && Math.abs(sx - d.x0) > 6) d.crossing = sx < d.x0;   // ilk yatay hareket karar verir
+  overlay3D();
+}
+function iptalBolge() { if (p3.region) { p3.region = null; overlay3D(); } }
+/** Sürüklenmemiş bölge: kutu 6 px'ten dar / alçak ya da çokgen üç noktadan az */
+const bolgeKucuk = (d) => (d.mode === 'box' ? (Math.abs(d.x1 - d.x0) < 6 || Math.abs(d.y1 - d.y0) < 6) : d.pts.length < 3);
+function bolgeBitir(d) {
+  const model = S.scene && S.scene.layouts ? S.scene.layouts[0] : null;
+  if (!model || !Array.isArray(model.prims)) return;
+  const shape = d.mode === 'box' ? { rect: [d.x0, d.y0, d.x1, d.y1] } : { poly: d.pts.map(q => [q[0], q[1]]) };
+  // project: kesit / kamera dışına düşen nokta GÖRÜNMÜYOR sayılır (snapHit3 ile aynı ölçüt).
+  const izd = (x, y, z) => { const q = v3.project(x, y, z); return q && q[2] >= -1 && q[2] <= 1 ? q : null; };
+  const res = regionPick3(model.prims, izd, shape, { crossing: d.crossing === true, visible: bolgeUygun });
+  let n = 0;
+  for (const p of res.prims) if (!ed.sel.has(p)) { ed.sel.add(p); n++; }
+  api.toast(n ? `${n} ${t('selectedN')}` : t('selRegionNone'), 1400);
+  if (n) haptic('snap');
+  v3.setSelection(ed.sel); v3.render(); prompt3D();
+}
+/*
+ * PARMAKLA NİŞAN ALMA — 3B (v7.84). 2B'de araç çalışırken uzun basış imleci parmağa bağlar
+ * (app.js canAim); o koşulda `!editor.is3D()` yazdığı için 3B'de hiç yoktu ve kullanıcı
+ * yakalamanın nereye oturacağını ancak dokunduktan SONRA görebiliyordu — başka bir nesneye
+ * yaklaşınca işaretin oraya atlamamasının nedeni buydu. Artık nokta toplayan bir 3B komut
+ * sürerken uzun basış nişanı açar: parmak gezdikçe yakalama yeniden hesaplanır, işaret komşu
+ * nesneye atlar, parmak kalkınca nokta imlecin durduğu yere işlenir.
+ */
+const nisanAcik = () => !!(ed.m3 && ed.m3.name !== 'select');
+function iptalNisan() { if (p3.aimTimer) { clearTimeout(p3.aimTimer); p3.aimTimer = 0; } if (nisanRaf) { cancelAnimationFrame(nisanRaf); nisanRaf = 0; } if (p3.aim) { p3.aim = null; overlay3D(); } }
+function nisanKur(sx, sy, tur) {
+  if (!nisanAcik() || !v3 || tur === 'mouse') return;
+  clearTimeout(p3.aimTimer);
+  p3.aimTimer = setTimeout(() => {
+    p3.aimTimer = 0;
+    if (p3.moved || p3.pointers.size !== 1 || !nisanAcik()) return;
+    haptic('long'); nisanSurukle(sx, sy);
+  }, ui.glove ? 600 : 500);
+}
+/*
+ * Nişan hesabı KARE BAŞINA BİR KEZ yapılır. pointermove saniyede 60-120 kez gelir; her birinde
+ * tam bir yakalama taraması (RTree sorgusu + osnap3) koşturmak kalabalık çizimde parmağı
+ * geciktirirdi. 2B'deki hoverTick de aynı requestAnimationFrame kapısını kullanır.
+ */
+let nisanRaf = 0;
+function nisanSurukle(sx, sy) {
+  p3.aim = { sx, sy };
+  if (nisanRaf) return;
+  const hesapla = () => {
+    nisanRaf = 0;
+    if (!p3.aim || !v3) return;
+    const onceki = ed.m3 && ed.m3.pts.length ? ed.m3.pts[ed.m3.pts.length - 1] : null;
+    const hit = pick3At(p3.aim.sx, p3.aim.sy, onceki);
+    if (hit) { p3.snap = hit.p; p3.snapKind = hit.kind; } else clearSnap3();
+    overlay3D();
+  };
+  // Sınama ortamında rAF kareyi beklemeden sonucu okuyabilmek için ilk hesap hemen yapılır;
+  // ardışık hareketler kareye bağlanır.
+  if (typeof requestAnimationFrame === 'function') { hesapla(); nisanRaf = requestAnimationFrame(() => { nisanRaf = 0; }); }
+  else hesapla();
+}
 /** 3B dokunma: 1 parmak döndür/kaydır · 2 parmak yakınlaştır + kaydır (ya da döndür) · 3 parmak kaydır/döndür · çift dokunuş sığdır/yakınlaştır · tekerlek yakınlaştır */
 function bind3D(cv) {
   const geom = () => { const a = [...p3.pointers.values()]; const n = a.length; let mx = 0, my = 0; for (const p of a) { mx += p[0]; my += p[1]; } mx /= n; my /= n; const d = n >= 2 ? Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]) : 0; const ang = n >= 2 ? Math.atan2(a[1][1] - a[0][1], a[1][0] - a[0][0]) : 0; return { n, mid: [mx, my], d, ang }; };
@@ -2509,15 +2613,24 @@ function bind3D(cv) {
     const g = geom(); p3.d0 = g.d; p3.mid0 = g.mid; p3.ang0 = g.ang;
     p3.last = [ev.clientX, ev.clientY];
     closePop();
+    // İkinci parmak: bölge seçimi ve nişan bırakılır, jest yakınlaştırma / kaydırmaya döner.
+    if (p3.pointers.size > 1) { iptalBolge(); iptalNisan(); return; }
+    if (!ed.m3) clearSnap3();   // komut yokken eski yakalama işareti ekranda asılı kalmaz
+    const r = cv.getBoundingClientRect(), sx = ev.clientX - r.left, sy = ev.clientY - r.top;
+    if (bolgeBaslat(sx, sy)) return;
+    nisanKur(sx, sy, ev.pointerType);
   });
   cv.addEventListener('pointermove', (ev) => {
     ev.stopPropagation();
     if (!p3.pointers.has(ev.pointerId)) return;
     p3.pointers.set(ev.pointerId, [ev.clientX, ev.clientY]);
     const g = geom(), t = touch();
+    const rr = cv.getBoundingClientRect(), msx = ev.clientX - rr.left, msy = ev.clientY - rr.top;
+    if (g.n === 1 && p3.region) { bolgeSurukle(msx, msy); return; }
+    if (g.n === 1 && p3.aim) { nisanSurukle(msx, msy); return; }
     if (g.n === 1) {
       const dx = ev.clientX - p3.last[0], dy = ev.clientY - p3.last[1];
-      if (Math.hypot(dx, dy) > 2) p3.moved = true;
+      if (Math.hypot(dx, dy) > 2) { p3.moved = true; iptalNisan(); }   // parmak kaydı: uzun basış sayılmaz, jest döndürmedir
       if (p3.moved) { const sens = t.sensitivity || 1, iy = t.invertY ? -1 : 1; if (t.oneFinger === 'pan') v3.pan(dx, dy); else v3.orbit(dx * sens, dy * sens * iy); }
       p3.last = [ev.clientX, ev.clientY];
     } else if (g.n === 2) {
@@ -2537,6 +2650,23 @@ function bind3D(cv) {
   const up = (ev) => {
     ev.stopPropagation();
     const had = p3.pointers.delete(ev.pointerId);
+    if (had && p3.region && p3.pointers.size === 0) {
+      /*
+       * Parmak kıpırdamadıysa bu bir BÖLGE değil, bir DOKUNUŞTUR: jest yutulmaz, olağan yola
+       * (çift dokunuşla sığdırma dâhil) bırakılır. Yutulsaydı Seç komutu açıkken çift dokunuş
+       * çalışmaz olurdu — v7.84 taslağında böyleydi.
+       */
+      const d = p3.region; p3.region = null;
+      if (ev.type === 'pointerup' && !bolgeKucuk(d)) { bolgeBitir(d); overlay3D(); return; }
+      overlay3D();
+    }
+    if (had && p3.aim && p3.pointers.size === 0) {
+      // Nişan bırakıldı: dokunuş, imlecin DURDUĞU yere işlenir (2B'deki gesture 'aim' ile aynı).
+      const a = p3.aim; iptalNisan();
+      if (ev.type === 'pointerup') tap3D(a.sx, a.sy);
+      overlay3D(); return;
+    }
+    iptalNisan();
     if (had && !p3.moved && p3.pointers.size === 0 && ev.type === 'pointerup') {
       const r = cv.getBoundingClientRect(), sx = ev.clientX - r.left, sy = ev.clientY - r.top, now = performance.now();
       if (p3.lastTapAt && now - p3.lastTap < 320 && Math.hypot(p3.lastTapAt[0] - sx, p3.lastTapAt[1] - sy) < 30) {
@@ -2745,7 +2875,8 @@ ed.textHeight = textH;
 const SEC3 = new Set(['move', 'copy', 'rotate', 'scale', 'mirror', 'setz', 'del']);
 async function start3DTool(name) {
   if (!gate('3:' + name)) { markActive(null); return; }
-  ed.m3 = { name, pts: [] };
+  clearSnap3(); iptalBolge();
+  ed.m3 = { name, pts: [], selMode: 'tap' };
   // Seçime uygulanan araçlar: seçim yoksa komut hiç başlamaz (AutoCAD'de de "Select objects:"
   // ilk istemdir). Bu kapı setz / del'den ÖNCEDİR — sonra olsaydı boş seçimle kutu açılır,
   // silinecek nesne olmadan "Silindi" denirdi.
@@ -2865,7 +2996,7 @@ function prompt3D() {
       : `${t('geo3Pick')} [${m.pts.length}/${m.need}]`)
     : m.name === 'note' ? t('p3Note')
       : {
-        select: `${t('p3Select')} [${ed.sel.size} ${t('selCount')}]`,
+        select: `${t('p3Select')} [${ed.sel.size} ${t('selCount')}] · ${m.selMode === 'lasso' ? t('selLassoHint') : m.selMode === 'box' ? t('selBoxHint') : `\u2192 ${t('selWindowLbl')}  \u2190 ${t('selCrossingLbl')}`}`,
         dist: m.pts.length ? t('p3Dist2') : t('p3Dist1'),
         move: m.pts.length ? t('p3Move2') : t('p3Move1'),
         copy: m.pts.length ? t('p3Copy2') : t('p3Copy1'),
@@ -2880,11 +3011,18 @@ function prompt3D() {
   cmdIdle = false; closeSuggest();
   $('cmdBar').hidden = false; $('cmdText').textContent = txt + (m.name === 'select' ? '' : hedef);
   $('cmdInput').hidden = !TYPE3.has(m.name); $('cmdInput').placeholder = 'x,y,z';
-  $('cmdBtns').innerHTML = (TYPE3.has(m.name) ? cmdBtnHtml('data-cmd3', 'finish', t('finishBtn')) : '') + (m.pts.length ? cmdBtnHtml('data-cmd3', 'back', t('backBtn')) : '') + cmdBtnHtml('data-cmd3', 'cancel', t('cancelBtn'));
+  $('cmdBtns').innerHTML = (TYPE3.has(m.name) ? cmdBtnHtml('data-cmd3', 'finish', t('finishBtn')) : '')
+    + (m.name === 'select' ? cmdBtnHtml('data-cmd3', 'selbox', t('selBoxBtn')) + cmdBtnHtml('data-cmd3', 'sellasso', t('selLassoBtn')) : '')
+    + (m.pts.length ? cmdBtnHtml('data-cmd3', 'back', t('backBtn')) : '') + cmdBtnHtml('data-cmd3', 'cancel', t('cancelBtn'));
   $('cmdBtns').onclick = (ev) => {
     const b = ev.target.closest('[data-cmd3]'); if (!b) return;
     const k = b.dataset.cmd3;
-    if (k === 'cancel') { ed.m3 = null; showPrompt(null); markActive(null); overlay3D(); }
+    if (k === 'cancel') { ed.m3 = null; clearSnap3(); iptalBolge(); showPrompt(null); markActive(null); overlay3D(); }
+    else if (k === 'selbox' || k === 'sellasso') {
+      // Aynı düğmeye ikinci dokunuş kipi kapatır: dokunarak seçime dönülür (2B ile aynı).
+      const kip = k === 'selbox' ? 'box' : 'lasso';
+      m.selMode = m.selMode === kip ? 'tap' : kip; haptic('toggle'); prompt3D();
+    }
     else if (k === 'back') {
       // Çizgi zincirinde son nokta son PARÇAYI yazmıştı: nokta geri alınırken o da geri alınır.
       if (m.name === 'line' && m.pts.length >= 2 && doc && doc.undo()) { refreshUndo(); refresh3D(); if (v3) v3.render(); }
@@ -2944,7 +3082,7 @@ function overlay3D() {
    * PER dik açısı, NEA kum saati. Kullanıcı aynı simgeyi iki boyutta öğrendi; üç boyutta yeni
    * bir dil öğrenmek zorunda kalmasın. Kısaltma da yazılır: neye oturduğu okunabilir olsun.
    */
-  if (p3.snap) {
+  if (p3.snap && ed.m3) {
     const s = v3.project(p3.snap[0], p3.snap[1], p3.snap[2]);
     const k = p3.snapKind;
     c.save();
@@ -2957,6 +3095,7 @@ function overlay3D() {
     } else c.strokeRect(s[0] - 7, s[1] - 7, 14, 14);
     c.restore();
   }
+  drawSelDrag(c, p3.region);
 }
 /** Kamera yer imleri (#docPanel içinde #camName / #camSave) */
 function showBookmarks() {

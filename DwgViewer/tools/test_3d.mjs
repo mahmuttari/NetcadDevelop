@@ -591,6 +591,202 @@ await page.screenshot({ path: `${out}/e_2d_after.png` });
   ok('12f geçerli katman adı BÜTÜN kopyalara yazılır (Çiz + Açıklama)', g6.n >= 2 && g6.etiketler.every(x => x === g6.ad), JSON.stringify(g6));
 }
 
+// ---------------------------------------------------------------------------------
+// 13 · v7.84: üstteki sığdır kalktı · 3B bölge seçimi · takılı kalmayan işaret · parmakla nişan
+// ---------------------------------------------------------------------------------
+{
+  const ORTAK = `
+    const E = window.dwgApp.editor, v = E.view3d(), P = () => window.dwgApp.state.scene.layouts[0].prims;
+    const bekle = (ms) => new Promise(r => setTimeout(r, ms));
+    const cv3 = () => document.getElementById('cv3d');
+    const olay = (tur, sx, sy, ek) => {
+      const cv = cv3(), r0 = cv.getBoundingClientRect();
+      cv.setPointerCapture = () => {};
+      cv.dispatchEvent(new PointerEvent(tur, { bubbles: true, cancelable: true, clientX: r0.left + sx, clientY: r0.top + sy, pointerId: 1, pointerType: 'touch', isPrimary: true, button: 0, buttons: tur === 'pointerup' ? 0 : 1, ...(ek || {}) }));
+    };
+    const bas = async (sx, sy) => { olay('pointerdown', sx, sy); await bekle(30); };
+    const kaydir = async (sx, sy) => { olay('pointermove', sx, sy); await bekle(30); };
+    const birak = async (sx, sy) => { olay('pointerup', sx, sy); await bekle(360); };
+    /** Bir uçtan ötekine sürükler; ara adımlar gerçek parmak gibi tek tek gönderilir. */
+    const surukle = async (x0, y0, x1, y1, n = 6) => {
+      await bas(x0, y0);
+      for (let i = 1; i <= n; i++) await kaydir(x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n);
+      await birak(x1, y1);
+    };
+    const yalniz = (liste) => {
+      const m = window.dwgApp.state.scene.layouts[0], yedek = m.prims.slice();
+      m.prims.length = 0; for (const q of liste) m.prims.push(q);
+      return () => { m.prims.length = 0; for (const q of yedek) m.prims.push(q); };
+    };
+    const uc = (p, i) => v.project(p.ops[i][1], p.ops[i][2], p.ops[i][3] || 0);
+  `;
+  const calis = (govde) => page.evaluate(`(async () => {${ORTAK}${govde}})()`);
+
+  // ---- 13a · üst çubuktaki sığdır düğmesi kalktı; sağ kenardaki 3B'de GERÇEKTEN sığdırıyor
+  const g1 = await calis(`
+    if (E.m3) { E.act('3:select'); E.m3 = null; }
+    if (!E.is3D()) { E.act('3d'); await bekle(700); }
+    const ust = document.getElementById('btnExtents');
+    const fab = document.querySelector('#navFabs [data-nav="fit"]');
+    v.fit(); v.render(); await bekle(150);
+    const sigdirilmis = v.cam.dist;
+    v.zoom(3); v.render(); await bekle(150);
+    const bozuk = v.cam.dist;
+    const r = fab.getBoundingClientRect();
+    fab.setPointerCapture = () => {};
+    const o = { bubbles: true, cancelable: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, pointerId: 9, pointerType: 'touch', isPrimary: true, button: 0, buttons: 1 };
+    fab.dispatchEvent(new PointerEvent('pointerdown', o));
+    fab.dispatchEvent(new PointerEvent('pointerup', { ...o, buttons: 0 }));
+    await bekle(300);
+    return { ustVar: !!ust, fabVar: !!fab, sigdirilmis, bozuk, sonra: v.cam.dist };
+  `);
+  ok('13a üst çubukta sığdır düğmesi YOK (3B\'de çalışmıyordu, sağ kenarda eşi var)', g1.ustVar === false, JSON.stringify(g1));
+  ok('13a2 sağ kenardaki sığdır 3B kamerayı gerçekten sığdırır', g1.fabVar === true && Math.abs(g1.bozuk - g1.sigdirilmis) > 1e-6 && Math.abs(g1.sonra - g1.sigdirilmis) < Math.abs(g1.bozuk - g1.sigdirilmis) * 0.05, JSON.stringify(g1));
+
+  // ---- 13b · Seç komutunda Pencere / Çokgen düğmeleri ve sürükleme kuralını söyleyen istem
+  const g2 = await calis(`
+    E.act('tab:draw'); await bekle(250);
+    E.act('3:select'); await bekle(250);
+    const dg = [...document.querySelectorAll('#cmdBtns [data-cmd3]')].map(b => b.dataset.cmd3);
+    const metin = document.getElementById('cmdText').textContent;
+    document.querySelector('#cmdBtns [data-cmd3="sellasso"]').click(); await bekle(200);
+    const lassoKip = E.m3 && E.m3.selMode, lassoMetin = document.getElementById('cmdText').textContent;
+    document.querySelector('#cmdBtns [data-cmd3="sellasso"]').click(); await bekle(200);
+    const kapali = E.m3 && E.m3.selMode;
+    return { dg, metin, lassoKip, lassoMetin, kapali };
+  `);
+  ok('13b Seç komutunda Pencere ve Çokgen düğmeleri var', g2.dg.includes('selbox') && g2.dg.includes('sellasso'), JSON.stringify(g2.dg));
+  ok('13b2 istem sürükleme kuralını söyler (→ Pencere ← Kesen)', /Pencere/.test(g2.metin) && /Kesen/.test(g2.metin), g2.metin);
+  ok('13b3 Çokgen düğmesi kipi açar, ikinci dokunuş kapatır', g2.lassoKip === 'lasso' && g2.kapali === 'tap' && /Çokgen|çokgen/.test(g2.lassoMetin), JSON.stringify(g2));
+
+  // ---- 13c · ÖRTÜK PENCERE: boş yerden soldan sağa sürükleme, tamamı içeride olanı seçer
+  const g3 = await calis(`
+    const p = P().find(q => q.et === 'LINE' && q.ops && q.ops.length === 2);
+    if (!p) return { yok: true };
+    const geri = yalniz([p]);
+    E.sel.clear(); E.m3 = null;
+    E.act('3:select'); await bekle(250);
+    const A = uc(p, 0), B = uc(p, 1);
+    const x0 = Math.min(A[0], B[0]) - 40, y0 = Math.min(A[1], B[1]) - 40;
+    const x1 = Math.max(A[0], B[0]) + 40, y1 = Math.max(A[1], B[1]) + 40;
+    let kip = null;
+    await bas(x0, y0);
+    await kaydir(x0 + 20, y0 + 10);
+    kip = E.sel3DragState();
+    for (let i = 2; i <= 6; i++) await kaydir(x0 + (x1 - x0) * i / 6, y0 + (y1 - y0) * i / 6);
+    await birak(x1, y1);
+    const n = E.sel.size, bitti = E.sel3DragState();
+    E.sel.clear(); E.m3 = null; E.act('3:select'); await bekle(150); E.m3 = null;
+    geri();
+    return { n, kip, bitti };
+  `);
+  ok('13c boş yerden soldan sağa sürükleme ÖRTÜK PENCERE açar (mavi, kesen değil)', !!g3.kip && g3.kip.mode === 'box' && g3.kip.implied === true && g3.kip.crossing === false, JSON.stringify(g3));
+  ok('13c2 pencere içindeki nesne seçilir ve sürükleme biter', g3.n === 1 && g3.bitti === null, JSON.stringify(g3));
+
+  // ---- 13d · KESEN: sağdan sola sürükleme, yalnız DEĞEN nesneyi de alır
+  const g4 = await calis(`
+    const p = P().find(q => q.et === 'LINE' && q.ops && q.ops.length === 2);
+    const geri = yalniz([p]);
+    E.sel.clear(); E.m3 = null;
+    E.act('3:select'); await bekle(250);
+    const A = uc(p, 0), B = uc(p, 1);
+    /*
+     * Sürükleme BOŞ yerden başlamalı, yoksa örtük pencere açılmaz (dokunuş nesneyi seçer).
+     * yalniz() yalnız model ilkellerini kısıtlar; 3B KÖŞE TAMPONU bütün çizimi taşımaya devam
+     * eder, dolayısıyla "nesneden 60 px uzak" olmak yetmez. Başlangıç, sahnenin ekrandaki
+     * kutusunun sağ dışına alınır: orada kesinlikle köşe yoktur.
+     */
+    let vx1 = -Infinity, vy1 = -Infinity;
+    for (const q of v.vertices) { const s = v.project(q[0], q[1], q[2]); if (s[0] > vx1) vx1 = s[0]; if (s[1] > vy1) vy1 = s[1]; }
+    const ox = (A[0] + B[0]) / 2, oy = (A[1] + B[1]) / 2;
+    // Kutu yalnız yarısını örter: pencere olsaydı boş dönerdi, kesen nesneyi alır.
+    const sx0 = vx1 + 50, sy0 = vy1 + 50, sx1 = ox, sy1 = oy;
+    await bas(sx0, sy0);
+    await kaydir(sx0 - 20, sy0 - 8);
+    const kip = E.sel3DragState();
+    for (let i = 2; i <= 6; i++) await kaydir(sx0 + (sx1 - sx0) * i / 6, sy0 + (sy1 - sy0) * i / 6);
+    await birak(sx1, sy1);
+    const n = E.sel.size;
+    E.sel.clear(); E.m3 = null;
+    geri();
+    return { n, kip };
+  `);
+  ok('13d sağdan sola sürükleme KESEN kipini açar (yeşil)', !!g4.kip && g4.kip.crossing === true, JSON.stringify(g4));
+  ok('13d2 kesen, yalnız DEĞEN nesneyi de seçer', g4.n === 1, JSON.stringify(g4));
+
+  // ---- 13e · ÇOKGEN (lasso) seçimi
+  const g5 = await calis(`
+    const p = P().find(q => q.et === 'LINE' && q.ops && q.ops.length === 2);
+    const geri = yalniz([p]);
+    E.sel.clear(); E.m3 = null;
+    E.act('3:select'); await bekle(250);
+    document.querySelector('#cmdBtns [data-cmd3="sellasso"]').click(); await bekle(200);
+    const A = uc(p, 0), B = uc(p, 1);
+    const x0 = Math.min(A[0], B[0]) - 40, y0 = Math.min(A[1], B[1]) - 40;
+    const x1 = Math.max(A[0], B[0]) + 40, y1 = Math.max(A[1], B[1]) + 40;
+    await bas(x0, y0);
+    await kaydir(x1, y0); await kaydir(x1, y1); await kaydir(x0, y1);
+    const kip = E.sel3DragState();
+    await birak(x0, y1);
+    const n = E.sel.size;
+    E.sel.clear(); E.m3 = null;
+    geri();
+    return { n, kip };
+  `);
+  ok('13e Çokgen kipinde sürükleme çokgen bölge çizer', !!g5.kip && g5.kip.mode === 'lasso', JSON.stringify(g5));
+  ok('13e2 çokgenin içindeki nesne seçilir', g5.n === 1, JSON.stringify(g5));
+
+  // ---- 13f · YAKALAMA İŞARETİ TAKILI KALMIYOR (v7.83'te komut bittikten sonra ekranda duruyordu)
+  const g6 = await calis(`
+    const p = P().find(q => q.et === 'LINE' && q.ops && q.ops.length === 2);
+    const geri = yalniz([p]);
+    E.sel.clear(); E.m3 = null;
+    const U = (await import('./editor.js')).ui; U.snap3 = true; U.snap3Modes = ['end', 'mid', 'cen'];
+    E.act('3:dist'); await bekle(250);
+    const A = uc(p, 0);
+    await bas(A[0], A[1]); await birak(A[0], A[1]);
+    const komutSirasinda = E.snap3State();
+    document.querySelector('#cmdBtns [data-cmd3="cancel"]').click(); await bekle(250);
+    const iptalSonrasi = E.snap3State();
+    geri();
+    return { komutSirasinda, iptalSonrasi, m3: !!E.m3 };
+  `);
+  ok('13f komut sürerken yakalama işareti VAR', !!g6.komutSirasinda && g6.komutSirasinda.kind === 'end', JSON.stringify(g6));
+  ok('13f2 komut iptal edilince işaret KALKAR (ekranda asılı kalmaz)', g6.iptalSonrasi === null && g6.m3 === false, JSON.stringify(g6));
+
+  // ---- 13g · PARMAKLA NİŞAN: uzun basış işareti parmağa bağlar, komşu nesneye ATLAR
+  const g7 = await calis(`
+    const doc = E.doc;
+    const yeni = (a, b) => ({ type: 'LINE', pts: [a, b], id: 'N' + Math.random().toString(36).slice(2, 8), layer: '0', color: 256 });
+    doc.run({ op: 'add', ents: [yeni([0, 0, 0], [40, 0, 0]), yeni([300, 0, 0], [340, 0, 0])] });
+    E.refresh3D ? E.refresh3D() : null; await bekle(300);
+    const hepsi = P().filter(q => q.et === 'LINE' && q.ops && q.ops.length === 2);
+    const a1 = hepsi.find(q => Math.abs(q.ops[0][1]) < 1e-6 && Math.abs(q.ops[0][2]) < 1e-6);
+    const a2 = hepsi.find(q => Math.abs(q.ops[0][1] - 300) < 1e-6);
+    if (!a1 || !a2) return { yok: true, n: hepsi.length };
+    const geri = yalniz([a1, a2]);
+    E.sel.clear(); E.m3 = null;
+    const U = (await import('./editor.js')).ui; U.snap3 = true; U.snap3Modes = ['end', 'mid', 'cen'];
+    E.act('3:dist'); await bekle(250);
+    const U1 = uc(a1, 0), U2 = uc(a2, 0);
+    await bas(U1[0] + 3, U1[1] + 3);
+    await bekle(700);                      // uzun basış: nişan açılır (taban 500 ms)
+    const nisan1 = E.snap3State();
+    await kaydir(U2[0] + 2, U2[1] + 2);    // parmak ikinci çizgiye yaklaşır
+    const nisan2 = E.snap3State();
+    await birak(U2[0] + 2, U2[1] + 2);
+    const alinan = E.m3 && E.m3.pts.length ? E.m3.pts[0] : null;
+    if (E.m3) { E.m3.pts = []; E.m3 = null; }
+    geri();
+    if (doc.undo()) { E.refresh3D ? E.refresh3D() : null; }
+    return { nisan1, nisan2, alinan, U1, U2 };
+  `);
+  ok('13g uzun basış nişanı açar: işaret parmağın altındaki uca oturur', !!g7.nisan1 && g7.nisan1.aim === true && g7.nisan1.kind === 'end', JSON.stringify(g7));
+  ok('13g2 parmak komşu nesneye yaklaşınca işaret ORAYA ATLAR', !!g7.nisan2 && Math.abs(g7.nisan2.p[0] - 300) < 1e-6, JSON.stringify(g7));
+  ok('13g3 parmak kalkınca nokta imlecin durduğu yere işlenir', !!g7.alinan && Math.abs(g7.alinan[0] - 300) < 1e-6, JSON.stringify(g7));
+}
+
+
 ok('7 sayfa hatası yok', errors.length === 0, errors.join(' | ').slice(0, 200));
 C.summary(errors);
 await browser.close(); srv.kill();

@@ -2702,7 +2702,6 @@ function refreshMenu() {
     Ed.lockMark(b, k, 'pill');
   });
 }
-$('btnExtents').addEventListener('click', () => zoomExtents());
 function menuAction(act) {
   closeMenu();
   if (!Ed.gate(act)) return;   // Ücretsiz sürümde Pro eylemi (notes / profile / compare / pdf): yükseltme kutusu

@@ -28,7 +28,7 @@ const shellState = () => ({
   home: !document.getElementById('home').hidden, homemode: document.body.classList.contains('homemode'), docmode: document.body.classList.contains('docmode'),
   top: getComputedStyle(document.getElementById('topbar')).display, tb: document.getElementById('toolbar').getBoundingClientRect().height, tbDisp: getComputedStyle(document.getElementById('toolbar')).display,
   st: document.getElementById('statusbar').getBoundingClientRect().height, tabs: getComputedStyle(document.getElementById('layoutTabs')).display,
-  btns: ['btnSearch', 'btnExtents', 'btnLayers', 'btnMeasure'].map(id => getComputedStyle(document.getElementById(id)).display), open: getComputedStyle(document.getElementById('btnOpen')).display, more: getComputedStyle(document.getElementById('btnMore')).display,
+  btns: ['btnSearch', 'btnLayers', 'btnMeasure'].map(id => getComputedStyle(document.getElementById(id)).display), open: getComputedStyle(document.getElementById('btnOpen')).display, more: getComputedStyle(document.getElementById('btnMore')).display,
   hasDoc: window.dwgApp.state.hasDoc, docView: !document.getElementById('docView').hidden,
 });
 const menuVisible = () => [...document.querySelectorAll('#moreMenu [data-act]')].filter(b => !b.hidden && b.offsetParent !== null).map(b => b.dataset.act).sort();
