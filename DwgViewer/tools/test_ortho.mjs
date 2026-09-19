@@ -134,12 +134,14 @@ await zoom([0, 0, 800, 600]);
   ok('4a kalem (600,260) üstünde: önizleme noktası yatay kilitle (600,200)', !!h.hover && Array.isArray(h.pen) && yak(h.pen[0], 600, 1e-3) && yak(h.pen[1], 200, 1e-3), J(h));
   await kalem('pointerout', s[0], s[1]); await bekle(900);      // avuç reddi sağır süresi (700 ms) geçsin
   const s2 = await scr(320, 520);                            // taban (200,200): dx 120 < dy 320 → düşey kilit → (200,520)
-  await dokun('pointerdown', s2[0] - 60, s2[1] + 40); await bekle(720);
-  await dokun('pointermove', s2[0] - 30, s2[1] + 20); await dokun('pointermove', s2[0], s2[1]); await bekle(200);
+  // v7.87: nişanda imleç parmağın 56 px ÜSTÜNDEDİR; imlecin s2'ye oturması için parmak 56 px aşağı gider.
+  const fy = s2[1] + 56;
+  await dokun('pointerdown', s2[0] - 60, fy + 40); await bekle(720);
+  await dokun('pointermove', s2[0] - 30, fy + 20); await dokun('pointermove', s2[0], fy); await bekle(200);
   const h2 = await ev(() => ({ pen: window.dwgApp.state.pen.hover, hover: window.dwgApp.__pickbox().hover, loupe: window.dwgApp.__pickbox().loupe }));
   ok('4b parmakla nişan (320,520): önizleme düşey kilitle (200,520) — taban (200,200)', !!h2.hover && h2.hover.aim && !!h2.loupe && Array.isArray(h2.pen) && yak(h2.pen[0], 200, 1e-3) && yak(h2.pen[1], 520, 1e-3), J(h2));
   const n0 = await count();
-  await dokun('pointerup', s2[0], s2[1]); await bekle(300);
+  await dokun('pointerup', s2[0], fy); await bekle(300);
   const p = await sonPrim();
   ok('4c bırakınca doğru önizlemedeki noktaya çizilir: (200,200)-(200,520), x birebir eşit', (await count()) === n0 + 1 && p.ops[1][1] === p.ops[0][1] && yak(p.ops[1][2], 520, 1e-3), J(p.ops));
   await iptal();
