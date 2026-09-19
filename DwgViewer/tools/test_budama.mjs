@@ -28,6 +28,7 @@ await page.reload(); await page.waitForSelector('#btnOpen2'); await page.waitFor
 await openFile(page, `${SM}/example_2000.dwg`, { settle: 500 });
 await ev(() => { document.getElementById('toast').hidden = true; localStorage.removeItem('edits:' + window.dwgApp.state.fileKey); });
 
+await ev(async () => { window.__G = await import('./geom.js'); });
 const shot = (n) => page.screenshot({ path: `${out}/${n}.png` });
 const count = () => ev(() => window.dwgApp.state.prims.length);
 const undoLen = () => ev(() => { const d = window.dwgApp.editor.doc; return d ? d.log.length : -1; });   // günlük: geri alma yığını 10 adımla sınırlı (v7.55), sayım günlükten
@@ -56,6 +57,8 @@ const yak = (a, b, e = 1e-6) => Math.abs(a - b) < e;
     const rect = [[0, 0, 0, 0], [1, 10, 0, 0], [1, 10, 10, 0], [1, 0, 10, 0]];
     const A = [[0, 0, 0, 0], [1, 8, 0, 0]], B = [[0, 10, 2, 0], [1, 10, 10, 0]];
     const zikzak = [[0, 0, 0, 0], [1, 10, 0, 0], [1, 10, 4, 0], [1, 4, 4, 0], [1, 4, 12, 0]];
+    const daire = [[0, 10, 0, 0], [2, 0, 0, 10, 0, 2 * Math.PI, 0]];          // merkez [0,0], r 10
+    const yay = [[0, 10, 0, 0], [2, 0, 0, 10, 0, Math.PI, 0]];                // üst yarım çember
     return {
       sinirli: G.segIntersect([0, 0, 4, 0], [5, -5, 5, 5]),
       sonsuz: G.segIntersect([0, 0, 4, 0], [5, -5, 5, 5], true),
@@ -83,7 +86,22 @@ const yak = (a, b, e = 1e-6) => Math.abs(a - b) < e;
       // [0,0]→[10,0]→[10,4]→[4,4]→[4,12]: 1. ve 4. segment arasında iki segment var, atılmalı
       kAtlamali: G.cornerAt(zikzak, false, [5, 0], zikzak, false, [4, 9]),
       kKapanis: G.cornerAt(rect, true, [5, 0], rect, true, [0, 5]),
-      boyUc: G.pathLength3(G.trimPath([[0, 0, 0, 0], [1, 10, 0, 0]], false, [[5, -5, 5, 5]], [8, 0]).parts[0].ops, false),
+      // v7.92 · KESİCİ HER NESNEDEN
+      cutDaire: G.cutterSegs({ k: 0, closed: true, ops: daire }).length,
+      cutDaireKapali: (() => { const q = G.cutterSegs({ k: 0, closed: true, ops: daire }); const a = q[0], b = q[q.length - 1]; return Math.hypot(b[2] - a[0], b[3] - a[1]); })(),
+      cutYazi: G.cutterSegs({ k: 1, bb: [0, 0, 4, 2] }),
+      cutNokta: G.cutterSegs({ k: 2, bb: [3, 3, 3, 3] }).length,
+      cutResim: G.cutterSegs({ k: 3, quad: [[0, 0], [4, 0], [4, 3], [0, 3]] }).length,
+      cutAltYol: G.cutterSegs({ k: 0, closed: true, ops: [[0, 0, 0, 0], [1, 2, 0, 0], [1, 2, 2, 0], [0, 5, 5, 0], [1, 7, 5, 0], [1, 7, 7, 0]] }).length,
+      // v7.92 · YAY VE DAİRE BUDANIR
+      trimDaire: G.trimPath(daire, true, [[0, -20, 0, 20]], [7.0710678, 7.0710678]),
+      trimYay: G.trimPath(yay, false, [[-20, 5, 20, 5]], [0, 10]),
+      // v7.92 · DOLGU (tarama) budama: kare dolgu düşey doğruyla ikiye bölünür, SOL parçaya dokunulur
+      trimAlan: G.trimRegion([[0, 0, 0, 0], [1, 10, 0, 0], [1, 10, 10, 0], [1, 0, 10, 0]], [[4, -5, 4, 15]], [2, 5]),
+      trimAlanYay: G.trimRegion([[0, 0, 0, 0], [1, 10, 0, 0], [1, 10, 10, 0], [1, 0, 10, 0]], G.cutterSegs({ k: 0, closed: false, ops: [[0, 4, -5, 0], [1, 4, 2, 0], [2, 4, 5, 3, -Math.PI / 2, Math.PI / 2, 0], [1, 4, 15, 0]] }), [2, 5]),
+      boyDaire: (() => { const r = G.trimPath(daire, true, [[0, -20, 0, 20]], [7.0710678, 7.0710678]); return r ? r.parts.map(q => G.pathLength3(q.ops, false)) : null; })(),
+      boyYay: (() => { const r = G.trimPath(yay, false, [[-20, 5, 20, 5]], [0, 10]); return r ? r.parts.map(q => G.pathLength3(q.ops, false)) : null; })(),
+            boyUc: G.pathLength3(G.trimPath([[0, 0, 0, 0], [1, 10, 0, 0]], false, [[5, -5, 5, 5]], [8, 0]).parts[0].ops, false),
       boyOrta: G.trimPath([[0, 0, 0, 0], [1, 10, 0, 0]], false, [[3, -5, 3, 5], [7, -5, 7, 5]], [5, 0]).parts.map(p => G.pathLength3(p.ops, false)),
       boyUzat: G.pathLength3(G.extendPath([[0, 0, 0, 0], [1, 4, 0, 0]], false, [[10, -5, 10, 5]], [4, 0]).ops, false),
       // boyla kısaltma / uzatma (LENGTHEN DElta): uç dokunulan noktaya yakın olandır
@@ -139,6 +157,37 @@ const yak = (a, b, e = 1e-6) => Math.abs(a - b) < e;
   ok('6e ATLAMALI iki segment: köşe uzantıların kesişiminde, aradaki işlemler atılır (AutoCAD FILLET)',
     g.kAtlamali && g.kAtlamali.kind === 'sameFar' && yak(g.kAtlamali.c[0], 4) && yak(g.kAtlamali.c[1], 0) &&
     g.kAtlamali.drop[0] === 2 && g.kAtlamali.drop[1] === 3, JSON.stringify(g.kAtlamali));
+  ok('C1 cutterSegs daireyi kesici yapar: yay örneklenir, halka kapalıdır',
+    g.cutDaire > 100 && g.cutDaireKapali < 1e-6, JSON.stringify([g.cutDaire, g.cutDaireKapali]));
+  ok('C2 cutterSegs yazıyı sınır kutusuyla keser (AutoCAD TEXT kesici davranışı): 4 kenar',
+    g.cutYazi.length === 4 && g.cutYazi.some(q => q[0] === 0 && q[1] === 0 && q[2] === 4 && q[3] === 0), JSON.stringify(g.cutYazi));
+  ok('C3 nokta ilkelinin kenarı yok, resim dörtgeni 4 kenar', g.cutNokta === 0 && g.cutResim === 4, JSON.stringify([g.cutNokta, g.cutResim]));
+  ok('C4 çok parçalı sınır (tarama): her ALT YOL ayrı kapanır, aralarında hayalet kenar doğmaz — 2×3 = 6',
+    g.cutAltYol === 6, String(g.cutAltYol));
+  {
+    const o = g.trimDaire && g.trimDaire.parts[0].ops;
+    ok('Y1 TAM DAİRE budanır: 45°\'de dokunulan çeyrek atılır, geriye TEK yay kalır (2 işlem)',
+      !!o && g.trimDaire.parts.length === 1 && o.length === 2 && o[0][0] === 0 && (o[1][0] === 2 || o[1][0] === -2), JSON.stringify(o));
+    ok('Y2 kalan yayın boyu 270° = 10 × 3π/2 = 47,124', g.boyDaire && yak(g.boyDaire[0], 10 * 1.5 * Math.PI, 1e-6), JSON.stringify(g.boyDaire));
+  }
+  ok('Y3 YAY ortadan budanır: iki parça, her biri 30° = 10 × π/6 = 5,236',
+    g.trimYay && g.trimYay.parts.length === 2 && yak(g.boyYay[0], 10 * Math.PI / 6, 1e-6) && yak(g.boyYay[1], 10 * Math.PI / 6, 1e-6), JSON.stringify(g.boyYay));
+  {
+    const r = g.trimAlan;
+    const alan = r ? (() => { const pts = r.ops.map(o => [o[1], o[2]]); let a = 0; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) a += (pts[j][0] + pts[i][0]) * (pts[j][1] - pts[i][1]); return Math.abs(a / 2); })() : -1;
+    ok('D1 DOLGU budanınca KAPALI kalır (açılsa dolgu taşardı)', !!r && r.closed === true, JSON.stringify(r && r.ops));
+    ok('D2 sol parça atıldı: 10×10 = 100 alandan geriye 6×10 = 60 kalır', yak(alan, 60, 1e-6), String(alan));
+  }
+  {
+    const r = g.trimAlanYay;
+    const alan = r ? (() => { const pts = r.ops.map(o => [o[1], o[2]]); let a = 0; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) a += (pts[j][0] + pts[i][0]) * (pts[j][1] - pts[i][1]); return Math.abs(a / 2); })() : -1;
+    // Yay sola doğru şişse alan artardı; sağa şiştiği için kalan parçadan yarım daire (≈14,1) düşer.
+    ok('D3 kesici YAYSA kalan alanın yeni kenarı da YAY olur, kiriş çekilmez (düğüm sayısı > 5)',
+      !!r && r.closed === true && r.ops.length > 5, JSON.stringify(r && r.ops.length));
+    ok('D4 yayla kesilen alan 60 − yarım daire (≈ 45,9)', yak(alan, 60 - Math.PI * 9 / 2, 0.05), String(alan));
+  }
+  ok('Y4 budanan yayın parçaları YİNE YAYDIR (doğruya düzleştirilmez)',
+    g.trimYay && g.trimYay.parts.every(q => q.ops.some(o => o[0] === 2 || o[0] === -2)), JSON.stringify(g.trimYay && g.trimYay.parts.map(q => q.ops)));
   ok('6f kapalı yolun BAŞLANGIÇ düğümü de köşedir (kapanış kenarı ile ilk kenar)',
     g.kKapanis && g.kKapanis.kind === 'same' && g.kKapanis.i === 0 && yak(g.kKapanis.c[0], 0) && yak(g.kKapanis.c[1], 0), JSON.stringify(g.kKapanis));
 }
@@ -214,7 +263,7 @@ await page.click('#toolbar [data-tab="edit"]');
 }
 
 // ---------------------------------------------------------------------------------
-// 5) Buda — desteklenmeyen hedef ve kendi kendini kesme
+// 5) Buda — DAİRE hedefi (v7.92'de desteklendi), yazı hedefi ve kendi kendini kesme
 // ---------------------------------------------------------------------------------
 {
   const ids = await ekle([
@@ -222,17 +271,69 @@ await page.click('#toolbar [data-tab="edit"]');
     { type: 'CIRCLE', pts: [[500, 300, 0]], r: 120 },
   ]);
   await zoom([0, 0, 1000, 600]);
-  const u0 = await undoLen();
+  const n0 = await count(), u0 = await undoLen();
   await page.click('#toolbar [data-act="t:trim"]');
   await tapWorld(100, 300);        // kesici: doğru
-  await tapWorld(500, 420);        // hedef: daire (desteklenmez)
-  ok('10a daire hedefinde notPath basılır, belge kirlenmez', (await undoLen()) === u0 && /düz kenar|straight edge/i.test(await toast()), await toast());
+  await tapWorld(500, 420);        // hedef: dairenin ÜST yarısı — v7.91'e kadar reddediliyordu
+  await page.waitForTimeout(250);
+  {
+    const p = await primOf(ids[1]);
+    const yay = p && p.ops.find(o => o[0] === 2 || o[0] === -2);
+    const boy = await ev((k) => { const P = window.dwgApp.state.prims.find(x => x.key === k); return P ? window.__G.pathLength3(P.ops, false) : -1; }, ids[1]);
+    ok('10a DAİRE budanır: üst yarı atılır, geriye tek yay kalır (ilkel sayısı değişmez)',
+      !!yay && (await count()) === n0 && p.ops.length === 2, JSON.stringify(p && p.ops));
+    ok('10b kalan yayın boyu yarım çember = π × 120 = 376,99', yak(boy, Math.PI * 120, 1e-4), String(boy));
+    ok('10c tek reshape', (await undoLen()) === u0 + 1 && (await sonOp()) === 'reshape', String(await sonOp()));
+  }
+  const u1 = await undoLen();
   await tapWorld(300, 300);        // hedef = kesicinin kendisi
-  ok('10b kesici kenarın kendisi budanamaz', (await undoLen()) === u0 && /kendisi|itself/i.test(await toast()), await toast());
+  ok('10d kesici kenarın kendisi budanamaz', (await undoLen()) === u1 && /kendisi|itself/i.test(await toast()), await toast());
+  await page.click('#cmdBtns [data-cmd="cancel"]');
+  await ev(() => window.dwgApp.editor.doc.undo()); await page.waitForTimeout(120);
+  await sil(ids);
+}
+{
+  // Yazı hedefi hâlâ budanmaz (AutoCAD de kesmez); ama KESİCİ olabilir — C2 bunu kanıtlıyor.
+  const ids = await ekle([
+    { type: 'LINE', pts: [[100, 700, 0], [900, 700, 0]] },
+    { type: 'TEXT', pts: [[400, 650, 0]], text: 'KESICI', h: 60 },
+  ]);
+  await zoom([0, 500, 1000, 900]);
+  const u0 = await undoLen();
+  await page.click('#toolbar [data-act="t:trim"]');
+  await tapWorld(150, 700);        // kesici: doğru
+  await tapWorld(430, 680);        // hedef: yazı
+  ok('10e yazı hedefi budanmaz, belge kirlenmez', (await undoLen()) === u0, await toast());
   await page.click('#cmdBtns [data-cmd="cancel"]');
   await sil(ids);
 }
 
+// ---------------------------------------------------------------------------------
+// 5b) v7.92 · DAİRE KESİCİ ve DOLGU hedefi — araç akışında
+// ---------------------------------------------------------------------------------
+{
+  const ids = await ekle([
+    { type: 'CIRCLE', pts: [[500, 300, 0]], r: 150 },
+    { type: 'LINE', pts: [[100, 300, 0], [900, 300, 0]] },
+  ]);
+  await zoom([0, 0, 1000, 600]);
+  const n0 = await count(), u0 = await undoLen();
+  await page.click('#toolbar [data-act="t:trim"]');
+  await tapWorld(500, 450);        // KESİCİ: dairenin kendisi (v7.91'e kadar "düz kenar yok" diyordu)
+  const istem = await ev(() => document.getElementById('cmdText').textContent);
+  ok('11a DAİRE kesici kenar olarak kabul edilir (araç 2. adıma geçer)', /Atılacak parça|piece to remove/i.test(istem), istem);
+  await tapWorld(500, 300);        // doğrunun daire İÇİNDE kalan parçası
+  await page.waitForTimeout(250);
+  ok('11b daireyle kesilen doğru İKİ parçaya ayrıldı', (await count()) === n0 + 1, `${n0} → ${await count()}`);
+  {
+    const p = await primOf(ids[1]);
+    ok('11c kalan parça daireye teğet noktada biter ([350,300])', p && yak(p.ops[1][1], 350, 1e-3) && yak(p.ops[1][2], 300, 1e-3), JSON.stringify(p && p.ops));
+  }
+  await shot('bd_daire_kesici');
+  await page.click('#cmdBtns [data-cmd="cancel"]');
+  await ev(() => window.dwgApp.editor.doc.undo()); await page.waitForTimeout(150);
+  await sil(ids);
+}
 // ---------------------------------------------------------------------------------
 // 6) Uzat aracı
 // ---------------------------------------------------------------------------------

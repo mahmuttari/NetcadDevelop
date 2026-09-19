@@ -10,7 +10,7 @@
  *   fmt(v)   units()     unitToM()   trackClear() (nokta belirlenince edinilmiş iz noktaları silinir)
  * Nokta girişi: dokunma (yakalamalı) ya da yazılı: "x,y" | "x,y,z" | "@dx,dy" | "@L<açı"
  */
-import { TAU, flatten, polyArea, pathLength, pathLength3, segDist, opsBBox, enclosingPrim, segmentsOf, segAt, trimPath, extendPath, lengthenPath, filletCorner, chamferCorner, cornerAt, segIntersect, pointInPoly, pathPointsAt, pathFramesAt, traceBoundary } from './geom.js';
+import { TAU, flatten, polyArea, pathLength, pathLength3, segDist, opsBBox, enclosingPrim, segmentsOf, segAt, trimPath, extendPath, lengthenPath, filletCorner, chamferCorner, cornerAt, segIntersect, pointInPoly, pathPointsAt, pathFramesAt, traceBoundary, cutterSegs, trimRegion } from './geom.js';
 import { newId, offsetPoints } from './edit.js';
 import { alignMatrix } from './blocks.js';
 import { t, addStrings } from './i18n.js';
@@ -571,15 +571,22 @@ export class ToolManager {
   /*
    * Budama ve uzatma. İki dokunuş: önce kesici kenar / sınır, sonra hedef. Kesici korunur ve
    * araç 1. adımda KALIR — AutoCAD'de olduğu gibi aynı kesiciyle arka arkaya budanabilir.
-   * Yalnız DÜZ segmentler budanır; yay, daire ve elips hedeflerinde 'notPath' basılır.
+   *
+   * KESİCİ HER NESNE OLABİLİR (v7.92). Eskiden kesici de hedef de yalnız DÜZ segmenti olan bir
+   * yoldu: daireye, yaya, taramaya ya da yazıya dokunmak "bu nesnede düz kenar yok" diyordu.
+   * Artık kesici geom.cutterSegs'ten gelir — yol, yay, daire, elips, spline, tarama sınırı,
+   * desen çizgileri, resim ve yazı (sınır kutusuyla, AutoCAD'deki gibi) kesebilir.
+   *
+   * HEDEF bir YOL olmalıdır (k = 0): yazının ya da resmin "budanmış" hâli yoktur, AutoCAD de
+   * onları kesmez. Ama yolun budanan öğesi artık düz segment YA DA YAY olabilir — daire ve yay
+   * budanır, kalan parça yine yaydır.
    */
   async cutTap(w) {
     const A = this.api, act = this.active;
     const p = A.pick(w);
     if (!p) { A.toast(t('noObject')); return; }
-    if (p.k !== 0 || !p.ops || p.ops.length < 2) { A.toast(t('notPath')); return; }
     if (this.step === 0) {
-      const { segs } = segmentsOf(p);
+      const segs = cutterSegs(p);
       if (!segs.length) { A.toast(t('notPath')); return; }
       this.cut = { key: p.key, segs };
       this.draft = { segs: segs.map(q => [[q[0], q[1], 0], [q[2], q[3], 0]]), keep: true };
@@ -587,9 +594,19 @@ export class ToolManager {
       return;
     }
     if (p.key === this.cut.key) { A.toast(t('trimSelf')); return; }
-    // Hedefte hiç düz segment yoksa (daire, yay, elips) neden 'kesişmiyor' değil, 'desteklenmiyor'dur.
-    if (!segAt(p.ops, p.closed, w)) { A.toast(t('notPath')); return; }
+    if (p.k !== 0 || !p.ops || p.ops.length < 2) { A.toast(t('notPath')); return; }
     if (act === 'trim') {
+      /*
+       * DOLGULU KAPALI ALAN (tarama · solid) başka türlü budanır: kullanıcı sınıra değil İÇERİ
+       * dokunur ve "şu parçayı at" der. Çizgi kuralı burada işlemez — alan açılırsa dolgu
+       * taşar. Kalan parça kapalı kalır, yeni kenarı kesicinin KENDİ biçimidir.
+       */
+      if (p.fill && p.closed) {
+        const rr = trimRegion(p.ops, this.cut.segs, w);
+        if (!rr) { A.toast(t('trimNoHit')); return; }
+        if (A.run({ op: 'reshape', items: [{ key: p.key, ops: rr.ops, closed: true }] })) A.render(); else A.toast(t('error'));
+        return;
+      }
       const r = trimPath(p.ops, p.closed, this.cut.segs, w);
       if (!r) { A.toast(t('trimNoHit')); return; }
       const ci = (p.info && p.info.ci != null) ? p.info.ci : 256;

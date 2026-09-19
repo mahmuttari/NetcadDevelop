@@ -591,64 +591,267 @@ export function segAt(ops, closed, w) {
   return best;
 }
 
-/**
- * Budama. Dokunulan segmenti kesici kenarlarla kesip dokunulan parçayı atar.
- * → { parts:[{ops, closed}], cut:[[x,y],[x,y]] } ya da null (kesişim yok / düz segment yok)
- * Kapalı yolda budama yolu AÇAR: kalan tek parça, atılan aralığın bittiği yerden başlayıp
- * kapanış üzerinden dolaşarak başladığı yerde biter.
+/*
+ * KESİCİ KENAR — HER NESNEDEN (v7.92). AutoCAD'de TRIM'in kesici kenarı herhangi bir nesnedir:
+ * doğru, yay, daire, elips, polyline, spline, yazı, tarama sınırı, resim. Bizde kesici eskiden
+ * yalnız DÜZ segmenti olan bir yoldu (segmentsOf yayları ayrı topluyor, cutTap onları hiç
+ * kullanmıyordu); daireye dokunmak "bu nesnede düz kenar yok" diyordu. Artık her ilkel düz
+ * parçalara indirgenir:
+ *   yol (k=0)   : yaylar ve elipsler örneklenir, ALT YOLLAR ayrı ayrı kapatılır (tarama sınırı
+ *                 çok parçalıdır; tek zincir sayılsa parçalar arasında hayalet kenar doğardı)
+ *   resim (k=3) : dörtgenin dört kenarı
+ *   yazı (k=1) ve kalan her şey: sınır kutusu — AutoCAD de TEXT / MTEXT'i kutusuyla keser
+ *   nokta (k=2) : kenarı yoktur, boş döner
+ * Örnekleme çözünürlüğü arcPts / ellipsePts ile aynıdır: kesişim, ekranda görünen eğrinin
+ * kendisiyle bulunur, ayrı bir yaklaşıklık üretilmez.
  */
-export function trimPath(ops, closed, cutSegs, w) {
+export function cutterSegs(p) {
+  const segs = [];
+  const ek = (ax, ay, bx, by) => { if (Math.abs(bx - ax) > 1e-12 || Math.abs(by - ay) > 1e-12) segs.push([ax, ay, bx, by]); };
+  if (!p) return segs;
+  if (p.k === 0 && Array.isArray(p.ops) && p.ops.length) {
+    let lx = 0, ly = 0, sx = 0, sy = 0, has = false;
+    for (const o of p.ops) {
+      if (o[0] === 0) { if (has && p.closed) ek(lx, ly, sx, sy); lx = sx = o[1]; ly = sy = o[2]; has = true; continue; }
+      if (o[0] === 1) { if (has) ek(lx, ly, o[1], o[2]); lx = o[1]; ly = o[2]; continue; }
+      const pts = [];
+      if (o[0] === 2) arcPts(o[1], o[2], o[3], o[4], o[5], pts);
+      else if (o[0] === -2) { const t = []; arcPts(o[1], o[2], o[3], o[5], o[4], t); t.reverse(); pts.push(...t); }
+      else ellipsePts(o[1], o[2], o[3], o[4], o[5], o[6], o[7], pts);
+      for (let i = 1; i < pts.length; i++) ek(pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1]);
+      if (pts.length) { lx = pts[pts.length - 1][0]; ly = pts[pts.length - 1][1]; has = true; }
+    }
+    if (has && p.closed) ek(lx, ly, sx, sy);
+    return segs;
+  }
+  if (p.k === 3 && Array.isArray(p.quad) && p.quad.length === 4) {
+    for (let i = 0; i < 4; i++) { const a = p.quad[i], b = p.quad[(i + 1) % 4]; ek(a[0], a[1], b[0], b[1]); }
+    return segs;
+  }
+  if (p.k === 2) return segs;
+  const bb = p.bb;
+  if (bb && isFinite(bb[0]) && isFinite(bb[1]) && isFinite(bb[2]) && isFinite(bb[3]) && (bb[2] - bb[0] > 1e-12 || bb[3] - bb[1] > 1e-12)) {
+    ek(bb[0], bb[1], bb[2], bb[1]); ek(bb[2], bb[1], bb[2], bb[3]); ek(bb[2], bb[3], bb[0], bb[3]); ek(bb[0], bb[3], bb[0], bb[1]);
+  }
+  return segs;
+}
+
+/*
+ * BUDAMANIN HEDEFİ: DÜZ SEGMENT YA DA YAY (v7.92). Aşağıdaki üç yardımcı ikisini tek arayüzde
+ * toplar; trimPath böylece "hangi öğe" sorusunu bir kez sorar, gerisini aynı akışla yürütür.
+ * Yay işleminin gidişi HER ZAMAN o[4] açısından o[5] açısınadır; yön +2'de CCW, −2'de CW'dir.
+ * u ∈ [0,1] öğe üzerindeki oranı verir (0 = öğenin başı, 1 = sonu).
+ */
+const aciArtı = (d) => { let v = d % TAU; if (v < 0) v += TAU; return v; };
+/*
+ * Yayın süpürme açısı. aciArtı ile hesaplanamaz: TAM DAİREDE (a0 = 0, a1 = 2π) modülo SIFIR
+ * verir ve daire "süpürmesi yok" sayılıp budanamazdı. arcPts'in kuralı buradadır — sıfır ya da
+ * negatif fark tam tura tamamlanır.
+ */
+const surAci = (d) => { let v = d; while (v <= 1e-12) v += TAU; return v; };
+/** Dokunulan noktaya en yakın öğe: { kind:'seg'|'arc', i, u, d, … } ya da null */
+function elemAt(ops, closed, w) {
   const s = segAt(ops, closed, w);
-  if (!s) return null;
-  const [ax, ay, az] = s.a, [bx, by, bz] = s.b;
+  let en = s ? { kind: 'seg', i: s.i, u: s.t, d: s.d, a: s.a, b: s.b } : null;
+  for (let i = 0; i < ops.length; i++) {
+    const o = ops[i];
+    if (o[0] !== 2 && o[0] !== -2) continue;
+    const cx = o[1], cy = o[2], r = o[3], aS = o[4], aE = o[5], ccw = o[0] === 2;
+    const ang = Math.atan2(w[1] - cy, w[0] - cx);
+    if (!angIn(ang, ccw ? aS : aE, ccw ? aE : aS)) continue;   // yayın açı aralığı dışına dokunuldu
+    const d = Math.abs(Math.hypot(w[0] - cx, w[1] - cy) - r);
+    if (en && d >= en.d) continue;
+    const sur = ccw ? surAci(aE - aS) : -surAci(aS - aE);
+    if (Math.abs(sur) < 1e-12) continue;
+    const u = Math.max(0, Math.min(1, (ccw ? aciArtı(ang - aS) : aciArtı(aS - ang)) / Math.abs(sur)));
+    en = { kind: 'arc', i, u, d, cx, cy, r, aS, sur, dir: o[0], z: zNum(o[6]) };
+  }
+  return en;
+}
+const elemAci = (e, u) => e.aS + e.sur * u;
+const elemNokta = (e, u) => (e.kind === 'seg'
+  ? [e.a[0] + u * (e.b[0] - e.a[0]), e.a[1] + u * (e.b[1] - e.a[1]), e.a[2] + u * (e.b[2] - e.a[2])]
+  : [e.cx + e.r * Math.cos(elemAci(e, u)), e.cy + e.r * Math.sin(elemAci(e, u)), e.z]);
+/** Öğenin BAŞINDAN u'ya kadarki parçası, önceki işlemin ardına eklenecek bir işlem olarak */
+const elemBas = (e, u, ops) => (e.kind === 'seg'
+  ? (() => { const q = elemNokta(e, u); return [1, q[0], q[1], q[2]]; })()
+  : [e.dir, e.cx, e.cy, e.r, e.aS, elemAci(e, u), e.z]);
+/** Öğenin u'dan SONUNA kadarki parçası; öncesine elemNokta(e,u) moveTo'su konur */
+const elemSon = (e, u, ops) => (e.kind === 'seg'
+  ? ops[e.i].slice()
+  : [e.dir, e.cx, e.cy, e.r, elemAci(e, u), e.aS + e.sur, e.z]);
+/** Öğenin kesicilerle kesiştiği oranlar (0,1) aralığında, sıralı ve tekilleştirilmiş */
+function elemKesisim(e, cutSegs) {
   const ts = [];
-  for (const c of cutSegs) {
-    const q = segIntersect([ax, ay, bx, by], [c[0], c[1], c[2], c[3]]);
-    if (!q) continue;
+  const ekle = (t) => { if (t > 1e-9 && t < 1 - 1e-9 && !ts.some(v => Math.abs(v - t) < 1e-9)) ts.push(t); };
+  if (e.kind === 'seg') {
+    const ax = e.a[0], ay = e.a[1], bx = e.b[0], by = e.b[1];
     const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
-    if (!l2) continue;
-    const t = ((q[0] - ax) * dx + (q[1] - ay) * dy) / l2;
-    if (t > 1e-9 && t < 1 - 1e-9 && !ts.some(v => Math.abs(v - t) < 1e-9)) ts.push(t);
+    if (!l2) return ts;
+    for (const c of cutSegs) {
+      const q = segIntersect([ax, ay, bx, by], [c[0], c[1], c[2], c[3]]);
+      if (q) ekle(((q[0] - ax) * dx + (q[1] - ay) * dy) / l2);
+    }
+  } else {
+    const ccw = e.sur > 0;
+    const yay = { cx: e.cx, cy: e.cy, r: e.r, a0: ccw ? e.aS : e.aS + e.sur, a1: ccw ? e.aS + e.sur : e.aS };
+    for (const c of cutSegs) {
+      for (const q of segArcHits([c[0], c[1], c[2], c[3]], yay)) {
+        const ang = Math.atan2(q[1] - e.cy, q[0] - e.cx);
+        ekle((ccw ? aciArtı(ang - e.aS) : aciArtı(e.aS - ang)) / Math.abs(e.sur));
+      }
+    }
   }
   ts.sort((p, q) => p - q);
+  return ts;
+}
+
+/**
+ * Budama. Dokunulan öğeyi (düz segment YA DA yay) kesici kenarlarla kesip dokunulan parçayı atar.
+ * → { parts:[{ops, closed}], cut:[[x,y],[x,y]] } ya da null (kesişim yok / budanacak öğe yok)
+ * Kapalı yolda budama yolu AÇAR: kalan tek parça, atılan aralığın bittiği yerden başlayıp
+ * kapanış üzerinden dolaşarak başladığı yerde biter. Tam daire de böyledir: geriye tek yay kalır.
+ */
+export function trimPath(ops, closed, cutSegs, w) {
+  const e = elemAt(ops, closed, w);
+  if (!e) return null;
+  const ts = elemKesisim(e, cutSegs);
   let tA = 0, tB = 1;
-  for (const t of ts) { if (t <= s.t) tA = t; else { tB = t; break; } }
+  for (const t of ts) { if (t <= e.u) tA = t; else { tB = t; break; } }
   if (tA === 0 && tB === 1) return null;
-  const nokta = (t) => [ax + t * (bx - ax), ay + t * (by - ay), az + t * (bz - az)];
-  const A = nokta(tA), B = nokta(tB);
+  const A = elemNokta(e, tA), B = elemNokta(e, tB);
   const kopya = (o) => o.slice();
-  const i = s.i, N = ops.length;
+  const i = e.i, N = ops.length;
   if (!ops[0] || ops[0][0] !== 0) return null;
   const bas = [1, ops[0][1], ops[0][2], zNum(ops[0][3])];   // kapanış kenarının varış noktası
   const opAt = (k) => (k < N ? kopya(ops[k]) : bas.slice());
   let parts;
   if (closed) {
     /*
-     * Kapalı yolda budama yolu AÇAR. B'den başlanır, dokunulan segmentin bittiği yere gidilir,
+     * Kapalı yolda budama yolu AÇAR. B'den başlanır, dokunulan öğenin bittiği yere gidilir,
      * halka boyunca bir tam tur atılır (kapanış kenarı N. segment sayılır) ve A'da durulur.
      * Segmentler 1..N-1 sıradan işlemler, N ise kapanıştır; halka sırası bu yüzden modülodur.
      */
     const yeni = [[0, B[0], B[1], B[2]]];
-    if (tB < 1 - 1e-9) yeni.push(opAt(i));
+    if (tB < 1 - 1e-9) yeni.push(elemSon(e, tB, ops));
     for (let m = 1; m < N; m++) yeni.push(opAt(((i - 1 + m) % N) + 1));
-    if (tA > 1e-9) yeni.push([1, A[0], A[1], A[2]]);
-    parts = yeni.length > 1 ? [{ ops: yeni, closed: false }] : [];
+    if (tA > 1e-9) yeni.push(elemBas(e, tA, ops));
+    parts = yeni.length > 1 ? [{ ops: sadelestir(yeni), closed: false }] : [];
   } else {
     parts = [];
-    // Birinci parça: budanan aralığın BAŞINA kadar. tA sıfırsa kesim tam segmentin başındadır,
+    // Birinci parça: budanan aralığın BAŞINA kadar. tA sıfırsa kesim tam öğenin başındadır,
     // öndeki işlemler yine de kalır — bu parça atlanırsa yolun yarısı sessizce kaybolur.
     const p1 = [];
     for (let k = 0; k < i && k < N; k++) p1.push(kopya(ops[k]));
-    if (tA > 1e-9) p1.push([1, A[0], A[1], A[2]]);
+    if (tA > 1e-9) p1.push(elemBas(e, tA, ops));
     if (p1.length > 1) parts.push({ ops: p1, closed: false });
-    // İkinci parça: B'den segmentin KENDİ bitişine, oradan yolun kalanına.
+    // İkinci parça: B'den öğenin KENDİ bitişine, oradan yolun kalanına.
     const p2 = [[0, B[0], B[1], B[2]]];
-    if (tB < 1 - 1e-9) p2.push(opAt(i));
+    if (tB < 1 - 1e-9) p2.push(elemSon(e, tB, ops));
     for (let k = i + 1; k < N; k++) p2.push(kopya(ops[k]));
     if (p2.length > 1) parts.push({ ops: p2, closed: false });
   }
   if (!parts.length) return null;
   return { parts, cut: [[A[0], A[1]], [B[0], B[1]]] };
+}
+/*
+ * Sıfır boyutlu lineTo'ları atar. Tam daire budandığında halka turu, yayın bittiği noktaya
+ * bir de kapanış düğümü ekler; o düğüm yayın son noktasıyla aynıdır ve kalırsa yolda görünmez
+ * ama ölçüde ve yakalamada sahte bir düğüm olarak durur.
+ */
+function sadelestir(list) {
+  const out = [];
+  let lx = null, ly = null;
+  for (const o of list) {
+    if (o[0] === 1 && lx != null && Math.hypot(o[1] - lx, o[2] - ly) < 1e-9) continue;
+    out.push(o);
+    if (o[0] === 0 || o[0] === 1) { lx = o[1]; ly = o[2]; }
+    else if (o[0] === 2 || o[0] === -2) { lx = o[1] + o[3] * Math.cos(o[5]); ly = o[2] + o[3] * Math.sin(o[5]); }
+    else { lx = null; ly = null; }
+  }
+  return out;
+}
+
+/*
+ * DOLGU (TARAMA · SOLID) BUDAMA — v7.92.
+ *
+ * Kapalı ve dolgulu bir alanda kullanıcı sınıra değil İÇERİ dokunur: "şu parçayı at" der.
+ * Çizgi budamanın kuralı burada işlemez; alan açılırsa dolgu taşar. Kesici halkayı iki parçaya
+ * böler, dokunulan parça atılır, kalan KAPALI kalır.
+ *
+ * Kesici zinciri düz parça listesi olarak gelir; ardışık olanlar zincire toplanır, çünkü kesim
+ * kenarı bir doğru kadar bir yay ya da polyline da olabilir ve kalan alanın kenarı kesicinin
+ * KENDİ biçimini almalıdır — iki uç arasına kiriş çekmek yayla kesilen bir alanı düzleştirirdi.
+ * Kesici birden çok yerden giriyorsa (üç ve daha çok kesişim) halka boyunca ardışık kesişim
+ * çiftleri denenir; dokunulan noktayı içeren ilk parça atılır.
+ */
+function zincirler(cutSegs) {
+  const out = [];
+  let cur = null;
+  for (const c of cutSegs) {
+    if (cur && Math.hypot(c[0] - cur[cur.length - 1][0], c[1] - cur[cur.length - 1][1]) < 1e-9) cur.push([c[2], c[3]]);
+    else { cur = [[c[0], c[1]], [c[2], c[3]]]; out.push(cur); }
+  }
+  return out;
+}
+export function trimRegion(ops, cutSegs, w) {
+  const R = flatten(ops);
+  if (R.length < 3) return null;
+  if (Math.hypot(R[0][0] - R[R.length - 1][0], R[0][1] - R[R.length - 1][1]) < 1e-9) R.pop();
+  const n = R.length;
+  if (n < 3) return null;
+  const zin = zincirler(cutSegs);
+  // halka üzerindeki bütün kesişimler: t = kenar dizini + kenar içi oran
+  const hits = [];
+  zin.forEach((ch, zi) => {
+    for (let k = 1; k < ch.length; k++) {
+      const a = ch[k - 1], b = ch[k];
+      for (let i = 0; i < n; i++) {
+        const p0 = R[i], p1 = R[(i + 1) % n];
+        const q = segIntersect([p0[0], p0[1], p1[0], p1[1]], [a[0], a[1], b[0], b[1]]);
+        if (!q) continue;
+        const dx = p1[0] - p0[0], dy = p1[1] - p0[1], l2 = dx * dx + dy * dy;
+        const tr = l2 ? ((q[0] - p0[0]) * dx + (q[1] - p0[1]) * dy) / l2 : 0;
+        const cd = Math.hypot(b[0] - a[0], b[1] - a[1]);
+        const tc = cd ? ((q[0] - a[0]) * (b[0] - a[0]) + (q[1] - a[1]) * (b[1] - a[1])) / (cd * cd) : 0;
+        hits.push({ t: i + Math.max(0, Math.min(1, tr)), zi, kt: (k - 1) + Math.max(0, Math.min(1, tc)), q });
+      }
+    }
+  });
+  if (hits.length < 2) return null;
+  hits.sort((a, b) => a.t - b.t);
+  // aynı noktada yığılan kesişimler tekilleşir (köşeden geçen kesici iki kenarı birden keser)
+  const tek = [];
+  for (const h of hits) if (!tek.some(v => Math.hypot(v.q[0] - h.q[0], v.q[1] - h.q[1]) < 1e-9)) tek.push(h);
+  if (tek.length < 2) return null;
+  const halkaYay = (a, b) => {                       // a.t'den b.t'ye halka boyunca nokta dizisi
+    const pts = [a.q.slice()];
+    let i = Math.floor(a.t) + 1;
+    const son = Math.floor(b.t);
+    const adim = (i0) => ((i0 % n) + n) % n;
+    let guard = 0;
+    while (adim(i) !== adim(son + 1) && guard++ <= n) { pts.push(R[adim(i)].slice()); i++; }
+    pts.push(b.q.slice());
+    return pts;
+  };
+  const kesiciYay = (a, b) => {                      // iki kesişim aynı zincirdeyse kesicinin KENDİ biçimi
+    if (a.zi !== b.zi) return [a.q.slice(), b.q.slice()];
+    const ch = zin[a.zi], i0 = Math.min(a.kt, b.kt), i1 = Math.max(a.kt, b.kt);
+    const ara = [];
+    for (let k = Math.floor(i0) + 1; k <= Math.floor(i1); k++) ara.push(ch[k].slice());
+    const ileri = a.kt <= b.kt ? ara : ara.reverse();
+    return [a.q.slice(), ...ileri, b.q.slice()];
+  };
+  for (let m = 0; m < tek.length; m++) {
+    const a = tek[m], b = tek[(m + 1) % tek.length];
+    const atil = [...halkaYay(a, b), ...kesiciYay(b, a).slice(1, -1)];
+    if (atil.length < 3 || !pointInPoly(atil, w[0], w[1])) continue;
+    const kalan = [...halkaYay(b, a), ...kesiciYay(a, b).slice(1, -1)];
+    if (kalan.length < 3) return null;
+    const yeni = kalan.map((q, i) => [i ? 1 : 0, q[0], q[1], zNum(ops[0] && ops[0][3])]);
+    return { ops: yeni, closed: true, atilan: atil };
+  }
+  return null;
 }
 
 /**
