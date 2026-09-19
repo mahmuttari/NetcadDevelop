@@ -12,4 +12,6 @@
     <!-- marka açılış örtüsü (SplashOverlay): slogan ve telif satırının sabit parçası -->
     <string name="splash_tagline">Vos plans dans la poche — ouvrir, mesurer, modifier, partager</string>
     <string name="splash_rights">Tous droits réservés.</string>
+    <string name="share_view">Partager la vue</string>
+    <string name="share_failed">La vue n\'a pas pu être partagée</string>
 </resources>

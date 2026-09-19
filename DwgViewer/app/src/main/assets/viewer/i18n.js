@@ -230,6 +230,8 @@ export const TR = {
   bpFlipPts: 'Çevirme ekseni: iki nokta', bpLinearPts: 'Taban ve uç noktası', bpRotPt: 'Dönme merkezi', bpPointPt: 'Taban noktası', bpFramePts: 'Esnetme çerçevesi: iki köşe', bpAdded: '"%s" parametresi eklendi', bpNoVis: 'Önce görünürlük parametresi ekleyin', bpState: 'Durum', bpAllStates: 'Bütün durumlarda görünür', bpStateSet: '%s nesne duruma atandı',
   xattachTitle: 'Referans ekle (XATTACH)', xattachHint: 'DWG / DXF dosyası verilen noktaya, ölçek ve dönüşle eklenir; katmanları "ad|katman" olur', xrefName: 'Referans adı', xrefAttached: '"%s" eklendi', xrefUnload: 'Boşalt', xrefReload: 'Yeniden yükle', xrefDetach: 'Ayır', xrefBind: 'Bağla (XBIND)', xrefClip: 'Kırp', xrefClipClear: 'Kırpmayı kaldır', xrefOpen: 'Aç', xrefFade: 'Soldur',
   xrefUnloaded: '"%s" boşaltıldı', xrefUnloadedMark: 'boşaltıldı', xrefReloaded: '"%s" yeniden yüklendi', xrefDetachAsk: '"%s" referansı ayrılsın mı?', xrefDetached: '"%s" ayrıldı', xrefClipped: 'kırpıldı', xrefBound: '"%s" bloğu olarak bağlandı', xrefOpenAsk: '"%s" bu çizimin yerine açılsın mı?', xrefNoBuf: 'Dosya bellekte değil; yeniden seçin', xrefFadeOn: 'Referanslar soluk', xrefFadeOff: 'Referans soldurma kapalı',
+  // --- v7.89 · ekrandaki görüntüyü paylaşma
+  waShare: 'WhatsApp\'a gönder', shareView: 'Görünümü paylaş', shareTarget: 'paylaşım', shareNoDoc: 'Önce bir çizim açın', shareCaption: 'DWG OfficeZip ile paylaşıldı', shareNotInstalled: '%s bu cihazda kurulu değil', shareOther: 'Başka uygulama', shareFail: 'Görüntü paylaşılamadı', shareSaved: 'Görüntü kaydedildi; paylaşmak için galeriden gönderin', shareDocFail: 'Bu belge bu cihazdan paylaşılamıyor',
 };
 export const EN = {
   open: 'Open', noFile: 'No file', fit: 'Zoom extents', layers: 'Layers', measure: 'Measure', more: 'More', search: 'Search',
@@ -462,6 +464,8 @@ export const EN = {
   bpFlipPts: 'Flip axis: two points', bpLinearPts: 'Base and end point', bpRotPt: 'Rotation center', bpPointPt: 'Base point', bpFramePts: 'Stretch frame: two corners', bpAdded: 'Parameter "%s" added', bpNoVis: 'Add a visibility parameter first', bpState: 'State', bpAllStates: 'Visible in every state', bpStateSet: '%s objects assigned to the state',
   xattachTitle: 'Attach reference (XATTACH)', xattachHint: 'A DWG / DXF file is attached at the point with scale and rotation; its layers become "name|layer"', xrefName: 'Reference name', xrefAttached: '"%s" attached', xrefUnload: 'Unload', xrefReload: 'Reload', xrefDetach: 'Detach', xrefBind: 'Bind (XBIND)', xrefClip: 'Clip', xrefClipClear: 'Remove clip', xrefOpen: 'Open', xrefFade: 'Fade',
   xrefUnloaded: '"%s" unloaded', xrefUnloadedMark: 'unloaded', xrefReloaded: '"%s" reloaded', xrefDetachAsk: 'Detach reference "%s"?', xrefDetached: '"%s" detached', xrefClipped: 'clipped', xrefBound: 'Bound as block "%s"', xrefOpenAsk: 'Open "%s" instead of this drawing?', xrefNoBuf: 'The file is not in memory; pick it again', xrefFadeOn: 'References faded', xrefFadeOff: 'Reference fading off',
+  // --- v7.89 · ekrandaki görüntüyü paylaşma
+  waShare: 'Send to WhatsApp', shareView: 'Share view', shareTarget: 'sharing', shareNoDoc: 'Open a drawing first', shareCaption: 'Shared with DWG OfficeZip', shareNotInstalled: '%s is not installed on this device', shareOther: 'Another app', shareFail: 'The view could not be shared', shareSaved: 'View saved; send it from your gallery', shareDocFail: 'This document cannot be shared from this device',
 };
 /* ---------------------------------------------------------------------------
  * Dil kayıt defteri

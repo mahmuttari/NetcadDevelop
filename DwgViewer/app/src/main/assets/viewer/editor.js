@@ -748,7 +748,8 @@ function act(name, btn) {
     case 'goto': call(api.gotoCoord); break;
     case 'home': if (!D.gotoHome()) { api.zoomExtents(); api.toast(tt('noHome', 'Ana görünüm kaydedilmemiş; Görünümler › Ana görünüm yap'), 2500); } break;
     case 'layers': case 'search': case 'notes': case 'gps': case 'pdf': case 'png': case 'more': case 'profile': case 'info': case 'views': case 'layouts': case 'basemap': case 'compare': case 'drive': case 'count': case 'textout':
-    case 'markdim': case 'findrep': case 'blocklib': case 'copyclip': case 'pasteclip': case 'mesh3d': case 'tableout': case 'batch': case 'pdfcad': api.action(name); break;
+    case 'markdim': case 'findrep': case 'blocklib': case 'copyclip': case 'pasteclip': case 'mesh3d': case 'tableout': case 'batch': case 'pdfcad':
+    case 'wshare': case 'share': api.action(name); break;
     case 'osnap': toggleOsnap(); break;
     case 'osnapset': api.osnap.openDialog(); break;
     case 'otrack': api.osnap.toggleTrack(); syncQuick(); refreshTiles(); api.drawOverlay(); break;

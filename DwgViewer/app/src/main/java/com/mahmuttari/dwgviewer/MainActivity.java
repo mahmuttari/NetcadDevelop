@@ -577,6 +577,35 @@ public class MainActivity extends androidx.activity.ComponentActivity {
         return s.replaceAll("[^A-Za-z0-9._\\-]", "_");
     }
 
+    /*
+     * Hedef paketin kurulu olanını seçer. WhatsApp iki ayrı uygulamadır ve pek çok küçük
+     * işletmede yalnız Business olanı kuruludur; yalnız com.whatsapp'a bakan bir denetim
+     * onlarda "kurulu değil" der. Android 11'den beri başka paketleri sorgulamak için
+     * manifestte <queries> bildirimi gerekir (targetSdk 34) — AndroidManifest.xml'de vardır.
+     */
+    private static final Map<String, String[]> PAKET_AILESI = new HashMap<String, String[]>() {{
+        put("com.whatsapp", new String[]{ "com.whatsapp", "com.whatsapp.w4b" });
+        put("com.whatsapp.w4b", new String[]{ "com.whatsapp.w4b", "com.whatsapp" });
+    }};
+
+    private String hedefPaket(String pkg) {
+        if (pkg == null || pkg.isEmpty()) return null;
+        String[] aday = PAKET_AILESI.get(pkg);
+        if (aday == null) aday = new String[]{ pkg };
+        PackageManager pm = getPackageManager();
+        for (String p : aday) {
+            try { pm.getPackageInfo(p, 0); return p; } catch (PackageManager.NameNotFoundException ignored) { }
+        }
+        return null;
+    }
+
+    /** Paylaşım önbelleğinde bir günden eski kalıntı bırakmaz (paylaşılan dosya hemen kopyalanır) */
+    private static void eskiPaylasimlariSil(File d) {
+        File[] fs = d.listFiles(); if (fs == null) return;
+        long sinir = System.currentTimeMillis() - 24L * 60 * 60 * 1000;
+        for (File f : fs) if (f.isFile() && f.lastModified() < sinir) { if (!f.delete()) f.deleteOnExit(); }
+    }
+
     // ---- dosya seçici ---------------------------------------------------------------------
     private void openPicker(String purpose, String mime) { openPicker(purpose, mime, false); }
 
@@ -1204,6 +1233,61 @@ public class MainActivity extends androidx.activity.ComponentActivity {
             runOnUiThread(() -> { try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); } catch (Exception ignored) { } });
         }
 
+        /*
+         * EKRANDAKİ GÖRÜNTÜYÜ BİR UYGULAMAYA GÖNDERME (v7.89).
+         *
+         * savePng kullanılmaz: o, resmi kullanıcının galerisine ya da İndirilenler'e YAZAR.
+         * Paylaşmak için kaydetmek gerekmez ve her paylaşımda galeriyi kirletmek istemeyiz.
+         * Resim önbelleğe (cacheDir/paylas) yazılır, FileProvider ile okunur ve ACTION_SEND ile
+         * gönderilir; önbelleği sistem kendi bilir ve temizler, biz de her çağrıda bir günden
+         * eski kalıntıları atarız.
+         *
+         * pkg verilirse (ör. "com.whatsapp") niyet DOĞRUDAN o uygulamaya gider: seçim penceresi
+         * açılmaz, kullanıcı tek dokunuşta sohbet listesine düşer. Uygulama kurulu değilse
+         * kurulu olan kardeşi denenir (WhatsApp Business), o da yoksa "yok" döner ve karar
+         * arayüze bırakılır — kendi kendine genel seçiciye düşmek, düğmenin üstündeki simgeyle
+         * çelişen bir davranış olurdu.
+         *
+         * Dönüş: "ok" gönderildi · "yok" hedef uygulama kurulu değil · "" hata.
+         */
+        @JavascriptInterface
+        public String shareImage(String base64, String fileName, String caption, String pkg) {
+            final String hedef = hedefPaket(pkg);
+            if (pkg != null && !pkg.isEmpty() && hedef == null) return "yok";
+            try {
+                byte[] bytes = Base64.decode(base64, Base64.DEFAULT);
+                File d = new File(getCacheDir(), "paylas");
+                if (!d.exists() && !d.mkdirs()) throw new IOException("önbellek klasörü açılamadı");
+                eskiPaylasimlariSil(d);
+                File f = new File(d, safe(fileName == null || fileName.isEmpty() ? "gorunum.png" : fileName));
+                try (FileOutputStream out = new FileOutputStream(f)) { out.write(bytes); }
+                final Uri u = FileProvider.getUriForFile(MainActivity.this, getPackageName() + ".files", f);
+                final String metin = caption == null ? "" : caption;
+                runOnUiThread(() -> {
+                    Intent i = new Intent(Intent.ACTION_SEND);
+                    i.setType("image/png");
+                    i.putExtra(Intent.EXTRA_STREAM, u);
+                    if (!metin.isEmpty()) i.putExtra(Intent.EXTRA_TEXT, metin);
+                    i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    try {
+                        if (hedef != null) { i.setPackage(hedef); startActivity(i); }
+                        else startActivity(Intent.createChooser(i, getString(R.string.share_view)));
+                    } catch (Exception e) {
+                        Log.w(TAG, "shareImage", e);
+                        Toast.makeText(MainActivity.this, R.string.share_failed, Toast.LENGTH_SHORT).show();
+                    }
+                });
+                return "ok";
+            } catch (Exception e) {
+                Log.w(TAG, "shareImage", e);
+                return "";
+            }
+        }
+
+        /** Hedef uygulama kurulu mu? Kurulu değilse kardeş paket denenir (WhatsApp / WhatsApp Business). */
+        @JavascriptInterface
+        public String sharePkg(String pkg) { String p = hedefPaket(pkg); return p == null ? "" : p; }
+
         @JavascriptInterface
         public void shareText(String subject, String text) {
             runOnUiThread(() -> {
@@ -1498,6 +1582,30 @@ public class MainActivity extends androidx.activity.ComponentActivity {
                     startActivity(Intent.createChooser(i, docs.name(id)));
                 } catch (Exception e) { Toast.makeText(MainActivity.this, R.string.open_failed, Toast.LENGTH_SHORT).show(); }
             });
+        }
+        /*
+         * Açık belgeyi doğrudan bir uygulamaya gönderir (docShare'in hedefli kardeşi).
+         * Belge kipinde ekranda tuval değil BELGE durur; "ekrandaki görüntüyü paylaş" orada
+         * belgenin kendisini göndermek demektir.
+         * Dönüş: "ok" · "yok" (hedef kurulu değil) · "" (hata).
+         */
+        @JavascriptInterface
+        public String docShareTo(String id, String pkg) {
+            File f = docs.file(id); if (f == null) return "";
+            final String hedef = hedefPaket(pkg);
+            if (pkg != null && !pkg.isEmpty() && hedef == null) return "yok";
+            runOnUiThread(() -> {
+                try {
+                    Uri u = FileProvider.getUriForFile(MainActivity.this, getPackageName() + ".files", f);
+                    Intent i = new Intent(Intent.ACTION_SEND);
+                    i.setType(mimeOf(docs.name(id)));
+                    i.putExtra(Intent.EXTRA_STREAM, u);
+                    i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    if (hedef != null) { i.setPackage(hedef); startActivity(i); }
+                    else startActivity(Intent.createChooser(i, docs.name(id)));
+                } catch (Exception e) { Toast.makeText(MainActivity.this, R.string.share_failed, Toast.LENGTH_SHORT).show(); }
+            });
+            return "ok";
         }
         /** Belgeyi indirme deposuna (çevrimdışı) kopyalar */
         @JavascriptInterface

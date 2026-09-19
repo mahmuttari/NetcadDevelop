@@ -12,4 +12,6 @@
     <!-- marka açılış örtüsü (SplashOverlay): slogan ve telif satırının sabit parçası -->
     <string name="splash_tagline">I tuoi disegni in tasca — apri, misura, modifica, condividi</string>
     <string name="splash_rights">Tutti i diritti riservati.</string>
+    <string name="share_view">Condividi vista</string>
+    <string name="share_failed">Impossibile condividere la vista</string>
 </resources>

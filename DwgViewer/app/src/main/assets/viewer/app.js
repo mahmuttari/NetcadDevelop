@@ -3007,6 +3007,8 @@ function menuAction(act) {
     case 'nextview': viewHistory.forward(); break;
     case 'extents': zoomExtents(); break;
     case 'png': savePng(); break;
+    case 'wshare': paylasGorunum('com.whatsapp', 'WhatsApp'); break;
+    case 'share': paylasGorunum('', ''); break;
     case 'pdf': showPdf(); break;
     case 'textout': showTextOut(); break;
     case 'markdim': markMeasurement(); break;
@@ -3778,25 +3780,88 @@ function overlayForExport(c) {
   c.setTransform(1, 0, 0, 1, 0, 0);
   drawNotes(c, toScreen, S.view.scale, null, null, photos);
 }
+/*
+ * Geçerli görünümün resmi. Kaydetmekten AYRI tutulur: paylaşmak için dosyaya yazmak gerekmez
+ * (bkz. paylasGorunum). 3B'de görünümün kendi ekran görüntüsü alınır, 2B'de tuval ile kaplama
+ * (notlar, ölçüler, işaretler) üst üste bindirilir — ekranda ne görünüyorsa o.
+ */
+function gorunumPng() {
+  let data = null;
+  if (editor.is3D()) {
+    const v = editor.view3d();
+    if (v && typeof v.screenshot === 'function') { try { data = v.screenshot({ overlay: ov }); } catch (e) { console.warn(e); data = null; } }
+    if (!data && v) { const c = document.createElement('canvas'); c.width = v.cv.width; c.height = v.cv.height; const g = c.getContext('2d'); g.drawImage(v.cv, 0, 0); g.drawImage(ov, 0, 0, c.width, c.height); data = c.toDataURL('image/png'); }
+  }
+  if (!data) {
+    const c = document.createElement('canvas'); c.width = cv.width; c.height = cv.height;
+    const g = c.getContext('2d'); g.drawImage(cv, 0, 0); g.drawImage(ov, 0, 0);
+    try { data = c.toDataURL('image/png'); } catch (e) { console.warn(e); return null; }
+  }
+  return data;
+}
+const gorunumAdi = (ek) => baseName() + '_' + stamp() + (editor.is3D() ? '_3d' : '') + (ek || '') + '.png';
 function savePng(dataUrl, name) {
   let data = typeof dataUrl === 'string' && dataUrl.startsWith('data:') ? dataUrl : null;
-  name = name || (baseName() + '_' + stamp() + (editor.is3D() ? '_3d' : '') + '.png');
-  if (!data) {
-    if (editor.is3D()) {
-      const v = editor.view3d();
-      if (v && typeof v.screenshot === 'function') { try { data = v.screenshot({ overlay: ov }); } catch (e) { console.warn(e); data = null; } }
-      if (!data && v) { const c = document.createElement('canvas'); c.width = v.cv.width; c.height = v.cv.height; const g = c.getContext('2d'); g.drawImage(v.cv, 0, 0); g.drawImage(ov, 0, 0, c.width, c.height); data = c.toDataURL('image/png'); }
-    }
-    if (!data) {
-      const c = document.createElement('canvas'); c.width = cv.width; c.height = cv.height;
-      const g = c.getContext('2d'); g.drawImage(cv, 0, 0); g.drawImage(ov, 0, 0);
-      try { data = c.toDataURL('image/png'); } catch (e) { toast(t('pngFail'), { ms: 5000, type: 'error' }); return; }
-    }
-  }
+  name = name || gorunumAdi();
+  if (!data) { data = gorunumPng(); if (!data) { toast(t('pngFail'), { ms: 5000, type: 'error' }); return; } }
   if (A() && A().savePng) A().savePng(data.split(',')[1], name);
   else { const a = document.createElement('a'); a.href = data; a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 1000); }
   lastPng = { b64: data.split(',')[1], name };
   toast(tt('pngSaved', 'PNG kaydedildi'), { type: 'ok', action: Drive.signedIn() && Ed.has('driveUpload') ? { label: tt('driveUpload', "Drive'a yükle"), fn: () => Drive.uploadWithPicker({ b64: lastPng.b64, name: lastPng.name, mime: 'image/png' }) } : undefined });
+}
+/*
+ * EKRANDAKİ GÖRÜNTÜYÜ PAYLAŞMA (v7.89).
+ *
+ * Sahada en çok yapılan iş, bakılan yeri birine göstermektir: "şu bacanın kotu ne?", "bu hat
+ * buradan mı geçiyor?" Bunun için çizimi dışa aktarmak, dosyayı bulmak ve eklemek gerekiyordu.
+ * Artık tek dokunuş: ekranda ne varsa (2B görünüm, 3B model, ölçü çizgileri, kırmızı kalem
+ * notları) resim olur ve paylaşıma gider.
+ *
+ * pkg verilirse niyet doğrudan o uygulamaya gider ve kişi seçimini o uygulama yapar. Kurulu
+ * değilse KENDİLİĞİNDEN genel seçiciye düşmeyiz: düğmenin üstünde belirli bir uygulamanın
+ * işareti varken başka bir pencere açmak, kullanıcının beklediği şey değildir. Önce söylenir,
+ * sonra genel paylaşım önerilir.
+ *
+ * Belge kipinde (PDF / Word / Excel / ZIP) tuval yoktur; orada paylaşılan şey belgenin
+ * KENDİSİdir — ekranda duran da odur.
+ */
+function paylasGorunum(pkg, etiket) {
+  const ad = etiket || tt('shareTarget', 'paylaşım');
+  /*
+   * Belge kipinde ekranda ÇİZİM yoktur. Belge gönderilemiyorsa (tarayıcı yapısında belgenin
+   * Android tarafında bir kimliği olmaz) çizimin resmini göndermek yanlış olur: kullanıcı
+   * ekranda belgeyi görürken karşı tarafa bambaşka bir şey giderdi. Söylenir, gönderilmez.
+   */
+  if (Docs.isOpen && Docs.isOpen()) {
+    if (Docs.shareTo(pkg, ad)) return;
+    toast(tt('shareDocFail', 'Bu belge bu cihazdan paylaşılamıyor'), { type: 'error' });
+    return;
+  }
+  if (!S.hasDoc) { toast(tt('shareNoDoc', 'Önce bir çizim açın'), { type: 'error' }); return; }
+  const data = gorunumPng();
+  if (!data) { toast(t('pngFail'), { ms: 5000, type: 'error' }); return; }
+  const b64 = data.split(',')[1], name = gorunumAdi();
+  const alt = tt('shareCaption', 'DWG OfficeZip ile paylaşıldı') + ' · ' + (S.fileName || '');
+  if (A() && A().shareImage) {
+    const r = A().shareImage(b64, name, alt, pkg || '');
+    if (r === 'yok') { toast(tt('shareNotInstalled', '%s bu cihazda kurulu değil').replace('%s', ad), { type: 'error', ms: 4000, action: { label: tt('shareOther', 'Başka uygulama'), fn: () => paylasGorunum('', '') } }); return; }
+    if (!r) { toast(tt('shareFail', 'Görüntü paylaşılamadı'), { type: 'error' }); return; }
+    haptic('tap');
+    return;
+  }
+  // Tarayıcı yapısı: dosya paylaşımını destekleyen tarayıcıda sistem paylaşımı, yoksa indirme.
+  void paylasTarayici(data, name, alt);
+}
+async function paylasTarayici(data, name, alt) {
+  try {
+    const bin = atob(data.split(',')[1]);
+    const u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    const f = new File([u8], name, { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], text: alt }); return; }
+  } catch (e) { console.warn(e); }
+  savePng(data, name);
+  toast(tt('shareSaved', 'Görüntü kaydedildi; paylaşmak için telefondaki uygulamayı kullanın'), { ms: 5000 });
 }
 let lastPng = null;
 const baseName = () => (S.fileName || 'cizim').replace(/\.(dwg|dxf)$/i, '');
@@ -4495,7 +4560,7 @@ async function checkUpdate(manual) {
 // ---------------------------------------------------------------------------
 // Başlangıç
 // ---------------------------------------------------------------------------
-window.dwgApp = { osnap: Osnap, loadCurrent, onFilePicked, onLocation, onBack, onBackSystem, loadBytes, zoomExtents, render, toScreen, toWorld, state: S, notes, editor, setMode, setLayout, refreshRecent: buildRecent, showInfo,
+window.dwgApp = { osnap: Osnap, paylasGorunum, gorunumPng, loadCurrent, onFilePicked, onLocation, onBack, onBackSystem, loadBytes, zoomExtents, render, toScreen, toWorld, state: S, notes, editor, setMode, setLayout, refreshRecent: buildRecent, showInfo,
   onFilesPicked, onQr: (text) => { try { const s = String(text || '').trim(); if (s) onQr(s); } catch (e) { console.warn(e); } },   // Android ACTION_SEND / EXTRA_TEXT
   onLocationError: (m) => { const perm = /kalıcı olarak reddedildi|permanently denied/i.test(String(m)); const openSet = A() && A().openAppSettings ? () => A().openAppSettings() : null;
     toast('GPS: ' + m, perm && openSet ? { ms: 8000, action: { label: tt('settings', 'Ayarlar'), fn: openSet } } : undefined); },
@@ -4531,7 +4596,7 @@ window.dwgApp = { osnap: Osnap, loadCurrent, onFilePicked, onLocation, onBack, o
   action: (a) => menuAction(a) };
 ensureStatusChips();
 Ed.initEdition({ toast, rebuildToolbar: () => editor.rebuild(), refreshMenu });   // Ücretsiz / Pro: menü, karşılama kartı, Pro paneli, Drive düğmeleri; reklam zamanlayıcısı; onEdition → şerit yeniden kurulur
-D.initDisplay({ requestRender, drawOverlay, toast, openDoc, show, hide, buildLayerList, settings, saveSettings, editorTheme, zoomExtents, zoomBy, fitPrims, viewHistory, setLayout, editor, ui: uiPrefs(), basemaps: BASEMAPS, haptic });
+D.initDisplay({ requestRender, drawOverlay, toast, openDoc, show, hide, buildLayerList, settings, saveSettings, editorTheme, zoomExtents, zoomBy, fitPrims, viewHistory, setLayout, editor, ui: uiPrefs(), basemaps: BASEMAPS, haptic, paylasGorunum });
 mountNavFabs(vp);
 initEditor({ S, requestRender, drawOverlay, toast, noFaces: showNoFaces, pick: (w) => pick(w, TOL.pick / S.view.scale), snap: doSnap, snapPeek: findSnap, fromBase, trackClear, hideObjects, showAllObjects, primVisible, osnap: Osnap, xclip: xrefClip, showInfo, openDoc, hide, show, esc, kv, copyText, buildLayerList, fmt, store, RTree, baseName, zoomExtents, tracePath, worldTransform, strokeWorldRect, worldOrigin,
   action: (a) => { if (a === 'layers') $('btnLayers').click(); else if (a === 'search') $('btnSearch').click(); else if (a === 'more') $('btnMore').click(); else if (a === 'open') Open.open(); else if (a === 'new') showNewDoc(); else menuAction(a); },

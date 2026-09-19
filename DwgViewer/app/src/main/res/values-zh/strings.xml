@@ -12,4 +12,6 @@
     <!-- marka açılış örtüsü (SplashOverlay): slogan ve telif satırının sabit parçası -->
     <string name="splash_tagline">图纸装进口袋 — 打开、测量、编辑、分享</string>
     <string name="splash_rights">保留所有权利。</string>
+    <string name="share_view">分享视图</string>
+    <string name="share_failed">无法分享视图</string>
 </resources>

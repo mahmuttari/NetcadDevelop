@@ -12,4 +12,6 @@
     <!-- marka açılış örtüsü (SplashOverlay): slogan ve telif satırının sabit parçası -->
     <string name="splash_tagline">Gambar Anda di saku — buka, ukur, edit, bagikan</string>
     <string name="splash_rights">Hak cipta dilindungi.</string>
+    <string name="share_view">Bagikan tampilan</string>
+    <string name="share_failed">Tampilan tidak dapat dibagikan</string>
 </resources>

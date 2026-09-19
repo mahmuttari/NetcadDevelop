@@ -12,4 +12,6 @@
     <!-- marka açılış örtüsü (SplashOverlay): slogan ve telif satırının sabit parçası -->
     <string name="splash_tagline">आपके ड्रॉइंग आपकी जेब में — खोलें, मापें, संपादित करें, साझा करें</string>
     <string name="splash_rights">सर्वाधिकार सुरक्षित।</string>
+    <string name="share_view">दृश्य साझा करें</string>
+    <string name="share_failed">दृश्य साझा नहीं किया जा सका</string>
 </resources>

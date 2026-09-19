@@ -13,4 +13,6 @@
     <!-- marka açılış örtüsü (SplashOverlay): slogan ve telif satırının sabit parçası -->
     <string name="splash_tagline">Your drawings in your pocket — open, measure, edit, share</string>
     <string name="splash_rights">All rights reserved.</string>
+    <string name="share_view">Share view</string>
+    <string name="share_failed">The view could not be shared</string>
 </resources>

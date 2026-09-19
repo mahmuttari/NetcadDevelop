@@ -659,6 +659,13 @@ body.glove .st-quick button { width: 48px; height: 48px; }
 .navfabs.idle { opacity: .45; }
 .navfabs .fab { position: static; width: 48px; height: 48px; padding: 0; font-size: 22px; cursor: pointer; color: var(--fg); }
 .navfabs .fab:disabled { opacity: .35; }
+/* Sohbete gönderme düğmesi: FAB sütununun tek RENKLİ düğmesidir, aranmadan bulunsun diye.
+   Yeşil, gönderilen yerin rengini çağrıştırır; işaret bizimdir (bkz. #i-send-chat). */
+.navfabs .fab.send { background: #1faa53; border-color: #178e44; color: #fff; }
+.navfabs .fab.send:active { background: #178e44; }
+body[data-theme="hicontrast"] .navfabs .fab.send { background: #0b6b33; border-color: #000; }
+.ic-wa { color: #1faa53; }
+.btn.icon.wa svg { color: #1faa53; }
 .navfabs .ic, .dpad .ic { width: 24px; height: 24px; }
 .dpad { position: absolute; left: 12px; bottom: 16px; display: grid; grid-template-columns: 44px 44px 44px; grid-template-rows: 44px 44px 44px; gap: 2px; z-index: 5; }
 .dpad button { width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--fg); font-size: 16px; display: flex; align-items: center; justify-content: center; }

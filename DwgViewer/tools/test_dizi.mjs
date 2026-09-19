@@ -319,7 +319,7 @@ await zoom([0, 0, 800, 600]);
       hint: [...(document.querySelector('#toolbar [data-act="t:array"]') || { attributes: [] }).attributes].map(a => a.value).join(' | ') + ' | ' + (await import('./i18n.js')).t('th_t:array'),
     };
   });
-  ok('5a tablo sağlıklı; sayılar 506 kayıt · 220 AutoCAD · 31 özgü · 255 bulunmayan · 751 ad', g.hata.length === 0 && g.st.total === 506 && g.st.acad === 220 && g.st.ext === 31 && g.st.known === 255 && g.st.names === 751, J({ hata: g.hata, st: g.st }));
+  ok('5a tablo sağlıklı; sayılar 508 kayıt · 220 AutoCAD · 33 özgü · 255 bulunmayan · 755 ad', g.hata.length === 0 && g.st.total === 508 && g.st.acad === 220 && g.st.ext === 33 && g.st.known === 255 && g.st.names === 755, J({ hata: g.hata, st: g.st }));
   ok('5b ARRAY / AR tür sorar; ARRAYRECT, ARRAYPOLAR, ARRAYPATH doğrudan; ARRAYCLASSIC ve 3DARRAY / 3A eş anlamlı; ARRAYEDIT bulunmuyor', g.ARRAY === 't:array' && g.AR === 't:array' && g.ARRAYRECT === 't:arrayrect' && g.ARRAYPOLAR === 't:arraypolar' && g.ARRAYPATH === 't:arraypath' && g.ARRAYCLASSIC === 't:array' && g.D3 === 't:array' && g.A3 === 't:array' && g.ARRAYEDIT === 'NA', J(g));
   ok('5c ARRAY notu türleri ve Z artımını söyler', /polar/.test(g.note) && /path/.test(g.note) && /Z increment/.test(g.note), g.note);
   ok('5d yetki: dizi türleri Dizi\'nin basamağını (premium) taşır, dökümde ayrı satır açmaz', g.need.every(x => x === 'premium') && g.inTier === false, J({ need: g.need, inTier: g.inTier }));

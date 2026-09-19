@@ -79,6 +79,13 @@
     <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="M5 2h14v20l-7-5-7 5z"/></symbol>
     <symbol id="i-pdf" viewBox="0 0 24 24"><path d="M5 2h9l6 6v14H5z" fill-opacity=".3"/><path d="M14 2l6 6h-6z"/><path fill-rule="evenodd" d="M7 20V9h4.2a3.5 3.5 0 0 1 0 7H9.6v4zm2.6-6.6h1.6a.9.9 0 0 0 0-1.8H9.6z"/></symbol>
     <symbol id="i-image" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M2 4h20v16H2zm2.4 2.4v11.2h15.2V6.4z" /><path d="M4.4 17.6l5-6.5 3 3.8 2-2.5 5.2 5.2z"/><path d="M8.5 6.8a2 2 0 1 0 0 4a2 2 0 1 0 0-4z"/></symbol>
+    <!--
+      Sohbete gönderme simgesi. Bilerek WhatsApp'ın kendi işareti DEĞİLDİR: onların markası
+      yeşil balonun içindeki telefon ahizesidir ve kopyası da benzeri de marka sorunudur.
+      Burada kendi çizdiğimiz konuşma balonu ve içinde bir gönderme oku var; "hangi uygulamaya"
+      sorusunu simge değil, yanındaki yazı ve ipucu söylüyor.
+    -->
+    <symbol id="i-send-chat" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.2 2 1.6 6.1 1.6 11.2c0 2.9 1.5 5.5 3.9 7.2L4.3 22.4l4.5-2.1c1 .2 2.1.4 3.2.4 5.8 0 10.4-4.1 10.4-9.5S17.8 2 12 2zm0 2.4c4.6 0 8 3.1 8 6.8s-3.4 6.8-8 6.8c-1 0-2-.2-2.9-.4l-.5-.2-2 .9.6-2-.5-.4c-2-1.3-3.2-3.2-3.2-5.4 0-3.7 3.4-6.8 8-6.8z"/><path d="M16.9 8.1 7.4 11.4c-.5.2-.5.8 0 1l3.6 1.2 1.2 3.6c.2.5.8.5 1 0l3.3-9.5c.2-.5-.2-.8-.6-.6zm-1.7 1.9-2.1 6-.8-2.3z"/></symbol>
     <symbol id="i-save" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M2 2h15l5 5v15H2zm5 2v5h7V4zm0 10v6h10v-6z"/></symbol>
     <symbol id="i-export" viewBox="0 0 24 24"><path d="M12 2l6 6h-4v7h-4V8H6z"/><path d="M2 14h2.6v5.4h14.8V14H22v8H2z"/></symbol>
     <symbol id="i-undo" viewBox="0 0 24 24"><path d="M6 10h8a5.5 5.5 0 0 1 0 11H9" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M9 3 2 10l7 7z"/></symbol>
@@ -708,6 +715,8 @@
     <button data-act="lw" type="button"><svg class="ic" aria-hidden="true"><use href="#i-lw"/></svg><span data-i18n="lw">Çizgi kalınlıkları</span></button>
     <button data-act="text" type="button"><svg class="ic" aria-hidden="true"><use href="#i-text"/></svg><span data-i18n="text">Yazıları göster / gizle</span></button>
     <button data-act="png" type="button"><svg class="ic" aria-hidden="true"><use href="#i-image"/></svg><span data-i18n="png">Görünümü PNG kaydet</span></button>
+    <button data-act="wshare" type="button"><svg class="ic ic-wa" aria-hidden="true"><use href="#i-send-chat"/></svg><span data-i18n="waShare">WhatsApp'a gönder</span></button>
+    <button data-act="share" type="button"><svg class="ic" aria-hidden="true"><use href="#i-export"/></svg><span data-i18n="shareView">Görünümü paylaş</span></button>
     <button data-act="pdf" type="button"><svg class="ic" aria-hidden="true"><use href="#i-pdf"/></svg><span data-i18n="pdf">PDF oluştur</span></button>
     <button data-act="server" type="button"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg><span data-i18n="server">Sunucudan indir</span></button>
     <button data-act="pdfcad" type="button"><svg class="ic" aria-hidden="true"><use href="#i-pdfcad"/></svg><span data-i18n="pdfcadTitle">PDF → CAD</span></button>

@@ -488,7 +488,8 @@ export function mountNavFabs(viewportEl) {
   const vp = viewportEl || $('viewport'); if (!vp) return null;
   if (!navEl) {
     navEl = document.createElement('div'); navEl.id = 'navFabs'; navEl.className = 'hud navfabs';
-    navEl.innerHTML = `<button type="button" class="fab" data-nav="in" aria-label="${tt('zoomIn', 'Yakınlaştır')}" title="${tt('zoomIn', 'Yakınlaştır')}">${icon('i-zoom-in', '+')}</button>` +
+    navEl.innerHTML = `<button type="button" class="fab send" data-nav="send" aria-label="${tt('waShare', "WhatsApp'a gönder")}" title="${tt('waShare', "WhatsApp'a gönder")}">${icon('i-send-chat', '↗')}</button>` +
+      `<button type="button" class="fab" data-nav="in" aria-label="${tt('zoomIn', 'Yakınlaştır')}" title="${tt('zoomIn', 'Yakınlaştır')}">${icon('i-zoom-in', '+')}</button>` +
       `<button type="button" class="fab" data-nav="out" aria-label="${tt('zoomOut', 'Uzaklaştır')}" title="${tt('zoomOut', 'Uzaklaştır')}">${icon('i-zoom-out', '−')}</button>` +
       `<button type="button" class="fab" data-nav="fit" aria-label="${t('fit')}" title="${t('fit')}">${icon('i-fit', '⌂')}</button>` +
       `<button type="button" class="fab" data-nav="prev" aria-label="${tt('prevView', 'Önceki görünüm')}" title="${tt('prevView', 'Önceki görünüm')}" disabled>${icon('i-prev', '↶')}</button>`;
@@ -546,6 +547,13 @@ function hold(btn, onTap, onRepeat, repeatMs, onLong, longMs, onDbl) {
 }
 function zoom2(f) { const v = v3(); if (v) { v.zoom(f); render3D(); } else call(ctx.zoomBy, f); }
 function bindNav(el) {
+  /*
+   * Gönder: kısa dokunuş doğrudan WhatsApp'a, UZUN BASIŞ sistemin paylaşım penceresine gider.
+   * İki yol da gerekli — WhatsApp kurulu olmayan ya da e-postayla göndermek isteyen kullanıcı
+   * düğmeyi boşuna görmüş olmasın.
+   */
+  const gonder = el.querySelector('[data-nav="send"]');
+  if (gonder) hold(gonder, () => call(ctx.paylasGorunum, 'com.whatsapp', 'WhatsApp'), null, 0, () => call(ctx.paylasGorunum, '', ''), 500);
   hold(el.querySelector('[data-nav="in"]'), () => zoom2(1.5), () => zoom2(1.03), 80);
   hold(el.querySelector('[data-nav="out"]'), () => zoom2(1 / 1.5), () => zoom2(1 / 1.03), 80);
   hold(el.querySelector('[data-nav="fit"]'), () => { const v = v3(); if (v) { v.fit(); render3D(); } else call(ctx.zoomExtents); }, null, 0,

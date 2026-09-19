@@ -316,6 +316,7 @@ export function initDocs(a) {
     const b = ev.target.closest('[data-doc]'); if (!b) return;
     const k = b.dataset.doc;
     if (k === 'edit') { startEdit(cur); return; }
+    if (k === 'wshare') { shareTo('com.whatsapp', 'WhatsApp'); return; }
     if (k === 'close') close(); else if (k === 'back') back();
     else if (k === 'home') call(api.goHome);   // belge KAPANMAZ, ana ekran üste gelir
     else if (k === 'share') share(false); else if (k === 'open') share(true); else if (k === 'keep') keep(); else if (k === 'drive') call(api.driveUpload, cur);
@@ -389,6 +390,7 @@ function renderActs(d) {
   const android = !!(A() && A().docShare);
   let h = '';
   if (android && d.id) h += `<button type="button" class="btn icon" data-doc="open" title="${esc(tt('docOpenWith', 'Başka uygulamayla aç'))}" aria-label="${esc(tt('docOpenWith', 'Başka uygulamayla aç'))}">${ICON('i-export')}</button>`;
+  if (android && d.id) h += `<button type="button" class="btn icon wa" data-doc="wshare" title="${esc(tt('waShare', "WhatsApp'a gönder"))}" aria-label="${esc(tt('waShare', "WhatsApp'a gönder"))}">${ICON('i-send-chat')}</button>`;
   if (android && d.id) h += `<button type="button" class="btn icon" data-doc="share" title="${esc(tt('share', 'Paylaş'))}" aria-label="${esc(tt('share', 'Paylaş'))}">${ICON('i-more')}</button>`;
   if (android && d.id) h += `<button type="button" class="btn icon" data-doc="keep" title="${esc(tt('docKeep', 'Çevrimdışı sakla'))}" aria-label="${esc(tt('docKeep', 'Çevrimdışı sakla'))}">${ICON('i-save')}</button>`;
   // Köprü / oturum koşulu KALIR (tanıtılacak bir şey yoksa düğme de yok); yalnız yetki koşulu kalkar.
@@ -420,6 +422,19 @@ export function suspend() { if (!els || !els.view || els.view.hidden) return; el
 export function reopenLast() { const d = cur; if (d) show(d, { replace: true }); }
 export function lastArchive() { const all = [...stack, cur].filter(Boolean); return all.reverse().find(d => d.kind === 'zip' || d.kind === 'rar') || null; }
 function share(view) { if (cur && cur.id && A() && A().docShare) A().docShare(cur.id, !!view); }
+/*
+ * Açık belgeyi belirli bir uygulamaya gönderir. Belge kipinde ekranda tuval yoktur; "ekrandaki
+ * görüntüyü paylaş" burada belgenin KENDİSİNİ göndermek demektir — PDF'i resme çevirip
+ * göndermek, karşı tarafa okunamayan bir ekran görüntüsü bırakırdı.
+ * Dönüş: true işlendi · false burada işlenemez (çağıran kendi yolunu denesin).
+ */
+export function shareTo(pkg, ad) {
+  if (!cur || !cur.id) return false;
+  if (!(A() && A().docShareTo)) { if (A() && A().docShare) { A().docShare(cur.id, false); return true; } return false; }
+  const r = A().docShareTo(cur.id, pkg || '');
+  if (r === 'yok') { call(api.toast, tt('shareNotInstalled', '%s bu cihazda kurulu değil').replace('%s', ad || ''), { type: 'error' }); return true; }
+  return !!r;
+}
 function keep() { if (cur && cur.id && A() && A().docKeep) { const r = A().docKeep(cur.id); api.toast(r ? tt('docKept', 'Çevrimdışı kopya alındı (Dosya Aç › Çevrimdışı)') : tt('docKeepFail', 'Kopyalanamadı')); } }
 
 // ---- PDF -----------------------------------------------------------------------------

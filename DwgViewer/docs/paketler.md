@@ -28,6 +28,7 @@ abonelikleri tarayıp en yükseğini bildirir.
 | Reklam gösterilir | ✓ | – | – | – |
 | DWG/DXF/PDF/Word/Excel/ZIP/RAR açma | ✓ | ✓ | ✓ | ✓ |
 | Ölçü, katman listesi, arama, GPS, harita altlığı, PNG | ✓ | ✓ | ✓ | ✓ |
+| Ekrandaki görünümü paylaşma (WhatsApp ve sistem paylaşımı) | ✓ | ✓ | ✓ | ✓ |
 | 2B çizim (çizgi, polyline, dikdörtgen, daire, yay, nokta, yazı) | – | – | ✓ | ✓ |
 | 2B düzenleme (taşı, kopyala, döndür, ölçekle, aynala, ofset, sil, yazı) | – | – | ✓ | ✓ |
 | Katman, renk, özellikler, geri al / yinele | – | – | ✓ | ✓ |
@@ -345,8 +346,8 @@ Hedef kullanıcı AutoCAD kaslıdır. Rakip DWG FastView'de komut satırı **yok
 vardır ve AutoCAD adlarıyla çalışır. Bu, mağaza metninde öne çıkarılması gereken bir
 ayırt edicidir.
 
-Kapsam (v7.56): **458 kayıt, 663 ad ve kısaltma** — 158 çalışan AutoCAD adı, 31
-uygulamaya özgü ad, 269 tanınan ama bulunmayan AutoCAD komutu (DIMEDIT v7.56'da çalışır oldu). Kaynak `IPARD` değil,
+Kapsam (v7.89): **508 kayıt, 755 ad ve kısaltma** — 220 çalışan AutoCAD adı, 33
+uygulamaya özgü ad, 255 tanınan ama bulunmayan AutoCAD komutu. Kaynak `IPARD` değil,
 uygulamanın kendi `viewer/acad.js` dosyasıdır ve tektir — komut satırı, İngilizce arayüz
 etiketleri ve yardım listesi hepsi oradan okur. (v7.50'de 86 komut / 144 addı.)
 
@@ -355,7 +356,7 @@ sık kullandığı komutları yazar; POLYGON, STRETCH, PEDIT, EXTRUDE, MATCHPROP
 karşılığı olmayanlar `avail:false` ile tablodadır. Yazıldığında "bilinmeyen komut" denmez,
 bulunmadığı ve varsa en yakın karşılığı söylenir; öneri listesinde soluk durur, komut
 listesinde üçüncü bölümdedir. Bu sınıf **satılmaz**: mağaza metninde "300 AutoCAD komutu"
-denemez, doğrusu "158 çalışan AutoCAD komutu; 269 komut daha tanınır ve en yakın karşılığı
+denemez, doğrusu "220 çalışan AutoCAD komutu; 255 komut daha tanınır ve en yakın karşılığı
 söylenir"dir. "En sık kullanılan 300" sıralamasının yetkili bir kaynağı yoktur; liste
 acad.pgp kısaltma tablosu + şerit panelleri + eğitim müfredatlarından derlendi, `acad.js`
 başlığında yazar.
@@ -375,9 +376,9 @@ açmaz, var olanlara ikinci bir kapı verir.
    sektörünün paylaştığı gösterim diline çevrildi — silgi, nesne+kopyası, kenarlarına
    ayrılan nesne — ama çizim bize aittir. Bu ayrım korunmalı; mağaza görsellerine
    Autodesk arayüzünden alınmış hiçbir parça konmamalıdır.
-3. AutoCAD'de karşılığı **olmayan** 30 yeteneğimiz komut listesinde ayrı bölümdedir ve
-   öyle kalmalıdır. "458 AutoCAD komutu" demek yanlış olur; doğrusu **"158 çalışan
-   AutoCAD komutu + 31 uygulamaya özgü komut + 269 tanınan ama bulunmayan komut"**tur.
+3. AutoCAD'de karşılığı **olmayan** 33 yeteneğimiz komut listesinde ayrı bölümdedir ve
+   öyle kalmalıdır. "508 AutoCAD komutu" demek yanlış olur; doğrusu **"220 çalışan
+   AutoCAD komutu + 33 uygulamaya özgü komut + 255 tanınan ama bulunmayan komut"**tur.
 
 ### Masaüstü kipi — YAPILDI (v7.51)
 

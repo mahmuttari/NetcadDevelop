@@ -8,6 +8,18 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 
+    <!--
+        Android 11'den (API 30) beri bir uygulama, başka paketleri ancak burada BİLDİRİRSE
+        görebilir. Bildirim olmadan getPackageInfo "kurulu değil" der ve setPackage ile
+        gönderilen niyet ActivityNotFound ile düşer; yani "WhatsApp'a gönder" düğmesi kurulu
+        cihazlarda bile çalışmazdı. İki paket de gerekir: küçük işletmelerin çoğunda yalnız
+        WhatsApp Business (com.whatsapp.w4b) kuruludur.
+    -->
+    <queries>
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
+    </queries>
+
     <application
         android:allowBackup="true"
         android:fullBackupContent="@xml/backup_rules"

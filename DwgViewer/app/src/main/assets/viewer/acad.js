@@ -243,6 +243,9 @@ export const COMMANDS = [
   T('PUBLISH', 'batch', [], 'Publish', { syn: true, noRepeat: true, note: 'batch conversion to PDF' }),
   T('PNGOUT', 'png', [], 'Save PNG'),
   T('SAVEIMG', 'png', [], 'Save image', { syn: true }),
+  // AutoCAD'de karşılığı yoktur; bu yüzden ext: true (bkz. dosyanın başındaki 2. kural)
+  T('WHATSAPP', 'wshare', ['WA'], 'Send the view to WhatsApp', { ext: true, noRepeat: true, note: 'shares whatever is on screen as an image; in document mode it sends the document itself' }),
+  T('SENDVIEW', 'share', ['SEND'], 'Send the current view', { ext: true, noRepeat: true, note: 'the system share sheet; SHARE in AutoCAD is a different thing (a cloud link to the drawing), so the name is not reused' }),
   // --- bloklar ve harici referanslar (v7.72: çizim içi blok tablosu)
   T('INSERT', 't:insert', ['I'], 'Insert block', { note: 'block (drawing, DWG or library), scale, rotation, rows / columns; then tap the insertion point; attributes are asked' }),
   T('CLASSICINSERT', 't:insert', [], 'Classic insert', { syn: true }),
@@ -568,7 +571,7 @@ export const COMMANDS = [
   NA('DELCONSTRAINT', [], 'Delete constraints'),
   NA('AUTOCONSTRAIN', [], 'Auto constrain'),
   NA('QUIT', ['EXIT'], 'Quit', 'use the system back button'),
-  NA('SHARE', [], 'Share drawing', 'DRIVE uploads; the Android share sheet is under More'),
+  NA('SHARE', [], 'Share drawing', 'AutoCAD shares a cloud link to the drawing; here DRIVE uploads the file and SENDVIEW / WHATSAPP send what is on screen'),
   NA('PROPERTIESCLOSE', ['PRCLOSE'], 'Close properties', 'close the panel with its × button'),
   NA('QUICKPROPERTIES', ['QP'], 'Quick properties', 'PROPERTIES, or the selection badge menu'),
   NA('TEXTALIGN', ['TA'], 'Align text', 'move texts with MOVE or the selection handle'),
