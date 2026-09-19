@@ -516,6 +516,8 @@ function refreshNav() {
   if (dpadEl) {
     let uiDpad = false; try { uiDpad = !!(ctx.ui && (ctx.ui.dpad || ctx.ui.glove)); } catch (_) { uiDpad = false; }
     dpadEl.hidden = !(S.ui2d.dpad || uiDpad) || !S.hasDoc;
+    // Komut satırını geri getiren pil, yön tuşlarının üstüne binmesin diye onların açık olduğunu bilmeli.
+    try { document.body.classList.toggle('dpad-on', !dpadEl.hidden); } catch (_) { /* yok */ }
   }
 }
 export { refreshNav };

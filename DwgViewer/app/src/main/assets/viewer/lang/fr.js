@@ -376,7 +376,7 @@ export default {
   clipCopied: 'Copié dans le presse-papiers',
   clipEmpty: 'Le presse-papiers est vide',
   clipPasted: 'Collé',
-  geo3Title: 'Mesure géométrique 3D', pick3Title: 'Cible 3D', pick3Vertex: 'Sommet', pick3Surface: 'Surface', pick3Auto: 'Automatique', tapVertexOrSurface: 'Touchez un sommet ou une surface', surfacePoint: 'Point sur la surface', tl_target3: 'Cible', th_target3: 'Sommet / surface / auto : ce que capture un appui en 3D', view3dModelOnly: 'La vue 3D affiche l\'espace objet',
+  geo3Title: 'Mesure géométrique 3D', pick3Title: 'Cible 3D', pick3Vertex: 'Sommet', pick3Surface: 'Surface', pick3Auto: 'Automatique', tapVertexOrSurface: 'Touchez un sommet ou une surface', surfacePoint: 'Point sur la surface', tl_target3: 'Cible', th_target3: 'Sommet / surface / auto : ce que capture un appui en 3D', tl_free3: 'Point libre', th_free3: 'Si aucun objet n’est accroché, le point se pose sur le plan de travail : l’altitude du point précédent, sinon la grille du sol', view3dModelOnly: 'La vue 3D affiche l\'espace objet',
   geo3Mode: 'Type de mesure',
   geo3Need: 'points requis',
   geo3Pick: 'Touchez les sommets',

@@ -342,6 +342,94 @@ const etiket = (act) => ev((a) => { const b = document.querySelector(`#toolbar [
   ok('11e komut çalışırken Gizle YOK ve istem kendi satırında (çalışan komut kapatılamaz)', d.gizle === false && d.bosta === false, JSON.stringify(d));
 }
 
+// ---------------------------------------------------------------------------------
+// 12 · v7.85: komut satırı gizlenince onu geri getiren KALICI düğme
+// ---------------------------------------------------------------------------------
+{
+  /*
+   * v7.84'e kadar Gizle düğmesi çubuğu kapatıyor ve geri dönüş yolunu yalnız 3,2 saniyelik
+   * bir iletiyle söylüyordu; ileti geçtikten sonra ekranda hiçbir iz kalmıyordu. Kullanıcının
+   * bildirimi buydu. Artık çubuğun durduğu yerde kalıcı bir pil düğmesi durur.
+   */
+  const a = await ev(async () => {
+    const E = window.dwgApp.editor;
+    if (E.tools.running) E.tools.cancel();
+    const bar = document.getElementById('cmdBar');
+    if (bar.hidden) { E.act('cmdline'); await new Promise(r => setTimeout(r, 200)); }
+    await new Promise(r => setTimeout(r, 200));
+    const oncesi = { bar: !bar.hidden, dugme: !document.getElementById('cmdShow').hidden };
+    document.getElementById('cmdHide').click();
+    await new Promise(r => setTimeout(r, 300));
+    const sb = document.getElementById('cmdShow'), k = sb.getBoundingClientRect();
+    const vp = document.getElementById('viewport').getBoundingClientRect();
+    return {
+      oncesi,
+      gizli: bar.hidden,
+      gorunur: !sb.hidden,
+      h: Math.round(k.height), w: Math.round(k.width),
+      yazi: (sb.textContent || '').trim(),
+      // ortada mı: düğmenin merkezi görüntü alanının merkezine 2 px'ten yakın olmalı
+      sapma: Math.abs((k.left + k.right) / 2 - (vp.left + vp.right) / 2),
+      altta: k.bottom <= vp.bottom + 1,
+    };
+  });
+  ok('12a çubuk açıkken geri getirme düğmesi GİZLİ', a.oncesi.bar === true && a.oncesi.dugme === false, JSON.stringify(a.oncesi));
+  ok('12b Gizle basılınca çubuk kapanır ve düğme GÖRÜNÜR', a.gizli === true && a.gorunur === true, JSON.stringify(a));
+  ok('12c düğme 40 px dokunma hedefini karşılar ve yazılıdır (yalnız simge değil)', a.h >= 40 && a.w >= 90 && a.yazi.length > 3, JSON.stringify({ h: a.h, w: a.w, yazi: a.yazi }));
+  ok('12d düğme çubuğun durduğu yerde: altta ve ortada', a.sapma <= 2 && a.altta === true, JSON.stringify({ sapma: a.sapma, altta: a.altta }));
+
+  const b = await ev(async () => {
+    document.getElementById('cmdShow').click();
+    await new Promise(r => setTimeout(r, 300));
+    return { bar: !document.getElementById('cmdBar').hidden, dugme: !document.getElementById('cmdShow').hidden };
+  });
+  ok('12e düğmeye dokununca çubuk geri gelir ve düğme kaybolur', b.bar === true && b.dugme === false, JSON.stringify(b));
+
+  // Eldiven kipi bu düğmeyi de büyütür; yoğun kip KÜÇÜLTMEZ (bulunması gereken tek çıkış yolu)
+  const c = await ev(async () => {
+    const M = await import('./editor.js');
+    document.getElementById('cmdHide').click(); await new Promise(r => setTimeout(r, 250));
+    const sb = document.getElementById('cmdShow');
+    const yogun = Math.round(sb.getBoundingClientRect().height);
+    M.ui.glove = true; M.applyUi(); await new Promise(r => setTimeout(r, 250));
+    const eldiven = Math.round(sb.getBoundingClientRect().height);
+    M.ui.glove = false; M.applyUi(); await new Promise(r => setTimeout(r, 250));
+    document.getElementById('cmdShow').click(); await new Promise(r => setTimeout(r, 250));
+    return { yogun, eldiven, geri: !document.getElementById('cmdBar').hidden };
+  });
+  ok('12f yoğun kip düğmeyi küçültmez (40 px), eldiven büyütür (52 px)', c.yogun === 40 && c.eldiven === 52 && c.geri === true, JSON.stringify(c));
+  /*
+   * ALT ŞERİT ÇAKIŞMASI. Yön tuşları (dpad) açıkken alt kenar kalabalıktır: dpad bir yanda,
+   * zoom düğmeleri öteki yanda. Ortada duran pil dpad'in ÜSTÜNE BİNİYORDU (eldiven kipinde
+   * 133-279 ile 12-148 çakışıyordu). İki dokunma hedefinin üst üste gelmesi kabul edilemez;
+   * pil artık boş koridora kayar ve sol el kipinde ters yöne gider.
+   */
+  const d = await ev(async () => {
+    const M = await import('./editor.js');
+    const kut = (id) => { const el = document.getElementById(id); if (!el || el.hidden || !el.offsetParent) return null; const b = el.getBoundingClientRect(); return { l: b.left, r: b.right, t: b.top, b: b.bottom }; };
+    const cak = (a, b) => !!a && !!b && a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b;
+    const olc = async (sol) => {
+      M.ui.dpad = true; M.ui.glove = true; M.ui.leftHand = sol; M.applyUi();
+      await new Promise(r => setTimeout(r, 350));
+      const sb = document.getElementById('cmdShow');
+      if (sb.hidden) { document.getElementById('cmdHide').click(); await new Promise(r => setTimeout(r, 300)); }
+      const cs = kut('cmdShow'), dp = kut('dpad'), nf = kut('navFabs');
+      return { dpVar: !!dp, nfVar: !!nf, dpad: cak(cs, dp), nav: cak(cs, nf) };
+    };
+    const sag = await olc(false), sol = await olc(true);
+    M.ui.dpad = false; M.ui.glove = false; M.ui.leftHand = false; M.applyUi();
+    await new Promise(r => setTimeout(r, 300));
+    if (!document.getElementById('cmdShow').hidden) document.getElementById('cmdShow').click();
+    await new Promise(r => setTimeout(r, 300));
+    return { sag, sol, geri: !document.getElementById('cmdBar').hidden };
+  });
+  ok('12g yön tuşları açıkken pil dpad ve zoom düğmeleriyle ÇAKIŞMAZ (sağ el)', d.sag.dpVar && d.sag.nfVar && d.sag.dpad === false && d.sag.nav === false, JSON.stringify(d.sag));
+  ok('12g2 sol el kipinde de çakışmaz (dpad ile zoom yer değiştirir)', d.sol.dpVar && d.sol.nfVar && d.sol.dpad === false && d.sol.nav === false, JSON.stringify(d.sol));
+  ok('12g3 ölçüm sonrası çubuk geri açıldı', d.geri === true, JSON.stringify({ geri: d.geri }));
+
+}
+
+
 ok('10 sayfa hatası yok', errors.length === 0, errors.slice(0, 3).join(' | '));
 
 await browser.close(); await srv.kill();

@@ -881,6 +881,33 @@ body.editmode #docContent { touch-action: auto; }
 .drive-crumbs { padding: 4px 12px 0; }
 .drive-crumbs .chips { padding: 2px 0; }
 body.docmode #navFabs, body.docmode #dpad, body.docmode #cube3d { display: none !important; }
+/*
+ * KOMUT SATIRINI GERİ GETİREN DÜĞME (v7.85). Gizle düğmesi çubuğu kapatıyor ve yalnız
+ * 3,2 saniyelik bir ileti geri dönüş yolunu söylüyordu; ileti geçince ekranda hiçbir iz
+ * kalmıyordu ve kullanıcı çubuğu geri açamıyordu. Düğme çubuğun DURDUĞU yerde, durum
+ * çubuğunun hemen üstünde ve ORTADA durur: solda yön tuşları (dpad), sağda zoom düğmeleri
+ * vardır, orta boştur. Yazılıdır — yalnız simge "daha belirgin olsun" isteğini karşılamazdı.
+ * Yoğun kip bu düğmeyi KÜÇÜLTMEZ: bulunması gereken tek çıkış yolu odur, 40 px'te kalır.
+ */
+.cmdshow { position: absolute; left: 50%; transform: translateX(-50%); bottom: 10px; z-index: 7;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  min-height: 40px; padding: 0 16px; border: 1px solid var(--accent); border-radius: 21px;
+  background: var(--bar); color: var(--accent); font-size: calc(12.5px * var(--fs)); font-weight: 600;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .35); cursor: pointer; }
+.cmdshow .ic { width: 20px; height: 20px; }
+.cmdshow:active { background: var(--btn); }
+body.glove .cmdshow { min-height: 52px; padding: 0 20px; border-radius: 26px; }
+body.glove .cmdshow .ic { width: 24px; height: 24px; }
+body.docmode .cmdshow { display: none !important; }
+/*
+ * Yön tuşları (dpad) açıkken alt şerit kalabalıktır: dpad bir yanda, zoom düğmeleri öteki yanda.
+ * Ortada duran pil dpad'in üstüne biniyordu (eldiven kipinde ölçüldü: 133-279 ile 12-148 çakışıyor).
+ * Pil, iki öbeğin arasındaki boş koridora kaydırılır; sol el kipinde dpad ile zoom yer değiştirdiği
+ * için kaydırma da ters yöne olur.
+ */
+body.dpad-on .cmdshow { left: auto; right: 76px; transform: none; }
+body.dpad-on.left-hand .cmdshow { left: 76px; right: auto; }
+
 
 /* --- Dosya Aç merkezi (open.js) --- */
 .open-panel { max-height: 70%; }

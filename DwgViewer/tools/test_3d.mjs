@@ -787,6 +787,114 @@ await page.screenshot({ path: `${out}/e_2d_after.png` });
 }
 
 
+// ---------------------------------------------------------------------------------
+// 14 · v7.85: SERBEST NOKTA — nesne olmayan yere tıklama izni
+// ---------------------------------------------------------------------------------
+{
+  const ORTAK = `
+    const E = window.dwgApp.editor, v = E.view3d(), P = () => window.dwgApp.state.scene.layouts[0].prims;
+    const bekle = (ms) => new Promise(r => setTimeout(r, ms));
+    const dokun = async (sx, sy) => {
+      const cv = document.getElementById('cv3d'), r0 = cv.getBoundingClientRect();
+      cv.setPointerCapture = () => {};
+      const o = { bubbles: true, cancelable: true, clientX: r0.left + sx, clientY: r0.top + sy, pointerId: 1, pointerType: 'touch', isPrimary: true, button: 0, buttons: 1 };
+      cv.dispatchEvent(new PointerEvent('pointerdown', o));
+      cv.dispatchEvent(new PointerEvent('pointerup', { ...o, buttons: 0 }));
+      await bekle(420);
+    };
+    /* Sahnenin ekrandaki kutusunun dışında, kesinlikle BOŞ bir nokta */
+    const bosNokta = () => {
+      let x1 = -Infinity, y1 = -Infinity;
+      for (const q of v.vertices) { const s = v.project(q[0], q[1], q[2]); if (s[0] > x1) x1 = s[0]; if (s[1] > y1) y1 = s[1]; }
+      return [x1 + 60, y1 + 60];
+    };
+  `;
+  const calis = (govde) => page.evaluate(`(async () => {${ORTAK}${govde}})()`);
+
+  // ---- 14a · KAPALIYKEN eski kesin davranış sürer: nokta konmaz, ileti açma yolunu söyler
+  const f1 = await calis(`
+    if (E.m3) E.m3 = null;
+    if (!E.is3D()) { E.act('3d'); await bekle(700); }
+    const M = await import('./editor.js');
+    M.ui.free3 = false; M.applyUi(); await bekle(150);
+    E.act('tab:draw'); await bekle(200);
+    E.act('3:dist'); await bekle(250);
+    const [bx, by] = bosNokta();
+    await dokun(bx, by);
+    const el = document.getElementById('toast');
+    const ileti = el && !el.hidden ? (el.querySelector('.tx') || el).textContent : '';
+    const n = E.m3 ? E.m3.pts.length : -1;
+    if (E.m3) { E.m3.pts = []; E.m3 = null; }
+    return { n, ileti, bx, by };
+  `);
+  ok('14a serbest nokta KAPALIYKEN boş alana dokunuş nokta eklemez', f1.n === 0, JSON.stringify(f1));
+  ok('14a2 reddeden ileti karonun yolunu söyler (Çiz ▸ Serbest nokta)', /Serbest nokta/.test(f1.ileti) && /Çiz/.test(f1.ileti), JSON.stringify(f1.ileti));
+
+  // ---- 14b · AÇIKKEN nokta çalışma düzlemine düşer; ilk nokta ZEMİN IZGARASININ kotundadır
+  const f2 = await calis(`
+    E.act('tab:draw'); await bekle(200);
+    E.act('free3'); await bekle(200);
+    const M = await import('./editor.js');
+    const acik = M.ui.free3;
+    E.act('3:dist'); await bekle(250);
+    const [bx, by] = bosNokta();
+    await dokun(bx, by);
+    const p = E.m3 && E.m3.pts.length ? E.m3.pts[0].slice() : null;
+    const isaret = E.snap3State();
+    const gz = v.gridZ;
+    if (E.m3) { E.m3.pts = []; E.m3 = null; }
+    return { acik, p, isaret, gz };
+  `);
+  ok('14b karo serbest noktayı açar', f2.acik === true, JSON.stringify({ acik: f2.acik }));
+  ok('14b2 boş alana dokunuş NOKTA EKLER', !!f2.p && f2.p.every(Number.isFinite), JSON.stringify(f2));
+  ok('14b3 ilk noktanın kotu ZEMİN IZGARASININ kotudur (keyfi değil)', !!f2.p && Math.abs(f2.p[2] - f2.gz) < 1e-9, JSON.stringify({ z: f2.p && f2.p[2], gz: f2.gz }));
+  ok('14b4 işaret serbest olarak çizilir (yakalama sanılmasın)', !!f2.isaret && f2.isaret.kind === 'free', JSON.stringify(f2.isaret));
+
+  // ---- 14c · Komutun ÖNCEKİ noktası varsa düzlem onun kotundadır (aynı kotta devam)
+  const f3 = await calis(`
+    const p = P().find(q => q.et === 'LINE' && q.ops && q.ops.length === 2);
+    if (!p) return { yok: true };
+    const M = await import('./editor.js');
+    M.ui.snap3 = true; M.ui.snap3Modes = ['end', 'mid', 'cen'];
+    E.act('3:pline'); await bekle(250);
+    const A = v.project(p.ops[0][1], p.ops[0][2], p.ops[0][3] || 0);
+    await dokun(A[0], A[1]);
+    const ilk = E.m3 && E.m3.pts.length ? E.m3.pts[0].slice() : null;
+    const [bx, by] = bosNokta();
+    await dokun(bx, by);
+    const ikinci = E.m3 && E.m3.pts.length > 1 ? E.m3.pts[1].slice() : null;
+    if (E.m3) { E.m3.pts = []; E.m3 = null; }
+    return { ilk, ikinci, gz: v.gridZ };
+  `);
+  ok('14c ilk nokta gerçek köşeye yakalandı', !!f3.ilk, JSON.stringify(f3));
+  ok('14c2 ikinci (serbest) nokta ÖNCEKİ noktanın kotuna düşer, zemine değil',
+    !!f3.ikinci && !!f3.ilk && Math.abs(f3.ikinci[2] - f3.ilk[2]) < 1e-9 && Math.abs(f3.ilk[2] - f3.gz) > 1e-9, JSON.stringify(f3));
+
+  // ---- 14d · GERİLEME KORUMASI: serbest nokta seçimi ve bölge seçimini bozmaz
+  const f4 = await calis(`
+    E.sel.clear(); E.m3 = null;
+    const [bx, by] = bosNokta();
+    // (1) Komut yokken boş alana dokunuş hiçbir şey seçmez (serbest nokta seçime karışmaz)
+    await dokun(bx, by);
+    const secimYok = E.sel.size;
+    // (2) 3:select'te boş yerden sürükleme hâlâ ÖRTÜK PENCERE açar — pick3At kesin kalmalıydı
+    E.act('3:select'); await bekle(250);
+    const cv = document.getElementById('cv3d'), r0 = cv.getBoundingClientRect();
+    cv.setPointerCapture = () => {};
+    const ev2 = (tur, sx, sy) => cv.dispatchEvent(new PointerEvent(tur, { bubbles: true, cancelable: true, clientX: r0.left + sx, clientY: r0.top + sy, pointerId: 1, pointerType: 'touch', isPrimary: true, button: 0, buttons: tur === 'pointerup' ? 0 : 1 }));
+    ev2('pointerdown', bx, by); await bekle(30);
+    ev2('pointermove', bx + 25, by + 12); await bekle(30);
+    const kip = E.sel3DragState();
+    ev2('pointerup', bx + 25, by + 12); await bekle(360);
+    E.m3 = null; E.sel.clear();
+    const M = await import('./editor.js'); M.ui.free3 = false; M.applyUi(); await bekle(150);
+    return { secimYok, kip, kapandi: M.ui.free3 };
+  `);
+  ok('14d serbest nokta açıkken bile boş alana dokunuş nesne SEÇMEZ', f4.secimYok === 0, JSON.stringify(f4));
+  ok('14d2 örtük pencere bozulmadı: boş yerden sürükleme hâlâ kutu açar', !!f4.kip && f4.kip.mode === 'box' && f4.kip.implied === true, JSON.stringify(f4));
+}
+
+
 ok('7 sayfa hatası yok', errors.length === 0, errors.join(' | ').slice(0, 200));
 C.summary(errors);
 await browser.close(); srv.kill();

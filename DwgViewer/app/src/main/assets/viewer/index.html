@@ -284,6 +284,9 @@
         <span class="cmd-in"><input id="cmdInput" type="text" data-i18n-ph="coordPh" placeholder="x,y | @dx,dy | @L<açı" autocomplete="off" inputmode="text"><button id="cmdEnter" type="button" class="primary" data-i18n-aria="enter" data-i18n-title="enter" aria-label="Gir" title="Gir"><svg class="ic" aria-hidden="true"><use href="#i-enter"/></svg></button></span>
         <span id="cmdBtns"></span>
       </div>
+      <!-- Komut satırı gizlenince onu geri getiren KALICI düğme: ileti üç saniyede kayboluyordu,
+           geriye ekranda hiçbir iz kalmıyordu (v7.85). Çubuğun durduğu yerde, durum çubuğunun üstünde. -->
+      <button id="cmdShow" class="cmdshow" type="button" hidden data-i18n-aria="tl_cmdline" data-i18n-title="tl_cmdline" aria-label="Komut satırı" title="Komut satırı"><svg class="ic" aria-hidden="true"><use href="#i-cmdline"/></svg><span data-i18n="tl_cmdline">Komut satırı</span></button>
       <div id="docView" class="docview" hidden>
         <div class="doc-head">
           <button type="button" class="btn icon" data-doc="back" hidden data-i18n-aria="tlBack" aria-label="Geri"><svg class="ic" aria-hidden="true"><use href="#i-arrow-left"/></svg></button>

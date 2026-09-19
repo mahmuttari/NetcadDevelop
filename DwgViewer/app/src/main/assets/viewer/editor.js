@@ -48,7 +48,7 @@ const ed = { is3D: () => !!(v3 && !$('cv3d').hidden), tools: null, doc: null, cu
 // ---------------------------------------------------------------------------------
 // Kullanım tercihleri (ui) — kalıcı anahtar 'ui'
 // ---------------------------------------------------------------------------------
-const UI_DEFAULTS = { favs: [], tbCollapsed: { portrait: false, landscape: false }, hints: {}, fontScale: 1, glove: false, leftHand: false, contrast: false, reduceMotion: false, haptics: true, dpad: false, compactStatus: false, denseBars: true, showLocked: true, gizmo: true, infoTap: true, infoFull: false, pick3: 'auto', snap3: true, snap3Modes: DEFAULT_MODES3.slice(), grips: false, palmReject: true, penHover: true, penPressure: true, penDraw: false, penBarrel: 'menu', cmdLine: true, desktop: true, deskRight: 'enter' };
+const UI_DEFAULTS = { favs: [], tbCollapsed: { portrait: false, landscape: false }, hints: {}, fontScale: 1, glove: false, leftHand: false, contrast: false, reduceMotion: false, haptics: true, dpad: false, compactStatus: false, denseBars: true, free3: false, showLocked: true, gizmo: true, infoTap: true, infoFull: false, pick3: 'auto', snap3: true, snap3Modes: DEFAULT_MODES3.slice(), grips: false, palmReject: true, penHover: true, penPressure: true, penDraw: false, penBarrel: 'menu', cmdLine: true, desktop: true, deskRight: 'enter' };
 export const ui = (() => {
   const o = JSON.parse(JSON.stringify(UI_DEFAULTS));
   const st = store.json('ui', null);
@@ -79,6 +79,7 @@ export function applyUi(o = {}) {
   b.classList.toggle('reduce-motion', !!ui.reduceMotion); b.classList.toggle('compact-status', !!ui.compactStatus);
   // Yoğun çubuklar: komut satırı ve 3B bilgi satırı yarı yüksekliğe iner (bkz. app.css body.dense-bars)
   b.classList.toggle('dense-bars', ui.denseBars !== false);
+  syncCmdShow();
   applyCollapse();
   if (o.store !== false) store.set('ui', JSON.stringify(ui));
   try { window.dispatchEvent(new CustomEvent('dwg:ui', { detail: ui })); } catch (_) { /* yok */ }
@@ -164,6 +165,7 @@ const DRAW_3D = [
     T('snap3', 'i-snap', '3B yakalama', '3D osnap', 'Üç boyutta uç, orta, merkez, dik ve en yakın noktaya oturur', 'Snaps to endpoint, midpoint, center, perpendicular and nearest in 3D'),
     T('snap3set', 'i-sliders', '3B yakalama kipleri', '3D osnap settings', 'Hangi yakalama kiplerinin çalışacağı', 'Which 3D object snap modes are active'),
     T('target3', 'i-snap', 'Hedef', 'Target', 'Köşe / yüzey / otomatik: 3B dokunuşu neye oturur', 'Vertex / surface / auto: what a 3D tap snaps to'),
+    T('free3', 'i-point', 'Serbest nokta', 'Free point', 'Hiçbir nesne yakalanmazsa nokta çalışma düzlemine konur: önceki noktanın kotu, yoksa zemin ızgarası', 'When nothing is snapped the point lands on the working plane: the previous point\u2019s elevation, else the ground grid'),
   ] },
   /*
    * GEÇERLİ KATMAN / RENK ve GERİ AL / YİNELE — 2B Çiz şeridinin aynısı. 3B'de çizilen çizgi de
@@ -455,7 +457,7 @@ function buildToolbar() {
     });
     bindLongPress(tb);
   }
-  refreshUndo(); refreshTiles(); updateLayerButton(); applyCollapse();
+  refreshUndo(); refreshTiles(); updateLayerButton(); syncCmdShow(); applyCollapse();
 }
 function rebuildRow(id) {
   const tab = tabList().find(x => x.id === id); if (!tab) return;
@@ -487,7 +489,7 @@ function refreshTiles() {
   if (S) {
     on.theme = !S.dark; on.sun = !!S.sun; on.text = S.show.text; on.hatch = S.show.hatch; on.dim = S.show.dim; on.points = S.show.point; on.images = S.show.image;
     on.lw = !!S.lw; on.mono = S.colorMode === 'mono'; on.ltype = S.show.ltype; on.grid = S.grid.on; on.crosshair = S.crosshair !== 'off'; on.rulers = !!S.rulers; on.fade = S.fade.on;
-    on.osnap = S.snapModes && S.snapModes.size > 0; on.snap3 = snap3On(); on['3d'] = ed.is3D(); on.grips = !!ui.grips; on.cmdline = ui.cmdLine !== false; on.ortho = !!(S.desk && S.desk.ortho); on.polar = !!(S.desk && S.desk.polar);
+    on.osnap = S.snapModes && S.snapModes.size > 0; on.snap3 = snap3On(); on.free3 = !!ui.free3; on['3d'] = ed.is3D(); on.grips = !!ui.grips; on.cmdline = ui.cmdLine !== false; on.ortho = !!(S.desk && S.desk.ortho); on.polar = !!(S.desk && S.desk.polar);
     try { on.otrack = !!(api && api.osnap && api.osnap.opt().otrack); } catch (_) { on.otrack = false; }   // nesne yakalama izleme (F11) karosu
     on.unisoobj = !!(S.hideObj && (S.hideObj.size > 0 || !!S.isoObj));   // gizli / izole nesne varken "Hepsini göster" karosu yanar
     on.wipeframe = S.wipeFrame !== false; on.xreffade = S.xrefFade > 0; on.blocks = !!bses;
@@ -787,6 +789,13 @@ function act(name, btn) {
     case 'closefile': api.action('home'); break;
     case 'grips': toggleGrips(); break;
     case 'cmdline': toggleCmdLine(); break;
+    case 'free3': {
+      if (!gate('free3')) break;
+      ui.free3 = !ui.free3; applyUi(); haptic('toggle'); refreshTiles();
+      api.toast(tileLabel('free3') + ' · ' + t(ui.free3 ? 'on' : 'off'), 1400);
+      if (ed.m3) prompt3D();
+      break;
+    }
     case 'ortho': toggleOrtho(); break;
     case 'polar': togglePolar(); break;
     case 'cmdhelp': showCmdList(); break;
@@ -1089,12 +1098,22 @@ function zoomOption(arg) {
 const geriYolu = (id) => t('tabDisplay') + ' \u25b8 ' + tileLabel(id);
 /** Gizle düğmesi yalnız boştaki çubukta görünür (çalışan komutun istemi gizlenemez) */
 function syncHideBtn(goster) { const b = $('cmdHide'); if (b) b.hidden = !goster; }
+/*
+ * GERİ GETİRME DÜĞMESİ. Yalnız çubuğu kullanıcı kapattığında çıkar — belge yokken ya da PDF
+ * görüntüleyicide çubuk zaten olmadığı için düğme de olmaz (yoksa boş ekranda anlamsız bir
+ * düğme asılı kalırdı).
+ */
+function syncCmdShow() {
+  const b = $('cmdShow'); if (!b) return;
+  b.hidden = !(ui.cmdLine === false && !!(S && S.hasDoc) && !document.body.classList.contains('docmode'));
+}
 /** Komut listesi ("?") yalnız BOŞTA görünür: komut çalışırken istem satırının yeri dardır */
 function syncHelpBtn(goster) { const b = $('cmdHelp'); if (b) b.hidden = !goster; }
 function bindCmdBar() {
   // Komut satırını tek dokunuşla kapatır. Geri getirmek Ekran ▸ Komut satırı karosundadır;
   // kullanıcı kapattığı şeyi nasıl geri açacağını bilsin diye ileti bunu söyler.
   { const hb = $('cmdHide'); if (hb && !hb.dataset.bound) { hb.dataset.bound = '1'; hb.addEventListener('click', () => { toggleCmdLine(); api.toast(t('cmdHidden').replace('%s', geriYolu('cmdline')), 3200); }); } }
+  { const sb = $('cmdShow'); if (sb && !sb.dataset.bound) { sb.dataset.bound = '1'; sb.addEventListener('click', () => { toggleCmdLine(); }); } }
   { const qb = $('cmdHelp'); if (qb && !qb.dataset.bound) { qb.dataset.bound = '1'; qb.addEventListener('click', () => showCmdList()); } }
   { const ob = $('cmdOrtho'); if (ob && !ob.dataset.bound) { ob.dataset.bound = '1'; ob.addEventListener('click', () => toggleOrtho()); } }   // giriş satırındaki Ortho düğmesi (odak vermez: klavye açılmasın)
   // İz noktası (AutoCAD TT): sonraki dokunuş nokta sayılmaz, iz noktası edinir — izleme kapalıyken de çalışır (geçici iz noktası).
@@ -2594,7 +2613,8 @@ function nisanSurukle(sx, sy) {
     nisanRaf = 0;
     if (!p3.aim || !v3) return;
     const onceki = ed.m3 && ed.m3.pts.length ? ed.m3.pts[ed.m3.pts.length - 1] : null;
-    const hit = pick3At(p3.aim.sx, p3.aim.sy, onceki);
+    let hit = pick3At(p3.aim.sx, p3.aim.sy, onceki);
+    if (!hit) { const sp = serbestNokta3(p3.aim.sx, p3.aim.sy, onceki); if (sp) hit = { p: sp, kind: 'free' }; }
     if (hit) { p3.snap = hit.p; p3.snapKind = hit.kind; } else clearSnap3();
     overlay3D();
   };
@@ -2752,6 +2772,34 @@ function pick3At(sx, sy, prev) {
   const s2 = v3.pickSurface(sx, sy);
   return s2 ? { p: s2.p, prim: s2.prim, kind: 'srf', n: s2.n } : null;
 }
+/*
+ * SERBEST NOKTA (v7.85). 3B'de dokunuş eskiden yalnız bir KÖŞEYE, yüzeye ya da yakalama
+ * noktasına oturabiliyordu; boş alana dokunmak "Bir köşeye dokunun" diyip reddediliyordu.
+ * Oysa çizime yeni bir hat başlatmak çoğu zaman boşluktan başlar. Anahtar açıkken hiçbir
+ * nesne tutmazsa dokunuş bir YATAY ÇALIŞMA DÜZLEMİYLE kesiştirilir.
+ *
+ * DÜZLEMİN KOTU KEYFİ DEĞİLDİR: komutun daha önce aldığı bir nokta varsa onun kotudur
+ * (aynı kotta devam etmek en sık istenen davranıştır), yoksa EKRANDA GÖRÜNEN zemin
+ * ızgarasının kotudur (v3.gridZ). Böylece kullanıcı noktanın nereye düştüğünü tahmin etmez,
+ * bakarak görür.
+ *
+ * Işın uzayı: view3d._eye kotu zScale ile çarpar (dünya XY, ÖLÇEKLİ Z). Düzlem sınaması da
+ * o uzayda yapılır, dönen nokta dünya kotuna geri çevrilir.
+ */
+function serbestNokta3(sx, sy, onceki) {
+  if (!v3 || !ui.free3 || !has('free3')) return null;
+  let ray; try { ray = v3.screenRay(sx, sy); } catch (e) { console.warn(e); return null; }
+  if (!ray || !ray.o || !ray.d) return null;
+  const zs = v3.zScale || 1;
+  const zw = onceki && isFinite(onceki[2]) ? onceki[2] : (v3.gridZ != null ? v3.gridZ : (v3.bb ? v3.bb[2] : 0));
+  if (Math.abs(ray.d[2]) < 1e-12) return null;      // düzleme tam paralel bakış: kesişim yok
+  const tt = (zw * zs - ray.o[2]) / ray.d[2];
+  if (!isFinite(tt) || tt <= 0) return null;        // düzlem kameranın arkasında
+  const p = [ray.o[0] + ray.d[0] * tt, ray.o[1] + ray.d[1] * tt, zw];
+  return p.every(isFinite) ? p : null;
+}
+/** Serbest nokta kapalıyken reddeden iletiye karonun yolu eklenir: kullanıcı nasıl açacağını okusun */
+const serbestYolu = () => t('tabDraw') + ' ▸ ' + tileLabel('free3');
 function tap3D(sx, sy) {
   /*
    * BİLGİ SATIRINA DOKUNUŞ ONU GİZLER. Kutu tuvale çizilir, DOM düğmesi değildir; bu yüzden
@@ -2776,7 +2824,7 @@ function tap3D(sx, sy) {
   }
   // DİK (PER) yakalama bir taban noktası ister: komut sırasında en son toplanan nokta odur.
   const oncekiNokta = ed.m3 && ed.m3.pts.length ? ed.m3.pts[ed.m3.pts.length - 1] : null;
-  const hit = pick3At(sx, sy, oncekiNokta);
+  let hit = pick3At(sx, sy, oncekiNokta);
   if (!ed.m3) {
     ed.sel.clear();
     if (hit) { ed.sel.add(hit.prim); api.showInfo(hit.prim); haptic('snap'); } else api.hide('infoPanel');
@@ -2785,7 +2833,18 @@ function tap3D(sx, sy) {
   }
   const m = ed.m3;
   if (m.name === 'select') { if (hit) { if (ed.sel.has(hit.prim)) ed.sel.delete(hit.prim); else ed.sel.add(hit.prim); prompt3D(); haptic('snap'); } v3.setSelection(ed.sel); v3.render(); overlay3D(); return; }
-  if (!hit) { api.toast(has('target3') && (ui.pick3 || 'auto') !== 'vertex' ? t('tapVertexOrSurface') : t('tapVertex')); return; }
+  let vurus = hit;
+  if (!vurus) {
+    const sp = serbestNokta3(sx, sy, oncekiNokta);
+    if (sp) vurus = { p: sp, prim: null, kind: 'free' };
+  }
+  if (!vurus) {
+    // Reddeden ileti, açma yolunu da söyler: kullanıcı neden konamadığını ve nasıl izin vereceğini okusun.
+    const temel = has('target3') && (ui.pick3 || 'auto') !== 'vertex' ? t('tapVertexOrSurface') : t('tapVertex');
+    api.toast(has('free3') ? temel + ' · ' + serbestYolu() : temel, 3200);
+    return;
+  }
+  hit = vurus;
   p3.snap = hit.p; p3.snapKind = hit.kind; haptic('snap');
   m.pts.push(hit.p);
   if (m.name === 'dist' && m.pts.length === 2) {
@@ -2989,7 +3048,8 @@ function prompt3D() {
   // Dokunuşun neye oturacağı HER komutta yazar: kullanıcı yakalamanın açık olup olmadığını
   // denemeden görsün (2B'deki durum çubuğu kipleriyle aynı okuma).
   const hedef = (has('target3') && (ui.pick3 || 'auto') !== 'vertex' ? ' · ' + t(PICK3.find(x => x[0] === (ui.pick3 || 'auto'))[1]) : '')
-    + (snap3On() && has('snap3') ? ' · ' + ui.snap3Modes.map(id => id.toUpperCase()).join(' ') : '');
+    + (snap3On() && has('snap3') ? ' · ' + ui.snap3Modes.map(id => id.toUpperCase()).join(' ') : '')
+    + (ui.free3 && has('free3') ? ' · ' + tileLabel('free3') : '');
   const txt = m.name === 'geo'
     ? `${t('geo3_' + m.mode)} · ` + (adim
       ? `${t(adim.part)} · ${adim.index + 1}. ${t('pointsN')}${adim.optional ? ' (' + t('optionalPt') + ')' : ''} [${m.pts.length}/${m.need}]`
@@ -3087,7 +3147,12 @@ function overlay3D() {
     const k = p3.snapKind;
     c.save();
     c.strokeStyle = '#3ddc84'; c.fillStyle = '#3ddc84'; c.lineWidth = 2;
-    if (k === 'srf') { c.beginPath(); c.arc(s[0], s[1], 7, 0, Math.PI * 2); c.stroke(); }
+    if (k === 'free') {
+      // Serbest nokta bir nesneye değil ÇALIŞMA DÜZLEMİNE oturur; yakalama işaretlerinden
+      // ayrı dursun diye artı imleçle gösterilir, kısaltma yazılmaz.
+      c.beginPath(); c.moveTo(s[0] - 9, s[1]); c.lineTo(s[0] + 9, s[1]); c.moveTo(s[0], s[1] - 9); c.lineTo(s[0], s[1] + 9); c.stroke();
+      c.beginPath(); c.arc(s[0], s[1], 3.5, 0, Math.PI * 2); c.stroke();
+    } else if (k === 'srf') { c.beginPath(); c.arc(s[0], s[1], 7, 0, Math.PI * 2); c.stroke(); }
     else if (k && k !== 'vtx') {
       snapMarker(c, s[0], s[1], k, 8);
       c.font = `${Math.round(10 * ui.fontScale)}px sans-serif`; c.textBaseline = 'bottom'; c.textAlign = 'left';

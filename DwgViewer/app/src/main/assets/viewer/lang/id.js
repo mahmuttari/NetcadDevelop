@@ -375,7 +375,7 @@ export default {
   clipCopied: 'Disalin ke papan klip',
   clipEmpty: 'Papan klip kosong',
   clipPasted: 'Ditempel',
-  geo3Title: 'Ukur geometri 3D', pick3Title: 'Target 3D', pick3Vertex: 'Titik sudut', pick3Surface: 'Permukaan', pick3Auto: 'Otomatis', tapVertexOrSurface: 'Ketuk titik sudut atau permukaan', surfacePoint: 'Titik permukaan', tl_target3: 'Target', th_target3: 'Titik sudut / permukaan / otomatis: sasaran ketukan 3D', view3dModelOnly: 'Tampilan 3D menampilkan ruang model',
+  geo3Title: 'Ukur geometri 3D', pick3Title: 'Target 3D', pick3Vertex: 'Titik sudut', pick3Surface: 'Permukaan', pick3Auto: 'Otomatis', tapVertexOrSurface: 'Ketuk titik sudut atau permukaan', surfacePoint: 'Titik permukaan', tl_target3: 'Target', th_target3: 'Titik sudut / permukaan / otomatis: sasaran ketukan 3D', tl_free3: 'Titik bebas', th_free3: 'Jika tidak ada objek yang tertangkap, titik diletakkan pada bidang kerja: elevasi titik sebelumnya, jika tidak ada maka grid dasar', view3dModelOnly: 'Tampilan 3D menampilkan ruang model',
   geo3Mode: 'Jenis pengukuran',
   geo3Need: 'titik diperlukan',
   geo3Pick: 'Ketuk simpulnya',

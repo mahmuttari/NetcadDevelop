@@ -375,7 +375,7 @@ export default {
   clipCopied: 'Copiado para a área de transferência',
   clipEmpty: 'A área de transferência está vazia',
   clipPasted: 'Colado',
-  geo3Title: 'Medição geométrica 3D', pick3Title: 'Alvo 3D', pick3Vertex: 'Vértice', pick3Surface: 'Superfície', pick3Auto: 'Automático', tapVertexOrSurface: 'Toque num vértice ou numa superfície', surfacePoint: 'Ponto na superfície', tl_target3: 'Alvo', th_target3: 'Vértice / superfície / automático: ao que um toque 3D se ajusta', view3dModelOnly: 'A vista 3D mostra o espaço modelo',
+  geo3Title: 'Medição geométrica 3D', pick3Title: 'Alvo 3D', pick3Vertex: 'Vértice', pick3Surface: 'Superfície', pick3Auto: 'Automático', tapVertexOrSurface: 'Toque num vértice ou numa superfície', surfacePoint: 'Ponto na superfície', tl_target3: 'Alvo', th_target3: 'Vértice / superfície / automático: ao que um toque 3D se ajusta', tl_free3: 'Ponto livre', th_free3: 'Se nada for capturado, o ponto assenta no plano de trabalho: a cota do ponto anterior ou, na sua falta, a grelha do solo', view3dModelOnly: 'A vista 3D mostra o espaço modelo',
   geo3Mode: 'Tipo de medição',
   geo3Need: 'pontos necessários',
   geo3Pick: 'Toque nos vértices',

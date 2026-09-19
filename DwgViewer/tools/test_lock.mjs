@@ -325,12 +325,13 @@ await setEd('free');
   // v7.72: blok ailesi — 14 premium (blok yap, blok ekle, bloklar, blok düzenle, yerinde düzenle, öznitelik tanımı, içten kopyala, taban,
   //        hizala, maske, çizim sırası, referans ekle / kırp / bağla) ile Premium 70 → 84; dinamik blok parametresi ve görünürlük durumu Super: 14 → 16 → toplam 100.
   // v7.81: üç boyutlu düzenleme ve yakalama — 3B çizgi, kopyala, döndür, ölçekle, aynala ile
-  //        Super 16 → 21; 3B nesne yakalama anahtarı ve kip kutusu (snap3, snap3set) ile 21 → 23 → toplam 107.
+  //        Super 16 → 21; 3B nesne yakalama anahtarı ve kip kutusu (snap3, snap3set) ile 21 → 23;
+  //        3B serbest nokta (free3, v7.85) ile 23 → 24 → toplam 108.
   // Kalem TANIMA ve AVUÇ REDDİ ücretsizdir, bu yüzden sayaca girmez.)
   const cum = (x) => ['adfree', 'premium', 'super'].slice(0, ['adfree', 'premium', 'super'].indexOf(x) + 1).reduce((a, y) => a + (r.lists[y] || 0), 0);
   const same = ['premium', 'super'].every(x => r.counts[x] === cum(x));
-  ok('14 kart sayacı dökümdeki grupların toplamıyla birebir aynı (Premium 84, Super 84+23=107); Ad-Free\'de sayaç yok',
-    r.title && same && r.total === r.cap && r.counts.adfree === 0 && r.total === 107, JSON.stringify({ ...r, cumPremium: cum('premium'), cumSuper: cum('super') }));
+  ok('14 kart sayacı dökümdeki grupların toplamıyla birebir aynı (Premium 84, Super 84+24=108); Ad-Free\'de sayaç yok',
+    r.title && same && r.total === r.cap && r.counts.adfree === 0 && r.total === 108, JSON.stringify({ ...r, cumPremium: cum('premium'), cumSuper: cum('super') }));
   await page.screenshot({ path: `${out}/lock_panel.png` });
 
   /*
