@@ -376,13 +376,23 @@ await sahne(9, 'ölçülendirme', async () => {
 // --- 10 · katmanlar ------------------------------------------------------------------------------
 await sahne(10, 'katmanlar', async () => {
   await altAc('Katmanlar: duvar · bölme · yazı · ölçü', 'Layers: wall · partition · text · dim');
-  await dugme('#btnLayers', 0.8);
-  await C.tut(0.8);
-  await dugme('[data-lon="YAZI"]', 0.9);
-  await dugme('[data-lon="YAZI"]', 0.7);
-  await dugme('#layerPanel [data-close], #layerPanel .close, #btnLayers', 0.5);
+  await dugme('#btnLayers', 0.9);
+  await C.tut(0.7);
+  /*
+   * 412 px genişlikte katman paneli neredeyse bütün ekranı kaplar: söndürme etkisi panel
+   * açıkken GÖRÜNMEZ. Bu yüzden söndür → paneli kapat → çizime bak → paneli aç → yak
+   * sırası izlenir; izleyici farkı çizimin üstünde görür.
+   */
+  await dugme('#layerList [data-lon="YAZI"]', 0.5);
+  await dugme('#btnLayers', 0.6);
+  await altDegis('Yazı katmanı kapandı', 'Text layer switched off');
+  await C.tut(1.3);
+  await dugme('#btnLayers', 0.5);
+  await dugme('#layerList [data-lon="YAZI"]', 0.4);
+  await dugme('#btnLayers', 0.5);
+  await altDegis('Ve geri geldi', 'And back again');
+  await C.tut(1.0);
   await ev(() => { const e = document.getElementById('layerPanel'); if (e) e.hidden = true; window.dwgApp.render(); });
-  await C.tut(0.4);
   await altKapat();
 });
 
@@ -440,33 +450,50 @@ await sahne(13, 'kalınlık ver, üç boyuta geç', async () => {
    * aynı ekran, tek komut. Kalınlık komutu nesne ister; duvarları pencereyle seçip veririz.
    */
   await altAc('Duvarlara kalınlık ver', 'Give the walls a height');
+  /*
+   * Seçim KATMAN ADIYLA değil, geometriyle yapılır: katman adı yalnız o sahneler koşmuşsa
+   * vardır (tek sahne denemesinde her şey "0" katmanına düşer ve seçim boş kalırdı). Kapalı
+   * yollar duvarların kendisidir; yazı (k=1), ölçü ve tarama (fill) dışarıda kalır.
+   */
   const secildi = await ev(() => {
     const A = window.dwgApp, E = A.editor;
     E.sel.clear();
     let n = 0;
-    for (const p of A.state.prims) if (p.lay === 'DUVAR' || p.lay === 'BOLME') { E.sel.add(p); n++; }
+    for (const p of A.state.prims) if (p.k === 0 && p.closed && !p.fill && p.ops && p.ops.length >= 3) { E.sel.add(p); n++; }
     A.render();
     return n;
   });
+  if (!secildi) throw new Error('kalınlık verilecek kapalı yol yok');
   console.log('   seçilen duvar:', secildi);
   await C.tut(0.7);
-  await queueAnswers(page, '2.8');
+  /*
+   * Kalınlık aracı ÖNCE nesne, SONRA değer ister; değer bir form kutusundan değil KOMUT
+   * SATIRINDAN gelir. Seçim zaten doluysa araç seçim adımını atlar ve doğrudan "Yüksekliği
+   * yazın" der. (İlk denemede değer bir kutuya cevap sanılmıştı; hiçbir şey uygulanmadı ve
+   * 3B'de plan düz kaldı — HUD "Z: 0 … 0" diyordu.)
+   */
   await K0('thickness');
-  await bekle(500);
+  const istem13 = await ev(() => document.getElementById('cmdText').textContent.trim());
+  console.log('   kalınlık istemi:', istem13);
+  await KC('3', 0.6, 3);
   await iptal();
+  const ext = await ev(() => window.dwgApp.state.prims.filter(p => p.et === 'EXTRUDE').length);
+  console.log('   yükseltilen duvar:', ext);
   await C.tut(0.5);
-  await altDegis('Aynı dosya, üç boyutta', 'The same file, in three dimensions');
+  await altDegis('Aynı kroki, üç boyutta', 'The same sketch, in 3D');
   await ev(() => window.dwgApp.editor.act('3d'));
   await bekle(1500);
   await enjekte(); await sessiz();
-  await K.altMetin('Aynı dosya, üç boyutta', 'The same file, in three dimensions', 'ust'); await K.alt(1);
+  await K.altMetin('Aynı kroki, üç boyutta', 'The same sketch, in 3D', 'ust'); await K.alt(1);
   const c = await ev(() => { try { return window.dwgApp.editor.view3d().counts; } catch (e) { return null; } });
   console.log('   3B sayaç:', JSON.stringify(c));
   await ev(() => { try { const v = window.dwgApp.editor.view3d(); v.set('turntable', true); } catch (e) {} });
   await C.hareket(3.0, () => {});
   await ev(() => { try { const v = window.dwgApp.editor.view3d(); v.set('turntable', false); } catch (e) {} });
   await altDegis('Görsel stiller tek dokunuşla', 'Visual styles, one tap each');
-  for (const st of ['shaded', 'realistic', 'conceptual']) {
+  // 'realistic' ile 'shaded' düz prizma yüzünde AYNI pikseli veriyor (fark yumuşak normal
+  // ve parlaklıkta); videoda gerçekten farklı görünen üçlü seçildi.
+  for (const st of ['shaded', 'conceptual', 'sketchy']) {
     await ev((x) => { try { const v = window.dwgApp.editor.view3d(); v.set('style', x); v.render(); } catch (e) {} }, st);
     await C.tut(0.8);
   }
