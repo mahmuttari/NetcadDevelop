@@ -3,9 +3,9 @@
 İki tanıtım vardır ve birbirinin yerine geçmez: birincisi var olan bir projeyi **açıp
 gezdirir**, ikincisi boş bir sayfadan başlayıp gözünüzün önünde **kat planı çizer**.
 
-## 2 · Kat planı (v7.90) — `DWG_OfficeZip_kat_plani.mp4`
+## 2 · Kat planı (v7.91) — `DWG_OfficeZip_kat_plani.mp4`
 
-**`DWG_OfficeZip_kat_plani.mp4`** — 1080 × 2400 (dikey 9:20) · 30 kare/sn · 2:07 · H.264 + AAC
+**`DWG_OfficeZip_kat_plani.mp4`** — 1080 × 2400 (dikey 9:20) · 30 kare/sn · 2:17 · H.264 + AAC
 **`DWG_OfficeZip_kat_plani_sessiz.mp4`** — aynı görüntü, sessiz nüsha (kurgu kaynağı)
 **`kat_plani_fon_muzik.m4a`** — fon müziği tek başına
 **`kat_plani_sahneler.json`** — her sahnenin başladığı saniye
@@ -19,6 +19,14 @@ Boş bir çizim açılır ve **16,0 × 10,0 m = 160 m²**, **aynalı iki daireli
 uygulamanın kendi komutlarıyla çizilir. Plan kullanıcının verdiği krokidir: ortada sırt
 sırta iki servis çekirdeği (mutfak + banyo), iki yanda oturma ve yatak odaları.
 
+Sol daire **mobilyasıyla birlikte** çizilir (yatak 1,60 × 2,10 · gardırop 2,40 × 0,60 ·
+koltuk 0,90 × 2,20 · mutfak tezgâhı 0,60 derinlik, yanında yastık, komodin, berjer, sehpa,
+yemek masası, evye, ocak, duş teknesi, klozet, lavabo) ve hepsi kendi **MOBILYA** katmanında
+durur. Ayna sol daireyi mobilyası ve taramasıyla sağa geçirir; üç boyuta geçerken duvara
+**2,90 m**, mobilyaya **0,60 m** yükseklik verilir — tek yükseklik verilseydi yatak gardırop
+boyunda, tezgâh tavana kadar çıkardı, yani üç boyutlu görüntü planı doğrulamak yerine
+yalanlardı.
+
 | sn | Sahne |
 |---|---|
 | 0,0 | açılış kartı |
@@ -29,18 +37,19 @@ sırta iki servis çekirdeği (mutfak + banyo), iki yanda oturma ve yatak odalar
 | 21,0 | iç bölmeler ve servis çekirdeği |
 | 30,1 | kapılar: kanat çizgisi + açılım yayı (giriş, yatak odası, banyo) |
 | 39,6 | bir pencere çizilir, **dizi** ile çoğaltılır |
-| 44,3 | **aynala**: sol daire tek komutla sağa geçer, görünüm plana açılır |
-| 53,4 | oda adları (Türkçe) |
-| 59,3 | doğrusal ve hizalı ölçü |
-| 66,7 | ıslak hacim taraması ve alan |
-| 72,0 | katman söndürme / yakma (etki çizimin üstünde görülür) |
-| 82,1 | on dört yakalama kipi |
-| 86,0 | parmakla nişan aparatı |
-| 92,0 | ölçüm |
-| 98,1 | duvarlara kalınlık, üç boyuta geçiş, görsel stiller |
-| 110,3 | hazır değeri olmayan bir mahal listesinin hesaplanması |
-| 117,6 | DXF olarak kaydetme |
-| 122,9 | kapanış |
+| 44,3 | ıslak hacim taraması ve alan (yalnız SOL banyo; sağdakini ayna getirir) |
+| 49,0 | **mobilya**: yatak, gardırop, koltuk, mutfak tezgâhı + on donatı (MOBILYA katmanı) |
+| 58,2 | **aynala**: sol daire mobilyası ve taramasıyla sağa geçer, görünüm plana açılır |
+| 67,3 | oda adları (Türkçe) |
+| 73,2 | doğrusal ve hizalı ölçü |
+| 80,6 | yedi katman söndürme / yakma (etki çizimin üstünde görülür) |
+| 90,9 | on dört yakalama kipi |
+| 94,9 | parmakla nişan aparatı |
+| 100,8 | ölçüm |
+| 106,9 | duvara 2,90 m, **mobilyaya 0,60 m** kalınlık; üç boyuta geçiş, görsel stiller |
+| 119,8 | hazır değeri olmayan bir mahal listesinin hesaplanması |
+| 127,0 | DXF olarak kaydetme |
+| 132,3 | kapanış |
 
 ### Üç kural — `tools/promo2.mjs` başlığında da yazılıdır
 
@@ -55,13 +64,14 @@ hiçbir yazılımın adı ne altyazıda ne kartlarda geçer.
 
 **3 · Hiçbir sayı elle yazılmaz.** Ekrandan okunur, altyazıya oradan geçirilir:
 
-- **15 nesne** — aynalanan nesne sayısı, çizimin kendi sayımından.
+- **31 nesne** — aynalanan nesne sayısı (mobilya ve tarama dâhil), çizimin kendi sayımından.
 - **5,188 m²** — banyo taramasının alanı, uygulamanın kendi iletisinden. Mahal listesindeki
   "Banyo 5,2 m²" satırı bu sayıyla tutarlıdır.
 - **16 m · 10 m · 8 m** — ölçü yazıları, ölçü priminden.
 - **8,051 m · ΔX 6,35 · ΔY 4,95 · 37,94°** — ölçüm panelinin kendi çıktısı ("END yakalandı").
 - **`ofs:[0,-56]`** — nişan aparatının gerçek durumu: imleç parmaktan 56 px yukarıda.
-- **`tris: 750` · 20 duvar** — kalınlık gerçekten uygulandı, 3B'deki kütle gerçek.
+- **20 duvar · 28 mobilya · `tris: 1758`** — iki ayrı yükseklik gerçekten uygulandı; sayılar
+  seçim ve 3B sayacının kendisinden okunur.
 - **56,60 / 62,80 / 143,00 m² · 25,74 m² · 23.09.2025** — tabloda hazır değer YOKTUR
   (formül hücrelerinde `<v>` yazılmamıştır); dolu görünmesi hesabı uygulamanın yaptığı
   anlamına gelir.
@@ -83,6 +93,11 @@ krokide yaygın olan yazımdır; duvarı kesmek ayrı bir iştir ve bu videonun 
   komut yükseltme kutusunu açar.
 - Tam plana yakınlaşıldığında tarama deseni yoğunlaşıp düz griye düşer; bu uygulamanın
   bilinçli davranışıdır (alt piksel desen → saydam dolgu), kayıt kusuru değildir.
+- İlk mobilyalı çekimde katmanlar yaratılıyor ama GEÇERLİ olmuyordu: `-LAYER`'ın `N` (New)
+  seçeneği katmanı yaratır, geçerli yapan `M` (Make)'tir. Her nesne `0` katmanında kaldığı
+  için 18. sahne mobilyayı duvardan ayıramayıp hata verdi ve ATLANDI (3B bölümü videoda hiç
+  yoktu), 14. sahnede de katman söndürmenin ekranda hiçbir etkisi olmuyordu. Betik artık `M`
+  kullanır; bu çekimde atlanan sahne yoktur (`kat_plani_sahneler.json` → `"atlanan": []`).
 
 ---
 
