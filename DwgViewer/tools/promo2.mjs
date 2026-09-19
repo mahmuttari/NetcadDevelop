@@ -229,8 +229,13 @@ async function sahne(n, ad, fn) {
   C.sahne(n + ' · ' + ad);
   try { await fn(); } catch (e) { atlanan.push(n + ' · ' + ad + ' — ' + (e.message || e).slice(0, 140)); console.log('  ATLANDI:', (e.message || e).slice(0, 200)); }
 }
-const katmanYeni = async (ad) => { await K0('-la'); await K0('N'); await K0(ad); };
-const katmanSec = async (ad) => { await K0('-la'); await K0('S'); await K0(ad); };
+/*
+ * -LAYER'ın 'N' (New) seçeneği katmanı YARATIR ama GEÇERLİ YAPMAZ; AutoCAD'de de böyledir,
+ * geçerli yapan 'M' (Make). İlk çekimde 'N' kullanıldığı için altı katman yaratılıyor ama
+ * her nesne '0' katmanında kalıyordu: 14. sahnede yazı/ölçü söndürülünce ekranda hiçbir şey
+ * değişmiyor, 18. sahnede mobilya duvardan ayırt edilemiyordu.
+ */
+const katmanYeni = async (ad) => { await K0('-la'); await K0('M'); await K0(ad); };
 /** Dikdörtgen: iki köşe, kayda girerek */
 const dikC = async (a, b, sonra = 0.35) => { await K0('rec'); await KC(a, 0.2, 1); await KC(b, sonra, 1); await iptal(); };
 /** Dikdörtgen: kayda girmeden (sahne arası) */
@@ -269,7 +274,7 @@ await sahne(2, 'yeni boş çizim', async () => {
 
 // --- 3 · komut satırı ---------------------------------------------------------------------------
 await sahne(3, 'komut satırı ve öneri listesi', async () => {
-  await katmanYeni('DUVAR'); await katmanSec('DUVAR');
+  await katmanYeni('DUVAR');
   await anlat('Komut satırı: bildiğiniz adlar', 'Command line: names you know', 1.3);
   await yazCanli('REC', { kare: 4 });          // öneri listesi açılır
   await C.tut(1.2);                             // RECTANG · RECOVER · RECOVERALL
@@ -501,8 +506,8 @@ await sahne(13, 'ölçülendirme', async () => {
 
 // --- 14 · katmanlar -----------------------------------------------------------------------------------
 await sahne(14, 'katmanlar', async () => {
-  await anlat('Altı katman: duvar · bölme · kapı · pencere · yazı · ölçü',
-    'Six layers: wall, partition, door, window, text, dim', 2.0);
+  await anlat('Yedi katman: duvar · bölme · kapı · pencere · mobilya · yazı · ölçü',
+    'Seven layers: wall, partition, door, window, furniture, text, dim', 2.2);
   /* Panel 412 px genişlikte bütün ekranı kaplar: söndürme etkisi panel AÇIKKEN görünmez.
      Sıra: söndür → paneli kapat → çizime bak → aç → yak. */
   await dugme('#btnLayers', 0.7);

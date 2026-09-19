@@ -1291,11 +1291,26 @@ export class View3D {
     if (o.compass) {
       let left = false; try { left = document.body.classList.contains('left-hand'); } catch (_) { /* geç */ }
       const ce = document.getElementById('cube3d'); const cubeOn = o.cube && !!(ce && !ce.hidden);
-      const cubeBottom = cubeOn ? ce.offsetTop + ce.offsetHeight : 0;
       const r = 16;
-      // küp açıkken pusula küpün altında ve onunla aynı hizada (yatayda küp FAB sütununun solundadır); küp yokken HUD kutusunun altına iner
-      const cx = cubeOn ? ce.offsetLeft + ce.offsetWidth / 2 : left ? 8 + 42 : W - 8 - 42;
-      let cy = cubeBottom + 18 + r + 6;   // 18: 'K' harfi pusula merkezinin 34 px üstüne yazılır; kuzey yukarıyı gösterdiğinde küpün kutusuna değmesin
+      /*
+       * PUSULA KÜPÜN YANINDA (v7.91), altında değil. Küp sağ üst KÖŞEYE döndü (app.css);
+       * köşede küpün hemen altı zoom sütununun ilk düğmesidir, oraya konan pusula onun
+       * üstüne binerdi. Yan boşluk ise her iki yerleşimde de boştur. Küp hangi yarıdaysa
+       * pusula ÖBÜR yanına geçer: sağdaki küpün soluna, sol el düzenindeki küpün sağına.
+       * 24 px boşluk keyfi değil: 'K' harfi merkezin 34 px ötesine yazılır, 16 + 24 = 40 > 34
+       * olduğu için harf küpün kutusuna değmez.
+       */
+      let cx, cy;
+      if (cubeOn) {
+        const kupSolda = ce.offsetLeft + ce.offsetWidth / 2 < W / 2;
+        cx = kupSolda ? ce.offsetLeft + ce.offsetWidth + 24 + r : ce.offsetLeft - 24 - r;
+        cy = ce.offsetTop + ce.offsetHeight / 2;
+      } else {
+        cx = left ? 8 + 42 : W - 8 - 42;
+        cy = 8 + r + 6;
+      }
+      cx = Math.max(r + 6, Math.min(W - r - 6, cx));
+      cy = Math.max(r + 34, Math.min(H - r - 6, cy));   // 34: kuzey yukarıyı gösterdiğinde 'K' harfi ekranın dışına taşmasın
       const hb = o.hud && o.hudPos === 'tl' ? this._hudBox : null;
       if (hb && !cubeOn && hb.x + hb.w > cx - r - 6 && hb.y + hb.h > cy - r - 6) cy = Math.max(cy, hb.y + hb.h + r + 10);
       let swap = false; try { swap = !!(window.dwgApp && window.dwgApp.state && window.dwgApp.state.geo && window.dwgApp.state.geo.swap); } catch (_) { /* geç */ }
