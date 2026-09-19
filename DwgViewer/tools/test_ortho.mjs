@@ -53,7 +53,8 @@ await zoom([0, 0, 800, 600]);
   ok('1a boşta (komut istemi) Ortho düğmesi gizli', b0 && b0.hidden === true, J(b0));
   await arac('t:line');
   const b1 = await dugme(), d1 = await durum();
-  // 40 x 32 (v7.66): istem satırında İz noktası (TT) düğmesi de durur; iki düğme 40 px olunca "Çizgi: İkinci noktayı seçin (devam eder)" (289 px) 412 px telefonda tek satırda kalır
+  // İstem satırında İz noktası (TT) düğmesi de durur. v7.66'da ikisi 40 x 32 idi; v7.82 yoğun kipiyle 30 x 24'e indi
+  // ve "Çizgi: İkinci noktayı seçin (devam eder)" (289 px) 412 px telefonda tek satırda kalmayı sürdürüyor.
   ok('1b Çizgi aracı nokta ister: düğme görünür, KAPALI, istem satırının sağında (30 x 24 — yoğun kip, v7.82), başlık / aria "Ortho (F8)"', b1.hidden === false && b1.on === false && b1.pressed === 'false' && b1.title === 'Ortho (F8)' && b1.aria === 'Ortho (F8)' && b1.w === 30 && b1.h === 24 && d1.inp === false, J({ b1, d1 }));
   // v7.61 gerilemesi: giriş satırına konan düğme Enter'ı Bitir'in altına sokuyor, Bitir · Geri · İptal'i üçüncü satıra taşırıyordu.
   // Şimdi düğme istem satırındadır: Enter hiçbir düğmeyle çakışmaz; Bitir · Geri · İptal ile bile çubuk iki satırda kalır (< 100 px)

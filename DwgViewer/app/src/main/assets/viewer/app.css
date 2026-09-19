@@ -486,7 +486,8 @@ body.glove .ask-field .opt-text { min-height: 52px; }
    tuvalden 50 px yiyordu (v7.61–7.62 kusuru); istem satırında zaten boş yer vardır, ek satır maliyeti yoktur */
 .cmd-head { flex: 1 1 100%; display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0; line-height: 1.25; }
 /* BOŞTAKİ ÇUBUK TEK SATIR (v7.79). Komut çalışırken istem uzundur ve kendi satırını hak eder;
-   boştayken ise yalnız "Komut:" yazar — girişle aynı satıra alınca çubuk 81 px'ten ~48 px'e iner.
+   boştayken ise yalnız "Komut:" yazar — girişle aynı satıra alınca çubuk 81 px'ten 49 px'e indi;
+   v7.82 yoğun kipi onu 29 px'e çekti (aşağıdaki body.dense-bars bloğu).
    Dar ekranda flex-wrap yine devreye girer, metin sıkışmaz. */
 .cmdbar.idle .cmd-head { flex: 0 1 auto; }
 .cmdbar.idle #cmdText { flex: 0 1 auto; white-space: nowrap; }

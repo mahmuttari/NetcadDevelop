@@ -505,6 +505,92 @@ await page.screenshot({ path: `${out}/e_2d_after.png` });
   ok('11e5 Enter düğmesi de küçülür ama WCAG 24 px tabanının üstünde kalır', u4.yogun.enter >= 24 && u4.yogun.enter < u4.genis.enter, JSON.stringify({ y: u4.yogun.enter, g: u4.genis.enter, e: u4.eldiven.enter }));
 }
 
+
+// ---------------------------------------------------------------------------------
+// 12 · v7.83: denetimin iki bulgusu — HUD vuruş bandı ve yinelenen tbLayer kimliği
+// ---------------------------------------------------------------------------------
+{
+  /*
+   * KUTU KÜÇÜLDÜ, HEDEF KÜÇÜLMEDİ. v7.82 bilgi satırını 32 → 16 px'e indirdi; dokunma hedefi
+   * de onunla birlikte 16 px'e inmişti. Komut çubuğunda tutulan taban (WCAG 2.2 AA Target Size
+   * (Minimum), 24 px) HUD'da da geçerlidir: kutu küçük çizilir, vuruş bandı dikeyde 24 px'e
+   * tamamlanır. Bandın DIŞI çizime kalır — yoksa tuvalin üst şeridi yutulurdu.
+   */
+  const g1 = await page.evaluate(async () => {
+    const E = window.dwgApp.editor;
+    if (!E.is3D()) { E.act('3d'); await new Promise(r => setTimeout(r, 600)); }
+    const v = E.view3d();
+    if (!v.opts.hud) { E.act('hud3'); await new Promise(r => setTimeout(r, 300)); }
+    await new Promise(r => setTimeout(r, 250));
+    return v._hudBox ? { h: v._hudBox.h, y: v._hudBox.y, x: v._hudBox.x, w: v._hudBox.w } : null;
+  });
+  ok('12a yoğun HUD kutusu hâlâ 20 px altında', !!g1 && g1.h > 0 && g1.h <= 20, JSON.stringify(g1));
+
+  const dokunHud = (dy) => page.evaluate(async (dy) => {
+    const E = window.dwgApp.editor, v = E.view3d();
+    if (!v.opts.hud) { E.act('hud3'); await new Promise(r => setTimeout(r, 300)); }
+    const b = v._hudBox, cv = document.getElementById('cv3d') || document.getElementById('cv');
+    const r0 = cv.getBoundingClientRect();
+    const o = { bubbles: true, cancelable: true, clientX: r0.left + b.x + b.w / 2, clientY: r0.top + b.y + b.h + dy, pointerId: 1, pointerType: 'touch', isPrimary: true, button: 0, buttons: 1 };
+    cv.dispatchEvent(new PointerEvent('pointerdown', o));
+    cv.dispatchEvent(new PointerEvent('pointerup', { ...o, buttons: 0 }));
+    await new Promise(r => setTimeout(r, 400));
+    return { hud: v.opts.hud, kutuAlti: Math.round(b.y + b.h + dy) };
+  }, dy);
+
+  const g2 = await dokunHud(3);   // kutunun 3 px altı: 24 px'lik bandın İÇİ
+  ok('12b kutunun hemen altı (24 px bandın içi) da bilgi satırını gizler', g2.hud === false, JSON.stringify(g2));
+  await page.evaluate(async () => { const E = window.dwgApp.editor; E.act('hud3'); await new Promise(r => setTimeout(r, 300)); });
+
+  const g3 = await dokunHud(24);  // bandın DIŞI: dokunuş çizime gider, HUD kalır
+  ok('12c bandın dışı çizime kalır: HUD gizlenmez', g3.hud === true, JSON.stringify(g3));
+
+  /*
+   * ELDİVEN KİPİ YOĞUN KİPİ EZER — app.css'teki body.dense-bars.glove kuralının HUD karşılığı.
+   * Eldivenle çalışan kullanıcı büyük hedef ister; kutu tam boyuna döner.
+   */
+  const g4 = await page.evaluate(async () => {
+    const M = await import('./editor.js'), E = window.dwgApp.editor, v = E.view3d();
+    if (!v.opts.hud) { E.act('hud3'); await new Promise(r => setTimeout(r, 300)); }
+    await new Promise(r => setTimeout(r, 250));
+    const yogun = v._hudBox.h;
+    M.ui.denseBars = false; M.applyUi(); await new Promise(r => setTimeout(r, 400));
+    const genis = { h: v._hudBox.h, metin: v.hudText(false) };
+    M.ui.denseBars = true; M.applyUi(); await new Promise(r => setTimeout(r, 400));
+    M.ui.glove = true; M.applyUi(); await new Promise(r => setTimeout(r, 400));
+    const eldiven = v._hudBox.h;
+    M.ui.glove = false; M.applyUi(); await new Promise(r => setTimeout(r, 400));
+    return { yogun, genis, eldiven, geri: v._hudBox.h };
+  });
+  ok('12d eldiven kipinde HUD yoğun DEĞİL: kutu tam boya döner', g4.eldiven >= 28 && g4.eldiven > g4.yogun && g4.geri === g4.yogun, JSON.stringify(g4));
+  // Yoğun kip elle kapatılınca da eski iki satırlık kutu geri gelir; izdüşüm türü metne döner.
+  ok('12d2 yoğun kapatılınca HUD eski boyuna döner ve izdüşüm türü geri gelir', g4.genis.h >= 28 && g4.genis.h === g4.eldiven && /Paralel|Persp/.test(g4.genis.metin || ''), JSON.stringify(g4));
+
+  /*
+   * id="tbLayer" TEKİL OLMALI. 'layer' karosu Çiz, Açıklama ve 3B Çiz şeritlerinde geçer;
+   * kimlik sekmeye bağlanmadığı için DOM'da iki kez üretiliyordu (geçersiz HTML) ve
+   * updateLayerButton getElementById ile yalnız ilkini güncelliyordu.
+   */
+  const g5 = await page.evaluate(async () => {
+    const E = window.dwgApp.editor;
+    const say = () => document.querySelectorAll('[id="tbLayer"]').length;
+    const ucB = say();
+    E.act('3d'); await new Promise(r => setTimeout(r, 600));
+    const ikiB = say();
+    return { ucB, ikiB, m3: E.is3D() };
+  });
+  ok('12e tbLayer kimliği hem 2B hem 3B kipinde TEK', g5.ucB === 1 && g5.ikiB === 1, JSON.stringify(g5));
+
+  const g6 = await page.evaluate(async () => {
+    const E = window.dwgApp.editor;
+    const ad = [...window.dwgApp.state.layers.keys()].find(n => n && n.length <= 10) || [...window.dwgApp.state.layers.keys()][0];
+    E.setCurLayer(ad); await new Promise(r => setTimeout(r, 200));
+    const etiketler = [...document.querySelectorAll('#toolbar [data-act="layer"] .lb')].map(el => el.textContent);
+    return { ad, etiketler, n: etiketler.length };
+  });
+  ok('12f geçerli katman adı BÜTÜN kopyalara yazılır (Çiz + Açıklama)', g6.n >= 2 && g6.etiketler.every(x => x === g6.ad), JSON.stringify(g6));
+}
+
 ok('7 sayfa hatası yok', errors.length === 0, errors.join(' | ').slice(0, 200));
 C.summary(errors);
 await browser.close(); srv.kill();

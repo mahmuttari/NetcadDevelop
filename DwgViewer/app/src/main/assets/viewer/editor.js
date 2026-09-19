@@ -361,7 +361,7 @@ function refreshUndo() {
 // ---------------------------------------------------------------------------------
 // Şerit: sekmeler › gruplar › karolar
 // ---------------------------------------------------------------------------------
-const tileId = (act, tabId) => act === 'undo' && tabId === 'view' ? 'tbUndo' : act === 'redo' && tabId === 'view' ? 'tbRedo' : act === 'savedxf' ? 'tbSave' : act === 'layer' ? 'tbLayer' : '';
+const tileId = (act, tabId) => act === 'undo' && tabId === 'view' ? 'tbUndo' : act === 'redo' && tabId === 'view' ? 'tbRedo' : act === 'savedxf' ? 'tbSave' : act === 'layer' && tabId === 'draw' ? 'tbLayer' : '';
 function tileHtml(it, tabId) {
   const id = tileId(it.act, tabId);
   const lock = !has(it.act);
@@ -1190,7 +1190,17 @@ function showResult(rows, onCopy) {
 // ---------------------------------------------------------------------------------
 // Katman / renk / özellikler
 // ---------------------------------------------------------------------------------
-function updateLayerButton() { const b = $('tbLayer'); if (b) b.querySelector('.lb').textContent = ed.curLayer.length > 10 ? ed.curLayer.slice(0, 9) + '…' : ed.curLayer; }
+/*
+ * GEÇERLİ KATMAN ADI KAROYA YAZILIR — ve karo TEK DEĞİLDİR. 'layer' karosu Çiz şeridinde,
+ * Açıklama şeridinde, 3B Çiz şeridinde (v7.82) ve favorilere eklendiyse Favoriler satırında
+ * geçer; buildToolbar bütün satırları bir kerede DOM'a basar. getElementById yalnız DOM'daki
+ * İLK kopyayı bulduğu için ötekiler 'Katman' diye bayat kalıyordu. refreshUndo() ile aynı
+ * desene geçildi: seçici bütün kopyaları alır.
+ */
+function updateLayerButton() {
+  const ad = ed.curLayer.length > 10 ? ed.curLayer.slice(0, 9) + '…' : ed.curLayer;
+  document.querySelectorAll('#toolbar [data-act="layer"] .lb').forEach(el => { el.textContent = ad; });
+}
 function layerSelectHtml(id, cur) { return `<select id="${id}">${[...S.layers.keys()].sort((a, b) => a.localeCompare(b, 'tr')).map(n => `<option ${n === cur ? 'selected' : ''}>${api.esc(n)}</option>`).join('')}</select>`; }
 function pickLayer() {
   if (!needDoc()) return;
@@ -2620,7 +2630,14 @@ function tap3D(sx, sy) {
    */
   if (v3 && v3.opts && v3.opts.hud && v3._hudBox) {
     const b = v3._hudBox;
-    if (sx >= b.x && sx <= b.x + b.w && sy >= b.y && sy <= b.y + b.h) {
+    /*
+     * KUTU KÜÇÜLDÜ, HEDEF KÜÇÜLMEDİ (v7.83). Yoğun kipte kutu 16 px yüksekliğe iner; o,
+     * komut çubuğunda tutulan tabanın — WCAG 2.2 AA Target Size (Minimum), 24 px — altındadır.
+     * Görünen kutu küçük kalır (kullanıcı yeri bunun için istedi) ama vuruş bandı dikeyde
+     * 24 px'e tamamlanır. Eldiven kipinde kutunun kendisi zaten büyük çizilir.
+     */
+    const py = Math.max(0, (24 - b.h) / 2);
+    if (sx >= b.x && sx <= b.x + b.w && sy >= b.y - py && sy <= b.y + b.h + py) {
       v3.set('hud', false); syncCube();
       haptic('toggle'); refreshTiles(); render3D();
       api.toast(t('hudHidden').replace('%s', geriYolu('hud3')), 3200);
@@ -2901,7 +2918,7 @@ function overlay3D() {
   if (!ed.is3D()) return;
   const ov = $('ov'), c = ov.getContext('2d');
   c.setTransform(S.dpr, 0, 0, S.dpr, 0, 0); c.clearRect(0, 0, S.W, S.H);
-  try { v3.drawHud(c, { fg: fgColor(), W: S.W, H: S.H, units: S.units || '', fmt, sel: ed.sel, gestureActive: S.gestureActive, fontScale: ui.fontScale, dense: ui.denseBars !== false }); } catch (e) { console.warn(e); }
+  try { v3.drawHud(c, { fg: fgColor(), W: S.W, H: S.H, units: S.units || '', fmt, sel: ed.sel, gestureActive: S.gestureActive, fontScale: ui.fontScale, dense: ui.denseBars !== false && !ui.glove }); } catch (e) { console.warn(e); }
   c.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);
   const acc = S.selColor || '#ff9f0a';
   c.font = `${Math.round(11 * ui.fontScale)}px sans-serif`; c.textBaseline = 'top'; c.textAlign = 'left';

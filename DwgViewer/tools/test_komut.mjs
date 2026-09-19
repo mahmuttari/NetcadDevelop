@@ -289,7 +289,7 @@ const etiket = (act) => ev((a) => { const b = document.querySelector(`#toolbar [
 }
 
 // ---------------------------------------------------------------------------------
-// 11 · v7.79: ince komut çubuğu ve tek dokunuşla gizleme
+// 11 · v7.82: yoğun komut çubuğu ve tek dokunuşla gizleme
 // ---------------------------------------------------------------------------------
 {
   const a = await ev(async () => {
@@ -308,9 +308,10 @@ const etiket = (act) => ev((a) => { const b = document.querySelector(`#toolbar [
    * WCAG 2.2 AA "Target Size (Minimum)" ölçütünün sayısal tabanına — 24 px'e — çekildi ve giriş
    * 26 px'e indi. ALTINA İNİLMEZ: 24 px erişilebilirlik ölçütünün kendisidir. Şerit, paneller ve
    * gezinme 40/48/52 px sözleşmesinde kalır (test_shell 46, test_lock 13) — gevşeme yalnız
-   * komut çubuğundadır. Eldiven kipi burada da 52 px'i geri getirir (11c).
+   * komut çubuğundadır. Geniş kip (denseBars kapalı, 40 px) ve eldiven kipi (52 px)
+   * ölçümleri bu dosyada değil test_3d 11e2 / 11e3'tedir.
    */
-  ok('11a boştaki çubuk TEK satır ve YOĞUN (40 px altı), giriş WCAG tabanı 24 px üstünde', a.bosta === true && a.h > 0 && a.h < 40 && a.giris >= 24, JSON.stringify(a));
+  ok('11a boştaki çubuk TEK satır ve YOĞUN (34 px altı), giriş WCAG tabanı 24 px üstünde', a.bosta === true && a.h > 0 && a.h < 34 && a.giris >= 24, JSON.stringify(a));
   ok('11b boşta Gizle düğmesi görünür', !!a.gizle && a.gizle.gorunur === true, JSON.stringify(a));
 
   const b = await ev(async () => {
