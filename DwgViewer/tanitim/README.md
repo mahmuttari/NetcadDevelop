@@ -2,6 +2,15 @@
 
 **`DWG_OfficeZip_tanitim.mp4`** — 1080 × 2400 (dikey 9:20) · 30 kare/sn · 88 sn · H.264 + AAC
 **`DWG_OfficeZip_tanitim_sessiz.mp4`** — aynı görüntü, sessiz nüsha
+**`fon_muzik.m4a`** — fon müziği tek başına (düzenlerken düzeyi değiştirmek ya da başka bir
+parçayla değiştirmek için)
+
+## Sonradan düzenlemek için
+
+Kurgu kaynağı **sessiz nüshadır**: görüntü yeniden kodlanmamış kopyadır, ses ayrı dosyada durur.
+Bir kurgu programına ikisini yan yana koyup kesmek, hızlandırmak ya da müziği değiştirmek
+yeterlidir. Sıfırdan yeniden çekmek gerekirse `node tools/promo.mjs <klasör>` komutu hem videoyu
+hem de `sahneler.json` dosyasını (her sahnenin başladığı saniye) üretir.
 
 ## Ne gösteriyor
 

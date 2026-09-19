@@ -419,6 +419,11 @@ await sahne(90, 'kapanış', async () => {
   await C.tut(2.6);
 });
 
+/*
+ * Sahne günlüğü dosyaya da yazılır: video sonradan düzenlenirken hangi saniyede ne olduğunu
+ * kare kare aramak yerine buradan okumak gerekir.
+ */
+fs.writeFileSync(path.join(OUT, 'sahneler.json'), JSON.stringify({ fps: FPS, sahneler: C.gunluk, atlanan }, null, 1));
 const kare = await hat.bitir();
 console.log('\nkare:', kare, '=', (kare / FPS).toFixed(1), 'sn ·', path.join(OUT, 'promo_ham.mp4'), fs.statSync(path.join(OUT, 'promo_ham.mp4')).size, 'bayt');
 if (atlanan.length) console.log('ATLANAN SAHNELER:\n - ' + atlanan.join('\n - '));
