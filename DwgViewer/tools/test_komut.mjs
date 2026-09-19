@@ -426,6 +426,34 @@ const etiket = (act) => ev((a) => { const b = document.querySelector(`#toolbar [
   ok('12g yön tuşları açıkken pil dpad ve zoom düğmeleriyle ÇAKIŞMAZ (sağ el)', d.sag.dpVar && d.sag.nfVar && d.sag.dpad === false && d.sag.nav === false, JSON.stringify(d.sag));
   ok('12g2 sol el kipinde de çakışmaz (dpad ile zoom yer değiştirir)', d.sol.dpVar && d.sol.nfVar && d.sol.dpad === false && d.sol.nav === false, JSON.stringify(d.sol));
   ok('12g3 ölçüm sonrası çubuk geri açıldı', d.geri === true, JSON.stringify({ geri: d.geri }));
+  /*
+   * PİL ÇUBUĞUN ÜSTÜNE BİNMEZ. Çubuk gizliyken bir komut başlatılınca showPrompt onu yeniden
+   * açıyor (ui.cmdLine false kalıyor); pil de görünür kaldığı için giriş kutusunun ve
+   * düğmelerin üstüne biniyordu — kullanıcının ekran görüntülerindeki durum. Görünürlük artık
+   * ui.cmdLine'a değil çubuğun GERÇEK durumuna bağlıdır.
+   */
+  const e = await ev(async () => {
+    const E = window.dwgApp.editor;
+    const bekle = (ms) => new Promise(r => setTimeout(r, ms));
+    if (E.tools.running) E.tools.cancel();
+    const bar = document.getElementById('cmdBar'), sb = document.getElementById('cmdShow');
+    if (bar.hidden) { E.act('cmdline'); await bekle(250); }
+    if (bar.hidden) { E.act('cmdline'); await bekle(250); }
+    document.getElementById('cmdHide').click(); await bekle(320);
+    const gizliyken = { bar: bar.hidden, pil: !sb.hidden };
+    E.act('t:line'); await bekle(400);
+    const komutta = { bar: bar.hidden, pil: !sb.hidden };
+    E.tools.cancel(); await bekle(400);
+    const sonra = { bar: bar.hidden, pil: !sb.hidden };
+    if (!sb.hidden) sb.click();
+    await bekle(320);
+    return { gizliyken, komutta, sonra, geri: !bar.hidden };
+  });
+  ok('12h çubuk gizliyken pil görünür', e.gizliyken.bar === true && e.gizliyken.pil === true, JSON.stringify(e.gizliyken));
+  ok('12h2 komut başlayınca çubuk açılır ve pil ÇEKİLİR (üstüne binmez)', e.komutta.bar === false && e.komutta.pil === false, JSON.stringify(e.komutta));
+  ok('12h3 komut bitince çubuk yine kapanır ve pil geri gelir', e.sonra.bar === true && e.sonra.pil === true, JSON.stringify(e.sonra));
+  ok('12h4 pile dokununca çubuk kalıcı açılır', e.geri === true, JSON.stringify({ geri: e.geri }));
+
 
 }
 

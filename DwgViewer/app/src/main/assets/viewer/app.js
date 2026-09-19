@@ -288,7 +288,22 @@ const photos = new Map(); // photo id → {img, ok}
 /** Kaplama için dünya dönüşümü: render.js ile aynı köken (görünüm merkezi); tracePath yerel koordinat üretir */
 function worldTransform(c) { renderWorldTransform(c, ov); }
 /** Dünya kutusunu yerel koordinatla çizer (bb: [x0, y0, x1, y1]) */
-function strokeWorldRect(c, bb) { const [ox, oy] = worldOrigin(); c.strokeRect(bb[0] - ox, bb[1] - oy, bb[2] - bb[0], bb[3] - bb[1]); }
+/*
+ * VURGU KUTUSU. Nokta ilkelinin sınır kutusu SIFIR BOYUTLUDUR (POINT → bb: [x, y, x, y]);
+ * olduğu gibi çizilen dikdörtgen ekranda hiç görünmez ve kullanıcı noktayı seçip seçmediğini
+ * anlayamaz — v7.85'e kadarki davranış buydu. Kutu, EKRANDA en az VURGU_PX olacak biçimde
+ * ortasından şişirilir; kendi kutusu zaten büyük olan nesneler etkilenmez. Üç çağıran da
+ * (seçim, tek seçim, üzerine gelme) buradan geçtiği için düzeltme hepsinde geçerlidir.
+ */
+const VURGU_PX = 18;
+function strokeWorldRect(c, bb) {
+  const [ox, oy] = worldOrigin();
+  const en = VURGU_PX / (S.view.scale || 1);
+  let x0 = bb[0], y0 = bb[1], x1 = bb[2], y1 = bb[3];
+  if (!(x1 - x0 >= en)) { const cx = (x0 + x1) / 2; x0 = cx - en / 2; x1 = cx + en / 2; }
+  if (!(y1 - y0 >= en)) { const cy = (y0 + y1) / 2; y0 = cy - en / 2; y1 = cy + en / 2; }
+  c.strokeRect(x0 - ox, y0 - oy, x1 - x0, y1 - y0);
+}
 function drawOverlay() {
   const c = octx;
   c.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);

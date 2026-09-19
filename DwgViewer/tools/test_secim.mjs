@@ -231,6 +231,66 @@ const box = async (x0, y0, x1, y1) => [await scr(x0, y0), await scr(x1, y1)];   
   ok('26 Taşı aracının seçim aşamasında da Pencere kutusu çalışır (hedef seçildi, araç move)', m0.active === 'move' && m0.selecting && m1.keys.includes(P.key) && m1.active === 'move', J({ m0, m1 }));
   await ev(() => window.dwgApp.editor.tools.cancel()); await ev(() => window.dwgApp.editor.sel.clear());
 }
+// ---------------------------------------------------------------------------------
+// 27 · v7.86: NOKTA seçildiğinde vurgusu GÖRÜNÜR (sıfır boyutlu kutu çizilmiyordu)
+// ---------------------------------------------------------------------------------
+{
+  /*
+   * POINT ilkelinin sınır kutusu [x, y, x, y]'dir — sıfır boyutlu. Vurgu üç yerde de
+   * strokeWorldRect(p.bb) ile çiziliyordu ve sıfır boyutlu dikdörtgen ekranda hiç görünmüyordu:
+   * kullanıcı noktayı seçip seçmediğini anlayamıyordu (bildirim). Kutu artık ekranda en az
+   * 18 px olacak biçimde şişirilir. Sınama piksel sayar: Python değil, BASILAN kaplama okunur.
+   */
+  const nokta = await ev(async () => {
+    const A = window.dwgApp, E = A.editor, S = A.state;
+    E.sel.clear(); if (E.tools.running) E.tools.cancel();
+    const m = S.scene.layouts[S.layoutIndex] || S.scene.layouts[0];
+    // Nokta GÖRÜNÜMÜN ortasına konur: önceki bloklar kaydırıp yakınlaştırmış olabilir, çizimin
+    // kutusunun ortası ekranda olmayabilir ve piksel örneği tuvalin dışına düşerdi.
+    const w = A.toWorld(S.W / 2, S.H / 2);
+    const x = w[0], y = w[1];
+    E.doc.run({ op: 'add', ents: [{ type: 'POINT', pts: [[x, y, 0]], id: 'PT' + Math.random().toString(36).slice(2, 8), layer: '0', color: 256 }] });
+    E.rebuild(); A.render();
+    await new Promise(r => setTimeout(r, 400));
+    const p = m.prims.find(q => q.k === 2 && Math.abs(q.x - x) < 1e-6 && Math.abs(q.y - y) < 1e-6);
+    return p ? { var: true, key: p.key, bb: p.bb.slice() } : { var: false };
+  });
+  ok('27a sınama için bir NOKTA eklendi ve kutusu sıfır boyutlu', nokta.var === true && nokta.bb[0] === nokta.bb[2] && nokta.bb[1] === nokta.bb[3], J(nokta));
+
+  /** Kaplamada, noktanın ekran konumu çevresindeki kutuda seçim renginde piksel sayar */
+  const vurguPiksel = (key) => ev((key) => {
+    const A = window.dwgApp, S = A.state;
+    // Çizimde başka NOKTA'lar da var; örnek kesinlikle BİZİM eklediğimiz noktadan alınır.
+    const p = S.scene.layouts[S.layoutIndex].prims.find(q => q.k === 2 && q.key === key);
+    const s = A.toScreen ? A.toScreen(p.x, p.y) : null;
+    const ov = document.getElementById('ov'), c = ov.getContext('2d');
+    const d = window.devicePixelRatio || 1;
+    const R = 26;
+    const g = c.getImageData(Math.max(0, Math.round((s[0] - R) * d)), Math.max(0, Math.round((s[1] - R) * d)), Math.round(2 * R * d), Math.round(2 * R * d)).data;
+    let n = 0;
+    for (let i = 0; i + 3 < g.length; i += 4) if (g[i + 3] > 40) n++;
+    return { n, s: [Math.round(s[0]), Math.round(s[1])] };
+  }, key);
+
+  const bos = await ev(async () => {
+    const A = window.dwgApp; A.editor.setSelection([]); await new Promise(r => setTimeout(r, 200)); return true;
+  }) && await vurguPiksel(nokta.key);
+  const secili = await ev(async (key) => {
+    const A = window.dwgApp, S = A.state, E = A.editor;
+    const p = S.scene.layouts[S.layoutIndex].prims.find(q => q.k === 2 && q.key === key);
+    E.setSelection([p]); await new Promise(r => setTimeout(r, 200)); return !!p;
+  }, nokta.key) && await vurguPiksel(nokta.key);
+
+  ok('27b seçim yokken noktanın çevresinde kaplama boş', bos.n === 0, J(bos));
+  ok('27c nokta seçilince çevresinde GÖRÜNÜR bir vurgu çizilir', secili.n > 50, J({ bos: bos.n, secili: secili.n }));
+
+  await ev(async () => {
+    const A = window.dwgApp; A.editor.setSelection([]);
+    if (A.editor.doc.undo()) { A.editor.rebuild(); A.render(); }
+    await new Promise(r => setTimeout(r, 200));
+  });
+}
+
 ok('Z sayfa hatası yok', errors.length === 0, errors.join(' | ').slice(0, 300));
 C.summary(errors);
 await browser.close(); srv.kill();

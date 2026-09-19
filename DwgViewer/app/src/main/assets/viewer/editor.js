@@ -1105,7 +1105,13 @@ function syncHideBtn(goster) { const b = $('cmdHide'); if (b) b.hidden = !goster
  */
 function syncCmdShow() {
   const b = $('cmdShow'); if (!b) return;
-  b.hidden = !(ui.cmdLine === false && !!(S && S.hasDoc) && !document.body.classList.contains('docmode'));
+  /*
+   * Pil yalnız çubuk GERÇEKTEN kapalıyken çıkar. Yalnız ui.cmdLine'a bakmak yetmiyordu:
+   * çubuk gizliyken bir komut başlatılınca showPrompt / prompt3D çubuğu yeniden açıyor
+   * (ui.cmdLine false kalıyor) ve pil çubuğun giriş kutusuyla düğmelerinin ÜSTÜNE biniyordu.
+   */
+  const bar = $('cmdBar');
+  b.hidden = !(bar && bar.hidden && ui.cmdLine === false && !!(S && S.hasDoc) && !document.body.classList.contains('docmode'));
 }
 /** Komut listesi ("?") yalnız BOŞTA görünür: komut çalışırken istem satırının yeri dardır */
 function syncHelpBtn(goster) { const b = $('cmdHelp'); if (b) b.hidden = !goster; }
@@ -1114,6 +1120,9 @@ function bindCmdBar() {
   // kullanıcı kapattığı şeyi nasıl geri açacağını bilsin diye ileti bunu söyler.
   { const hb = $('cmdHide'); if (hb && !hb.dataset.bound) { hb.dataset.bound = '1'; hb.addEventListener('click', () => { toggleCmdLine(); api.toast(t('cmdHidden').replace('%s', geriYolu('cmdline')), 3200); }); } }
   { const sb = $('cmdShow'); if (sb && !sb.dataset.bound) { sb.dataset.bound = '1'; sb.addEventListener('click', () => { toggleCmdLine(); }); } }
+  // Çubuğu açıp kapatan yol çoktur (komut başlangıcı, bitişi, iptal, 3B istemi). Hepsini tek tek
+  // çağırmak yerine kaynağı izlemek daha güvenli: hidden değişince pil kendiliğinden tazelenir.
+  { const bar = $('cmdBar'); if (bar && !bar.dataset.izleniyor) { bar.dataset.izleniyor = '1'; try { new MutationObserver(syncCmdShow).observe(bar, { attributes: true, attributeFilter: ['hidden'] }); } catch (_) { /* yok */ } } }
   { const qb = $('cmdHelp'); if (qb && !qb.dataset.bound) { qb.dataset.bound = '1'; qb.addEventListener('click', () => showCmdList()); } }
   { const ob = $('cmdOrtho'); if (ob && !ob.dataset.bound) { ob.dataset.bound = '1'; ob.addEventListener('click', () => toggleOrtho()); } }   // giriş satırındaki Ortho düğmesi (odak vermez: klavye açılmasın)
   // İz noktası (AutoCAD TT): sonraki dokunuş nokta sayılmaz, iz noktası edinir — izleme kapalıyken de çalışır (geçici iz noktası).
