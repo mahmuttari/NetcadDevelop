@@ -62,6 +62,7 @@ export default {
   uploadCurrent: '현재 파일 업로드', uploadDxf: '편집한 DXF 업로드', uploadPng: '화면을 PNG로 업로드', uploadPick: '기기에서 파일을 골라 업로드', uploadTarget: '대상', uploadHere: '여기에 업로드', pickFolderHere: '이 폴더에 업로드', pickFolderFor: '업로드 대상 폴더', folderName: '폴더 이름:', folderCreated: '폴더를 만들었습니다', driveFile: '드라이브 파일', confirmDelete: '삭제할까요?', deleted: '삭제했습니다', shortcut: '바로가기', shortcutNo: '바로가기는 열 수 없습니다. 대상 파일을 선택하세요.', shared: '공유됨',
   converting: 'PDF로 변환 중', convertFail: '변환하지 못했습니다', drivePdf: '드라이브로 PDF 변환',
   docFail: '문서를 열지 못했습니다', docOffice: 'Office 문서', docImage: '이미지', docText: '텍스트', docOpenWith: '다른 앱으로 열기', share: '공유', docKeep: '오프라인 보관', docKept: '오프라인 사본을 저장했습니다(파일 열기 › 오프라인)', docKeepFail: '복사하지 못했습니다', docEmpty: '빈 문서', docUnknown: '알 수 없는 파일 형식입니다.',
+  xlUnknown: 'Excel 파일을 인식할 수 없습니다', xlEncrypted: '이 Excel 파일은 암호로 보호되어 있어 내용을 열 수 없습니다', xlNoSheet: '워크시트를 찾을 수 없습니다', xlNotExcel: '이 파일은 Excel 통합 문서가 아닙니다', xlNoData: 'Excel 데이터 없음',
   docOfficeMsg: '이 형식은 바로 표시할 수 없습니다. Google 드라이브에 로그인했다면 PDF로 변환해 열 수 있고, 아니면 다른 앱으로 보내세요.', prevPage: '이전 페이지', nextPage: '다음 페이지', fitWidth: '맞추기', docLayoutPage: '페이지 보기', docLayoutFlow: '연속 보기', docPage: '페이지', docFlow: '연속', files: '개 파일', extracting: '압축 푸는 중', wrap: '줄 바꿈', lines: '줄', backToArchive: '압축 파일로 돌아가기',
   resumeTitle: '이어서 계속하기', resumeOpen: '도면으로 돌아가기', resumeKeep: '시작할 때 마지막 파일 다시 열기',
   resumeReopen: '다시 열기', resumeAuto: '시작할 때 마지막 파일 자동으로 열기',

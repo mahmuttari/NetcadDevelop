@@ -111,7 +111,10 @@ ok('arşive dönüldü', await ev(() => !document.getElementById('docView').hidd
 await ev(() => window.dwgApp.docs.close());
 // ---- XLSX ----
 await page.setInputFiles('#fileInput', path.join(out, 'metraj.xlsx')); await page.waitForTimeout(500);
-ok('xlsx', await ev(() => { const t = document.querySelector('#docContent .xlsx-tbl'); return !!t && /Ø300 boru/.test(t.textContent) && /1\.250,5/.test(t.textContent) && !!document.querySelector('#docTools [data-sheet="0"]'); }), await ev(() => (document.querySelector('#docContent')?.textContent || '').slice(0, 80)));
+// v7.90: biçimsiz sayı artık Excel'in "General" görünüşüyle yazılır — binlik ayracı YOKTUR.
+// Eskiden her sayıya ayraç konuyordu; dosyada bir sayı biçimi varsa artık o uygulanır
+// (bkz. tools/test_excel.mjs 1h-1j), yoksa Excel ne gösteriyorsa o.
+ok('xlsx', await ev(() => { const t = document.querySelector('#docContent .xlsx-tbl'); return !!t && /Ø300 boru/.test(t.textContent) && /1250,5/.test(t.textContent) && !!document.querySelector('#docTools [data-sheet="0"]'); }), await ev(() => (document.querySelector('#docContent')?.textContent || '').slice(0, 80)));
 await shot('doc_xlsx');
 await ev(() => window.dwgApp.docs.close());
 // ---- XLSX geniş sayfa: iki eksende gezinme, donmuş başlık, yakınlaştırma ----

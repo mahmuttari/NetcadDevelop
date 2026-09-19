@@ -27,6 +27,8 @@ abonelikleri tarayıp en yükseğini bildirir.
 |---|:--:|:--:|:--:|:--:|
 | Reklam gösterilir | ✓ | – | – | – |
 | DWG/DXF/PDF/Word/Excel/ZIP/RAR açma | ✓ | ✓ | ✓ | ✓ |
+| Excel'in bütün biçimleri (xlsx · xlsm · xlsb · xls · ods · 2003 XML · HTML tablosu · CSV) | ✓ | ✓ | ✓ | ✓ |
+| Excel formüllerinin hesaplanması ve sayı biçimleri (504 işlev) | ✓ | ✓ | ✓ | ✓ |
 | Ölçü, katman listesi, arama, GPS, harita altlığı, PNG | ✓ | ✓ | ✓ | ✓ |
 | Ekrandaki görünümü paylaşma (WhatsApp ve sistem paylaşımı) | ✓ | ✓ | ✓ | ✓ |
 | 2B çizim (çizgi, polyline, dikdörtgen, daire, yay, nokta, yazı) | – | – | ✓ | ✓ |

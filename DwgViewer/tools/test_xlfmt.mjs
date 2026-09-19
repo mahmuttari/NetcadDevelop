@@ -90,7 +90,9 @@ es('8n dakika mı ay mı: saniyeden önce DAKİKA', 0.5213773148, 'mm:ss', '30:4
 es('8o geçen süre gün taşmaz', 1.5, '[h]:mm', '36:00');
 es('8p geçen dakika', 0.5, '[mm]', '720');
 ok('8q tarihBicimi ayırt eder', tarihBicimi('dd.mm.yyyy') === true && tarihBicimi('#,##0.00') === false);
-ok('8r yerleşik kimlikler', YERLESIK[14] === 'mm-dd-yy' && TARIH_ID.has(14) && !TARIH_ID.has(4));
+// 14-22 yerele bağlıdır (Excel'in kendi kuralı): İngilizce Excel'de mm-dd-yy, Türkçe Excel'de gün.ay.yıl.
+ok('8r yerleşik kimlikler: 14 Türkçe yerelde gün.ay.yıl', YERLESIK[14] === 'dd.mm.yyyy' && TARIH_ID.has(14) && !TARIH_ID.has(4));
+ok('8s para ve muhasebe yerleşikleri ₺ ile', /₺/.test(YERLESIK[7]) && /₺/.test(YERLESIK[44]) && YERLESIK[41].includes('#,##0'));
 
 console.log('--- 9 · yuvarlama (Excel yarımı SIFIRDAN UZAĞA yuvarlar)');
 es('9a yarım yukarı', 2.5, '0', '3');

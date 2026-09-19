@@ -862,6 +862,8 @@ body.editmode #docContent { touch-action: auto; }
 .new-item small { color: var(--muted); font-size: calc(10.5px * var(--fs)); }
 @media (max-width: 340px) { .new-grid { grid-template-columns: repeat(2, 1fr); } }
 .xlsx-tbl td.num { text-align: right; font-variant-numeric: tabular-nums; }
+/* Hizayı artık sayı biçimi söyler (xlfmt): sayı ve tarih sağa, mantık ve hata ortaya, metin sola. */
+.xlsx-tbl td.ctr { text-align: center; }
 .doc-tabs { padding: 0; border: 0; background: transparent; flex: 1 1 auto; }
 .doc-pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: 12px/1.45 ui-monospace, "Roboto Mono", monospace; color: var(--fg); }
 .doc-body.nowrap .doc-pre { white-space: pre; }

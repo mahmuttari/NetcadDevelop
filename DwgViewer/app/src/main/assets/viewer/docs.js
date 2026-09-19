@@ -1,16 +1,19 @@
 /*
- * CAD dışı belgeler: PDF, Word (.docx ve .doc), Excel (.xlsx), ZIP / RAR arşivleri, resim ve metin.
+ * CAD dışı belgeler: PDF, Word (.docx ve .doc), Excel (bütün biçimler), ZIP / RAR arşivleri, resim ve metin.
  *
  *  - Android'de PDF sayfaları PdfRenderer ile çizilir (/file/pdfpage_<id>_<sayfa>_<genişlik>);
  *    tarayıcıda yerleşik PDF görüntüleyici (embed) kullanılır.
  *  - ZIP: tarayıcıda DecompressionStream'li yerleşik okuyucu, Android'de arcList/arcExtract
  *    (RAR 2/3/4 junrar ile, RAR5 kendi saf Java çözücümüzle — Rar5.java).
- *  - DOCX / XLSX: OOXML → HTML (paragraf, başlık, liste, tablo, resim, köprü; hücre, birleştirilmiş hücre).
+ *  - DOCX: OOXML → HTML (paragraf, başlık, liste, tablo, resim, köprü).
+ *  - Excel: xlbook.js okur ve hesaplar — xlsx / xlsm, xlsb (ikili), xls (BIFF8/5, cfb.js), ods,
+ *    Excel 2003 XML, ".xls" adıyla kaydedilmiş HTML tablosu ve CSV. Biçim uzantıdan değil baytlardan
+ *    tanınır. Değeri olmayan formüller hesaplanır (xlfn.js), sayı biçimi uygulanır (xlfmt.js).
  *  - DOC (Word 97-2003, MS-DOC ikili): doc.js docToHtml aynı HTML şeklini üretir; Word görünümü ortaktır. ".doc" uzantılı
  *    RTF / Word HTML / MHTML / DOCX / düz metin içerik baytlardan tanınır (docalt.js sniffDoc) ve uygun yolla açılır.
  *    Word iki kiple görülür: Sayfa (yazdırma önizleme — belgedeki sayfa boyutu ve kenar boşluklarıyla sayfalanmış) ve Akış.
  *  - Arşivden çıkan DWG/DXF çizim olarak açılır; diğerleri belge görünümünde (iç içe arşiv desteklenir).
- *  - .xls / .ppt / .pptx / .rtf gibi biçimler için Google Drive ile PDF'e dönüştürme önerilir (drive.js).
+ *  - .ppt / .pptx / .rtf / .odt gibi biçimler için Google Drive ile PDF'e dönüştürme önerilir (drive.js).
  */
 import { fmt, store } from './state.js';
 import { t } from './i18n.js';
@@ -22,6 +25,7 @@ import * as PdfEdit from './pdfedit.js';
 import * as DocEdit from './docedit.js';
 import { askText, askConfirm } from './dialog.js';
 import { xlsxBook, csvText } from './newdoc.js';
+import * as XB from './xlbook.js';
 import { skelDoc, skelThumb } from './skel.js';
 
 const $ = (id) => document.getElementById(id);
@@ -32,7 +36,7 @@ let api = null;
 const call = (fn, ...a) => { try { return typeof fn === 'function' ? fn(...a) : undefined; } catch (e) { console.warn(e); return undefined; } };
 
 export const KIND = {
-  cad: ['dwg', 'dxf'], pdf: ['pdf'], docx: ['docx', 'docm', 'dotx'], doc: ['doc', 'dot'], xlsx: ['xlsx', 'xlsm'], office: ['rtf', 'odt', 'xls', 'ods', 'ppt', 'pptx', 'odp'],
+  cad: ['dwg', 'dxf'], pdf: ['pdf'], docx: ['docx', 'docm', 'dotx'], doc: ['doc', 'dot'], xlsx: ['xlsx', 'xlsm', 'xltx', 'xltm', 'xlsb', 'xls', 'xlt', 'xlw', 'ods', 'fods', 'sxc'], office: ['rtf', 'odt', 'ppt', 'pptx', 'odp'],
   zip: ['zip', 'jar', 'kmz', 'cbz'], rar: ['rar', 'cbr'], image: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'], text: ['txt', 'csv', 'json', 'xml', 'md', 'log', 'ini', 'gpx', 'kml', 'prj', 'asc', 'ncn', 'nct', 'gml', 'geojson'],
 };
 export function kindOf(name) {
@@ -260,41 +264,69 @@ function roman(n) { const v = [1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4
 // ---------------------------------------------------------------------------------
 // XLSX → HTML (sayfa sekmeleri + tablo)
 // ---------------------------------------------------------------------------------
-export async function xlsxToHtml(arc) {
-  const wb = parseXml(await arc.read('xl/workbook.xml'));
-  let rels = new Map(); try { rels = relsOf(parseXml(await arc.read('xl/_rels/workbook.xml.rels'))); } catch (_) { /* yok */ }
-  let shared = [];
-  try { const ss = parseXml(await arc.read('xl/sharedStrings.xml')); shared = [...ss.getElementsByTagName('si')].map(si => [...si.getElementsByTagName('t')].map(x => x.textContent).join('')); } catch (_) { /* yok */ }
-  const sheets = [];
-  for (const sh of wb.getElementsByTagName('sheet')) {
-    const rid = sh.getAttributeNS(R_NS, 'id') || sh.getAttribute('r:id'); const r = rels.get(rid); if (!r) continue;
-    const path = 'xl/' + r.target.replace(/^\/?xl\//, '').replace(/^\//, '');
-    try {
-      const doc = parseXml(await arc.read(path));
-      const rows = []; let maxC = 0;
-      for (const row of doc.getElementsByTagName('row')) {
-        const cells = [];
-        for (const c of row.getElementsByTagName('c')) {
-          const ref = c.getAttribute('r') || ''; const col = colIndex(ref.replace(/\d+/g, '')); const tp = c.getAttribute('t'); const v = c.getElementsByTagName('v')[0]; const is = c.getElementsByTagName('is')[0];
-          let val = '';
-          if (tp === 's') val = shared[+(v ? v.textContent : 0)] || ''; else if (tp === 'inlineStr') val = is ? is.textContent : ''; else if (tp === 'b') val = v && v.textContent === '1' ? t('boolTrue') : t('boolFalse'); else if (v) { const n = Number(v.textContent); val = isFinite(n) && v.textContent.trim() !== '' ? fmt(n, 6) : v.textContent; }
-          cells[col] = val; if (col + 1 > maxC) maxC = col + 1;
-        }
-        rows.push(cells);
-      }
-      const merges = [...doc.getElementsByTagName('mergeCell')].map(m => m.getAttribute('ref'));
-      const span = new Map(), skip = new Set();
-      for (const m of merges) { const [a, b] = m.split(':'); if (!b) continue; const ca = colIndex(a.replace(/\d+/g, '')), ra = +a.replace(/\D+/g, '') - 1, cb = colIndex(b.replace(/\d+/g, '')), rb = +b.replace(/\D+/g, '') - 1; span.set(ra + ':' + ca, [rb - ra + 1, cb - ca + 1]); for (let r2 = ra; r2 <= rb; r2++) for (let c2 = ca; c2 <= cb; c2++) if (r2 !== ra || c2 !== ca) skip.add(r2 + ':' + c2); }
-      // html: sayfanın tamamı (uyumluluk); tableHtml(upto): ilk upto satır — büyük sayfalar (on binlerce satır) parça parça basılır
-      const tableHtml = (upto = rows.length) => {
-        let html = '<table class="xlsx-tbl"><tr><th></th>' + Array.from({ length: maxC }, (_, i) => `<th>${colName(i)}</th>`).join('') + '</tr>';
-        const n = Math.min(upto, rows.length);
-        for (let ri = 0; ri < n; ri++) { const cells = rows[ri]; html += `<tr><th>${ri + 1}</th>`; for (let ci = 0; ci < maxC; ci++) { if (skip.has(ri + ':' + ci)) continue; const sp = span.get(ri + ':' + ci); const v = cells[ci] == null ? '' : cells[ci]; html += `<td${sp ? ` rowspan="${sp[0]}" colspan="${sp[1]}"` : ''}${/^[-\d.,]+$/.test(v) ? ' class="num"' : ''}>${esc(v)}</td>`; } html += '</tr>'; }
-        return html + '</table>';
-      };
-      sheets.push({ name: sh.getAttribute('name') || path, get html() { return tableHtml(); }, tableHtml, cells: rows, rows: rows.length, maxC });
-    } catch (e) { sheets.push({ name: sh.getAttribute('name') || path, html: `<div class="muted">${esc(e.message)}</div>`, tableHtml: null, cells: null, rows: 0, maxC: 0 }); }
+/*
+ * ÇALIŞMA KİTABI → basılabilir sayfalar. Okuma, hesap ve biçim xlbook.js'tedir (xlsx, xls,
+ * ods, SpreadsheetML 2003, HTML tablosu, CSV); burada yalnız ekrana basma kalır.
+ *
+ * Kaynak seçimi: ZIP tabanlı biçimlerde (xlsx / ods) arşiv okuyucusu kullanılır — Android
+ * tarafı arşivi kendisi açabildiğinde dosya belleğe hiç alınmaz. Arşiv açılamıyorsa dosya
+ * ZIP değildir (eski .xls, HTML tablosu, CSV…); o zaman baytlardan tanınır.
+ */
+async function kitapAc(d) {
+  let arc = null;
+  try { arc = await arcFor(d); } catch (_) { arc = null; }
+  if (arc) {
+    const b = XB.zipBicimi(arc.entries);
+    if (b === 'xlsx' || b === 'ods' || b === 'xlsb') return XB.kitapOku({ arc, ad: d.name }, { tt });
   }
+  d.arc = null;
+  return XB.kitapOku({ bytes: await bytesOf(d), ad: d.name }, { tt });
+}
+/** Hazırlanmış bir sayfayı HTML tablosuna çevirir (birleştirme, hizalama, biçim rengi) */
+function sayfaGorunum(s) {
+  // s.cells / s.hiza / s.renk TEMBELDİR (bkz. xlbook.hazirla): burada dokunulmaz, yalnız
+  // tablo basılırken okunur. Böylece yirmi sayfalık bir kitapta bakılmayan on dokuz sayfa
+  // hiç hesaplanmaz.
+  const maxC = Math.max(s.sutun, 1);
+  const span = new Map(), skip = new Set();
+  for (const m of s.birlesim || []) {
+    const [a, b] = String(m).split(':'); if (!b) continue;
+    const ra = +a.replace(/\D+/g, '') - 1, ca = colIndex(a.replace(/[\d$]+/g, ''));
+    const rb = +b.replace(/\D+/g, '') - 1, cb = colIndex(b.replace(/[\d$]+/g, ''));
+    if (!(ra >= 0 && ca >= 0 && rb >= ra && cb >= ca)) continue;
+    span.set(ra + ':' + ca, [rb - ra + 1, cb - ca + 1]);
+    for (let r2 = ra; r2 <= rb; r2++) for (let c2 = ca; c2 <= cb; c2++) if (r2 !== ra || c2 !== ca) skip.add(r2 + ':' + c2);
+  }
+  // html: sayfanın tamamı (uyumluluk); tableHtml(upto): ilk upto satır — büyük sayfalar
+  // (on binlerce satır) parça parça basılır, ana iş parçacığı kilitlenmesin.
+  const tableHtml = (upto = s.satir) => {
+    const rows = s.cells, hizalar = s.hiza, renkler = s.renk;
+    let html = '<table class="xlsx-tbl"><tr><th></th>' + Array.from({ length: maxC }, (_, i) => `<th>${colName(i)}</th>`).join('') + '</tr>';
+    const n = Math.min(upto, rows.length);
+    for (let ri = 0; ri < n; ri++) {
+      const cells = rows[ri] || [], hz = hizalar[ri] || '';
+      html += `<tr><th>${ri + 1}</th>`;
+      for (let ci = 0; ci < maxC; ci++) {
+        if (skip.has(ri + ':' + ci)) continue;
+        const sp = span.get(ri + ':' + ci);
+        const v = cells[ci] == null ? '' : cells[ci];
+        const h = hz[ci] === 'r' ? ' class="num"' : hz[ci] === 'c' ? ' class="ctr"' : '';
+        const renk = renkler && renkler.get(ri + ':' + ci);
+        html += `<td${sp ? ` rowspan="${sp[0]}" colspan="${sp[1]}"` : ''}${h}${renk ? ` style="color:${renk}"` : ''}>${esc(v)}</td>`;
+      }
+      html += '</tr>';
+    }
+    return html + '</table>';
+  };
+  return { name: s.ad, get html() { return tableHtml(); }, tableHtml, get cells() { return s.cells; }, get ham() { return s.ham; }, rows: s.satir, maxC };
+}
+/** Belgeyi okuyup basılabilir sayfalara çevirir (eski xlsxToHtml'in yerini alır) */
+export async function xlsxSayfalar(d) {
+  const kitap = await kitapAc(d);
+  const hazir = XB.hazirla(kitap);
+  const sheets = hazir.sayfalar.map(sayfaGorunum);
+  sheets.bicim = hazir.bicim;
+  sheets.uyarilar = hazir.uyarilar;
   return sheets;
 }
 const XLSX_PAGE = 1000;
@@ -621,8 +653,7 @@ function xlsxZoom(f) {
   if (w) { const k = d.zoom / z0; w.scrollLeft = w.scrollLeft * k; w.scrollTop = w.scrollTop * k; }   // bakılan yer ekranda kalsın
 }
 async function showXlsx(d) {
-  const arc = await arcFor(d);
-  const sheets = await xlsxToHtml(arc);
+  const sheets = await xlsxSayfalar(d);
   d.sheets = sheets; d.sheetIdx = Math.min(d.sheetIdx || 0, Math.max(0, sheets.length - 1));   // düzenleyici etkin sayfayı buradan alır
   els.tools.innerHTML = `<div class="tabs doc-tabs">${sheets.map((s, i) => `<button type="button" data-sheet="${i}" class="${i ? '' : 'active'}">${esc(s.name)}</button>`).join('')}</div><span class="sp"></span><button type="button" class="btn small" data-doc="zout" aria-label="−">${ICON('i-zoom-out')}</button><button type="button" class="btn small" data-doc="zfit">${esc(tt('zoom100', '%100'))}</button><button type="button" class="btn small" data-doc="zin" aria-label="+">${ICON('i-zoom-in')}</button>` + editBtn();
   // sayfalı basım: ilk XLSX_PAGE satır, "Daha fazla" ile katlanarak; 60k satırlık tablo ana iş parçacığını kilitlemesin

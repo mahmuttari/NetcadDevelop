@@ -19,12 +19,22 @@
 // ---------------------------------------------------------------------------------
 // Yerleşik biçimler (numFmtId 0-49). Dosya bunları YAZMAZ, numarayla anar.
 // ---------------------------------------------------------------------------------
+/*
+ * 14-22 arası TARİH biçimleri YERELE GÖRE DEĞİŞİR — bu Excel'in kendi davranışıdır, bizim
+ * yorumumuz değil: dosya yalnız "14" numarasını yazar, görünüşü açan bilgisayarın yereli
+ * belirler. Aynı dosya İngilizce Excel'de 09-23-25, Türkçe Excel'de 23.09.2025 gösterir.
+ * Uygulama Türkçe önceliklidir (ay ve gün adları da Türkçedir), bu yüzden gün-ay-yıl ve
+ * nokta ayracı kullanılır. 5-8 (para) ve 41-44 (muhasebe) da yerele bağlıdır; simge ₺'dir.
+ */
 export const YERLESIK = {
   0: 'General', 1: '0', 2: '0.00', 3: '#,##0', 4: '#,##0.00',
+  5: '"₺"#,##0;-"₺"#,##0', 6: '"₺"#,##0;[Red]-"₺"#,##0', 7: '"₺"#,##0.00;-"₺"#,##0.00', 8: '"₺"#,##0.00;[Red]-"₺"#,##0.00',
   9: '0%', 10: '0.00%', 11: '0.00E+00', 12: '# ?/?', 13: '# ??/??',
-  14: 'mm-dd-yy', 15: 'd-mmm-yy', 16: 'd-mmm', 17: 'mmm-yy', 18: 'h:mm AM/PM',
-  19: 'h:mm:ss AM/PM', 20: 'h:mm', 21: 'h:mm:ss', 22: 'm/d/yy h:mm',
+  14: 'dd.mm.yyyy', 15: 'd-mmm-yy', 16: 'd-mmm', 17: 'mmm-yy', 18: 'h:mm AM/PM',
+  19: 'h:mm:ss AM/PM', 20: 'h:mm', 21: 'h:mm:ss', 22: 'dd.mm.yyyy h:mm',
   37: '#,##0 ;(#,##0)', 38: '#,##0 ;[Red](#,##0)', 39: '#,##0.00;(#,##0.00)', 40: '#,##0.00;[Red](#,##0.00)',
+  41: '_-* #,##0_-;-* #,##0_-;_-* "-"_-;_-@_-', 42: '_-"₺"* #,##0_-;-"₺"* #,##0_-;_-"₺"* "-"_-;_-@_-',
+  43: '_-* #,##0.00_-;-* #,##0.00_-;_-* "-"??_-;_-@_-', 44: '_-"₺"* #,##0.00_-;-"₺"* #,##0.00_-;_-"₺"* "-"??_-;_-@_-',
   45: 'mm:ss', 46: '[h]:mm:ss', 47: 'mmss.0', 48: '##0.0E+0', 49: '@',
 };
 /** Tarih sayılan yerleşik biçimler: hücrenin tarih mi sayı mı olduğu buradan da anlaşılır */
@@ -40,10 +50,19 @@ const GUN_UZUN = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cum
 // Kod ayrıştırma
 // ---------------------------------------------------------------------------------
 /*
+ * Ayrıştırma sonucu KOD METNİNİN saf işlevidir, değerin değil: aynı kod bir sütundaki
+ * 60.000 hücrenin hepsinde yeniden çözülürse iş 60.000 katına çıkar. Bir tabloda ayrı
+ * biçim kodu sayısı onlarla ölçülür, bu yüzden bellek küçüktür ve kazanç büyüktür.
+ * Dönen nesneler okunur, değiştirilmez.
+ */
+const BOLUM_BELLEK = new Map();
+const IM_BELLEK = new Map();
+/*
  * Bölümler ';' ile ayrılır ama tırnak içindeki ve '\' ile kaçırılmış ';' ayraç DEĞİLDİR;
  * köşeli parantez içindekiler de ([$-41F] gibi) dokunulmaz. Kaba bir split() bu yüzden yanlıştır.
  */
 export function bolumler(kod) {
+  const c0 = BOLUM_BELLEK.get(kod); if (c0) return c0;
   const o = []; let cur = '', tirnak = false, kose = false;
   for (let i = 0; i < kod.length; i++) {
     const c = kod[i];
@@ -55,7 +74,7 @@ export function bolumler(kod) {
     cur += c;
   }
   o.push(cur);
-  return o;
+  const _r = o; BOLUM_BELLEK.set(kod, _r); return _r;
 }
 /*
  * Bir bölümün başındaki [Red] · [>=100] · [$₺-41F] · [h] imlerini ayırır.
@@ -63,6 +82,7 @@ export function bolumler(kod) {
  * bir im değil, basılacak metnin kendisidir — regex onu yutup metin bölümünü boşaltıyordu.
  */
 function imleriAyir(b) {
+  const c0 = IM_BELLEK.get(b); if (c0) return c0;
   let renk = null, kosul = null, para = '', gecen = false, govde = '', tirnak = false;
   for (let i = 0; i < b.length; i++) {
     const c = b[i];
@@ -80,7 +100,7 @@ function imleriAyir(b) {
     if (d.startsWith('$')) { const pp = d.slice(1).split('-')[0]; para += pp; if (pp) govde += '\u0001'; continue; }
     if (/^h+$|^m+$|^s+$/i.test(d)) { gecen = true; govde += '\u0002' + dl; continue; }
   }
-  return { govde, renk, kosul, para, gecen };
+  const _r = { govde, renk, kosul, para, gecen }; IM_BELLEK.set(b, _r); return _r;
 }
 /** Bölüm tarih/saat mi, sayı mı? Kaçırılmamış tarih imi varsa tarihtir. */
 function tarihMi(g) {

@@ -62,6 +62,7 @@ export default {
   uploadCurrent: '上传当前文件', uploadDxf: '上传已编辑的 DXF', uploadPng: '把视图作为 PNG 上传', uploadPick: '从设备选择文件并上传', uploadTarget: '目标', uploadHere: '上传到这里', pickFolderHere: '上传到此文件夹', pickFolderFor: '上传目标文件夹', folderName: '文件夹名称：', folderCreated: '文件夹已创建', driveFile: '云端硬盘文件', confirmDelete: '要删除吗？', deleted: '已删除', shortcut: '快捷方式', shortcutNo: '无法打开快捷方式；请选择目标文件。', shared: '共享',
   converting: '正在转换为 PDF', convertFail: '转换失败', drivePdf: '通过云端硬盘转换为 PDF',
   docFail: '无法打开文档', docOffice: 'Office 文档', docImage: '图像', docText: '文本', docOpenWith: '用其他应用打开', share: '分享', docKeep: '离线保存', docKept: '已保存离线副本（打开文件 › 离线）', docKeepFail: '复制失败', docEmpty: '空文档', docUnknown: '无法识别的文件类型。',
+  xlUnknown: '无法识别的 Excel 文件', xlEncrypted: '此 Excel 文件受密码保护，无法打开其内容', xlNoSheet: '未找到工作表', xlNotExcel: '此文件不是 Excel 工作簿', xlNoData: '没有 Excel 数据',
   docOfficeMsg: '此格式无法直接显示。如果已登录 Google 云端硬盘，可转换为 PDF；否则请发送到其他应用。', prevPage: '上一页', nextPage: '下一页', fitWidth: '适应', docLayoutPage: '页面视图', docLayoutFlow: '流式视图', docPage: '页', docFlow: '流式', files: '个文件', extracting: '正在解压', wrap: '自动换行', lines: '行', backToArchive: '返回压缩包',
   resumeTitle: '从上次中断处继续', resumeOpen: '返回图纸', resumeKeep: '启动时重新打开上次的文件',
   resumeReopen: '重新打开', resumeAuto: '启动时自动打开上次的文件',

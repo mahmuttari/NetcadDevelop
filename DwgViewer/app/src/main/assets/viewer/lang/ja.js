@@ -62,6 +62,7 @@ export default {
   uploadCurrent: '現在のファイルをアップロード', uploadDxf: '編集した DXF をアップロード', uploadPng: 'ビューを PNG でアップロード', uploadPick: '端末のファイルを選んでアップロード', uploadTarget: 'アップロード先', uploadHere: 'ここにアップロード', pickFolderHere: 'このフォルダにアップロード', pickFolderFor: 'アップロード先フォルダ', folderName: 'フォルダ名：', folderCreated: 'フォルダを作成しました', driveFile: 'ドライブのファイル', confirmDelete: '削除しますか？', deleted: '削除しました', shortcut: 'ショートカット', shortcutNo: 'ショートカットは開けません。対象のファイルを選んでください。', shared: '共有',
   converting: 'PDF に変換中', convertFail: '変換できませんでした', drivePdf: 'ドライブで PDF に変換',
   docFail: 'ドキュメントを開けませんでした', docOffice: 'Office ドキュメント', docImage: '画像', docText: 'テキスト', docOpenWith: '別のアプリで開く', share: '共有', docKeep: 'オフラインで保存', docKept: 'オフラインコピーを保存しました（ファイルを開く › オフライン）', docKeepFail: 'コピーできませんでした', docEmpty: '空のドキュメント', docUnknown: '認識できないファイル形式です。',
+  xlUnknown: 'Excel ファイルとして認識できません', xlEncrypted: 'この Excel ファイルはパスワードで保護されており、内容を開けません', xlNoSheet: 'ワークシートが見つかりません', xlNotExcel: 'このファイルは Excel ブックではありません', xlNoData: 'Excel データがありません',
   docOfficeMsg: 'この形式は直接表示できません。Google ドライブにログインしていれば PDF に変換して開けます。そうでなければ別のアプリに送ってください。', prevPage: '前のページ', nextPage: '次のページ', fitWidth: '合わせる', docLayoutPage: 'ページ表示', docLayoutFlow: '連続表示', docPage: 'ページ', docFlow: '連続', files: '個のファイル', extracting: '展開中', wrap: '折り返し', lines: '行', backToArchive: '書庫に戻る',
   resumeTitle: '前回の続きから', resumeOpen: '図面に戻る', resumeKeep: '起動時に最後のファイルを再度開く',
   resumeReopen: '開き直す', resumeAuto: '起動時に最後のファイルを自動で開く',
