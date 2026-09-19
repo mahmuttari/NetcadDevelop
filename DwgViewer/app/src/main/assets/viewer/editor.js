@@ -48,7 +48,7 @@ const ed = { is3D: () => !!(v3 && !$('cv3d').hidden), tools: null, doc: null, cu
 // ---------------------------------------------------------------------------------
 // Kullanım tercihleri (ui) — kalıcı anahtar 'ui'
 // ---------------------------------------------------------------------------------
-const UI_DEFAULTS = { favs: [], tbCollapsed: { portrait: false, landscape: false }, hints: {}, fontScale: 1, glove: false, leftHand: false, contrast: false, reduceMotion: false, haptics: true, dpad: false, compactStatus: false, denseBars: true, free3: false, showLocked: true, gizmo: true, infoTap: true, infoFull: false, pick3: 'auto', snap3: true, snap3Modes: DEFAULT_MODES3.slice(), grips: false, palmReject: true, penHover: true, penPressure: true, penDraw: false, penBarrel: 'menu', cmdLine: true, desktop: true, deskRight: 'enter' };
+const UI_DEFAULTS = { favs: [], tbCollapsed: { portrait: false, landscape: false }, hints: {}, fontScale: 1, glove: false, leftHand: false, contrast: false, reduceMotion: false, haptics: true, dpad: false, compactStatus: false, denseBars: true, free3: false, snapPick: true, showLocked: true, gizmo: true, infoTap: true, infoFull: false, pick3: 'auto', snap3: true, snap3Modes: DEFAULT_MODES3.slice(), grips: false, palmReject: true, penHover: true, penPressure: true, penDraw: false, penBarrel: 'menu', cmdLine: true, desktop: true, deskRight: 'enter' };
 export const ui = (() => {
   const o = JSON.parse(JSON.stringify(UI_DEFAULTS));
   const st = store.json('ui', null);
@@ -3253,7 +3253,7 @@ export function accessibilitySection() {
   const html = `<div class="opt-sec a11y-sec full"><div class="opt-title">${esc(t('a11yTitle'))}</div>` +
     `<div class="opt-row"><span class="opt-lb">${esc(t('fontScale'))}</span><div class="seg" data-key="fontScale">${[[0.9, 'A−'], [1, 'A'], [1.15, 'A+'], [1.3, 'A++']].map(([v, l]) => `<button type="button" data-val="${v}" class="${Math.abs(ui.fontScale - v) < 0.01 ? 'on' : ''}">${l}</button>`).join('')}</div></div>` +
     sw('glove', t('glove')) + sw('leftHand', t('leftHand')) + sw('contrast', t('contrast')) + sw('reduceMotion', t('reduceMotion')) + sw('haptics', t('haptics')) + sw('dpad', t('dpad')) + sw('compactStatus', t('compactStatus')) + sw('denseBars', t('denseBars')) +
-    sw('gizmo', t('gizmoOn')) + sw('grips', t('gripsOn')) + sw('cmdLine', t('cmdLineOn')) + sw('infoTap', t('infoTap')) +
+    sw('gizmo', t('gizmoOn')) + sw('grips', t('gripsOn')) + sw('snapPick', t('osPick')) + sw('cmdLine', t('cmdLineOn')) + sw('infoTap', t('infoTap')) +
     (rank(tier()) < rank('super') ? sw('showLocked', t('showLocked')) : '') +
     `<div class="opt-row"><button type="button" class="btn small" data-do="hints">${esc(t('hintsReset'))}</button></div></div>` + penSection();
   return { html, bind(root) {

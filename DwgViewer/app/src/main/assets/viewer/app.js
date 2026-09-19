@@ -3,7 +3,7 @@
  * Çözümleme worker.js'te, geometri geom.js'te, çizim render.js'te.
  */
 import { S, toWorld, toScreen, fitView, zoomAtScreen, visibleRect, UNITS, UNIT_TO_M, fmt, fmtUnit, store, clampPrec, PREC_MIN, PREC_MAX } from './state.js';
-import { RTree, snapPoint, primDist, flatten, pathLength, pathLength3, polyArea, meshMetrics, TAU, segmentsOf, segIntersect } from './geom.js';
+import { RTree, snapPoint, snapCandidates, primDist, flatten, pathLength, pathLength3, polyArea, meshMetrics, TAU, segmentsOf, segIntersect } from './geom.js';
 import { FG, ACI, primSignature } from './scene.js';
 import { drawFrame, rgbCss, bgColor, fgColor, tracePath, renderRegion, gridState, niceStep, worldTransform as renderWorldTransform, worldOrigin } from './render.js';
 import * as D from './display.js';
@@ -320,6 +320,7 @@ function drawOverlay() {
     else strokeWorldRect(c, p.bb);
     c.restore(); c.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);
   }
+  drawSnapPick(c);
   if (notes.items.length || noteDraft) drawNotes(c, toScreen, S.view.scale, selectedNote && selectedNote.id, noteDraft, photos);
   if (S.mode === 'measure' || S.mode === 'profile') {
     const pts = S.measure.map(p => toScreen(p[0], p[1]));
@@ -888,7 +889,14 @@ function dropTouches(ids) {
 
 vp.addEventListener('pointerdown', (ev) => {
   if (!S.hasDoc) return;
-  if (ev.target.closest && ev.target.closest('.notesbar, .fab, .home, .cmdbar, .hud, .docview')) return; // görüntü alanı içindeki düğmeler
+  if (ev.target.closest && ev.target.closest('.notesbar, .fab, .home, .cmdbar, .hud, .docview, .snappick')) return; // görüntü alanı içindeki düğmeler
+  if (snapPickOpen()) closeSnapPick();   // tuvale dokunmak açık aday seçicisini kapatır (nokta işlenmez)
+  /*
+   * Seçiciden gelen zorlanmış nokta doSnap'ta TÜKETİLİR. Tüketilmediği bir yol kalırsa (araç
+   * o dokunuşu nokta saymadıysa) sonraki dokunuşu kaçırırdı; yeni bir işaretçi inişinde
+   * kesinlikle temizlenir.
+   */
+  S.snapForce = null;
   // AVUÇ REDDİ — kalem ekrana değdiği sürece dokunuş dinlenmez. El kenarı kalemden önce de
   // sonra da inebildiği için iki yön de kapatılır; karar stylus.js'te, uygulaması burada.
   palm.enabled = palmOn();
@@ -968,11 +976,17 @@ vp.addEventListener('pointerdown', (ev) => {
       // Parmakla nişan alma: araç ya da ölçü çalışırken (menünün olmadığı yerde) uzun basış imleci parmağa bağlar
       const canAim = !canLong && !navOnly && ev.pointerType === 'touch' && ((editor.tools && editor.tools.running) || S.mode === 'measure' || S.mode === 'profile') && !S.notesOn && !editor.is3D();
       if (canLong) longTimer = setTimeout(() => { longTimer = 0; if (gesture && gesture.type === 'pan' && !gesture.moved && pointers.size === 1) { gesture.longFired = true; haptic('long'); longPressMenu(sx, sy); } }, TOL.long);
-      else if (canAim) longTimer = setTimeout(() => { longTimer = 0; if (gesture && gesture.type === 'pan' && !gesture.moved && pointers.size === 1) { gesture = { type: 'aim' }; haptic('long'); aimMove(sx, sy); } }, TOL.long);
+      else if (canAim) longTimer = setTimeout(() => { longTimer = 0; if (gesture && gesture.type === 'pan' && !gesture.moved && pointers.size === 1) { gesture = { type: 'aim', id: [...pointers.keys()][0], ofs: aimOfs0(sy), fx: sx, fy: sy }; haptic('long'); aimMove(sx, sy); } }, TOL.long);
     }
   } else if (arr.length === 2) {
     noteDraft = null; clearLong();
-    if (penHover && penHover.aim) penClearHover();   // nişan alırken ikinci parmak: yakınlaştırmaya geçilir, imleç bırakılır
+    /*
+     * NİŞANDA İKİNCİ PARMAK = İNCE AYAR (v7.87). Eskiden ikinci parmak nişanı iptal edip
+     * yakınlaştırmaya geçiyordu. Oysa parmakla en zor iş ince ayardır: ikinci parmak artık
+     * imleci 1/5 duyarlılıkla kaydırır, jest nişan olarak sürer.
+     */
+    if (gesture && gesture.type === 'aim') { gesture.fine = { id: ev.pointerId, x: ev.clientX, y: ev.clientY }; S.gestureActive = true; return; }
+    if (penHover && penHover.aim) penClearHover();   // nişan dışında: yakınlaştırmaya geçilir, imleç bırakılır
     const d = Math.hypot(arr[0].x - arr[1].x, arr[0].y - arr[1].y);
     const r = vp.getBoundingClientRect();
     gesture = { type: 'pinch', d0: d, mid0: [(arr[0].x + arr[1].x) / 2 - r.left, (arr[0].y + arr[1].y) / 2 - r.top], view: { ...S.view }, moved: true, t0: performance.now(), start: arr.map(p => ({ x: p.x, y: p.y })), maxMove: 0 };
@@ -996,7 +1010,15 @@ vp.addEventListener('pointermove', (ev) => {
   if (gesture.type === 'gizmo') {
     edCall('gizmoMove', sx, sy);
   } else if (gesture.type === 'aim') {
-    aimMove(sx, sy);   // parmak imleci sürükler; kaydırma yok
+    if (gesture.fine && ev.pointerId === gesture.fine.id) {
+      const k = 0.2;   // 1/5 duyarlılık: 50 px parmak hareketi imleci 10 px kaydırır
+      gesture.ofs = [gesture.ofs[0] + (ev.clientX - gesture.fine.x) * k, gesture.ofs[1] + (ev.clientY - gesture.fine.y) * k];
+      gesture.fine.x = ev.clientX; gesture.fine.y = ev.clientY;
+      aimMove(gesture.fx, gesture.fy);
+      return;
+    }
+    if (gesture.id != null && ev.pointerId !== gesture.id) return;   // ince ayar parmağı dışındaki üçüncü işaretçi imleci kaçırmasın
+    aimMove(sx, sy);   // birincil parmak imleci sürükler; kaydırma yok
   } else if (gesture.type === 'erase') {
     gesture.sx = sx; gesture.sy = sy;   // silgi sürüklenebilir: bırakışta son noktadaki nesne silinir
   } else if (gesture.type === 'note' && noteDraft) {
@@ -1057,8 +1079,93 @@ function penHoverMove(sx, sy, ev) {
  * parmağa bağlar: imleç parmağın altında, büyüteç üstünde gider, bırakınca dokunuş imlecin durduğu
  * yere işlenir. Gezinen kalem ucuyla aynı imleç ve aynı yakalama yolu kullanılır (penHover.aim).
  */
-function aimMove(sx, sy) {
-  penHover = { sx, sy, tilt: null, snap: penHover ? penHover.snap : null, w: null, aim: true };
+/*
+ * YAKALAMA ADAY SEÇİCİ (v7.87).
+ *
+ * NEDEN VAR: parmakla çizerken kullanıcı hedefi piksel piksel bulamaz. Ama yakalama noktaları
+ * AYRIK ve azdır — doğru çözüm hassasiyet istemek değil, açıklık içindeki adayları LİSTELEYİP
+ * seçtirmektir (AutoCAD'in TAB ile aday değiştirmesinin dokunmatik karşılığı).
+ *
+ * NE ZAMAN ÇIKAR: yalnız uzun basışla NİŞAN alındıktan sonra, parmak kalkınca ve açıklıkta
+ * BİRDEN ÇOK aday varsa. Tek aday varsa (ya da hiç yoksa) akış eskisi gibidir, nokta hemen
+ * işlenir: ek adım tam da belirsizlik olduğunda çıkar, başka hiçbir zaman.
+ *
+ * Çiplerdeki numaralar tuvale çizilen işaretlerin numaralarıyla aynıdır; kullanıcı hangi çipin
+ * hangi noktaya karşılık geldiğini renkten değil sayıdan okur (renk körlüğüne de dayanıklı).
+ */
+let snapPick = null;   // { list, i, sx, sy }
+function snapPickOpen() { return !!snapPick; }
+function closeSnapPick(cizim = true) {
+  if (!snapPick) return;
+  snapPick = null; S.snapForce = null;
+  const el = $('snapPick'); if (el) { el.hidden = true; el.innerHTML = ''; }
+  if (cizim) drawOverlay();
+}
+function openSnapPick(cx, cy, list) {
+  const el = $('snapPick'); if (!el || !list || list.length < 2) return false;
+  snapPick = { list, i: 0, sx: cx, sy: cy };
+  el.innerHTML = list.map((c, i) => `<button type="button" data-sp="${i}" class="${i === 0 ? 'on' : ''}" title="${esc(Osnap.nameOf(c.kind))}">`
+    + `<span class="no">${i + 1}</span>${Osnap.markerSvg(c.kind)}<span>${esc(Osnap.nameOf(c.kind))}</span></button>`).join('')
+    + `<button type="button" data-sp="x" class="x" title="${esc(t('close'))}" aria-label="${esc(t('close'))}">✕</button>`;
+  el.hidden = false;
+  // Yerleşim: imlecin ALTINA, ekranın alt yarısındaysa ÜSTÜNE — seçici adayları örtmesin.
+  const gw = el.offsetWidth || 240, gh = el.offsetHeight || 52;
+  const x = Math.max(8, Math.min(S.W - gw - 8, cx - gw / 2));
+  const y = cy < S.H * 0.55 ? Math.min(S.H - gh - 8, cy + 46) : Math.max(8, cy - gh - 46);
+  el.style.left = x + 'px'; el.style.top = y + 'px';
+  drawOverlay();
+  return true;
+}
+/** Çipe dokunuldu: o nokta KESİN olarak işlenir (doSnap yeniden aramaz) */
+function pickSnapCand(i) {
+  const sp = snapPick; if (!sp) return;
+  const c = sp.list[i]; if (!c) { closeSnapPick(); return; }
+  const s = toScreen(c.p[0], c.p[1]);
+  snapPick = null;
+  const el = $('snapPick'); if (el) { el.hidden = true; el.innerHTML = ''; }
+  S.snapForce = { p: c.p.slice(), kind: c.kind };
+  lastTap = 0; lastTapPos = null;
+  void onTap(s[0], s[1]);
+}
+{ const el = $('snapPick'); if (el) el.addEventListener('click', (ev) => { const b = ev.target.closest('[data-sp]'); if (!b) return; const v = b.dataset.sp; if (v === 'x') closeSnapPick(); else pickSnapCand(+v); }); }
+/** Seçici açıkken adayların hepsi numaralı işaretle çizilir; seçili olan vurgulu */
+function drawSnapPick(c) {
+  const sp = snapPick; if (!sp) return;
+  // Araç bitti ya da iptal edildi: artık nokta istenmiyorsa seçici ekranda ASILI KALMAZ.
+  // closeSnapPick(false): burası zaten çizim içidir, yeniden çizim istenmez (özyineleme olurdu).
+  if (!pointPrompt()) { closeSnapPick(false); return; }
+  c.save();
+  c.font = `bold ${Math.round(11 * (uiPrefs().fontScale || 1))}px sans-serif`;
+  c.textBaseline = 'middle'; c.textAlign = 'center';
+  sp.list.forEach((q, i) => {
+    const s = toScreen(q.p[0], q.p[1]);
+    const secili = i === sp.i;
+    c.globalAlpha = secili ? 1 : 0.75;
+    c.strokeStyle = '#3ddc84'; c.fillStyle = '#3ddc84'; c.lineWidth = secili ? 2.4 : 1.6;
+    c.setLineDash([]);
+    Osnap.drawMarker(c, s[0], s[1], q.kind, secili ? 10 : 8);
+    // numara: işaretin sağ üstünde, koyu zemin üzerinde okunur
+    const r = 8, nx = s[0] + 14, ny = s[1] - 14;
+    c.beginPath(); c.arc(nx, ny, r, 0, TAU); c.fill();
+    c.fillStyle = '#0b1020'; c.fillText(String(i + 1), nx, ny + 0.5);
+  });
+  c.restore();
+}
+const SUREKLI_KIP = new Set(['nea', 'ext', 'par']);   // nesnenin her yerinde bulunan aileler: aday seçiciye girmez
+const AIM_OFS = 56;   // imlecin parmaktan yukarı ofseti (px): parmak hedefi örtmesin
+/** Başlangıç ofseti: ekranın tepesine yakınsa aşağı çevrilir, yoksa imleç kadraj dışına düşerdi */
+function aimOfs0(fy) { const d = uiPrefs().aimOffset == null ? AIM_OFS : +uiPrefs().aimOffset || 0; return [0, fy - d < 12 ? d : -d]; }
+/*
+ * PARMAKLA NİŞAN (v7.87). İmleç artık parmağın TAM ALTINDA değil, ofset kadar uzağındadır:
+ * parmak hedefi örtmez, nereye düşeceği doğrudan görülür. Ofset jestte tutulur; ikinci parmak
+ * onu 1/5 duyarlılıkla değiştirerek ince ayar yapar ve ayar parmak kalkınca da korunur.
+ */
+function aimMove(fx, fy) {
+  const g = gesture && gesture.type === 'aim' ? gesture : null;
+  const ofs = g && g.ofs ? g.ofs : [0, 0];
+  if (g) { g.fx = fx; g.fy = fy; }
+  const cx = Math.max(4, Math.min(S.W - 4, fx + ofs[0])), cy = Math.max(4, Math.min(S.H - 4, fy + ofs[1]));
+  penHover = { sx: cx, sy: cy, fx, fy, tilt: null, snap: penHover ? penHover.snap : null, w: null, aim: true };
   hoverTick();
 }
 function hoverTick() {
@@ -1144,9 +1251,27 @@ function endPointer(ev) {
     noteDraft = null; gesture = null; S.gestureActive = false; drawOverlay(); return;
   }
   if (gesture && gesture.type === 'aim') {
+    // İnce ayar parmağı kalktı: nişan SÜRER ve ayar korunur; nokta yalnız birincil parmak kalkınca işlenir.
+    if (gesture.fine && ev.pointerId === gesture.fine.id) { gesture.fine = null; return; }
     const h = penHover; gesture = null; S.gestureActive = false;
     penClearHover();
-    if (ev.type === 'pointerup' && h) { lastTap = 0; lastTapPos = null; void onTap(h.sx, h.sy); }   // iptalde (pointercancel) dokunuş yok
+    if (ev.type === 'pointerup' && h) {   // iptalde (pointercancel) dokunuş yok
+      /*
+       * Açıklıkta BİRDEN ÇOK aday varsa nokta hemen işlenmez: seçici donar ve kullanıcı çipe
+       * dokunarak seçer. Tek aday varsa (ya da seçici kapalıysa) akış eskisi gibidir — ek adım
+       * yalnız belirsizlik olduğunda çıkar.
+       */
+      /*
+       * SÜREKLİ AİLELER SEÇİCİYE GİRMEZ. EN YAKIN, UZANTI ve PARALEL bir "nokta" değil, bir
+       * nesnenin HER yerinde bulunan bir ailedir; listeye alınsalardı seçici neredeyse her
+       * dokunuşta açılır ve ek adım bir kazanç değil engel olurdu. Seçici yalnız AYRIK nitelik
+       * noktaları (uç, orta, merkez, kesişim, düğüm, çeyrek…) birden çoksa çıkar.
+       */
+      const adaylar = uiPrefs().snapPick === false ? []
+        : findSnapList(toWorld(h.sx, h.sy), { prev: edCall('lastToolPoint'), max: 6 }).filter(c => !SUREKLI_KIP.has(c.kind));
+      if (adaylar.length >= 2 && openSnapPick(h.sx, h.sy, adaylar)) { if (pointers.size === 0) { gestureView0 = null; requestRender(); } return; }
+      lastTap = 0; lastTapPos = null; void onTap(h.sx, h.sy);
+    }
     if (pointers.size === 0) { gestureView0 = null; requestRender(); }
     return;
   }
@@ -1269,7 +1394,12 @@ function pointPrompt() {
   if (S.mode === 'measure' || S.mode === 'profile') return true;
   return !!(editor.tools && editor.tools.running) && !pickingObject();
 }
-function findSnap(w, o = {}) {
+/*
+ * findSnap ile findSnapList'in ORTAK hazırlığı: yakalama kapısı, açıklık, kipler, taban nokta ve
+ * aday ilkeller. İki yol aynı kuralla çalışmalı — kapı iki kopyaya bölünürse zamanla ayrışır.
+ * null dönerse yakalama hiç aranmaz.
+ */
+function snapSetup(w, o = {}) {
   // AutoCAD'de yakalama YALNIZ nokta isteminde çalışır: "Select objects:" isteminde işaret çıkmaz,
   // imleç pickbox olur. Tutamak (grip) sürüklemesi nokta işidir; o muaftır ({ grip: true }).
   if (!o.grip && pickingObject()) return null;
@@ -1286,6 +1416,21 @@ function findSnap(w, o = {}) {
   let cands = candidates(w, tol);
   if (opt.ignoreHatch) cands = cands.filter(p => !(p.info && p.info.t === 'HATCH'));
   if (o.skip) { const sk = o.skip instanceof Set ? o.skip : new Set(Array.isArray(o.skip) ? o.skip : [o.skip]); cands = cands.filter(p => !sk.has(p)); }   // sürüklenen nesne(ler): kendi eski köşesine yapışmasın (çoklu seçimde çakışan köşeyi taşıyan bütün yollar)
+  return { opt, tol, modes, prev, cands };
+}
+/*
+ * YAKALAMA ADAY LİSTESİ (v7.87). Parmakla nişan alırken tek "en iyi" nokta yetmez: kullanıcı
+ * hedefi piksel piksel bulamaz ama açıklık içindeki adaylar ayrık ve azdır. Liste, seçicide
+ * çip olarak gösterilir. Açıklık burada biraz geniş tutulur (tolK) — kaba dokunuşun altındaki
+ * bütün anlamlı noktalar listeye girsin.
+ */
+function findSnapList(w, o = {}) {
+  const st = snapSetup(w, o); if (!st || !st.modes.size) return [];
+  return snapCandidates(st.cands, w, st.tol, st.modes, st.prev, { max: o.max || 6 });
+}
+function findSnap(w, o = {}) {
+  const st = snapSetup(w, o); if (!st) return null;
+  const { opt, tol, modes, prev, cands } = st;
   let sn = null;
   if (modes.size) {
     const wide = modes.has('par') && prev ? candidates(w, tol * 40).filter(p => p.k === 0).slice(0, 300) : null;
@@ -1314,6 +1459,12 @@ function doSnap(w, o = {}) {
     else S.lastPoint = [w[0], w[1]];
     return sn;
   };
+  /*
+   * SEÇİCİDEN GELEN NOKTA (v7.87). Kullanıcı aday çip sırasından bir nokta seçtiyse o nokta
+   * kesindir ve yeniden ARANMAZ: aynı piksele düşen daha öncelikli bir kip (ör. UÇ, EN YAKIN'ı)
+   * onu ezerdi ve kullanıcı seçtiğinden başka bir noktaya oturmuş olurdu.
+   */
+  if (S.snapForce) { const f = S.snapForce; S.snapForce = null; return bitir({ p: f.p.slice(), kind: f.kind }); }
   if (!once) return bitir(findSnap(w, o));
   if (once === 'non') { Osnap.clearOnce(); showSnapChip('NON'); S.lastPoint = [w[0], w[1]]; return null; }
   if (once === 'm2p') {

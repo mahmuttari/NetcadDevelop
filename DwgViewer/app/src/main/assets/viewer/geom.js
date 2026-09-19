@@ -876,12 +876,54 @@ function zOn(s, x, y) {
   const t = l2 ? ((x - s[0]) * dx + (y - s[1]) * dy) / l2 : 0;
   return s[4] + t * (s[5] - s[4]);
 }
+/*
+ * YAKALAMA ADAYLARI (v7.87). snapPoint tek "en iyi" noktayı döndürür; bu yeterli değildir:
+ * parmakla çizerken kullanıcı hedefi piksel piksel bulamaz, ama açıklık içindeki adaylar
+ * AYRIK ve azdır — doğru çözüm listeyi gösterip seçtirmektir (AutoCAD'in TAB ile aday
+ * değiştirmesinin dokunmatik karşılığı).
+ *
+ * Gezinme snapPoint'ten gelir, kopyalanmaz. Dönen liste:
+ *   [{ p:[x,y,z], kind, d, prim }]  — uzaklığa göre sıralı, aynı nokta+kip bir kez.
+ * Sıralamada kipe küçük bir ağırlık verilir: eşit uzaklıkta UÇ, ORTA'nın önüne geçsin.
+ */
+export function snapCandidates(prims, w, tol, modes, prev, opt = {}) {
+  const enCok = opt.max == null ? 6 : opt.max;
+  const gorulen = new Map();
+  const yuvarla = (v) => Math.round(v / (tol * 1e-3 || 1e-9));
+  snapPoint(prims, w, tol, modes, prev, {
+    ...opt,
+    onCand: (x, y, kind, z, d, prim) => {
+      /*
+       * Ayıklama KOORDİNATA göredir, kipe göre değil: kullanıcı bir NOKTA seçiyor. Aynı piksele
+       * düşen UÇ ile KESİŞİM iki ayrı çip olarak gösterilseydi seçici gereksiz kalabalık olurdu;
+       * o noktanın en güçlü kipi (PRI) kazanır.
+       */
+      const anahtar = yuvarla(x) + ':' + yuvarla(y);
+      const skor = d + PRI[kind] * tol * 0.1;
+      const eski = gorulen.get(anahtar);
+      if (eski && eski.skor <= skor) return;
+      gorulen.set(anahtar, { p: [x, y, z], kind, d, skor, prim: prim || null });
+    },
+  });
+  const liste = [...gorulen.values()];
+  liste.sort((a, b) => a.skor - b.skor);
+  return liste.slice(0, enCok);
+}
+
 export function snapPoint(prims, w, tol, modes, prev, opt = {}) {
   let best = null, bd = tol;
   const has = (m) => modes.has(m);
+  /*
+   * opt.onCand: aday TOPLAYICI. snapPoint tek "en iyi" noktayı döndürür; dokunmatikte ise
+   * açıklık içindeki BÜTÜN adayları kullanıcıya listelemek gerekir (v7.87 yakalama aparatı).
+   * Gezinme kopyalanmaz — aynı test() hem en iyiyi seçer hem isteyene her adayı bildirir.
+   */
+  let curPrim = null;
   const test = (x, y, kind, z) => {
     if (!(isFinite(x) && isFinite(y))) return;
-    const d = Math.hypot(x - w[0], y - w[1]) + PRI[kind] * tol * 0.5;
+    const ham = Math.hypot(x - w[0], y - w[1]);
+    if (opt.onCand && ham <= tol) opt.onCand(x, y, kind, z, ham, curPrim);
+    const d = ham + PRI[kind] * tol * 0.5;
     if (d < bd) { bd = d; best = { p: [x, y, z], kind }; }
   };
   const allSegs = [], allArcs = [];
@@ -924,6 +966,7 @@ export function snapPoint(prims, w, tol, modes, prev, opt = {}) {
     if (wantX && allArcs.length < 200) allArcs.push(a);
   };
   for (const p of prims) {
+    curPrim = p;
     if (p.k === 2) { if (has('node') || has('end')) test(p.x, p.y, 'node', p.z); continue; }
     if (p.k === 4 || p.k === 1) { if (has('ins') && typeof p.x === 'number') test(p.x, p.y, 'ins', p.z); continue; }
     if (p.k === 5) {                                 // ağ ilkeli: kenar dizisi doğrudan taranır (kopyalanmaz)
@@ -966,6 +1009,7 @@ export function snapPoint(prims, w, tol, modes, prev, opt = {}) {
       if (Math.abs(A) > 1e-12) test(cx / (3 * A), cy / (3 * A), 'gcen');
     }
   }
+  curPrim = null;   // kesişimler tek bir ilkele ait değildir
   if (wantX) {
     const both = has('int'), app = has('app');
     const hit = (x, y, s1, s2) => {

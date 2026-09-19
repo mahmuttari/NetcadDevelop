@@ -264,7 +264,7 @@ await zoom([100, 100, 800, 700]);
 }
 
 // ---------------------------------------------------------------------------------
-// 12 · Parmakla nişan alma: araç çalışırken uzun basış imleci parmağa bağlar, büyüteç üstte, bırakınca dokunuş
+// 12 · Parmakla nişan alma (v7.87): uzun basış imleci parmaktan AYRI (ofset) bağlar, büyüteç üstte, bırakınca dokunuş
 // ---------------------------------------------------------------------------------
 {
   const dokun = (type, x, y) => ev(([t, x, y]) => { const vp = document.getElementById('viewport'), r = vp.getBoundingClientRect(); vp.dispatchEvent(new PointerEvent(t, { pointerId: 5, pointerType: 'touch', isPrimary: true, bubbles: true, cancelable: true, clientX: r.left + x, clientY: r.top + y, button: t === 'pointerdown' ? 0 : -1, buttons: t === 'pointerup' || t === 'pointercancel' ? 0 : 1 })); }, [type, x, y]);
@@ -279,18 +279,23 @@ await zoom([100, 100, 800, 700]);
   ok('12a uzun basış dolmadan nişan yok (kısa dokunuş / kaydırma bozulmaz)', erken === null, J(erken));
   await bekle(520);                                                               // TOL.long = 500 ms
   const nisan = await ev(() => ({ h: window.dwgApp.__pickbox().hover, g: window.dwgApp.state.gestureActive }));
-  ok('12b uzun basış: imleç parmağa bağlandı (aim), konum parmağın altında', !!nisan.h && nisan.h.aim === true && Math.abs(nisan.h.sx - px) < 1 && Math.abs(nisan.h.sy - py) < 1, J(nisan));
-  await dokun('pointermove', (px + qx) / 2, (py + qy) / 2); await dokun('pointermove', qx, qy); await bekle(160);
+  /*
+   * v7.87: imleç artık parmağın TAM ALTINDA değil, AIM_OFS (56 px) kadar üstündedir — parmak
+   * hedefi örtmesin diye. Eski sözleşme "sx === px && sy === py" idi; yenisi budur.
+   */
+  ok('12b uzun basış: imleç parmağa bağlandı (aim) ve parmağın 56 px ÜSTÜNDE', !!nisan.h && nisan.h.aim === true && Math.abs(nisan.h.sx - px) < 1 && Math.abs(nisan.h.sy - (py - 56)) < 1, J(nisan));
+  const fy = qy + 56;   // imleç ofsetli: parmak hedefin 56 px ALTINA gider
+  await dokun('pointermove', (px + qx) / 2, (py + fy) / 2); await dokun('pointermove', qx, fy); await bekle(160);
   const izle = await ev(() => ({ h: window.dwgApp.__pickbox().hover, view: { ...window.dwgApp.state.view }, pen: window.dwgApp.state.pen.hover }));
-  ok('12c parmak sürüklenince imleç izler ve UÇ noktaya yakalanır (600;200); görünüm kaymaz', !!izle.h && izle.h.aim && Math.abs(izle.h.sx - qx) < 1 && izle.h.snap === 'end' && Array.isArray(izle.pen) && Math.abs(izle.pen[0] - 600) < 1e-6 && Math.abs(izle.pen[1] - 200) < 1e-6, J(izle));
+  ok('12c parmak sürüklenince imleç ofsetli izler ve UÇ noktaya yakalanır (600;200); görünüm kaymaz', !!izle.h && izle.h.aim && Math.abs(izle.h.sx - qx) < 1 && Math.abs(izle.h.sy - qy) < 1 && izle.h.snap === 'end' && Array.isArray(izle.pen) && Math.abs(izle.pen[0] - 600) < 1e-6 && Math.abs(izle.pen[1] - 200) < 1e-6, J(izle));
   // büyüteç: parmağın üstünde (yer yoksa altında), zoom düğmelerinden kaçınır; yeri uygulamanın kendi hesabından okunur
   const L = (await ev(() => window.dwgApp.__pickbox())).loupe;
   const nav = await ev(() => { const n = document.getElementById('navFabs'), v = document.getElementById('viewport').getBoundingClientRect(); if (!n || n.hidden) return null; const a = n.getBoundingClientRect(); return { l: a.left - v.left, t: a.top - v.top, b: a.bottom - v.top }; });
   const halka = L ? await piksel(L.cx, L.cy - L.R, 3) : -1, ic = L ? await piksel(L.cx, L.cy, 20) : -1;
-  const ustte = L && L.cy < qy, kacinir = !L || !nav || !(L.cy + L.R > nav.t && L.cy - L.R < nav.b) || L.cx + L.R <= nav.l - 4;
+  const ustte = L && L.cy < fy, kacinir = !L || !nav || !(L.cy + L.R > nav.t && L.cy - L.R < nav.b) || L.cx + L.R <= nav.l - 4;
   ok('12d büyüteç çizildi: parmağın üstünde, halka boyalı, içinde büyütülmüş çizim + artı imleç, zoom düğmelerine binmez', !!L && ustte && halka > 0 && ic > 0 && kacinir, J({ L, nav, halka, ic }));
   const flash0 = await ev(() => window.dwgApp.state.snapFlash);
-  await dokun('pointerup', qx, qy); await bekle(300);
+  await dokun('pointerup', qx, fy); await bekle(300);
   const son = await ev(() => ({ n: window.dwgApp.editor.tools.pts.length, p: window.dwgApp.editor.tools.pts.map(p => p.slice(0, 2)), hover: window.dwgApp.__pickbox().hover, pen: window.dwgApp.state.pen.hover, g: window.dwgApp.state.gestureActive }));
   ok('12e bırakınca dokunuş imlecin yerine işlenir: çizginin ilk noktası yakalanan uç (600;200), imleç serbest', son.n === n0 + 1 && Math.abs(son.p[son.n - 1][0] - 600) < 1e-6 && Math.abs(son.p[son.n - 1][1] - 200) < 1e-6 && son.hover === null && son.pen === null && son.g === false, J({ son, flash0: !!flash0 }));
   // iptal (pointercancel): nişan alınmış olsa da dokunuş işlenmez
@@ -331,6 +336,93 @@ await zoom([100, 100, 800, 700]);
   await iptal();
 }
 
+
+// ---------------------------------------------------------------------------------
+// 13 · v7.87 YAKALAMA APARATI: aday çip seçici + ikinci parmakla ince ayar
+// ---------------------------------------------------------------------------------
+{
+  /*
+   * Parmakla çizerken hedefi piksel piksel bulmak olanaksızdır; ama yakalama noktaları AYRIK ve
+   * azdır. Aparat bunu kullanır: kabaca nişan al, bırak, açıklıkta birden çok AYRIK aday varsa
+   * çip sırasından seç. Sürekli aileler (EN YAKIN / UZANTI / PARALEL) listeye girmez — girseydi
+   * seçici neredeyse her dokunuşta açılır, kazanç değil engel olurdu.
+   */
+  const dk = (type, x, y, id = 5) => ev(([t, x, y, id]) => { const vp = document.getElementById('viewport'), r = vp.getBoundingClientRect(); vp.dispatchEvent(new PointerEvent(t, { pointerId: id, pointerType: 'touch', isPrimary: id === 5, bubbles: true, cancelable: true, clientX: r.left + x, clientY: r.top + y, button: t === 'pointerdown' ? 0 : -1, buttons: t === 'pointerup' || t === 'pointercancel' ? 0 : 1 })); }, [type, x, y, id]);
+  const secici = () => ev(() => { const el = document.getElementById('snapPick'); return { acik: !!el && !el.hidden, n: el ? el.querySelectorAll('[data-sp]:not(.x)').length : 0, yazi: el ? el.textContent.trim() : '' }; });
+
+  await iptal();
+  // Yatay doğrunun ORTA noktası (400;200) ile yeni bir doğrunun UCU (404;203): iki AYRIK aday.
+  await ev(() => {
+    const E = window.dwgApp.editor;
+    E.doc.run({ op: 'add', ents: [{ type: 'LINE', pts: [[404, 203, 0], [404, 300, 0]], id: 'SP1', layer: '0', color: 256 }] });
+    E.rebuild(); window.dwgApp.render();
+    const O = window.dwgApp.osnap; O.setModes(['end', 'mid', 'cen', 'int', 'nea']);
+  });
+  await bekle(300);
+
+  const hedef = await ev(() => window.dwgApp.toScreen(402, 201.5));
+  await arac('t:line');
+  const n0 = await ev(() => window.dwgApp.editor.tools.pts.length);
+  await dk('pointerdown', hedef[0], hedef[1] + 56); await bekle(640);   // nişan (imleç 56 px yukarıda → hedefte)
+  const nisanVar = await ev(() => window.dwgApp.__pickbox().hover);
+  ok('13a nişan kuruldu ve imleç hedefin üstünde', !!nisanVar && nisanVar.aim === true, J(nisanVar));
+
+  await dk('pointerup', hedef[0], hedef[1] + 56); await bekle(320);
+  const sp = await secici();
+  ok('13b birden çok AYRIK aday var: seçici açıldı ve iki çip listeledi', sp.acik === true && sp.n === 2, J(sp));
+  const beklemede = await ev(() => window.dwgApp.editor.tools.pts.length);
+  ok('13b2 seçici açıkken nokta HENÜZ işlenmez', beklemede === n0, J({ beklemede, n0 }));
+
+  /*
+   * İkinci çipi seç. Bu dokunuşun ÖNTANIMLI yakalaması UÇ'tur (13a: snap === 'end', PRI 0);
+   * ikinci çip ORTA noktadır (PRI 0.3) — yani öntanımlı OLMAYAN aday. Seçilince o nokta
+   * işlenmelidir: doSnap onu yeniden aramamalı ve daha öncelikli UÇ ile ezmemelidir.
+   */
+  const secildi = await ev(() => {
+    const el = document.getElementById('snapPick');
+    const b = [...el.querySelectorAll('[data-sp]')].filter(x => x.dataset.sp !== 'x')[1];
+    const ad = b.textContent.trim(); b.click();
+    return ad;
+  });
+  await bekle(320);
+  const sonuc = await ev(() => ({ n: window.dwgApp.editor.tools.pts.length, p: window.dwgApp.editor.tools.pts.map(q => q.slice(0, 2)), acik: !document.getElementById('snapPick').hidden }));
+  const son = sonuc.p[sonuc.p.length - 1] || [];
+  ok('13c çipe dokununca ÖNTANIMLI OLMAYAN aday işlenir (orta 400;200), UÇ onu ezmez; seçici kapanır',
+    sonuc.n === n0 + 1 && Math.abs(son[0] - 400) < 1e-6 && Math.abs(son[1] - 200) < 1e-6 && sonuc.acik === false && /Orta/.test(secildi), J({ secildi, sonuc }));
+
+  // ✕: seçici kapanır, nokta işlenmez
+  await iptal(); await arac('t:line');
+  const m0 = await ev(() => window.dwgApp.editor.tools.pts.length);
+  await dk('pointerdown', hedef[0], hedef[1] + 56); await bekle(640);
+  await dk('pointerup', hedef[0], hedef[1] + 56); await bekle(320);
+  const kapat = await ev(() => {
+    const el = document.getElementById('snapPick');
+    const acildi = !el.hidden;
+    const x = el.querySelector('[data-sp="x"]'); if (x) x.click();
+    return acildi;
+  });
+  await bekle(250);
+  const kapandi = await ev(() => ({ n: window.dwgApp.editor.tools.pts.length, acik: !document.getElementById('snapPick').hidden }));
+  ok('13d ✕ seçiciyi kapatır ve nokta İŞLENMEZ', kapat === true && kapandi.acik === false && kapandi.n === m0, J(kapandi));
+
+  // İkinci parmak: nişanı İPTAL ETMEZ, imleci 1/5 duyarlılıkla kaydırır
+  await iptal(); await arac('t:line');
+  await dk('pointerdown', hedef[0], hedef[1] + 56); await bekle(640);
+  const once = await ev(() => window.dwgApp.__pickbox().hover);
+  await dk('pointerdown', hedef[0] + 120, hedef[1] + 120, 6); await bekle(120);
+  const ikiParmak = await ev(() => ({ h: window.dwgApp.__pickbox().hover, olcek: window.dwgApp.state.view.scale }));
+  await dk('pointermove', hedef[0] + 170, hedef[1] + 120, 6); await bekle(160);   // ikinci parmak 50 px sağa
+  const ince = await ev(() => window.dwgApp.__pickbox().hover);
+  ok('13e nişanda ikinci parmak nişanı BOZMAZ (yakınlaştırmaya geçmez)', !!ikiParmak.h && ikiParmak.h.aim === true, J(ikiParmak));
+  ok('13e2 ikinci parmak imleci 1/5 duyarlılıkla kaydırır (50 px → 10 px)', !!ince && !!once && Math.abs((ince.sx - once.sx) - 10) < 1.5, J({ once: once && once.sx, ince: ince && ince.sx }));
+  await dk('pointerup', hedef[0] + 170, hedef[1] + 120, 6); await bekle(140);
+  const ikinciKalkti = await ev(() => window.dwgApp.__pickbox().hover);
+  ok('13e3 ince ayar parmağı kalkınca nişan SÜRER ve ayar korunur', !!ikinciKalkti && ikinciKalkti.aim === true && Math.abs(ikinciKalkti.sx - (ince ? ince.sx : 0)) < 1.5, J(ikinciKalkti));
+  await dk('pointercancel', hedef[0], hedef[1] + 56); await bekle(200);
+  await iptal();
+  await ev(() => { const E = window.dwgApp.editor; if (E.doc.undo()) { E.rebuild(); window.dwgApp.render(); } });
+  await bekle(200);
+}
 
 await page.screenshot({ path: `${out}/pickbox.png` });
 C.summary(errors);

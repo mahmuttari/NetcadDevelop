@@ -900,6 +900,27 @@ body.glove .cmdshow { min-height: 52px; padding: 0 20px; border-radius: 26px; }
 body.glove .cmdshow .ic { width: 24px; height: 24px; }
 body.docmode .cmdshow { display: none !important; }
 /*
+ * YAKALAMA ADAY SEÇİCİ (v7.87). Parmakla nişan alıp bırakınca, açıklık içinde birden çok aday
+ * varsa bu çip sırası çıkar. Numaralar tuvaldeki işaretlerle AYNIDIR: kullanıcı hangi çipin
+ * hangi noktaya karşılık geldiğini renkten değil SAYIDAN okur. Çipler 40 px dokunma hedefinde
+ * kalır — bu aparatın bütün amacı parmakla rahat seçebilmektir, küçültülmez.
+ */
+.snappick { position: absolute; z-index: 8; display: flex; gap: 6px; max-width: calc(100% - 16px);
+  overflow-x: auto; padding: 6px; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--panel); box-shadow: 0 4px 16px rgba(0, 0, 0, .45); scrollbar-width: none; }
+.snappick::-webkit-scrollbar { display: none; }
+.snappick button { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px;
+  min-height: 40px; padding: 0 10px; border: 1px solid var(--line); border-radius: 9px;
+  background: var(--btn); color: var(--fg); font-size: calc(12px * var(--fs)); cursor: pointer; }
+.snappick button.on { border-color: var(--accent); color: var(--accent); }
+.snappick button.x { color: var(--muted); padding: 0 12px; }
+.snappick .no { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px;
+  border-radius: 9px; background: var(--accent); color: #0b1020; font-size: calc(11px * var(--fs)); font-weight: 700; }
+.snappick .os-ic { width: 18px; height: 18px; }
+body.glove .snappick button { min-height: 52px; padding: 0 14px; }
+body.docmode .snappick { display: none !important; }
+
+/*
  * Yön tuşları (dpad) açıkken alt şerit kalabalıktır: dpad bir yanda, zoom düğmeleri öteki yanda.
  * Ortada duran pil dpad'in üstüne biniyordu (eldiven kipinde ölçüldü: 133-279 ile 12-148 çakışıyor).
  * Pil, iki öbeğin arasındaki boş koridora kaydırılır; sol el kipinde dpad ile zoom yer değiştirdiği
