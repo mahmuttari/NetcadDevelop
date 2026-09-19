@@ -96,6 +96,18 @@ function koy(sayfa, r, c, hucre) {
   if (r + 1 > sayfa.satir) sayfa.satir = r + 1;
   if (c + 1 > sayfa.sutun) sayfa.sutun = c + 1;
 }
+/*
+ * Hücre nesnesi AÇMADAN sayfanın kullanılan alanını büyütür. Dosyada YAZILI ama boş bir
+ * hücre (<c r="C7"/>) değer taşımaz, yine de o sayfanın kullanılan alanına girer — Excel de
+ * öyle sayar. Yeni açılan boş bir çalışma kitabı tam olarak böyledir: 30 satır × 8 sütun
+ * boş hücre. Bunlar sayılmazsa kitap "1 satır" görünür ve ızgara düzenleyicisi açılamaz.
+ * Nesne açmamak önemlidir: 60.000 satırlık bir sayfada boş hücre başına bir nesne, yüz
+ * binlerce gereksiz ayırma demektir.
+ */
+function genislet(sayfa, r, c) {
+  if (r >= 0 && r + 1 > sayfa.satir) sayfa.satir = r + 1;
+  if (c >= 0 && c + 1 > sayfa.sutun) sayfa.sutun = c + 1;
+}
 const hucre = (v, f, b) => ({ v: v === undefined ? null : v, f: f || null, b: b == null ? null : b });
 
 /** "A1" / "$B$7" → { r, c } (0 tabanlı). Geçersizse null. */
@@ -196,6 +208,8 @@ async function okuXlsx(arc) {
       const doc = xml(await arc.read(yol));
       const paylasilan = new Map();   // si → { src, r, c }
       for (const row of doc.getElementsByTagName('row')) {
+        const rn = +(row.getAttribute('r') || 0);
+        if (rn > 0) genislet(sayfa, rn - 1, -1);
         for (const c of row.getElementsByTagName('c')) {
           const ref = refCoz(c.getAttribute('r') || '');
           if (!ref) continue;
@@ -222,7 +236,7 @@ async function okuXlsx(arc) {
           else if (tp === 'e') v = XL.hataAl(vEl ? vEl.textContent : '#VALUE!');
           else if (vEl && vEl.textContent.trim() !== '') { const n = Number(vEl.textContent); v = isFinite(n) ? n : vEl.textContent; }
           else v = null;
-          if (v === null && !f) continue;   // boş hücre yer kaplamasın
+          if (v === null && !f) { genislet(sayfa, ref.r, ref.c); continue; }   // yazılı boş hücre: nesne açma, ama alanı büyüt
           koy(sayfa, ref.r, ref.c, hucre(v, f, kodOf(c.getAttribute('s'))));
         }
       }
