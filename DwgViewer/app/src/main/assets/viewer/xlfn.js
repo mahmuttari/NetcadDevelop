@@ -288,6 +288,15 @@ function basvuruOku(src, i, sayfa) {
   let uzun = a.len, b = null;
   if (s[a.len] === ':') { const bb = bir(s.slice(a.len + 1)); if (bb) { b = bb; uzun = a.len + 1 + bb.len; } }
   if (a.tam && !b) return null;
+  /*
+   * İKİ TUZAK. (1) "LOG10(1000)" bir başvuru DEĞİL, işlev adıdır: LOG sütunu + 10. satır diye
+   * okunursa işlev hiç çağrılmaz ve formül sessizce bir hücreye bakar. (2) "S2!A1" içindeki S2
+   * bir hücre değil, SAYFA adıdır; başvuru diye okunursa ardından gelen '!' tanınmaz, atlanır ve
+   * formül yine sessizce yanlış hücreye bakar. Excel her iki yazımı da dosyaya böyle yazar.
+   * Her ikisi de bir sonraki karakterden anlaşılır; okuma geri alınır, ad yoluna bırakılır.
+   */
+  const sonra = src[i + uzun];
+  if (sonra === '(' || sonra === '!') return null;
   return { tok: { t: 'ref', v: { sayfa, a, b } }, i: i + uzun };
 }
 export function sutunNo(s) { let n = 0; for (const ch of s.toUpperCase()) n = n * 26 + (ch.charCodeAt(0) - 64); return n - 1; }

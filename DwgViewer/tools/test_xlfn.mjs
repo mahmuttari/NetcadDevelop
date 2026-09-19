@@ -152,6 +152,15 @@ ok('10h sütun adı çevrimi', X.sutunAd(0) === 'A' && X.sutunAd(26) === 'AA' &&
 ok('10i boşluk yalnız başvurular arasında işleçtir', h('SUM( 1 , 2 )') === 3, h('SUM( 1 , 2 )'));
 ok('10j bozuk formül çökmez', typeof h('SUM(') === 'number' || typeof h('SUM(') === 'string', h('SUM('));
 ok('10k kapanmamış tırnak çökmez', h('"abc') === 'abc', h('"abc'));
+/*
+ * 10l / 10m: iki sessiz tuzak. Sözcükleyici "LOG10(" öbeğini LOG sütunu + 10. satır diye okursa
+ * işlev hiç çağrılmaz; "S2!A1"deki S2'yi hücre sanırsa ardından gelen '!' atlanır ve formül
+ * başka bir hücreye bakar. İkisi de HATA VERMEZ, yalnız yanlış sayı üretir — en tehlikelisi budur.
+ */
+X.kaydet('LOG10', { en: 1, ek: 1, fn: (a) => { const x = X.num(a[0]); return X.hata(x) ? x : Math.log10(x); } });
+ok('10l sayıyla biten işlev adı başvuru sanılmaz (LOG10)', h('LOG10(1000)') === 3, h('LOG10(1000)'));
+ok('10l2 ayrıştırma ağacında işlevdir', X.ayristir('LOG10(1000)').t === 'fn', X.ayristir('LOG10(1000)').t);
+ok('10m A1 biçimindeki SAYFA adı başvuru sanılmaz', X.ayristir('S2!A1').t === 'ref' && X.ayristir('S2!A1').v.sayfa === 'S2', JSON.stringify(X.ayristir('S2!A1')));
 
 console.log('--- 11 · yardımcılar');
 ok('11a duzle iç içe dizileri açar', JSON.stringify(X.duzle([[1, [2, 3]], 4])) === '[1,2,3,4]');
