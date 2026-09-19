@@ -138,6 +138,10 @@ async function temizDurum() {
     if (E.tools && E.tools.running) E.tools.cancel();
     if (E.sel) E.sel.clear();
     const nc = document.getElementById('noteClose'); if (nc && !document.getElementById('notesBar').hidden) nc.click();
+    // Belge görünümü açık kalırsa sonraki sahne ÇİZİMDE değil, belgenin üstünde oynar (görüldü):
+    // tuval arkada çalışır, ekranda belge durur. Bu yüzden çizime dönmek temizliğin parçasıdır.
+    const dv = document.getElementById('docView');
+    if (dv && !dv.hidden) { const kapat = dv.querySelector('[data-doc="close"]'); if (kapat) kapat.click(); else dv.hidden = true; }
     for (const id of ['layerPanel', 'infoPanel', 'measurePanel', 'docPanel', 'searchPanel', 'displayPanel', 'drivePanel', 'moreMenu', 'proPanel', 'openPanel']) { const e = document.getElementById(id); if (e) e.hidden = true; }
     if (A.state.mode !== 'view') A.setMode('view');
     const t = document.getElementById('toast'); if (t) t.hidden = true;
@@ -324,6 +328,87 @@ await sahne(11, 'belgeler', async () => {
     await C.tut(1.5);
     await C.hareket(0.2, (t) => K.alt(1 - t));
   }
+});
+
+await sahne(12, 'parmakla yakalama aparatı', async () => {
+  await ev(() => { window.dwgApp.osnap.setModes(['end', 'mid', 'int', 'cen', 'per', 'nea']); window.dwgApp.editor.act('t:line'); });
+  await C.tut(0.5);
+  await altyaziAc('Parmak hedefi örtmesin: büyüteç ve ofset imleç', 'The finger never covers the target', 'ust');
+  // uzun basış: imleç parmaktan ayrılır, büyüteç açılır
+  const fx = 170, fy = 470;
+  await K.nokta(fx, fy);
+  await olay('pointerdown', fx, fy, 9);
+  await C.tut(0.8);            // TOL.long = 500 ms: nişan kurulur
+  await C.hareket(0.9, async (t) => {
+    const x = fx + 34 * yumusak(t), y = fy - 26 * yumusak(t);
+    await K.nokta(x, y); await olay('pointermove', x, y, 9);
+  });
+  await C.tut(1.0);
+  const h = await ev(() => window.dwgApp.__pickbox().hover);
+  console.log('   nişan:', JSON.stringify(h));
+  await olay('pointerup', fx + 34, fy - 26, 9);
+  await K.nokta(null, null);
+  await C.tut(1.1);            // birden çok aday varsa çip seçici burada açılır
+  const sp = await ev(() => { const e = document.getElementById('snapPick'); return e && !e.hidden ? e.querySelectorAll('[data-sp]').length : 0; });
+  console.log('   aday çipi:', sp);
+  await altyaziKapat();
+  await ev(() => { const e = document.getElementById('snapPick'); const x = e && e.querySelector('[data-sp="x"]'); if (x) x.click(); const T = window.dwgApp.editor.tools; if (T.running) T.cancel(); });
+  await C.tut(0.3);
+});
+
+await sahne(13, 'pencere / kesen seçim', async () => {
+  /*
+   * Örtük pencere BOŞ yerden sürükleyince açılır; kalabalık bir paftada boş yer bulmak şansa
+   * kalır. Bu yüzden komut çubuğunun KUTU kipi açıkça seçiliyor — videoda gösterilen de zaten
+   * o düğmedir.
+   */
+  await ev(() => { window.dwgApp.editor.act('t:select'); });
+  await C.tut(0.4);
+  await ev(() => { const T = window.dwgApp.editor.tools; if (T.setSelMode) T.setSelMode('box'); });
+  await C.tut(0.4);
+  await altyaziAc('Pencere / kesen kutuyla toplu seçim', 'Window / crossing box selection', 'ust');
+  await K.nokta(60, 250);
+  await olay('pointerdown', 60, 250, 8);
+  await C.hareket(1.1, async (t) => {
+    const x = 60 + 250 * yumusak(t), y = 250 + 230 * yumusak(t);
+    await K.nokta(x, y); await olay('pointermove', x, y, 8);
+  });
+  await olay('pointerup', 310, 480, 8);
+  await K.nokta(null, null);
+  await C.tut(1.3);
+  const n = await ev(() => { const b = document.getElementById('selBadge'); return { gizli: b.hidden, metin: b.textContent.trim().slice(0, 40), sec: window.dwgApp.editor.sel.size }; });
+  console.log('   seçim:', JSON.stringify(n));
+  await altyaziKapat();
+  await ev(() => { const E = window.dwgApp.editor; E.sel.clear(); if (E.tools.running) E.tools.cancel(); window.dwgApp.render(); });
+  await C.tut(0.3);
+});
+
+await sahne(14, '3B tesis modeli', async () => {
+  await altyaziAc('Aynı uygulama, 3B tesis modeli', 'The same app, in 3D');
+  await ev(() => { const l = document.getElementById('sampleList'); const c = l && l.children[1]; if (c) (c.querySelector('button') || c).click(); });
+  await hizliBekle(() => ev(() => !!(window.dwgApp && window.dwgApp.state.hasDoc && document.getElementById('loading').hidden && /3D/.test(document.getElementById('fileName').textContent))), 2.0, 180000);
+  await enjekte(); await sessiz();
+  await ev(() => window.dwgApp.editor.act('3d'));
+  await hizliBekle(() => ev(() => { try { return window.dwgApp.editor.is3D() && window.dwgApp.editor.view3d().counts.tris > 0; } catch (e) { return false; } }), 1.6, 60000);
+  await enjekte(); await sessiz();
+  const c = await ev(() => window.dwgApp.editor.view3d().counts);
+  console.log('   3B sayaçlar:', JSON.stringify(c));
+  await K.altMetin('1,9 milyon üçgen · parmakla döner', '1.9M triangles, spun by finger'); await K.alt(1);
+  // döner tabla: kendiliğinden dönen model
+  await ev(() => { const v = window.dwgApp.editor.view3d(); v.set('turntable', true); });
+  await C.hareket(3.2, () => {});
+  await ev(() => { const v = window.dwgApp.editor.view3d(); v.set('turntable', false); });
+  await altyaziDegis('Görsel stiller: gölgeli · gerçekçi · eskiz · röntgen', 'Visual styles: shaded, realistic, sketch, x-ray');
+  for (const st of ['shaded', 'realistic', 'conceptual', 'sketchy', 'xray']) {
+    await ev((x) => { const v = window.dwgApp.editor.view3d(); v.set('style', x); v.render(); }, st);
+    await C.tut(0.85);
+  }
+  await altyaziDegis('Görünüm küpüyle tek dokunuşta cephe', 'One tap on the cube for a front view');
+  await ev((x) => { const v = window.dwgApp.editor.view3d(); v.set('style', x); v.render(); }, 'shadedEdges');
+  await dugme('#cube3d [data-face="front"]', 0.2);
+  await C.hareket(1.2, () => {});
+  await C.tut(0.8);
+  await altyaziKapat();
 });
 
 // --- bitiş ----------------------------------------------------------------------------------

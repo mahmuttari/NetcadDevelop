@@ -1,6 +1,6 @@
 # Tanıtım videosu
 
-**`DWG_OfficeZip_tanitim.mp4`** — 1080 × 2400 (dikey 9:20) · 30 kare/sn · 63 sn · H.264 + AAC
+**`DWG_OfficeZip_tanitim.mp4`** — 1080 × 2400 (dikey 9:20) · 30 kare/sn · 88 sn · H.264 + AAC
 **`DWG_OfficeZip_tanitim_sessiz.mp4`** — aynı görüntü, sessiz nüsha
 
 ## Ne gösteriyor
@@ -17,7 +17,9 @@ da sonradan düzenlenmiş görüntü yoktur:
 
 Sahne sırası: açılış kartı → ana ekran → örnek çizimin açılması (gerçek zamanlı) → gezinme →
 katman yöneticisi → uçtan uca ölçü → komut satırı (LINE) → kırmızı kalem notu → ölçekli PDF →
-GPS konumu → Word / Excel / ZIP → kapanış kartı.
+GPS konumu → Word / Excel / ZIP → parmakla yakalama aparatı (büyüteç + aday çipleri) →
+pencere / kesen kutuyla 1.526 nesnenin seçilmesi → 3B tesis modeli (döner tabla, beş görsel
+stil, görünüm küpü) → kapanış kartı.
 
 ## Yeniden çekmek
 
@@ -42,6 +44,7 @@ ffmpeg -i promo_ham.mp4 -i fon64.wav -map 0:v -map 1:a -shortest \
 - **PDF görüntüleme.** Tarayıcı yapısında belge görünümü PDF'i yerleşik eklentiyle gösterir ve
   başsız Chromium'da o eklenti yoktur. Telefonda PDF `PdfRenderer` ile çizilir ve açılır. Video
   PDF'in **üretilmesini** gösterir, açılmasını göstermez — olmayan bir şey gösterilmedi.
-- **3B görünüm.** Paketteki 3B örnek (`MARFEN_YUZER_TERFI_3D.dwg`) boş açılıyor: blokların varlık
-  zinciri boş geldiği için bloklar içi boş çözülüyor (README'de yazılı, `test_marfen.mjs` iki
-  SKIP ile kayda geçiriyor). Bu düzelene kadar videoda 3B sahnesi yok.
+3B sahnesi videoda VARDIR: `MARFEN_YUZER_TERFI_3D.dwg` 1.916.478 üçgen ve 180.732 çizgiyle
+açılıyor (sayaçlar `editor.view3d().counts`ten okundu), döner tabla çalışıyor, beş görsel stil
+(gölgeli · gerçekçi · kavramsal · eskiz · röntgen) ve görünüm küpü sahnede. Kök depodaki eski
+bir not bu dosyanın boş açıldığını söylüyordu; ölçüm bunun artık geçerli olmadığını gösterdi.
