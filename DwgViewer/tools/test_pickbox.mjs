@@ -424,6 +424,81 @@ await zoom([100, 100, 800, 700]);
   await bekle(200);
 }
 
+
+// ---------------------------------------------------------------------------------
+// 14 · v7.88 NİŞAN KAÇIŞ YÖNÜ: tepede AŞAĞI değil YANA; imleç hiçbir durumda parmağın altında değil
+// ---------------------------------------------------------------------------------
+{
+  /*
+   * v7.87'de ofset yalnız düşeydi ve ekranın tepesinde yer kalmayınca AŞAĞI çevriliyordu: imleç
+   * elin altına giriyor, aparat işe yaramıyordu. v7.88'de kaçış sırası yukarı → elden uzak yan →
+   * öbür yan → (son çare) aşağıdır; kenarda kelepçe yerine yön çevrilir ve büyüteç de aynı
+   * kuralı kullanır — "yer yoksa aşağı" kuralının ikinci kopyası büyüteçte kalmamalıdır.
+   */
+  const dk = (type, x, y, id = 5) => ev(([t, x, y, id]) => { const vp = document.getElementById('viewport'), r = vp.getBoundingClientRect(); vp.dispatchEvent(new PointerEvent(t, { pointerId: id, pointerType: 'touch', isPrimary: id === 5, bubbles: true, cancelable: true, clientX: r.left + x, clientY: r.top + y, button: t === 'pointerdown' ? 0 : -1, buttons: t === 'pointerup' || t === 'pointercancel' ? 0 : 1 })); }, [type, x, y, id]);
+  const oku = () => ev(() => window.dwgApp.__pickbox());
+  const W = await ev(() => window.dwgApp.state.W);
+
+  await iptal(); await arac('t:line');
+  // (a) Parmak ekranın TEPESİNDE: yukarıda 56 px yer yok
+  await dk('pointerdown', Math.round(W * 0.5), 30); await bekle(640);
+  const tepe = (await oku()).hover;
+  const yanaKacti = !!tepe && tepe.aim && Math.abs(tepe.sy - 30) < 1 && Math.abs(Math.abs(tepe.sx - Math.round(W * 0.5)) - 56) < 1;
+  ok('14a tepede imleç AŞAĞI değil YANA kaçar (sy parmakla aynı, |dx| = 56)', yanaKacti && tepe.sy <= 30, J(tepe));
+  ok('14a2 kaçış yönü elden uzak yandır (sağ el düzeninde SOLA)', !!tepe && tepe.sx < Math.round(W * 0.5), J(tepe));
+
+  // (b) Büyüteç: parmağın ALTINA inmez ve parmağı örtmez
+  const L = (await oku()).loupe;
+  const uzak = L ? Math.hypot(L.cx - Math.round(W * 0.5), L.cy - 30) : 0;
+  ok('14b tepede büyüteç de aşağı inmez: merkezi parmağın altında değil ve diski parmağı örtmez',
+    !!L && L.cy <= 30 + L.R && uzak > L.R - 4, J({ L, uzak }));
+
+  // (c) SOL kenara sürükleme: kelepçe imleci parmağın altına sürüklemez, yön çevrilir
+  await dk('pointermove', 40, 300); await bekle(80);
+  await dk('pointermove', 8, 300); await bekle(160);
+  const kenar = (await oku()).hover;
+  const aralik = kenar ? Math.hypot(kenar.sx - kenar.fx, kenar.sy - kenar.fy) : 0;
+  ok('14c sol kenarda imleç parmağın altına DÜŞMEZ (arada en az 24 px kalır)', !!kenar && aralik >= 24 - 0.5, J({ kenar, aralik }));
+  ok('14c2 imleç kadrajın içinde kalır', !!kenar && kenar.sx >= 4 && kenar.sx <= W - 4, J(kenar));
+  // Ayırt edici: eski sürümde tepede başlayan nişanın ofseti AŞAĞI çevriliyordu ve sürükleme
+  // boyunca öyle kalıyordu; imleç elin altında sürünüyordu. Yeni kuralda asla parmağın altına inmez.
+  ok('14c3 sürükleme boyunca imleç parmağın ALTINA geçmez', !!kenar && kenar.sy <= kenar.fy, J(kenar));
+  await dk('pointercancel', 8, 300); await bekle(160);
+
+  // (d) İnce ayar ofseti sıfıra indiremez (asgari 24 px)
+  await iptal(); await arac('t:line');
+  const mx = Math.round(W * 0.5);
+  await dk('pointerdown', mx, 300); await bekle(640);
+  await dk('pointerdown', mx + 100, 300, 6); await bekle(120);
+  for (let i = 1; i <= 7; i++) { await dk('pointermove', mx + 100, 300 + i * 40, 6); await bekle(40); }   // 280 px aşağı → ofseti tam 56 px aşağı iter, yani sıfırlar
+  await bekle(160);
+  const ince = (await oku()).hover;
+  const d2 = ince ? Math.hypot(ince.sx - ince.fx, ince.sy - ince.fy) : 0;
+  ok('14d ince ayar imleci parmağın ALTINA sokamaz: asgari 24 px korunur', !!ince && d2 >= 24 - 0.5, J({ ince, d2 }));
+  await dk('pointerup', mx + 100, 580, 6); await bekle(100);
+  await dk('pointercancel', mx, 300); await bekle(160);
+  await iptal();
+
+  /*
+   * (e) Büyüteç YÖN TUŞLARININ da üstüne binmez. Kaçınma eskiden yalnız #navFabs'a bakıyordu ve
+   * her zaman SOLA itiyordu; oysa #dpad soldadır (sol el düzeninde ikisi yer değiştirir) ve
+   * eldiven kipinde kendiliğinden açılır. Tek yönlü itme büyüteci tam tuşların üstüne oturtuyordu.
+   */
+  await ev(async () => { const E = await import('./editor.js'); E.ui.dpad = true; E.applyUi({ store: false }); }); await bekle(220);
+  const dp = await ev(() => { const n = document.getElementById('dpad'); if (!n || n.hidden) return null; const a = n.getBoundingClientRect(), v = document.getElementById('viewport').getBoundingClientRect(); return { l: a.left - v.left, r: a.right - v.left, t: a.top - v.top, b: a.bottom - v.top }; });
+  if (dp) {
+    await arac('t:line');
+    const fx2 = Math.round((dp.l + dp.r) / 2), fy2 = Math.round(dp.b) - 10;
+    await dk('pointerdown', fx2, fy2); await bekle(640);
+    const L2 = (await oku()).loupe;
+    const biniyor = !!L2 && L2.cx + L2.R > dp.l - 4 && L2.cx - L2.R < dp.r + 4 && L2.cy + L2.R > dp.t && L2.cy - L2.R < dp.b;
+    ok('14e büyüteç yön tuşlarının (#dpad) üstüne binmez', !!L2 && !biniyor, J({ L2, dp }));
+    await dk('pointercancel', fx2, fy2); await bekle(160);
+    await iptal();
+  } else ok('14e yön tuşları açılamadı (sınanamadı)', false, 'dpad gizli kaldı');
+  await ev(async () => { const E = await import('./editor.js'); E.ui.dpad = false; E.applyUi({ store: false }); }); await bekle(180);
+}
+
 await page.screenshot({ path: `${out}/pickbox.png` });
 C.summary(errors);
 await browser.close(); try { srv.close && srv.close(); } catch (_) { /* geç */ }

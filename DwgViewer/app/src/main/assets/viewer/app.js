@@ -667,6 +667,16 @@ function drawRubber(c, base, s, fg) {
   c.save(); c.setLineDash([4, 4]); c.lineWidth = 1; c.strokeStyle = fg; c.globalAlpha = 0.5;
   c.beginPath(); c.moveTo(b[0], b[1]); c.lineTo(s[0], s[1]); c.stroke(); c.restore();
 }
+/*
+ * PARMAKTAN İMLECE İNCE KILAVUZ (v7.88). Ofset yana kaçtığında hangi parmağın hangi imleci
+ * sürüklediği yönden okunamaz; yukarı ofsette alışkanlıkla bilinen bağ burada görünür kılınır.
+ */
+function drawAimLink(c, fg, s) {
+  const h = penHover;
+  if (!h || !h.aim || h.fx == null || Math.hypot(s[0] - h.fx, s[1] - h.fy) <= 8) return;
+  c.save(); c.setLineDash([2, 4]); c.lineWidth = 1; c.strokeStyle = fg; c.globalAlpha = 0.35;
+  c.beginPath(); c.moveTo(h.fx, h.fy); c.lineTo(s[0], s[1]); c.stroke(); c.restore();
+}
 function drawPenHover(c, fg) {
   if (!penHover || !penHover.w) return;
   // Nesne isteminde yakalama aranmaz (findSnap boş döner): imleç karedir ve karenin altındaki nesne
@@ -674,6 +684,7 @@ function drawPenHover(c, fg) {
   if (pickingObject()) {
     const hit = pick(penHover.w, TOL.pick / S.view.scale);
     if (hit) drawRollover(c, hit);
+    drawAimLink(c, fg, [penHover.sx, penHover.sy]);
     drawPickBox(c, penHover.sx, penHover.sy, fg);
     if (penHover.aim) drawLoupe(c, fg);
     return;
@@ -683,6 +694,7 @@ function drawPenHover(c, fg) {
   const acc = S.selColor || '#ff9f0a';
   if (sn && sn.trk) drawTrackPaths(c, sn.trk, acc, 0.8);   // izleme yolları: imleç hangi hizaya / kesişime oturdu
   { const b = hoverBase(); if (b) drawRubber(c, b, s, fg); }   // taban noktadan imlece lastik bant
+  drawAimLink(c, fg, s);
   c.save();
   c.setLineDash([3, 3]); c.lineWidth = 1; c.strokeStyle = fg; c.globalAlpha = 0.55;
   c.beginPath();
@@ -696,8 +708,8 @@ function drawPenHover(c, fg) {
     c.strokeStyle = acc; c.fillStyle = acc; c.lineWidth = 2;
     Osnap.drawMarker(c, s[0], s[1], sn.kind, 7);
   }
-  // Koordinat kutusu imlecin yanında; parmakla nişan alırken parmağın altında kalacağından o zaman
-  // büyütecin altına yazılır (drawLoupe).
+  // Koordinat kutusu imlecin yanında; parmakla nişan alırken büyüteç zaten imlecin çevresini ve
+  // koordinatı gösterdiğinden (drawLoupe etiketi) burada yazılmaz — aynı sayı iki yerde durmasın.
   if (!penHover.aim) {
     const txt = hoverLabel(sn, q, penHover.w);
     c.font = '11px system-ui, sans-serif'; c.textBaseline = 'bottom'; c.textAlign = 'left';
@@ -715,22 +727,60 @@ function drawPenHover(c, fg) {
   if (!(editor.tools && editor.tools.running) && S.mode !== 'measure' && S.mode !== 'profile' && !S.notesOn) drawPickBox(c, penHover.sx, penHover.sy, fg);
 }
 /*
- * BÜYÜTEÇ — parmakla nişan alırken (araç çalışırken uzun basıp sürükleme) imleç parmağın altında
- * kalır; büyüteç parmağın üstünde imlecin çevresini 2 kat büyütür: yakalanan nokta, kare ve koordinat
- * GÖRÜLEREK bırakılır. Kaynak ana tuvaldir (cv), kaplama değil — çizim ne ise o büyütülür. Büyüteç
- * yakalanan noktaya ortalanır (varsa), yoksa parmağa; üstte yer yoksa parmağın altına iner.
+ * BÜYÜTEÇ — parmakla nişan alırken (araç çalışırken uzun basıp sürükleme) imleç parmaktan ofset
+ * kadar uzaktadır; büyüteç imlecin çevresini 2 kat büyütür: yakalanan nokta, kare ve koordinat
+ * GÖRÜLEREK bırakılır. Kaynak ana tuvaldir (cv), kaplama değil — çizim ne ise o büyütülür.
+ * Büyütecin YERİ imlece göredir; İÇERİĞİ ise yakalanan noktaya ortalanır (varsa) — ikisi
+ * ayrı şeydir ve ayrı kalmalıdır, yoksa yakalama noktası değiştikçe büyüteç yerinden oynar.
  */
-/** Büyütecin yeri: parmağın üstünde (yer yoksa altında), ekran içinde ve sağdaki zoom düğmelerinin (#navFabs) altında kalmadan */
+/** Büyütecin yeri: imlecin üstünde, yer yoksa YANA (nişanda asla aşağı: aşağısı elin kendisidir), ekran içinde ve zoom düğmelerinin (#navFabs) üstüne binmeden */
 function loupeGeom(h) {
   const fs = uiPrefs().fontScale || 1, R = Math.round(60 * fs), gap = Math.round(34 * fs);
   let cx = h.sx, cy = h.sy - R - gap;
-  if (cy - R < 4) cy = h.sy + R + gap;
+  /*
+   * v7.88: eskiden burada büyüteç imlecin ALTINA inerdi. İmleç aşağı kaçmayı bıraktığına göre
+   * tepede aşağı kaçan tek şey büyüteç olurdu ve doğrudan elin üstüne otururdu — şikâyet yer
+   * değiştirmiş olurdu.
+   *
+   * Büyüteç imleçten ÇOK ÖNCE sıkışır: imleç 56 px ister, büyüteç 2R + boşluk = 154 px. Bu yüzden
+   * sıkışma ekranın yalnız tepesinde değil, üst 214 px'inin tamamında yaşanır. Sıra şudur:
+   *   1) tepeye dayanıp yine imlecin ÜSTÜNDE kalabiliyorsa orada kalır (duruş doğal olsun),
+   *   2) kalamıyorsa YANA kaçar — imlecin parmaktan kaçtığı yan (o yan zaten elden uzaktır),
+   *      imleç parmağın tam üstündeyse elden uzak yan; sığmazsa öbür yan,
+   *   3) hiçbiri olmuyorsa (kalem / fare, ya da iki yana da sığmayan dar kadraj) eski davranış.
+   */
+  if (cy - R < 4) {
+    if (2 * R + 12 <= h.sy - 8) cy = R + 4;
+    else {
+      // Yan yerleşim PARMAĞA göre ölçülür: imlece göre ölçülseydi ofsetin ters yanına sıçrayan
+      // büyüteç parmağa yaklaşır, diski eli örterdi (412 px genişlikte birebir görüldü).
+      const ax = h.fx != null ? h.fx : h.sx;
+      const k = h.aim ? (h.fx != null && Math.abs(h.sx - h.fx) > 1 ? Math.sign(h.sx - h.fx) : elYonu()) : 0;
+      const yan = k ? [ax + k * (R + gap), ax - k * (R + gap)].find(v => v - R >= 4 && v + R <= S.W - 4) : undefined;
+      if (k && yan != null) { cx = yan; cy = Math.max(R + 4, Math.min(S.H - R - 4, h.sy)); }
+      else cy = h.sy + R + gap;
+    }
+  }
   cx = Math.max(R + 4, Math.min(S.W - R - 4, cx));
-  const nav = $('navFabs');
-  if (nav && !nav.hidden) {
-    const a = nav.getBoundingClientRect(), v = vp.getBoundingClientRect();
-    const nl = a.left - v.left, nt = a.top - v.top, nb = a.bottom - v.top;
-    if (a.width > 0 && cx + R > nl - 4 && cy + R > nt && cy - R < nb) cx = Math.max(R + 4, nl - 6 - R);
+  cy = Math.max(R + 4, Math.min(S.H - R - 4, cy));
+  /*
+   * Kaplayan düğme kümelerinden kaçınma. İKİ küme vardır ve ikisi de #viewport içindedir:
+   * sağ alttaki zoom sütunu (#navFabs) ve sol alttaki yön tuşları (#dpad, eldiven kipinde
+   * kendiliğinden açılır). Sol el düzeninde ikisi YER DEĞİŞTİRİR (app.css: body.left-hand),
+   * bu yüzden eski "her zaman sola it" kuralı sol el kipinde büyüteci düğmelerin tam üstüne
+   * oturtuyordu (nl = 12 iken max(R+4, 12-6-R) = R+4). Karar artık kümenin hangi yarıda
+   * durduğuna bakar. Alçak ekranda navFabs yatay bir şerit ve ortadadır; orada yana kaçmak
+   * işe yaramaz, YUKARI çıkılır.
+   */
+  for (const id of ['navFabs', 'dpad']) {
+    const el = $(id);
+    if (!el || el.hidden) continue;
+    const a = el.getBoundingClientRect(); if (!(a.width > 0)) continue;
+    const v = vp.getBoundingClientRect();
+    const nl = a.left - v.left, nr = a.right - v.left, nt = a.top - v.top, nb = a.bottom - v.top;
+    if (!(cx + R > nl - 4 && cx - R < nr + 4 && cy + R > nt && cy - R < nb)) continue;
+    if (a.width > a.height * 1.5) cy = Math.max(R + 4, nt - 6 - R);
+    else cx = (nl + nr) / 2 > S.W / 2 ? Math.max(R + 4, nl - 6 - R) : Math.min(S.W - R - 4, nr + 6 + R);
   }
   return { cx, cy, R };
 }
@@ -755,13 +805,22 @@ function drawLoupe(c, fg) {
   c.restore();
   c.save();
   c.beginPath(); c.arc(cx, cy, R, 0, TAU); c.lineWidth = 2; c.strokeStyle = acc; c.globalAlpha = 0.9; c.stroke(); c.globalAlpha = 1;
-  // etiket büyütecin altında: nokta isteminde koordinat (+ yakalama kipi), nesne isteminde altındaki nesnenin türü ve katmanı
+  // etiket büyütecin PARMAKTAN UZAK yüzünde: nokta isteminde koordinat (+ yakalama kipi), nesne isteminde altındaki nesnenin türü ve katmanı
   let txt = '';
   if (pickingObject()) { const hit = pick(h.w, TOL.pick / S.view.scale); if (hit) txt = trType(hit.info ? hit.info.t : hit.et) + ' \u00b7 ' + hit.lay; }
   else txt = hoverLabel(sn, h.q, h.w);
   if (txt) {
     c.font = `${Math.round(11 * fs)}px system-ui, sans-serif`; c.textBaseline = 'top'; c.textAlign = 'center';
-    const w = c.measureText(txt).width + 12, ly = cy + R + 6, th = Math.round(18 * fs);
+    const w = c.measureText(txt).width + 12, th = Math.round(18 * fs);
+    /*
+     * v7.88: etiket eskiden HER ZAMAN büyütecin altındaydı; bu, "büyüteç parmaktan ~150 px
+     * yukarıdadır" varsayımına dayanıyordu. Yan ofsette büyüteç parmağa yaklaşır ve etiket elin
+     * üstüne düşerdi — üstelik nişanda koordinatı gösteren TEK yer bu etikettir (drawPenHover
+     * kutuyu kapatır). Büyüteç parmağın yeterince üstündeyse etiket altta kalır; değilse üste
+     * alınır, üstte de yer yoksa (tepeye yapışık büyüteç) alta düşer.
+     */
+    const fy = h.fy != null ? h.fy : h.sy, ust = cy - R - 6 - th;
+    const ly = (cy - fy <= -(R + 40) || ust < 4) ? cy + R + 6 : ust;
     c.fillStyle = S.dark ? 'rgba(20,26,34,.9)' : 'rgba(255,255,255,.9)'; c.fillRect(cx - w / 2, ly, w, th);
     c.fillStyle = sn ? acc : fg; c.fillText(txt, cx, ly + 3);
   }
@@ -976,7 +1035,7 @@ vp.addEventListener('pointerdown', (ev) => {
       // Parmakla nişan alma: araç ya da ölçü çalışırken (menünün olmadığı yerde) uzun basış imleci parmağa bağlar
       const canAim = !canLong && !navOnly && ev.pointerType === 'touch' && ((editor.tools && editor.tools.running) || S.mode === 'measure' || S.mode === 'profile') && !S.notesOn && !editor.is3D();
       if (canLong) longTimer = setTimeout(() => { longTimer = 0; if (gesture && gesture.type === 'pan' && !gesture.moved && pointers.size === 1) { gesture.longFired = true; haptic('long'); longPressMenu(sx, sy); } }, TOL.long);
-      else if (canAim) longTimer = setTimeout(() => { longTimer = 0; if (gesture && gesture.type === 'pan' && !gesture.moved && pointers.size === 1) { gesture = { type: 'aim', id: [...pointers.keys()][0], ofs: aimOfs0(sy), fx: sx, fy: sy }; haptic('long'); aimMove(sx, sy); } }, TOL.long);
+      else if (canAim) longTimer = setTimeout(() => { longTimer = 0; if (gesture && gesture.type === 'pan' && !gesture.moved && pointers.size === 1) { gesture = { type: 'aim', id: [...pointers.keys()][0], ofs: aimOfs0(sx, sy), fx: sx, fy: sy }; haptic('long'); aimMove(sx, sy); } }, TOL.long);
     }
   } else if (arr.length === 2) {
     noteDraft = null; clearLong();
@@ -1012,7 +1071,7 @@ vp.addEventListener('pointermove', (ev) => {
   } else if (gesture.type === 'aim') {
     if (gesture.fine && ev.pointerId === gesture.fine.id) {
       const k = 0.2;   // 1/5 duyarlılık: 50 px parmak hareketi imleci 10 px kaydırır
-      gesture.ofs = [gesture.ofs[0] + (ev.clientX - gesture.fine.x) * k, gesture.ofs[1] + (ev.clientY - gesture.fine.y) * k];
+      gesture.ofs = aimAsgari([gesture.ofs[0] + (ev.clientX - gesture.fine.x) * k, gesture.ofs[1] + (ev.clientY - gesture.fine.y) * k]);
       gesture.fine.x = ev.clientX; gesture.fine.y = ev.clientY;
       aimMove(gesture.fx, gesture.fy);
       return;
@@ -1101,17 +1160,24 @@ function closeSnapPick(cizim = true) {
   const el = $('snapPick'); if (el) { el.hidden = true; el.innerHTML = ''; }
   if (cizim) drawOverlay();
 }
-function openSnapPick(cx, cy, list) {
+function openSnapPick(cx, cy, list, fx, fy) {
   const el = $('snapPick'); if (!el || !list || list.length < 2) return false;
   snapPick = { list, i: 0, sx: cx, sy: cy };
   el.innerHTML = list.map((c, i) => `<button type="button" data-sp="${i}" class="${i === 0 ? 'on' : ''}" title="${esc(Osnap.nameOf(c.kind))}">`
     + `<span class="no">${i + 1}</span>${Osnap.markerSvg(c.kind)}<span>${esc(Osnap.nameOf(c.kind))}</span></button>`).join('')
     + `<button type="button" data-sp="x" class="x" title="${esc(t('close'))}" aria-label="${esc(t('close'))}">✕</button>`;
   el.hidden = false;
-  // Yerleşim: imlecin ALTINA, ekranın alt yarısındaysa ÜSTÜNE — seçici adayları örtmesin.
+  /*
+   * Yerleşim: imlecin ALTINA, ekranın alt yarısındaysa ÜSTÜNE — seçici adayları örtmesin.
+   * v7.88: boşluk imlece değil, imleç ile PARMAĞIN uçtakine göre ölçülür. Yan ofsette imleç
+   * parmakla aynı yükseklikte olur; yalnız imlece bakan eski hesap şeridi tam elin durduğu
+   * yere açardı. (Şeridin YÜKSEKLİĞİ zaten offsetHeight ile gerçek ölçüden okunuyor; eksik olan
+   * ofsetin İŞARETİYDİ.) Boşluk yazı ölçeğiyle büyür.
+   */
   const gw = el.offsetWidth || 240, gh = el.offsetHeight || 52;
+  const ay = fy == null ? cy : fy, bosluk = Math.round(46 * (uiPrefs().fontScale || 1));
   const x = Math.max(8, Math.min(S.W - gw - 8, cx - gw / 2));
-  const y = cy < S.H * 0.55 ? Math.min(S.H - gh - 8, cy + 46) : Math.max(8, cy - gh - 46);
+  const y = cy < S.H * 0.55 ? Math.min(S.H - gh - 8, Math.max(cy, ay) + bosluk) : Math.max(8, Math.min(cy, ay) - gh - bosluk);
   el.style.left = x + 'px'; el.style.top = y + 'px';
   drawOverlay();
   return true;
@@ -1152,9 +1218,53 @@ function drawSnapPick(c) {
   c.restore();
 }
 const SUREKLI_KIP = new Set(['nea', 'ext', 'par']);   // nesnenin her yerinde bulunan aileler: aday seçiciye girmez
-const AIM_OFS = 56;   // imlecin parmaktan yukarı ofseti (px): parmak hedefi örtmesin
-/** Başlangıç ofseti: ekranın tepesine yakınsa aşağı çevrilir, yoksa imleç kadraj dışına düşerdi */
-function aimOfs0(fy) { const d = uiPrefs().aimOffset == null ? AIM_OFS : +uiPrefs().aimOffset || 0; return [0, fy - d < 12 ? d : -d]; }
+const AIM_OFS = 56;    // imlecin parmaktan uzaklığı (px): parmak hedefi örtmesin
+const AIM_ASG = 24;    // en küçük uzaklık: ince ayar imleci parmağın ALTINA sokamaz
+const AIM_KEN = 4;     // imleç ekranın kenarından en az bu kadar içeride durur
+const AIM_GERI = 28;   // çevrilen yön ancak bu kadar yer açılınca geri döner (kenarda titremesin)
+/** El gövdesinin geldiği yanın TERSİ: sağ el düzeninde sola, sol el düzeninde sağa kaçılır */
+const elYonu = () => (uiPrefs().leftHand ? 1 : -1);
+/** Ofset uygulanınca imleç ekranın içinde (pay kadar içeride) kalıyor mu */
+function aimSigar(fx, fy, o, pay) {
+  const x = fx + o[0], y = fy + o[1];
+  return x >= AIM_KEN + pay && x <= S.W - AIM_KEN - pay && y >= AIM_KEN + pay && y <= S.H - AIM_KEN - pay;
+}
+/*
+ * KAÇIŞ YÖNÜ — TEK KARAR YERİ (v7.88). Üstte yer yoksa imleç AŞAĞI İNMEZ: aşağısı elin
+ * kendisidir, imleç parmağın altında kalır ve aparat işe yaramaz. Sıra: yukarı → elden uzak
+ * yan → öbür yan → en son çare aşağı. Büyüteç de (loupeGeom) aynı yanı kullanır; "yer yoksa
+ * nereye" kuralının iki ayrı kopyası bırakılmaz.
+ */
+function aimYon(fx, fy, L) {
+  const k = elYonu();
+  for (const o of [[0, -L], [k * L, 0], [-k * L, 0], [0, L]]) if (aimSigar(fx, fy, o, 0)) return o;
+  // Hiçbir yön sığmıyor (çok dar kadraj): yeri en çok olan yöne, asgari uzaklıktan az olmamak üzere.
+  const en = [[0, -1, fy], [k, 0, k < 0 ? fx : S.W - fx], [-k, 0, k < 0 ? S.W - fx : fx], [0, 1, S.H - fy]]
+    .sort((a, b) => b[2] - a[2])[0];
+  const m = Math.max(AIM_ASG, Math.min(L, en[2] - AIM_KEN));
+  return [en[0] * m, en[1] * m];
+}
+/** Başlangıç ofseti: yer varsa yukarı, yoksa yana (aşağı değil) */
+function aimOfs0(fx, fy) { const d = uiPrefs().aimOffset == null ? AIM_OFS : +uiPrefs().aimOffset || 0; return aimYon(fx, fy, Math.max(AIM_ASG, d)); }
+/** İnce ayar ofseti sıfıra indirmesin: imleç parmağın altına girerse nereye dokunulduğu yine görünmez */
+function aimAsgari(o) {
+  const L = Math.hypot(o[0], o[1]);
+  if (L >= AIM_ASG) return o;
+  if (L < 1e-6) return [0, -AIM_ASG];
+  return [o[0] * (AIM_ASG / L), o[1] * (AIM_ASG / L)];
+}
+/*
+ * KENARDA YÖN ÇEVRİLİR, KELEPÇE YOK. Ofseti kenara kelepçelemek imleci sessizce parmağın altına
+ * sürüklerdi (v7.87'de düşeyde öyleydi, yan ofsetle her yatay sürüklemede olurdu). Yön jest
+ * boyunca gözden geçirilir; geri dönüş daha geniş bir eşikledir (AIM_GERI) ki kenarda titremesin.
+ */
+function aimEtkin(g, fx, fy, ofs) {
+  const cev = g ? g.cev : null;
+  if (aimSigar(fx, fy, ofs, cev ? AIM_GERI : 0)) { if (g) g.cev = null; return ofs; }
+  const d = cev && aimSigar(fx, fy, cev, 0) ? cev : aimYon(fx, fy, Math.hypot(ofs[0], ofs[1]) || AIM_OFS);
+  if (g) g.cev = d;
+  return d;
+}
 /*
  * PARMAKLA NİŞAN (v7.87). İmleç artık parmağın TAM ALTINDA değil, ofset kadar uzağındadır:
  * parmak hedefi örtmez, nereye düşeceği doğrudan görülür. Ofset jestte tutulur; ikinci parmak
@@ -1162,10 +1272,11 @@ function aimOfs0(fy) { const d = uiPrefs().aimOffset == null ? AIM_OFS : +uiPref
  */
 function aimMove(fx, fy) {
   const g = gesture && gesture.type === 'aim' ? gesture : null;
-  const ofs = g && g.ofs ? g.ofs : [0, 0];
+  const ofs = aimEtkin(g, fx, fy, g && g.ofs ? g.ofs : [0, 0]);
   if (g) { g.fx = fx; g.fy = fy; }
-  const cx = Math.max(4, Math.min(S.W - 4, fx + ofs[0])), cy = Math.max(4, Math.min(S.H - 4, fy + ofs[1]));
-  penHover = { sx: cx, sy: cy, fx, fy, tilt: null, snap: penHover ? penHover.snap : null, w: null, aim: true };
+  // Kelepçe yalnız yukarıdaki dar kadraj çaresinin son emniyetidir; olağan akışta aimEtkin zaten içeride tutar.
+  const cx = Math.max(AIM_KEN, Math.min(S.W - AIM_KEN, fx + ofs[0])), cy = Math.max(AIM_KEN, Math.min(S.H - AIM_KEN, fy + ofs[1]));
+  penHover = { sx: cx, sy: cy, fx, fy, ofs: [cx - fx, cy - fy], tilt: null, snap: penHover ? penHover.snap : null, w: null, aim: true };
   hoverTick();
 }
 function hoverTick() {
@@ -1269,7 +1380,7 @@ function endPointer(ev) {
        */
       const adaylar = uiPrefs().snapPick === false ? []
         : findSnapList(toWorld(h.sx, h.sy), { prev: edCall('lastToolPoint'), max: 6 }).filter(c => !SUREKLI_KIP.has(c.kind));
-      if (adaylar.length >= 2 && openSnapPick(h.sx, h.sy, adaylar)) { if (pointers.size === 0) { gestureView0 = null; requestRender(); } return; }
+      if (adaylar.length >= 2 && openSnapPick(h.sx, h.sy, adaylar, h.fx, h.fy)) { if (pointers.size === 0) { gestureView0 = null; requestRender(); } return; }
       lastTap = 0; lastTapPos = null; void onTap(h.sx, h.sy);
     }
     if (pointers.size === 0) { gestureView0 = null; requestRender(); }
@@ -4392,7 +4503,7 @@ window.dwgApp = { osnap: Osnap, loadCurrent, onFilePicked, onLocation, onBack, o
   __cadLoad: (pct, file) => setLoadingCad(pct, file), setLoading, cancelLoading,
   // İmleç ve yakalama durumu (bkz. tools/test_pickbox.mjs): nesne istemi mi, kare kaç piksel,
   // o noktada yakalama ne buluyor (nesne isteminde null olmalıdır)
-  __pickbox: () => ({ on: pickingObject(), r: pickBoxR(), tol: TOL.pick, hover: penHover ? { sx: penHover.sx, sy: penHover.sy, aim: !!penHover.aim, snap: penHover.snap ? penHover.snap.kind : null } : null, loupe: penHover && penHover.aim ? loupeGeom(penHover) : null }),
+  __pickbox: () => ({ on: pickingObject(), r: pickBoxR(), tol: TOL.pick, hover: penHover ? { sx: penHover.sx, sy: penHover.sy, fx: penHover.fx == null ? null : penHover.fx, fy: penHover.fy == null ? null : penHover.fy, ofs: penHover.ofs ? penHover.ofs.slice() : null, aim: !!penHover.aim, snap: penHover.snap ? penHover.snap.kind : null } : null, loupe: penHover && penHover.aim ? loupeGeom(penHover) : null }),
   __snapAt: (x, y, o) => { const sn = findSnap([x, y], o || {}); return sn ? { kind: sn.kind, p: sn.p.slice(0, 2) } : null; },
   // Nesne yakalama izleme (bkz. tools/test_izleme.mjs): açık mı, edinilmiş noktalar, süren bekleme, gezinen imlecin oturduğu yol
   __track: () => { const h = penHover && penHover.snap && penHover.snap.trk ? penHover.snap.trk : null; return { on: !!Osnap.opt().otrack, pts: S.track.pts.map(q => ({ p: q.p.slice(), kind: q.kind, dirs: (q.dirs || []).slice(), arcs: (q.arcs || []).map(a => ({ c: a.c.slice(), r: a.r })) })), dwell: dwell ? dwell.key : null, hover: h ? { p: penHover.snap.p.slice(0, 2), cross: !!h.cross, lock: !!h.lock, obj: !!h.obj, n: h.paths.length, ext: h.paths.map(p => !!p.ext), arc: h.paths.map(p => !!p.arc), text: trkText(h) } : null }; },
