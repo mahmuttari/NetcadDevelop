@@ -1,0 +1,86 @@
+{
+ "fps": 30,
+ "sahneler": [
+  {
+   "ad": "1 · açılış kartı",
+   "sn": 0
+  },
+  {
+   "ad": "2 · yeni boş çizim",
+   "sn": 2.4
+  },
+  {
+   "ad": "3 · komut satırı ve öneri listesi",
+   "sn": 5.766666666666667
+  },
+  {
+   "ad": "4 · dış duvar 16,0 x 10,0 = 160 m²",
+   "sn": 10.633333333333333
+  },
+  {
+   "ad": "5 · ötele ile 25 cm duvar kalınlığı",
+   "sn": 15
+  },
+  {
+   "ad": "6 · iç bölmeler ve servis çekirdeği",
+   "sn": 20.966666666666665
+  },
+  {
+   "ad": "7 · kapılar: kanat ve açılım yayı",
+   "sn": 30.066666666666666
+  },
+  {
+   "ad": "8 · pencere çiz, diziyle çoğalt",
+   "sn": 39.6
+  },
+  {
+   "ad": "9 · aynala: sol daireden sağ daire",
+   "sn": 44.333333333333336
+  },
+  {
+   "ad": "10 · oda adları (Türkçe)",
+   "sn": 53.36666666666667
+  },
+  {
+   "ad": "11 · ölçülendirme",
+   "sn": 59.266666666666666
+  },
+  {
+   "ad": "12 · ıslak hacim taraması ve alan",
+   "sn": 66.7
+  },
+  {
+   "ad": "13 · katmanlar",
+   "sn": 71.96666666666667
+  },
+  {
+   "ad": "14 · yakalama kipleri",
+   "sn": 82.06666666666666
+  },
+  {
+   "ad": "15 · parmakla nişan aparatı",
+   "sn": 86.03333333333333
+  },
+  {
+   "ad": "16 · ölçüm",
+   "sn": 92
+  },
+  {
+   "ad": "17 · kalınlık ver, üç boyuta geç",
+   "sn": 98.1
+  },
+  {
+   "ad": "18 · tablo: değeri boş formüller hesaplanır",
+   "sn": 110.33333333333333
+  },
+  {
+   "ad": "19 · DXF olarak kaydet",
+   "sn": 117.56666666666666
+  },
+  {
+   "ad": "90 · kapanış",
+   "sn": 122.9
+  }
+ ],
+ "atlanan": []
+}

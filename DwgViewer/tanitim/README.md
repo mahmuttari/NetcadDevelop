@@ -1,61 +1,79 @@
 # Tanıtım videoları
 
 İki tanıtım vardır ve birbirinin yerine geçmez: birincisi var olan bir projeyi **açıp
-gezdirir**, ikincisi boş bir sayfadan başlayıp gözünüzün önünde **kroki çizer**.
+gezdirir**, ikincisi boş bir sayfadan başlayıp gözünüzün önünde **kat planı çizer**.
 
-## 2 · Kroki (v7.90) — `DWG_OfficeZip_kroki.mp4`
+## 2 · Kat planı (v7.90) — `DWG_OfficeZip_kat_plani.mp4`
 
-**`DWG_OfficeZip_kroki.mp4`** — 1080 × 2400 (dikey 9:20) · 30 kare/sn · 83 sn · H.264 + AAC
-**`DWG_OfficeZip_kroki_sessiz.mp4`** — aynı görüntü, sessiz nüsha (kurgu kaynağı)
-**`kroki_fon_muzik.m4a`** — fon müziği tek başına
-**`kroki_sahneler.json`** — her sahnenin başladığı saniye
+**`DWG_OfficeZip_kat_plani.mp4`** — 1080 × 2400 (dikey 9:20) · 30 kare/sn · 2:07 · H.264 + AAC
+**`DWG_OfficeZip_kat_plani_sessiz.mp4`** — aynı görüntü, sessiz nüsha (kurgu kaynağı)
+**`kat_plani_fon_muzik.m4a`** — fon müziği tek başına
+**`kat_plani_sahneler.json`** — her sahnenin başladığı saniye
 
 Yeniden çekmek için: `FFMPEG=<yol> node tools/promo2.mjs <klasör>`
-Tek sahne: `node tools/promo2.mjs <klasör> 7,13` (sahne numaraları).
+Tek sahne: `node tools/promo2.mjs <klasör> 9,17` (sahne numaraları).
 
-### Ne gösteriyor
+### Ne çiziyor
 
-Boş bir çizim açılır ve **12,5 × 8,0 m = 100 m²** bir kat krokisi, uygulamanın kendi
-komutlarıyla çizilir:
+Boş bir çizim açılır ve **16,0 × 10,0 m = 160 m²**, **aynalı iki daireli** bir kat planı,
+uygulamanın kendi komutlarıyla çizilir. Plan kullanıcının verdiği krokidir: ortada sırt
+sırta iki servis çekirdeği (mutfak + banyo), iki yanda oturma ve yatak odaları.
 
 | sn | Sahne |
 |---|---|
 | 0,0 | açılış kartı |
-| 2,3 | yeni boş çizim (birim metre) |
-| 5,7 | komut satırı: `REC` yazılır, öneri listesi açılır, `RECTANG` tamamlanır |
-| 9,9 | dış duvar: `0,0` → `@12.5,8` |
-| 13,6 | ötele ile 20 cm duvar kabuğu (nesneye ve tarafa dokunarak) |
-| 18,4 | iç bölmeler, 90 cm kapı boşluğu, kapı kanadı yayı |
-| 28,1 | tarama — alanı **uygulama** iletir |
-| 30,6 | oda adları |
-| 35,6 | doğrusal ve hizalı ölçü + detay yakınlaşması |
-| 44,5 | katman söndürme / yakma (etki çizimin üstünde görülür) |
-| 54,6 | parmakla nişan aparatı (imleç parmaktan 56 px ayrı) |
-| 59,4 | ölçüm |
-| 64,2 | duvarlara kalınlık, üç boyuta geçiş, görsel stiller |
-| 73,7 | hazır değeri olmayan bir tablonun hesaplanması |
-| 79,2 | kapanış |
+| 2,4 | yeni boş çizim (birim metre) |
+| 5,8 | komut satırı: `REC` yazılır, öneri listesi açılır, `RECTANG` tamamlanır |
+| 10,6 | dış duvar: `0,0` → `@16,10` |
+| 15,0 | ötele ile 25 cm duvar kabuğu |
+| 21,0 | iç bölmeler ve servis çekirdeği |
+| 30,1 | kapılar: kanat çizgisi + açılım yayı (giriş, yatak odası, banyo) |
+| 39,6 | bir pencere çizilir, **dizi** ile çoğaltılır |
+| 44,3 | **aynala**: sol daire tek komutla sağa geçer, görünüm plana açılır |
+| 53,4 | oda adları (Türkçe) |
+| 59,3 | doğrusal ve hizalı ölçü |
+| 66,7 | ıslak hacim taraması ve alan |
+| 72,0 | katman söndürme / yakma (etki çizimin üstünde görülür) |
+| 82,1 | on dört yakalama kipi |
+| 86,0 | parmakla nişan aparatı |
+| 92,0 | ölçüm |
+| 98,1 | duvarlara kalınlık, üç boyuta geçiş, görsel stiller |
+| 110,3 | hazır değeri olmayan bir mahal listesinin hesaplanması |
+| 117,6 | DXF olarak kaydetme |
+| 122,9 | kapanış |
 
-### Videodaki her sayı uygulamanın kendi hesabıdır
+### Üç kural — `tools/promo2.mjs` başlığında da yazılıdır
 
-Altyazıya elle sayı yazılmaz; ekrandan okunur ve altyazıya oradan geçirilir:
+**1 · Özelliğin üstüne yazı gelmez.** Altyazı, gösterilecek şeyden ÖNCE görünür,
+söyleyeceğini söyler ve kaybolur; asıl an ekranda yalnız uygulama vardır. Panel açan
+sahnelerde (katman, yakalama, tablo, 3B) altyazı hiç durmaz. Sonuç okunacaksa iş bittikten
+sonra, çizimin dışında kalan boş banda yazılır.
 
-- **36,48 m²** — taramanın alanı, uygulamanın kendi iletisinden.
-- **12,5 m** ve **8 m** — ölçü yazıları, ölçü priminden okunarak.
-- **8,118 m · ΔX 7,2 · ΔY 3,75 · 27,51°** — ölçüm panelinin kendi çıktısı ("END yakalandı").
-- **`ofs:[0,-56]` · `snap:"end"`** — nişan aparatının gerçek durumu; imleç parmaktan 56 px
-  yukarıda ve uç noktayı yakalamış.
-- **`tris: 198` · `Z: 0 … 3`** — kalınlık gerçekten uygulandı, 3B'deki kütle gerçek.
-- Tablodaki **67.488,00 ₺ · 146.683,00 ₺ · 29.336,60 ₺ · 23.09.2025** — dosyada hazır değer
-  YOKTUR (formül hücrelerinde `<v>` yazılmamıştır); ekranda dolu görünmesi hesabı uygulamanın
-  yaptığı anlamına gelir. Tablonun ilk satırındaki **36,48 m²** de krokinin kendi tarama
-  alanıdır: iki sahne uydurma bir sayıyla değil, uygulamanın kendi hesabıyla bağlanmıştır.
+**2 · Marka adı geçmez.** Komut adları (RECTANG, OFFSET, MIRROR, DIMLINEAR…) sektörün ortak
+dilidir ve ekranda görünür; altyazı bunu "komut satırı: bildiğiniz adlar" diye anar. Başka
+hiçbir yazılımın adı ne altyazıda ne kartlarda geçer.
 
-### Marka kuralı
+**3 · Hiçbir sayı elle yazılmaz.** Ekrandan okunur, altyazıya oradan geçirilir:
 
-Videoda **başka hiçbir yazılımın adı geçmez**. Komut adları (RECTANG, OFFSET, DIMLINEAR…)
-sektörün ortak dilidir ve ekranda görünür; altyazı bunu "komut satırı: bildiğiniz adlar"
-diye anar. Kural `tools/promo2.mjs` dosyasının başlığında yazılıdır ki sonradan bozulmasın.
+- **15 nesne** — aynalanan nesne sayısı, çizimin kendi sayımından.
+- **5,188 m²** — banyo taramasının alanı, uygulamanın kendi iletisinden. Mahal listesindeki
+  "Banyo 5,2 m²" satırı bu sayıyla tutarlıdır.
+- **16 m · 10 m · 8 m** — ölçü yazıları, ölçü priminden.
+- **8,051 m · ΔX 6,35 · ΔY 4,95 · 37,94°** — ölçüm panelinin kendi çıktısı ("END yakalandı").
+- **`ofs:[0,-56]`** — nişan aparatının gerçek durumu: imleç parmaktan 56 px yukarıda.
+- **`tris: 750` · 20 duvar** — kalınlık gerçekten uygulandı, 3B'deki kütle gerçek.
+- **56,60 / 62,80 / 143,00 m² · 25,74 m² · 23.09.2025** — tabloda hazır değer YOKTUR
+  (formül hücrelerinde `<v>` yazılmamıştır); dolu görünmesi hesabı uygulamanın yaptığı
+  anlamına gelir.
+- **`kat_plani_duzenlenmis.dxf`** — kaydetme sahnesinin kanıtı, tarayıcıya gerçekten inen
+  dosyanın adı. (İlk çekimde bu sahne yalan söylüyordu: komut dosya adını soruyor, kutu
+  cevaplanmadığı için hiçbir şey kaydedilmiyordu. Artık dosya inmezse sahne atlanır.)
+
+### Kroki sözleşmesi
+
+Bölme duvarları **sürekli** çizilir, kapılar üstlerine yay + kanat çizgisi olarak konur.
+Böylece her oda kapalı bir alandır ve tarama ile alan ölçümü gerçekten çalışır. Hızlı
+krokide yaygın olan yazımdır; duvarı kesmek ayrı bir iştir ve bu videonun konusu değildir.
 
 ### Bilinen sınırlar (dürüstlük notu)
 
@@ -63,7 +81,8 @@ diye anar. Kural `tools/promo2.mjs` dosyasının başlığında yazılıdır ki 
   gerçek cihazda arayüz aynıdır, başarım farklı olabilir.
 - Kalınlık komutu **Super** basamağındadır; ücretsiz ya da premium bir cihazda o sahnedeki
   komut yükseltme kutusunu açar.
-- Yazı tipi ve renkler cihazın sistem yazı tipine göre birazcık değişir.
+- Tam plana yakınlaşıldığında tarama deseni yoğunlaşıp düz griye düşer; bu uygulamanın
+  bilinçli davranışıdır (alt piksel desen → saydam dolgu), kayıt kusuru değildir.
 
 ---
 
