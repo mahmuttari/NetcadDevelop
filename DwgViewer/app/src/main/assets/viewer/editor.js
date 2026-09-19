@@ -2264,6 +2264,8 @@ ed.selDragState = () => (selDrag ? { mode: selDrag.mode, crossing: selDrag.cross
 /** Sınama için: 3B bölge seçiminin durumu ve 3B yakalama işaretinin varlığı */
 ed.sel3DragState = () => (p3.region ? { mode: p3.region.mode, crossing: p3.region.crossing, implied: !!p3.region.implied } : null);
 ed.snap3State = () => (p3.snap ? { p: p3.snap.slice(), kind: p3.snapKind, aim: !!p3.aim } : null);
+/** 3B büyüteci: nişan açıkken çemberin ekran yeri ve yarıçapı, kapalıyken null (sınama ve tanıtım için) */
+ed.mercek3State = () => (p3.aim ? { ...mercek3Yeri(), fx: p3.aim.sx, fy: p3.aim.sy } : null);
 /*
  * Çalışan araç şu an NESNE mi seçiyor (AutoCAD "Select objects:")? app.js imleci ve yakalamayı buna
  * bakarak seçer: nesne isteminde küçük kare (pickbox) çizilir ve yakalama aranmaz. Bölge sürüklemesi
@@ -3122,6 +3124,112 @@ function typed3D(v) {
   prompt3D(); overlay3D();
 }
 /** 3B üstüne 2B kaplama: HUD (kamera, eksen etiketleri, lejant, pusula), toplanan noktalar, yakalama işareti */
+/*
+ * BÜYÜTEÇ — 3B (v7.91).
+ *
+ * İki boyutta parmakla nişan alırken imlecin çevresi 2 kat büyütülür (app.js drawLoupe);
+ * kullanıcı parmağının ALTINI görerek bırakır. Üç boyutta nişan v7.84'te geldi ama büyüteç
+ * gelmedi: işaret parmağın tam altında kalıyor, yani elin kendisi örtüyordu. Yakınlaştırılmış
+ * kalabalık bir modelde hangi uca oturduğu ancak parmak kalkınca görülebiliyordu.
+ *
+ * Kaynak, WebGL tuvalinin KENDİSİdir (v3.cv). Bağlam `preserveDrawingBuffer: true` ile
+ * kurulduğu için son kare her an okunabilir; ayrı bir çizim geçişi gerekmez. Üstüne komutun
+ * o ana kadar topladığı nokta zinciri ve merkezdeki yakalama glifi çizilir — büyütecin içi
+ * ekranın aynısıdır, ayrı bir gerçeklik değildir.
+ *
+ * İMLEÇ PARMAKTAN AYRILMAZ. 2B'de imleç parmağın üstüne ofsetlenir; 3B'de dokunuşun düştüğü
+ * yer parmağın kendisidir (tap3D ile aynı nokta) ve bu böyle kalır — büyüteç görmeyi çözer,
+ * nereye basıldığını değiştirmez. Değiştirilseydi 3B dokunuşun anlamı nişanlı / nişansız
+ * durumda farklılaşırdı.
+ */
+const MERCEK3 = { R: 60, bosluk: 34, Z: 2 };
+/** Büyütecin yeri: parmağın üstünde, yer yoksa YANA (aşağısı elin kendisidir), ekran içinde ve düğme kümelerinin üstüne binmeden */
+function mercek3Yeri() {
+  if (!p3.aim) return null;
+  const fs = ui.fontScale || 1, R = Math.round(MERCEK3.R * fs), gap = Math.round(MERCEK3.bosluk * fs);
+  const fx = p3.aim.sx, fy = p3.aim.sy;
+  let cx = fx, cy = fy - R - gap;
+  if (cy - R < 4) {
+    if (2 * R + 12 <= fy - 8) cy = R + 4;                       // tepeye dayan, yine de parmağın üstünde kal
+    else {
+      const yan = [fx + R + gap, fx - R - gap].find(v => v - R >= 4 && v + R <= S.W - 4);
+      if (yan != null) { cx = yan; cy = Math.max(R + 4, Math.min(S.H - R - 4, fy)); }
+      else cy = fy + R + gap;                                   // dar kadraj: son çare aşağı
+    }
+  }
+  cx = Math.max(R + 4, Math.min(S.W - R - 4, cx));
+  cy = Math.max(R + 4, Math.min(S.H - R - 4, cy));
+  // Kaplayan düğme kümeleri: zoom sütunu, yön tuşları ve görünüm küpü. Küp 3B'de HER ZAMAN
+  // açıktır ve tam da büyütecin kaçtığı yerdedir; 2B'deki listede olmamasının nedeni budur.
+  const vpEl = $('viewport');
+  if (vpEl) {
+    for (const id of ['navFabs', 'dpad', 'cube3d']) {
+      const el = $(id); if (!el || el.hidden) continue;
+      const a = el.getBoundingClientRect(); if (!(a.width > 0)) continue;
+      const v = vpEl.getBoundingClientRect();
+      const nl = a.left - v.left, nr = a.right - v.left, nt = a.top - v.top, nb = a.bottom - v.top;
+      if (!(cx + R > nl - 4 && cx - R < nr + 4 && cy + R > nt && cy - R < nb)) continue;
+      if (a.width > a.height * 1.5) cy = Math.max(R + 4, nt - 6 - R);
+      else cx = (nl + nr) / 2 > S.W / 2 ? Math.max(R + 4, nl - 6 - R) : Math.min(S.W - R - 4, nr + 6 + R);
+    }
+  }
+  return { cx, cy, R };
+}
+function mercek3(c) {
+  const g = mercek3Yeri(); if (!g || !v3 || !v3.cv) return;
+  const { cx, cy, R } = g, Z = MERCEK3.Z, fs = ui.fontScale || 1, acc = S.selColor || '#ff9f0a', fg = fgColor();
+  // İçerik YAKALANAN noktaya ortalanır (varsa), büyütecin YERİ parmağa göredir: ikisi ayrı şeydir.
+  const p = p3.snap ? v3.project(p3.snap[0], p3.snap[1], p3.snap[2]) : [p3.aim.sx, p3.aim.sy];
+  if (!p || !isFinite(p[0]) || !isFinite(p[1])) return;
+  const gl = v3.cv, k = gl.clientWidth > 0 ? gl.width / gl.clientWidth : (S.dpr || 1), src = R / Z;
+  c.save();
+  c.beginPath(); c.arc(cx, cy, R, 0, TAU); c.closePath();
+  c.fillStyle = S.dark ? '#141a22' : '#ffffff'; c.fill();
+  c.clip();
+  try { c.drawImage(gl, (p[0] - src) * k, (p[1] - src) * k, src * 2 * k, src * 2 * k, cx - R, cy - R, R * 2, R * 2); } catch (_) { /* tuval okunamazsa büyüteç boş kalır */ }
+  // komutun topladığı nokta zinciri büyütecin içinde de sürsün
+  if (ed.m3 && ed.m3.pts.length) {
+    c.save();
+    c.translate(cx, cy); c.scale(Z, Z); c.translate(-p[0], -p[1]);
+    c.strokeStyle = acc; c.fillStyle = acc; c.lineWidth = 2 / Z;
+    const ps = ed.m3.pts.map(q => v3.project(q[0], q[1], q[2]));
+    c.beginPath(); ps.forEach((q, i) => i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1])); c.stroke();
+    ps.forEach(q => { c.beginPath(); c.arc(q[0], q[1], 5 / Z, 0, TAU); c.fill(); });
+    c.restore();
+  }
+  // merkezde artı ve yakalama glifi (2B büyüteciyle aynı dil)
+  c.setLineDash([]); c.lineWidth = 1; c.strokeStyle = fg; c.globalAlpha = 0.7;
+  c.beginPath(); c.moveTo(cx - R, cy + 0.5); c.lineTo(cx + R, cy + 0.5); c.moveTo(cx + 0.5, cy - R); c.lineTo(cx + 0.5, cy + R); c.stroke();
+  c.globalAlpha = 1;
+  const kind = p3.snapKind;
+  if (p3.snap) {
+    c.strokeStyle = '#3ddc84'; c.fillStyle = '#3ddc84'; c.lineWidth = 2.5;
+    if (kind === 'free') { c.beginPath(); c.moveTo(cx - 14, cy); c.lineTo(cx + 14, cy); c.moveTo(cx, cy - 14); c.lineTo(cx, cy + 14); c.stroke(); c.beginPath(); c.arc(cx, cy, 5, 0, TAU); c.stroke(); }
+    else if (kind === 'srf') { c.beginPath(); c.arc(cx, cy, 11, 0, TAU); c.stroke(); }
+    else if (kind && kind !== 'vtx') snapMarker(c, cx, cy, kind, 12);
+    else c.strokeRect(cx - 11, cy - 11, 22, 22);
+  }
+  c.restore();
+  c.save();
+  c.beginPath(); c.arc(cx, cy, R, 0, TAU); c.lineWidth = 2; c.strokeStyle = acc; c.globalAlpha = 0.9; c.stroke(); c.globalAlpha = 1;
+  // Etiket: neye oturduğu ve KOTU. Üç boyutta gözle kestirilemeyen tek sayı kottur; büyüteç
+  // onu yazmazsa kullanıcı yanlış katın ucuna oturduğunu ancak nokta işlendikten sonra görür.
+  const par = [];
+  if (kind === 'vtx') par.push(tt('pick3Vertex', 'Köşe'));
+  else if (kind === 'srf') par.push(tt('surfacePoint', 'Yüzey noktası'));
+  else if (kind && kind !== 'free') par.push(kind.toUpperCase());
+  if (p3.snap) par.push('Z ' + fmt(p3.snap[2]) + (S.units ? ' ' + S.units : ''));
+  const txt = par.join(' · ');
+  if (txt) {
+    c.font = `${Math.round(11 * fs)}px system-ui, sans-serif`; c.textBaseline = 'top'; c.textAlign = 'center';
+    const w = c.measureText(txt).width + 12, th = Math.round(18 * fs);
+    const ust = cy - R - 6 - th;
+    const ly = (cy - p3.aim.sy <= -(R + 40) || ust < 4) ? cy + R + 6 : ust;
+    c.fillStyle = S.dark ? 'rgba(20,26,34,.9)' : 'rgba(255,255,255,.9)'; c.fillRect(cx - w / 2, ly, w, th);
+    c.fillStyle = p3.snap ? '#3ddc84' : fg; c.fillText(txt, cx, ly + 3);
+  }
+  c.restore();
+}
 function overlay3D() {
   if (!ed.is3D()) return;
   const ov = $('ov'), c = ov.getContext('2d');
@@ -3171,6 +3279,7 @@ function overlay3D() {
     c.restore();
   }
   drawSelDrag(c, p3.region);
+  if (p3.aim) mercek3(c);   // büyüteç en üstte: parmağın altını örten hiçbir şey kalmasın
 }
 /** Kamera yer imleri (#docPanel içinde #camName / #camSave) */
 function showBookmarks() {

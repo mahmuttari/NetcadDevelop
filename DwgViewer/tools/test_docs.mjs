@@ -116,6 +116,35 @@ await page.setInputFiles('#fileInput', path.join(out, 'metraj.xlsx')); await pag
 // (bkz. tools/test_excel.mjs 1h-1j), yoksa Excel ne gösteriyorsa o.
 ok('xlsx', await ev(() => { const t = document.querySelector('#docContent .xlsx-tbl'); return !!t && /Ø300 boru/.test(t.textContent) && /1250,5/.test(t.textContent) && !!document.querySelector('#docTools [data-sheet="0"]'); }), await ev(() => (document.querySelector('#docContent')?.textContent || '').slice(0, 80)));
 await shot('doc_xlsx');
+
+// ---- uzun dosya adı başlıkta TAM görünür (v7.90) --------------------------------------------
+/*
+ * Sahada görülen kusur: başlık tek bir flex satırıydı ve yedi düğme (geri · beş eylem ·
+ * ana ekran · kapat) 360 px'lik telefonda ada yer bırakmıyordu. 43 karakterlik bir ihale
+ * dosyası ekranda yalnız "2" olarak, boyut satırı da üç parçaya bölünmüş çıkıyordu.
+ * Başlık artık sarıyor: ad birinci satırın tamamını alır, düğmeler alt satıra geçer.
+ */
+{
+  const UZUN = '2025-1811648_Birim_Fiyat_Teklif_Cetveli_Yapim.xlsx';
+  fs.writeFileSync(path.join(out, UZUN), xlsx);
+  await page.setInputFiles('#fileInput', path.join(out, UZUN)); await page.waitForTimeout(500);
+  const r = await ev(() => {
+    const n = document.getElementById('docName'), m = document.getElementById('docMeta');
+    const nb = n.getBoundingClientRect(), hb = document.querySelector('.doc-head').getBoundingClientRect();
+    return {
+      ad: n.textContent, baslik: n.title,
+      genislik: Math.round(nb.width), basGenislik: Math.round(hb.width),
+      kirpik: n.scrollHeight > n.clientHeight + 1,
+      meta: m.textContent, metaSatir: Math.round(m.getBoundingClientRect().height / parseFloat(getComputedStyle(m).lineHeight || '14')),
+    };
+  });
+  ok('u1 uzun dosya adı tam yazılır, kırpılmaz', r.ad === UZUN && r.baslik === UZUN && !r.kirpik, JSON.stringify(r));
+  ok('u2 ad satırın en az yarısını alır (düğmeler alt satıra geçti)', r.genislik > r.basGenislik * 0.55, JSON.stringify({ g: r.genislik, b: r.basGenislik }));
+  ok('u3 boyut satırı tek satır (üçe bölünmüyor)', r.metaSatir <= 1 && /KB/.test(r.meta), JSON.stringify({ meta: r.meta, satir: r.metaSatir }));
+  await shot('doc_uzun_ad');
+  await ev(() => { const dv = document.getElementById('docView'); const k = dv && dv.querySelector('[data-doc="close"]'); if (k) k.click(); });
+  await page.waitForTimeout(250);
+}
 await ev(() => window.dwgApp.docs.close());
 // ---- XLSX geniş sayfa: iki eksende gezinme, donmuş başlık, yakınlaştırma ----
 await page.setInputFiles('#fileInput', path.join(out, 'buyuk.xlsx')); await page.waitForTimeout(700);

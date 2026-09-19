@@ -784,6 +784,33 @@ await page.screenshot({ path: `${out}/e_2d_after.png` });
   ok('13g uzun basış nişanı açar: işaret parmağın altındaki uca oturur', !!g7.nisan1 && g7.nisan1.aim === true && g7.nisan1.kind === 'end', JSON.stringify(g7));
   ok('13g2 parmak komşu nesneye yaklaşınca işaret ORAYA ATLAR', !!g7.nisan2 && Math.abs(g7.nisan2.p[0] - 300) < 1e-6, JSON.stringify(g7));
   ok('13g3 parmak kalkınca nokta imlecin durduğu yere işlenir', !!g7.alinan && Math.abs(g7.alinan[0] - 300) < 1e-6, JSON.stringify(g7));
+
+  // ---- 13h · v7.91 · NİŞANDA BÜYÜTEÇ: parmağın altı büyütülerek gösterilir
+  const g8 = await calis(`
+    const p = P().find(q => q.et === 'LINE' && q.ops && q.ops.length === 2);
+    const geri = yalniz([p]);
+    E.sel.clear(); E.m3 = null;
+    const U = (await import('./editor.js')).ui; U.snap3 = true; U.snap3Modes = ['end', 'mid', 'cen'];
+    E.act('3:dist'); await bekle(250);
+    const A = uc(p, 0);
+    const oncesi = E.mercek3State();
+    await bas(A[0] + 3, A[1] + 3);
+    await bekle(700);
+    const nisanda = E.mercek3State();
+    const W = window.dwgApp.state.W, H = window.dwgApp.state.H;
+    await birak(A[0] + 3, A[1] + 3);
+    const sonrasi = E.mercek3State();
+    if (E.m3) { E.m3.pts = []; E.m3 = null; }
+    document.querySelector('#cmdBtns [data-cmd3="cancel"]') && document.querySelector('#cmdBtns [data-cmd3="cancel"]').click();
+    await bekle(150);
+    geri();
+    return { oncesi, nisanda, sonrasi, W, H, A };
+  `);
+  ok('13h nişan yokken büyüteç de yok', g8.oncesi === null, JSON.stringify(g8));
+  ok('13h2 uzun basışta büyüteç açılır', !!g8.nisanda && g8.nisanda.R > 0, JSON.stringify(g8));
+  ok('13h3 büyüteç parmağın ÜSTÜNDE durur (el kendi baktığı yeri örtmesin)', !!g8.nisanda && g8.nisanda.cy < g8.nisanda.fy, JSON.stringify(g8));
+  ok('13h4 büyüteç bütünüyle ekranın içinde kalır', !!g8.nisanda && g8.nisanda.cx - g8.nisanda.R >= 0 && g8.nisanda.cx + g8.nisanda.R <= g8.W && g8.nisanda.cy - g8.nisanda.R >= 0 && g8.nisanda.cy + g8.nisanda.R <= g8.H, JSON.stringify(g8));
+  ok('13h5 parmak kalkınca büyüteç kapanır', g8.sonrasi === null, JSON.stringify(g8));
 }
 
 

@@ -673,12 +673,19 @@ body[data-theme="hicontrast"] .navfabs .fab.send { background: #0b6b33; border-c
 body.left-hand .navfabs { right: auto; left: 12px; }
 body.left-hand .dpad { left: auto; right: 12px; }
 .cmdbar:not([hidden]) ~ .navfabs, .cmdbar:not([hidden]) ~ .dpad { bottom: calc(var(--cmd-h) + 12px); }
-.cube { position: absolute; right: 10px; top: 10px; width: 92px; padding: 4px; border-radius: 12px; background: color-mix(in srgb, var(--panel) 70%, transparent); border: 1px solid var(--line); color: var(--fg); touch-action: none; }
-.cube .cube-svg { width: 84px; height: 84px; }
+/* GÖRÜNÜM KÜPÜ FAB SÜTUNUNUN SOLUNDADIR (v7.91). Küp eskiden ekranın sağ üst köşesindeydi
+   (right: 10px) ve yalnız alçak ekranlarda yana çekilirdi. Oysa zoom sütunu (#navFabs) ALTTAN
+   YUKARI büyür: komut çubuğu açıkken altı düğme (WhatsApp'a gönder · yakınlaştır · uzaklaştır ·
+   sığdır · önceki · konum) 328 px'e ulaşır ve uzun telefonlarda küpün, "Paralel"/ev düğmelerinin
+   ve tuvale çizilen pusulanın üstüne biner. İki küme artık AYRI SÜTUNDA durur: FAB sütunu
+   sağ kenarda (12 + 48 px), küp ve pusula onun solunda. Pusula küpün offsetLeft'ini okuduğu
+   için (view3d.js) kendiliğinden birlikte kayar. */
+.cube { position: absolute; right: 72px; top: 10px; width: 86px; padding: 4px; border-radius: 12px; background: color-mix(in srgb, var(--panel) 70%, transparent); border: 1px solid var(--line); color: var(--fg); touch-action: none; }
+.cube .cube-svg { width: 70px; height: 70px; margin: 0 auto; }
 .cube.below-hud { top: 62px; }
 .cube [data-face] { cursor: pointer; }
 .cube [data-face]:hover, .cube [data-corner]:hover { fill-opacity: .6; }
-body.left-hand .cube { right: auto; left: 10px; }
+body.left-hand .cube { right: auto; left: 72px; }
 /* Karşılama turu çizim ekranına aittir ve z-index'i 20'dir, yani ana ekranın (9) ÜSTÜNDEdir:
    ana ekrana geçildiğinde turun kartı ana ekranın düğmelerini engelliyordu (sınama yakaladı).
    Ana ekran kipinde gizlenir; çizime dönüldüğünde kaldığı yerden devam eder. */
@@ -725,11 +732,6 @@ body.homemode #tour { display: none; }
   #toolbar { padding-right: var(--safe-right); } body.left-hand #toolbar { padding-right: 0; padding-left: var(--safe-left); }
 }
 
-/* --- alçak görüntü alanı (yatay ya da kısa telefon): küp ve pusula FAB sütununun soluna --- */
-@media (max-height: 720px) {
-  .cube { right: 72px; } body.left-hand .cube { right: auto; left: 72px; }
-}
-
 /* --- dar ekran (telefon dikey): üst çubuk sıkışmasın, dosya adı okunsun --- */
 @media (max-width: 560px) {
   #topbar { gap: 4px; }
@@ -760,10 +762,23 @@ body.homemode #tour { display: none; }
 
 /* --- belge görünümü (PDF / Word / Excel / arşiv / resim / metin) --- */
 .docview { position: absolute; inset: 0; z-index: 8; background: var(--bg); display: flex; flex-direction: column; }
-.doc-head { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--line); background: var(--bar); flex: 0 0 auto; }
-.doc-title { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
-.doc-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(14px * var(--fs)); }
-.doc-title small { color: var(--muted); font-size: calc(11px * var(--fs)); }
+/*
+ * BELGE BAŞLIĞI İKİ SATIRA SARAR. Başlık tek bir flex satırıydı: geri düğmesi, dosya adı,
+ * beş eylem düğmesi, ana ekran ve kapat. Yedi düğme 40'ar piksel yer kaplar; 360 piksellik
+ * bir telefonda ada yer kalmıyor, `flex: 1 1 auto` + `min-width: 0` onu sıfıra kadar
+ * eziyordu. Sonuç sahada görüldü: "2025-1811648_Birim_Fiyat_Teklif_Cetveli.pdf" ekranda
+ * yalnız "2" olarak, boyut satırı da üç parçaya bölünmüş çıkıyordu.
+ *
+ * Çözüm satır kırmaktır: başlık `flex-wrap` olur ve ada satırın en az %60'ı ayrılır.
+ * Sığmayınca eylem düğmeleri (ve arkalarındaki ana ekran / kapat) kendiliğinden ALT
+ * SATIRA geçer; ad birinci satırın tamamını alır. Ad artık kesilmez, sarar — en çok üç
+ * satır (absürt uzunlukta bir ad belge gövdesini aşağı itmesin), tamamı `title`
+ * özniteliğinde de durur.
+ */
+.doc-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--line); background: var(--bar); flex: 0 0 auto; }
+.doc-title { flex: 1 1 60%; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.doc-title strong { font-size: calc(14px * var(--fs)); white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.doc-title small { color: var(--muted); font-size: calc(11px * var(--fs)); white-space: nowrap; }
 .doc-acts { display: flex; gap: 4px; flex: 0 0 auto; }
 .doc-tools { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-bottom: 1px solid var(--line); background: var(--bar); flex: 0 0 auto; flex-wrap: wrap; min-height: 0; }
 .doc-tools:empty { display: none; }
@@ -1023,8 +1038,8 @@ html[dir="rtl"] .navfabs { right: auto; left: 12px; }
 html[dir="rtl"] body.left-hand .navfabs { left: auto; right: 12px; }
 html[dir="rtl"] .dpad { left: auto; right: 12px; }
 html[dir="rtl"] body.left-hand .dpad { right: auto; left: 12px; }
-html[dir="rtl"] .cube { right: auto; left: 10px; }
-html[dir="rtl"] body.left-hand .cube { left: auto; right: 10px; }
+html[dir="rtl"] .cube { right: auto; left: 72px; }
+html[dir="rtl"] body.left-hand .cube { left: auto; right: 72px; }
 html[dir="rtl"] .open-item.fav .nm { padding-right: 0; padding-left: 18px; }
 html[dir="rtl"] .open-item.fav .nm > svg.ic { right: auto; left: 0; }
 html[dir="rtl"] .open-tile > svg.ic { left: auto; right: 6px; }
@@ -1042,8 +1057,6 @@ html[dir="rtl"] .open-tile .lbtn { right: auto; left: 0; }
   html[dir="rtl"] body.left-hand .panel.bottom { left: auto; right: 0; border-radius: 12px 0 0 0; }
   html[dir="rtl"] .notesbar { left: 8px; right: 72px; }
   html[dir="rtl"] body.left-hand .notesbar { left: 72px; right: 8px; }
-  html[dir="rtl"] .cube { left: 72px; right: auto; }
-  html[dir="rtl"] body.left-hand .cube { left: auto; right: 72px; }
 }
 /* Belge yüzeyleri kâğıdın kendi yönünde kalır: sayfa numarası, sütun donması ve
    sayı hizalaması arayüz aynalanınca bozulmasın. Metnin kendi iki yönlü akışı

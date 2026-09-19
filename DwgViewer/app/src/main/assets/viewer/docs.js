@@ -399,7 +399,10 @@ async function show(d, opts = {}) {
   if (cur && !opts.replace) stack.push(cur);
   cur = d; d.zoom = d.zoom || 1;
   els.view.hidden = false; document.body.classList.add('docmode');
-  els.name.textContent = d.name; els.meta.textContent = [fmtSize(d.size), kindLabel(d.kind)].filter(Boolean).join(' · ');
+  // Ad satıra sarar (bkz. app.css .doc-title); üç satırı aşan absürt bir adın tamamı da
+  // title özniteliğinden okunabilsin.
+  els.name.textContent = d.name; els.name.title = d.name;
+  els.meta.textContent = [fmtSize(d.size), kindLabel(d.kind)].filter(Boolean).join(' · ');
   els.view.querySelector('[data-doc="back"]').hidden = !stack.length;
   // Bekleme boşluğu, gelecek içeriğin biçimini gösterir: belge için sayfa iskeleti, görsel için
   // ızgaralı önizleme kartı. İskelet süstür (aria-hidden); "Yükleniyor…" yanındaki görünmez

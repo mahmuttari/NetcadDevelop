@@ -99,10 +99,20 @@ await ev(() => { document.getElementById('toast').hidden = true; });
   ok('21a küp görünür', v.cube && v.faces === 6, JSON.stringify(v));
   await page.click('#cube3d [data-face="top"]'); await page.waitForTimeout(450);
   ok('21b top', await ev(() => Math.abs(window.dwgApp.editor.view3d().cam.pitch - Math.PI / 2) < 0.01));
-  await page.click('#cube3d [data-face="front"]'); await page.waitForTimeout(450);
-  ok('21c front', await ev(() => Math.abs(window.dwgApp.editor.view3d().cam.yaw + Math.PI / 2) < 0.01), String(await ev(() => window.dwgApp.editor.view3d().cam.yaw)));
+  /* v7.91 · KÜP KAMERANIN KENDİSİDİR: tam tepeden bakarken küp de tek kare yüz olur.
+     Eskiden çizim açısı 22°-68° arasına kırpıldığı için küp eğik kalır, seçilen görünüşü
+     yalanlardı. Kaçış yolu kapanmaz: karenin dört köşesi görünür ve tıklanabilir kalır. */
+  const duz = await ev(() => ({
+    yuz: [...document.querySelectorAll('#cube3d [data-face]')].filter(e => e.getAttribute('visibility') !== 'hidden').length,
+    kose: [...document.querySelectorAll('#cube3d [data-corner]')].filter(e => e.getAttribute('visibility') !== 'hidden').length,
+  }));
+  ok('21b2 dik görünüşte küp de düz: tek yüz, dört köşe tıklanabilir', duz.yuz === 1 && duz.kose === 4, JSON.stringify(duz));
   await page.click('#cube3d [data-corner="isoNE"]'); await page.waitForTimeout(450);
-  ok('21d isoNE', await ev(() => { const c = window.dwgApp.editor.view3d().cam; return Math.abs(c.yaw + Math.PI / 4) < 0.01 && Math.abs(c.pitch - 0.6155) < 0.01; }), await ev(() => JSON.stringify(window.dwgApp.editor.view3d().cam)));
+  ok('21c isoNE', await ev(() => { const c = window.dwgApp.editor.view3d().cam; return Math.abs(c.yaw + Math.PI / 4) < 0.01 && Math.abs(c.pitch - 0.6155) < 0.01; }), await ev(() => JSON.stringify(window.dwgApp.editor.view3d().cam)));
+  ok('21c2 izometride üç yüz birden görünür', await ev(() => [...document.querySelectorAll('#cube3d [data-face]')].filter(e => e.getAttribute('visibility') !== 'hidden').length === 3));
+  await page.click('#cube3d [data-face="front"]'); await page.waitForTimeout(450);
+  ok('21d front', await ev(() => Math.abs(window.dwgApp.editor.view3d().cam.yaw + Math.PI / 2) < 0.01), String(await ev(() => window.dwgApp.editor.view3d().cam.yaw)));
+  await page.click('#cube3d [data-corner="isoNE"]'); await page.waitForTimeout(450);
   ok('38b stMode 3B', /^3B · (Paralel|Persp)$/.test((await page.locator('#stMode').innerText()).trim()), await page.locator('#stMode').innerText());
   await shot('s_3d_cube');
   // 32 display sheet 3B

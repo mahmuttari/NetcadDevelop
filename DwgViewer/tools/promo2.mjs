@@ -1,5 +1,5 @@
 /*
- * DWG OfficeZip — TANITIM VİDEOSU 2: "plan telefonda çizilir" (v7.90, iki dakika)
+ * DWG OfficeZip — TANITIM VİDEOSU 2: "plan telefonda çizilir" (v7.91, iki dakika)
  *
  * Birinci tanıtım (tools/promo.mjs) var olan bir projeyi AÇIP gezdiriyordu. Bu ikincisi tersini
  * yapar: ekranda BOŞ bir çizimle başlar ve izleyicinin gözü önünde 16,0 x 10,0 m — 160 m² —
@@ -8,6 +8,11 @@
  *
  * NEDEN BU PLAN: simetrik olduğu için AYNALA komutu bir gösteri değil, işin doğal parçası olur.
  * Sol daire çizilir, tek komutla sağ daire doğar. Bir çizim aracının işe yaradığı en somut an.
+ *
+ * MOBİLYA da sol dairede çizilir (10. sahne, MOBILYA katmanı) ve aynayla sağa geçer: yatak,
+ * gardırop, koltuk, mutfak tezgâhı ve donatı. Üç boyuta geçerken duvara 2,90 m, mobilyaya
+ * 0,60 m yükseklik verilir — tek yükseklik yatağı gardırop boyunda gösterir, yani planı
+ * doğrulamak yerine yalanlar.
  *
  * ÜÇ KURAL — bozulmaması için buraya yazıldı:
  *
@@ -347,14 +352,61 @@ await sahne(8, 'pencere çiz, diziyle çoğalt', async () => {
   await C.tut(0.6);
 });
 
-// --- 9 · AYNALA ------------------------------------------------------------------------------------
-await sahne(9, 'aynala: sol daireden sağ daire', async () => {
+// --- 9 · tarama ve alan -----------------------------------------------------------------------------
+await sahne(9, 'ıslak hacim taraması ve alan', async () => {
+  await anlat('Kapalı alana dokun: tarama', 'Tap a closed area: hatch', 1.2);
+  await ev(() => { window.dwgApp.editor.curPattern = { name: 'ANSI31', scale: 0, angle: 0 }; });
+  await K0('hatch');
+  // Tarama AYNADAN ÖNCE yapılır, bu yüzden yalnız SOL banyo taranır: sağ daire henüz yok.
+  // Sağdaki taramayı 11. sahnedeki ayna getirir — aynı iş iki kez yapılmaz.
+  await dokunD(7.3, 2.3, 0.2);
+  await bekle(550);
+  const t1 = await toast();
+  console.log('   tarama iletisi:', t1);
+  await iptal(); await sessiz();
+  await enjekte();
+  const m = /([\d.,]+)\s*m²/.exec(t1 || '');
+  await sonuc(m ? `Banyo alanı: ${m[1]} m² — uygulamanın hesabı` : 'Tarama eklendi',
+    m ? `Bathroom area: ${enSayi(m[1])} m² — computed by the app` : 'Hatch added', 2.0);
+});
+
+// --- 10 · mobilya -----------------------------------------------------------------------------------
+await sahne(10, 'mobilya: yatak, dolap, koltuk, tezgah', async () => {
+  /*
+   * Mobilya AYNADAN ÖNCE çizilir: sol dairenin donatısı tek komutla sağa geçer, iki kez
+   * çizilmez. Kendi katmanındadır (MOBILYA) — 18. sahnede duvarlara 2,90 m, mobilyaya 0,60 m
+   * yükseklik verilirken ayrım oradan yapılır; tek yükseklik verilseydi yatak dolap boyunda
+   * çıkardı. Ölçüler gerçek: tek kişilik yatak 1,60 × 2,10, gardırop 2,40 × 0,60, koltuk
+   * 0,90 × 2,20, mutfak tezgâhı 0,60 derinliğinde.
+   */
+  await katmanYeni('MOBILYA');
+  await anlat('Mobilyayı da çizer', 'Furniture too', 1.3);
+  await dikC('0.45,1.5', '@1.6,2.1', 0.3);      // yatak
+  await dikC('2.7,0.45', '@2.4,0.6', 0.3);      // gardırop
+  await dikC('0.45,5.6', '@0.9,2.2', 0.3);      // koltuk
+  await dikC('6.7,4.5', '@0.6,5.25', 0.4);      // mutfak tezgâhı
+  // Kalan donatı hızlı geçilir: izleyici kuralı ilk dördünde zaten gördü.
+  await dik0('0.45,3.35', '@1.6,0.25');         // yastık
+  await dik0('0.45,3.8', '@0.5,0.5');           // komodin
+  await dik0('1.6,5.6', '@0.9,0.9');            // berjer
+  await dik0('1.75,6.95', '@1.1,0.6');          // sehpa
+  await dik0('3.6,8.3', '@1.8,1.0');            // yemek masası
+  await dik0('6.78,6.6', '@0.45,0.5');          // evye
+  await dik0('6.78,8.3', '@0.45,0.5');          // ocak
+  await dik0('6.7,0.25', '@1.25,0.9');          // duş teknesi
+  await dik0('7.35,2.9', '@0.4,0.6');           // klozet
+  await dik0('6.75,3.7', '@0.55,0.4');          // lavabo
+  await C.tut(0.8);
+});
+
+// --- 11 · AYNALA ------------------------------------------------------------------------------------
+await sahne(11, 'aynala: sol daireden sağ daire', async () => {
   /*
    * Videonun can alıcı sahnesi. Plan simetrik olduğu için sol dairenin tamamı tek komutla
    * sağa geçer. Seçime dış duvar ve kabuğu GİRMEZ (ilk iki ilkel); onlar iki daireyi birden
    * saran tek kabuktur. Ayna ekseni düşeydir (x = 8,00) ve "orijinal kalsın" açıktır.
    */
-  await anlat('Plan simetrik: sol daire aynalanır', 'The plan is symmetric: mirror the left flat', 1.8);
+  await anlat('Plan simetrik: sol daire mobilyasıyla aynalanır', 'Symmetric plan: mirror the left flat with its furniture', 1.8);
   const secildi = await ev(() => {
     const A = window.dwgApp, E = A.editor;
     E.sel.clear();
@@ -389,8 +441,8 @@ await sahne(9, 'aynala: sol daireden sağ daire', async () => {
   await sonuc(`Tek komutla ${eklenen} nesne aynalandı`, `${eklenen} objects, one command`, 1.8);
 });
 
-// --- 10 · oda adları --------------------------------------------------------------------------------
-await sahne(10, 'oda adları (Türkçe)', async () => {
+// --- 12 · oda adları --------------------------------------------------------------------------------
+await sahne(12, 'oda adları (Türkçe)', async () => {
   /* Yazı AYNADAN SONRA yazılır: aynalanan yazı ters okunurdu. */
   await katmanYeni('YAZI');
   await anlat('Oda adları', 'Room names', 1.1);
@@ -418,8 +470,8 @@ await sahne(10, 'oda adları (Türkçe)', async () => {
   await C.tut(1.0);
 });
 
-// --- 11 · ölçülendirme -------------------------------------------------------------------------------
-await sahne(11, 'ölçülendirme', async () => {
+// --- 13 · ölçülendirme -------------------------------------------------------------------------------
+await sahne(13, 'ölçülendirme', async () => {
   await katmanYeni('OLCU');
   await anlat('Ölçüyü uygulama yazar', 'The app writes the dimension', 1.3);
   await yazCanli('DIMLINEAR', { kare: 2 });
@@ -446,27 +498,9 @@ await sahne(11, 'ölçülendirme', async () => {
   await sonuc(uc ? `Ölçüler: ${uc} m` : 'Ölçüler yazıldı', uc ? `Dimensions: ${enSayi(uc)} m` : 'Dimensions written', 1.8);
 });
 
-// --- 12 · tarama ve alan -----------------------------------------------------------------------------
-await sahne(12, 'ıslak hacim taraması ve alan', async () => {
-  await anlat('Kapalı alana dokun: tarama', 'Tap a closed area: hatch', 1.2);
-  await ev(() => { window.dwgApp.editor.curPattern = { name: 'ANSI31', scale: 0, angle: 0 }; });
-  await K0('hatch');
-  await dokunD(7.3, 2.3, 0.2);
-  await bekle(550);
-  const t1 = await toast();
-  await dokunD(8.7, 2.3, 0.2);
-  await bekle(550);
-  const t2 = await toast();
-  console.log('   tarama iletileri:', t1, '|', t2);
-  await iptal(); await sessiz();
-  await enjekte();
-  const m = /([\d.,]+)\s*m²/.exec(t1 || '');
-  await sonuc(m ? `Banyo alanı: ${m[1]} m² — uygulamanın hesabı` : 'Tarama eklendi',
-    m ? `Bathroom area: ${enSayi(m[1])} m² — computed by the app` : 'Hatch added', 2.0);
-});
 
-// --- 13 · katmanlar -----------------------------------------------------------------------------------
-await sahne(13, 'katmanlar', async () => {
+// --- 14 · katmanlar -----------------------------------------------------------------------------------
+await sahne(14, 'katmanlar', async () => {
   await anlat('Altı katman: duvar · bölme · kapı · pencere · yazı · ölçü',
     'Six layers: wall, partition, door, window, text, dim', 2.0);
   /* Panel 412 px genişlikte bütün ekranı kaplar: söndürme etkisi panel AÇIKKEN görünmez.
@@ -483,8 +517,8 @@ await sahne(13, 'katmanlar', async () => {
   await C.tut(0.4);
 });
 
-// --- 14 · yakalama kipleri -----------------------------------------------------------------------------
-await sahne(14, 'yakalama kipleri', async () => {
+// --- 15 · yakalama kipleri -----------------------------------------------------------------------------
+await sahne(15, 'yakalama kipleri', async () => {
   await anlat('On dört yakalama kipi', 'Fourteen snap modes', 1.4);
   await K0('osnap');
   await page.waitForSelector('#osGrid', { state: 'visible', timeout: 8000 });
@@ -496,8 +530,8 @@ await sahne(14, 'yakalama kipleri', async () => {
   await C.tut(0.3);
 });
 
-// --- 15 · parmakla nişan aparatı -----------------------------------------------------------------------
-await sahne(15, 'parmakla nişan aparatı', async () => {
+// --- 16 · parmakla nişan aparatı -----------------------------------------------------------------------
+await sahne(16, 'parmakla nişan aparatı', async () => {
   await anlat('Parmak hedefi örtmez: imleç yukarıda', 'The finger never covers the target', 1.6);
   await ev(() => { window.dwgApp.osnap.setModes(['end', 'mid', 'int', 'cen', 'per', 'nea']); window.dwgApp.editor.act('t:line'); });
   await C.tut(0.3);
@@ -521,8 +555,8 @@ await sahne(15, 'parmakla nişan aparatı', async () => {
   await C.tut(0.3);
 });
 
-// --- 16 · ölçüm ---------------------------------------------------------------------------------------
-await sahne(16, 'ölçüm', async () => {
+// --- 17 · ölçüm ---------------------------------------------------------------------------------------
+await sahne(17, 'ölçüm', async () => {
   await anlat('Uçtan uca ölçü — uca kendiliğinden oturur', 'End to end, snapped to the corner', 1.5);
   await ev(() => { const E = window.dwgApp.editor; if (E.tools.running) E.tools.cancel(); window.dwgApp.setMode('measure'); });
   await C.tut(0.4);
@@ -535,32 +569,47 @@ await sahne(16, 'ölçüm', async () => {
   await C.tut(0.3);
 });
 
-// --- 17 · kalınlık ve üç boyut -------------------------------------------------------------------------
-await sahne(17, 'kalınlık ver, üç boyuta geç', async () => {
+// --- 18 · kalınlık ve üç boyut -------------------------------------------------------------------------
+await sahne(18, 'kalınlık ver, üç boyuta geç', async () => {
   await anlat('Duvarlara kalınlık ver', 'Give the walls a height', 1.4);
   /*
    * Kalınlık aracı ÖNCE nesne, SONRA değer ister; değer bir form kutusundan değil KOMUT
    * SATIRINDAN gelir. Seçim doluysa araç seçim adımını atlar ve doğrudan yüksekliği sorar.
-   * Seçim katman adıyla değil GEOMETRİYLE yapılır (kapalı yollar = duvarlar); yazı, ölçü
-   * ve tarama dışarıda kalır.
+   * Seçim GEOMETRİYLE yapılır (kapalı yollar); yazı, ölçü ve tarama dışarıda kalır.
+   *
+   * İKİ AYRI YÜKSEKLİK. Duvar 2,90 m, mobilya 0,60 m. Tek değer verilseydi yatak gardırop
+   * boyunda, tezgâh tavana kadar çıkardı — üç boyutlu görüntü planı doğrulamak yerine
+   * yalanlardı. Ayrım MOBILYA katmanındandır (10. sahnede orada çizildi, ayna da katmanı
+   * taşır).
    */
-  const secildi = await ev(() => {
-    const A = window.dwgApp, E = A.editor;
-    E.sel.clear();
-    let n = 0;
-    for (const p of A.state.prims) if (p.k === 0 && p.closed && !p.fill && p.ops && p.ops.length >= 3) { E.sel.add(p); n++; }
-    A.render();
+  const yukselt = async (mobilya, h) => {
+    const n = await ev(([mob]) => {
+      const A = window.dwgApp, E = A.editor;
+      E.sel.clear();
+      let k = 0;
+      for (const p of A.state.prims) {
+        if (!(p.k === 0 && p.closed && !p.fill && p.ops && p.ops.length >= 3)) continue;   // kapalı yol: duvar ya da mobilya
+        if ((p.lay === 'MOBILYA') !== mob) continue;
+        E.sel.add(p); k++;
+      }
+      A.render();
+      return k;
+    }, [mobilya]);
+    console.log(`   seçilen (${mobilya ? 'mobilya' : 'duvar'}):`, n);
+    if (!n) return 0;
+    await C.tut(0.5);
+    await K0('thickness');
+    console.log('   kalınlık istemi:', await istem());
+    await KC(h, 0.5, 3);
+    await iptal();
     return n;
-  });
-  console.log('   seçilen duvar:', secildi);
-  if (!secildi) throw new Error('kalınlık verilecek kapalı yol yok');
-  await C.tut(0.5);
-  await K0('thickness');
-  console.log('   kalınlık istemi:', await istem());
-  await KC('2.9', 0.5, 3);
-  await iptal();
+  };
+  const nDuvar = await yukselt(false, '2.9');
+  if (!nDuvar) throw new Error('kalınlık verilecek kapalı yol yok');
+  const nMobilya = await yukselt(true, '0.6');
+  if (!nMobilya) throw new Error('MOBILYA katmanında kapalı yol yok — 10. sahne çalışmadı');
   const ext = await ev(() => window.dwgApp.state.prims.filter(p => p.et === 'EXTRUDE').length);
-  console.log('   yükseltilen duvar:', ext);
+  console.log('   yükseltilen:', ext, '(duvar', nDuvar, '· mobilya', nMobilya, ')');
   await C.tut(0.4);
   await altAc('Aynı plan, üç boyutta', 'The same plan, in 3D'); await C.tut(1.2); await altKapat();
   await ev(() => window.dwgApp.editor.act('3d'));
@@ -569,7 +618,7 @@ await sahne(17, 'kalınlık ver, üç boyuta geç', async () => {
   const c = await ev(() => { try { return window.dwgApp.editor.view3d().counts; } catch (e) { return null; } });
   console.log('   3B sayaç:', JSON.stringify(c));
   await ev(() => { try { window.dwgApp.editor.view3d().set('turntable', true); } catch (e) {} });
-  await C.hareket(4.0, () => {});
+  await C.hareket(3.0, () => {});
   await ev(() => { try { window.dwgApp.editor.view3d().set('turntable', false); } catch (e) {} });
   // 'realistic' ile 'shaded' düz prizma yüzünde AYNI pikseli verir; gerçekten farklı üçlü seçildi
   for (const st of ['shaded', 'conceptual', 'sketchy']) {
@@ -583,8 +632,8 @@ await sahne(17, 'kalınlık ver, üç boyuta geç', async () => {
   await C.tut(0.3);
 });
 
-// --- 18 · hesaplayan tablo -------------------------------------------------------------------------------
-await sahne(18, 'tablo: değeri boş formüller hesaplanır', async () => {
+// --- 19 · hesaplayan tablo -------------------------------------------------------------------------------
+await sahne(19, 'tablo: değeri boş formüller hesaplanır', async () => {
   await anlat('Mahal listesini de açar — ve hesaplar', 'Opens the schedule — and computes it', 1.6);
   await page.setInputFiles('#fileInput', METRAJ);
   await bekle(1300);
@@ -602,8 +651,8 @@ await sahne(18, 'tablo: değeri boş formüller hesaplanır', async () => {
   await C.tut(0.3);
 });
 
-// --- 19 · DXF olarak kaydet ---------------------------------------------------------------------------------
-await sahne(19, 'DXF olarak kaydet', async () => {
+// --- 20 · DXF olarak kaydet ---------------------------------------------------------------------------------
+await sahne(20, 'DXF olarak kaydet', async () => {
   /*
    * İlk çekimde bu sahne YALAN SÖYLÜYORDU: altyazı "DXF olarak kaydedilir" derken ekranda
    * yalnız kararmış bir kip vardı — komut dosya adını soruyor, kutu cevaplanmadığı için

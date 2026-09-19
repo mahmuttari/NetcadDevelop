@@ -288,7 +288,6 @@ const CUBE_FACES = [
   { id: 'top', n: [0, 0, 1], tr: 'Ü', en: 'T' }, { id: 'bottom', n: [0, 0, -1], tr: 'Al', en: 'Bo' }, { id: 'front', n: [0, -1, 0], tr: 'Ö', en: 'F' },
   { id: 'back', n: [0, 1, 0], tr: 'A', en: 'Ba' }, { id: 'left', n: [-1, 0, 0], tr: 'S', en: 'L' }, { id: 'right', n: [1, 0, 0], tr: 'Sğ', en: 'R' },
 ];
-const SGN = (v) => v < 0 ? -1 : 1;
 /** köşe id'si: (+x,-y,+z) → isoNE, (-x,-y,+z) → isoNW, (+x,+y,+z) → isoSE, (-x,+y,+z) → isoSW; altlar "-low" */
 function cornerId(x, y, z) { const top = z > 0; const id = y < 0 ? (x > 0 ? 'isoNE' : 'isoNW') : (x > 0 ? 'isoSE' : 'isoSW'); return top ? id : id + '-low'; }
 function faceOf(id) { return CUBE_FACES.find(f => f.id === id); }
@@ -297,7 +296,7 @@ export function buildViewCube(container, v3, host = {}) {
   const NS = 'http://www.w3.org/2000/svg';
   container.innerHTML = '';
   const svg = document.createElementNS(NS, 'svg');
-  svg.setAttribute('viewBox', '-1.45 -1.45 2.9 2.9'); svg.setAttribute('width', '84'); svg.setAttribute('height', '84');
+  svg.setAttribute('viewBox', '-1.45 -1.45 2.9 2.9'); svg.setAttribute('width', '70'); svg.setAttribute('height', '70');
   svg.setAttribute('class', 'cube-svg'); svg.style.display = 'block'; svg.style.touchAction = 'none'; svg.style.userSelect = 'none';
   const gFaces = document.createElementNS(NS, 'g'), gEdges = document.createElementNS(NS, 'g'), gCorners = document.createElementNS(NS, 'g'), gLabels = document.createElementNS(NS, 'g'), gNorth = document.createElementNS(NS, 'g');
   svg.append(gFaces, gEdges, gCorners, gLabels, gNorth);
@@ -322,13 +321,13 @@ export function buildViewCube(container, v3, host = {}) {
     if (a.n[0] + b.n[0] === 0 && a.n[1] + b.n[1] === 0 && a.n[2] + b.n[2] === 0) continue; // karşıt yüzler
     const pts = corners.filter(c => c[0] * a.n[0] + c[1] * a.n[1] + c[2] * a.n[2] > 0 && c[0] * b.n[0] + c[1] * b.n[1] + c[2] * b.n[2] > 0);
     const ln = document.createElementNS(NS, 'line');
-    ln.dataset.edge = a.id + '-' + b.id; ln.setAttribute('stroke', 'currentColor'); ln.setAttribute('stroke-opacity', '0.001'); ln.setAttribute('stroke-width', '0.28'); ln.setAttribute('stroke-linecap', 'round'); ln.style.pointerEvents = 'stroke';
+    ln.dataset.edge = a.id + '-' + b.id; ln.setAttribute('stroke', 'currentColor'); ln.setAttribute('stroke-opacity', '0.001'); ln.setAttribute('stroke-width', '0.36'); ln.setAttribute('stroke-linecap', 'round'); ln.style.pointerEvents = 'stroke';
     gEdges.appendChild(ln); edgeEls.push({ el: ln, pts, faces: [a, b], dir: [a.n[0] + b.n[0], a.n[1] + b.n[1], a.n[2] + b.n[2]] });
   }
   // köşeler
   const cornerEls = corners.map(c => {
     const ci = document.createElementNS(NS, 'circle');
-    ci.dataset.corner = cornerId(c[0], c[1], c[2]); ci.setAttribute('r', '0.16'); ci.setAttribute('fill', 'currentColor'); ci.setAttribute('fill-opacity', '0.35'); ci.setAttribute('stroke', stroke); ci.setAttribute('stroke-width', '0.02');
+    ci.dataset.corner = cornerId(c[0], c[1], c[2]); ci.setAttribute('r', '0.2'); ci.setAttribute('fill', 'currentColor'); ci.setAttribute('fill-opacity', '0.35'); ci.setAttribute('stroke', stroke); ci.setAttribute('stroke-width', '0.02');
     gCorners.appendChild(ci); return { el: ci, c };
   });
   // kuzey işareti
@@ -342,9 +341,10 @@ export function buildViewCube(container, v3, host = {}) {
   const bPersp = document.createElement('button'); bPersp.type = 'button'; bPersp.dataset.cube = 'persp'; bPersp.className = 'cube-btn';
   const bHome = document.createElement('button'); bHome.type = 'button'; bHome.dataset.cube = 'home'; bHome.className = 'cube-btn'; bHome.setAttribute('aria-label', tt('fit3', 'Sığdır'));
   bHome.innerHTML = document.getElementById('i-home') ? '<svg class="ic" width="16" height="16" aria-hidden="true"><use href="#i-home"/></svg>' : '⌂';
-  // 84 px'lik küp genişliğine iki düğme sığar: simge düğmesi dar (28 px), metin düğmesi kalan genişliği alır ('Paralel' kırpılmaz)
-  for (const b of [bPersp, bHome]) b.style.cssText = 'min-width:0;height:26px;padding:0 4px;border:1px solid var(--line,#888);border-radius:6px;background:var(--btn,#333);color:var(--fg,#eee);font:600 10px system-ui,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
-  bPersp.style.flex = '1 1 0'; bHome.style.flex = '0 0 28px'; bHome.style.padding = '0';
+  // Küp 70 px'e indi, kutu 86 px kaldı: düğme satırına 78 px düşer. Simge düğmesi dar (24 px),
+  // metin düğmesi kalan 50 px'i alır — 15 dilin en uzun etiketi ('Paralel', 39,1 px) oraya sığar.
+  for (const b of [bPersp, bHome]) b.style.cssText = 'min-width:0;height:24px;padding:0 2px;border:1px solid var(--line,#888);border-radius:6px;background:var(--btn,#333);color:var(--fg,#eee);font:600 10px system-ui,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+  bPersp.style.flex = '1 1 0'; bHome.style.flex = '0 0 24px'; bHome.style.padding = '0';
   btns.append(bPersp, bHome); container.appendChild(btns);
 
   const emit = (k, v) => { try { host.onChange && host.onChange(k, v); } catch (_) { /* geç */ } };
@@ -362,12 +362,20 @@ export function buildViewCube(container, v3, host = {}) {
     last = { yaw: c.yaw, pitch: c.pitch, persp: c.persp };
     bPersp.textContent = c.persp ? tt('perspShort', 'Persp') : tt('orthoShort', 'Paralel');
     bPersp.setAttribute('aria-label', c.persp ? tt('perspective', 'Perspektif') : tt('orthographic', 'Paralel')); bPersp.title = bPersp.getAttribute('aria-label');
-    // çizim açıları: yüzler kenardan görünmesin diye sınırlanır (her zaman 3 yüz tıklanabilir)
-    let p = c.pitch, y = c.yaw;
-    const amin = 22 * Math.PI / 180, amax = 68 * Math.PI / 180;
-    p = (Math.abs(p) < 1e-6 ? 1 : SGN(p)) * clamp(Math.abs(p), amin, amax);
-    const q = Math.PI / 2, r = ((y % q) + q) % q, lim = 12 * Math.PI / 180;
-    if (r < lim) y += lim - r; else if (r > q - lim) y -= r - (q - lim);
+    /*
+     * KÜP KAMERANIN KENDİSİDİR (v7.91). Eskiden çizim açıları kırpılırdı: eğim 22°-68° arasına
+     * sıkıştırılır, sapma da eksenden 12° uzaklaştırılırdı. Amaç her zaman üç yüzün tıklanabilir
+     * kalmasıydı; bedeli, KÜPÜN YALAN SÖYLEMESİYDİ — kullanıcı "Ü" (üst görünüş) düğmesine
+     * basıp ekran tam tepeden bakarken küp hâlâ eğik duruyordu, yani görünümü doğrulamak için
+     * bakılacak tek gösterge yanlış gösteriyordu.
+     *
+     * Artık kamera açıları OLDUĞU GİBİ çizilir: dik görünüşte küp de tek kare yüz olur.
+     * Kaçış yolu kapanmaz — o durumda karenin dört KENARI ve dört KÖŞESİ görünür ve
+     * tıklanabilir kalır (kenar 45°'ye, köşe izometriye götürür), küpü sürüklemek yörüngeyi
+     * döndürür, altındaki ev düğmesi izometriye döner. Küp küçüldüğü için kenar ve köşe
+     * hedefleri de büyütüldü (yukarıda 0.36 / 0.2).
+     */
+    const p = c.pitch, y = c.yaw;
     const cp = Math.cos(p), sp = Math.sin(p), cy = Math.cos(y), sy = Math.sin(y);
     const d = [cp * cy, cp * sy, sp];                      // kameraya doğru
     const right = [-sy, cy, 0], up = [-sp * cy, -sp * sy, cp];

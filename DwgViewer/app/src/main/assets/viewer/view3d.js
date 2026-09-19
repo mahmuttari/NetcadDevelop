@@ -1295,7 +1295,7 @@ export class View3D {
       const r = 16;
       // küp açıkken pusula küpün altında ve onunla aynı hizada (yatayda küp FAB sütununun solundadır); küp yokken HUD kutusunun altına iner
       const cx = cubeOn ? ce.offsetLeft + ce.offsetWidth / 2 : left ? 8 + 42 : W - 8 - 42;
-      let cy = cubeBottom + 8 + r + 6;
+      let cy = cubeBottom + 18 + r + 6;   // 18: 'K' harfi pusula merkezinin 34 px üstüne yazılır; kuzey yukarıyı gösterdiğinde küpün kutusuna değmesin
       const hb = o.hud && o.hudPos === 'tl' ? this._hudBox : null;
       if (hb && !cubeOn && hb.x + hb.w > cx - r - 6 && hb.y + hb.h > cy - r - 6) cy = Math.max(cy, hb.y + hb.h + r + 10);
       let swap = false; try { swap = !!(window.dwgApp && window.dwgApp.state && window.dwgApp.state.geo && window.dwgApp.state.geo.swap); } catch (_) { /* geç */ }
