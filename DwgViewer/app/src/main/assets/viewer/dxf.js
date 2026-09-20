@@ -328,6 +328,35 @@ export function parseDxf(bytes, opts = {}) {
     }
     for (const d of e.definitionLines) d.numberOfDashLengths = d.dashLengths.length;
     e.numberOfDefinitionLines = e.definitionLines.length;
+    /*
+     * TARAMANIN GERİ KALAN KÜNYESİ (v7.93). Bunlar okunmadığı sürece dosyayı geri yazarken
+     * kayboluyordu ve AutoCAD taramayı bizim varsayılanlarımızla açıyordu: 71 ilişkisellik,
+     * 77 çift (cross-hatch), 47 piksel boyu, 30 kot, 98 + tohum noktaları, 450-470 geçiş
+     * (gradient) tanımı. Kod 10/20 hem sınır köşelerinde hem tohum noktalarında geçtiği için
+     * tohumlar sıralı akıştan (seq), 98'den SONRA okunur.
+     */
+    e.associativity = f(P, 71); e.patternDouble = f(P, 77); e.pixelSize = f(P, 47); e.elevation = f(P, 30);
+    const i98 = seq.findIndex(q => q[0] === 98);
+    if (i98 >= 0) {
+      const n = parseInt(seq[i98][1], 10) || 0, sp = [];
+      for (let k = i98 + 1; k < seq.length && sp.length < n; k++) {
+        if (seq[k][0] !== 10) continue;
+        const nx = seq[k + 1];
+        sp.push({ x: parseFloat(seq[k][1]), y: nx && nx[0] === 20 ? parseFloat(nx[1]) : 0 });
+      }
+      if (sp.length) e.seedPoints = sp;
+    }
+    // Geçiş (gradient) alan adları DWG dönüştürücüsüyle AYNI: sahne tek koddan okusun (libredwg-web
+    // gradientFlag / gradientColorFlag / gradientName / gradientRotation / gradientDefinition / colorTint)
+    if (f(P, 450) > 0) {
+      e.gradientFlag = 1;
+      e.gradientColorFlag = f(P, 452) === 1 ? 1 : 0;
+      e.gradientName = s(P, 470);
+      e.gradientRotation = f(P, 460);
+      e.gradientDefinition = f(P, 461);
+      e.colorTint = f(P, 462);
+      e.gradientColors = (P[421] || []).map((v, i) => ({ rgb: parseInt(v, 10), value: P[463] && P[463][i] != null ? parseFloat(P[463][i]) : i }));
+    }
     return e;
   }
 

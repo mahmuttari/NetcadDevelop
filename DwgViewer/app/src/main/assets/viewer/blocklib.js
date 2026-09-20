@@ -32,6 +32,7 @@
  *  - Kullanıcıya gösterilecek metin üretilmez; yalnız veri ve sayı döner (i18n çağıranın işi).
  */
 import { transformDef } from './annot.js';
+import { flatten } from './geom.js';
 
 const LIB_KEY = 'blocklib';
 const CLIP_KEY = 'clipboard';
@@ -86,6 +87,29 @@ export function primToEnt(p) {
         const pts = []; for (const o of ops) { if (o[0] === 0 || o[0] === 1) pts.push([o[1], o[2], say(o[3])]); }
         if (pts.length >= 3) return { ...ort, type: 'WIPEOUT', pts };
       }
+      /*
+       * TARAMA KENDİ TÜRÜYLE GİDER (v7.93). Eskiden bloğa ya da panoya alınan tarama düz 'PATH'
+       * oluyordu: itype ile bilgi türü 'HATCH' kalsa da ilkelin et'i 'PATH' olduğu için DXF
+       * yazıcısı onu tarama saymıyor, dosyaya yalnız sınır çokgeni çıkıyordu — AutoCAD'de tarama
+       * KAYBOLUYORDU. Artık desen, ölçek, açı, saydamlık, künye ve dosyanın kendi desen tanımı
+       * birlikte taşınır; entToPrim bunu aynen geri kurar.
+       */
+      if ((p.et === 'HATCH' || inf.t === 'HATCH') && p.fill) {
+        // pts KİRİŞLENMİŞ çokgendir (desen hesabı ve eski belgeler onu okur); yay varsa ops da yazılır
+        const z0 = say(ops[0] && ops[0][3]);
+        const pts = flatten(ops).map(q => [q[0], q[1], z0]);
+        if (pts.length >= 3) {
+          const e = { ...ort, type: 'HATCH', pts, pattern: inf.pattern || 'SOLID', hscale: inf.hscale > 0 ? inf.hscale : 1, hangle: say(inf.hangle), alpha: typeof p.alpha === 'number' && isFinite(p.alpha) ? p.alpha : 1 };
+          delete e.itype;
+          if (ops.some(o => o[0] === 2 || o[0] === -2 || o[0] === 3)) e.ops = ops;   // yaylı sınır: kirişlenmesin
+          if (p.hpFill != null) e.hp = say(p.hpFill);
+          if (inf.hrec && typeof inf.hrec === 'object') e.hrec = JSON.parse(JSON.stringify(inf.hrec));
+          if (Array.isArray(inf.hdefs) && inf.hdefs.length) e.hdefs = JSON.parse(JSON.stringify(inf.hdefs));
+          return e;
+        }
+      }
+      // Desen çizgileri: taramanın ikinci parçası. hpart bayrağı DXF yazıcısında onları süzer.
+      if (p.hp != null || (p.ent && p.ent.hpart)) return { ...ort, type: 'PATH', ops, closed: !!p.closed, fill: false, width: say(p.w), hp: say(p.hp), hpart: 1 };
       return {
         ...ort, type: 'PATH',
         ops,

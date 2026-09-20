@@ -261,10 +261,25 @@ export function hatchEnts(pts, o = {}) {
   // SOLID tek varlıktır, grup kimliği ALMAZ: tek ilkelli nesneye grup damgası vurmak esnetme gibi
   // düğüm düzeyinde çalışan komutları bütün-taşımaya düşürürdü.
   const gid = o.gid || o.group;
+  // AutoCAD künyesi (ada kipi, desen türü, çift, tohum, geçiş) ve dosyanın kendi desen tanımı:
+  // budanan / yeniden üretilen tarama da kaynağıyla aynı koşullarla açılsın (v7.93)
+  const ek = {};
+  if (o.hrec && typeof o.hrec === 'object') ek.hrec = o.hrec;
+  if (Array.isArray(o.hdefs) && o.hdefs.length) ek.hdefs = o.hdefs;
   const ortak = { layer: o.layer, color: o.color };
   const alpha = o.alpha == null ? 1 : o.alpha;
   const cokgen = pts.map(p => [p[0], p[1], z]);
-  const duz = (sc, an) => ({ ents: [{ ...ortak, type: 'HATCH', pts: cokgen, pattern: 'SOLID', hscale: sc, hangle: an, alpha }], pattern: 'SOLID', segs: 0, scale: sc, angle: an });
+  /*
+   * SINIR YAYI YAY OLARAK TAŞINIR (v7.93). Tarama varlığı yalnız köşe listesi (pts) tutuyordu;
+   * daire ya da yay sınırlı bir tarama budandığında sınır kirişleniyordu. Çağıran ham işlem
+   * dizisini (ops) verirse — ve içinde yay varsa — o da varlığa yazılır: edit.entToPrim ilkeli
+   * ondan kurar, edit.writeDxf yayı AutoCAD'e bulge olarak geri verir. pts her zaman yazılır:
+   * desen hesabı ve eski belgeler onu okur.
+   */
+  const hamOps = Array.isArray(o.ops) && o.ops.length >= 2 && o.ops.some(q => q && (q[0] === 2 || q[0] === -2 || q[0] === 3))
+    ? o.ops.map(q => q.slice()) : null;
+  if (hamOps) ek.ops = hamOps;
+  const duz = (sc, an) => ({ ents: [{ ...ortak, ...ek, type: 'HATCH', pts: cokgen, pattern: 'SOLID', hscale: sc, hangle: an, alpha }], pattern: 'SOLID', segs: 0, scale: sc, angle: an });
   // Ölçek ve açı SOLID'de de saklanır: desenliye geri çevrildiğinde kullanıcının ayarı geri gelsin.
   if (ad === 'SOLID') return duz(o.scale > 0 ? o.scale : 1, o.angle || 0);
 
@@ -278,6 +293,22 @@ export function hatchEnts(pts, o = {}) {
    * kullanıldığı döndürülür (çağıran bunu kullanıcıya söyler). Hiçbiri sığmazsa düz dolguya
    * düşülür ama bu artık SESSİZ değildir: dustu = true.
    */
+  /*
+   * DOSYANIN KENDİ DESENİ (v7.93). Tablomuzda olmayan bir AutoCAD deseni — AR-CONC, ANGLE,
+   * BRICK… — budandığında ya da yeniden üretildiğinde eskiden SOLID'e düşüyordu: dosyadan gelen
+   * tarama bir kez budanınca dokusunu kaybediyor, DXF'e de SOLID olarak çıkıyordu. Dosyanın
+   * tanım satırları (o.hdefs) ölçek ve açı UYGULANMIŞ hâldedir; yeniden ölçeklenmez, olduğu gibi
+   * kullanılır ve desen ADI korunur — AutoCAD taramayı kendi desen adıyla açar.
+   */
+  if (!patternDefs(ad, 1, 0).length && Array.isArray(o.hdefs) && o.hdefs.length) {
+    const rf = hatchLines(poly, o.hdefs, { maxSeg: 20000, maxWork: 1e6 });
+    if (rf) {
+      const sc0 = o.scale > 0 ? o.scale : 1;
+      const sinirF = { ...ortak, ...ek, type: 'HATCH', pts: cokgen, pattern: ad, hscale: sc0, hangle: an, alpha, hp: rf.minStep, ...(gid ? { gid } : {}) };
+      const cizgiF = { ...ortak, type: 'PATH', ops: rf.ops.map(op => [op[0], op[1], op[2], z]), closed: false, fill: false, hp: rf.minStep, hpart: 1, ...(gid ? { gid } : {}) };
+      return { ents: [sinirF, cizgiF], pattern: ad, segs: rf.segs, scale: sc0, angle: an, dosyaDeseni: true };
+    }
+  }
   const oto = autoHatchScale(ad, poly);
   const istenen = o.scale > 0 ? o.scale : oto;
   const denemeler = [istenen];
@@ -291,7 +322,7 @@ export function hatchEnts(pts, o = {}) {
      * SAYDAM DOLGUDUR (render.js LOD; dosyadan okunan taramada da aynı düzen vardır) — bu olmadan
      * uzaklaşınca tarama ekrandan tamamen kaybolurdu. hp / hpFill çiftini render.js okur.
      */
-    const sinir = { ...ortak, type: 'HATCH', pts: cokgen, pattern: ad, hscale: sc, hangle: an, alpha, hp: r.minStep, ...(gid ? { gid } : {}) };
+    const sinir = { ...ortak, ...ek, type: 'HATCH', pts: cokgen, pattern: ad, hscale: sc, hangle: an, alpha, hp: r.minStep, ...(gid ? { gid } : {}) };
     const cizgi = { ...ortak, type: 'PATH', ops: r.ops.map(op => [op[0], op[1], op[2], z]), closed: false, fill: false, hp: r.minStep, hpart: 1, ...(gid ? { gid } : {}) };
     return { ents: [sinir, cizgi], pattern: ad, segs: r.segs, scale: sc, angle: an, oto: Math.abs(sc - istenen) > 1e-9 };
   }

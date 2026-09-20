@@ -666,7 +666,15 @@ export class ToolManager {
     if (!rr) { A.toast(t('trimNoHit')); return; }
     const inf = th.sinir.info || {}, ent = th.sinir.ent || {};
     const ad = inf.pattern || ent.pattern || ent.patternName || (inf.solid === false ? 'ANSI31' : 'SOLID');
-    const r2 = hatchEnts(rr.ops.map(o => [o[1], o[2], o[3] || 0]), {
+    /*
+     * Yeni sınır KİRİŞLENMEDEN geçer: rr.ops yay taşıyabilir (daire ya da yay kenarlı tarama) ve
+     * eskiden buradaki `o[1], o[2]` eşlemesi yay işleminin MERKEZİNİ köşe sanıyordu. Nokta listesi
+     * desen hesabı için düzleştirmeden, yay bilgisi ise ops olarak ayrıca taşınır.
+     */
+    const z0 = (rr.ops[0] && rr.ops[0][3]) || 0;
+    const noktalar = flatten(rr.ops).map(q => [q[0], q[1], z0]);
+    if (noktalar.length < 3) { A.toast(t('trimNoHit')); return; }
+    const r2 = hatchEnts(noktalar, {
       pattern: ad,
       scale: inf.hscale != null ? inf.hscale : ent.hscale,
       angle: inf.hangle != null ? inf.hangle : ent.hangle,
@@ -674,8 +682,16 @@ export class ToolManager {
       color: inf.ci == null ? 256 : inf.ci,
       alpha: th.sinir.alpha,
       gid: newId(),
+      ops: rr.ops,
+      hrec: inf.hrec || ent.hrec,     // ada kipi, desen türü, çift, tohum, geçiş: budama bunları düşürmez
+      hdefs: inf.hdefs || ent.hdefs,  // tablomuzda olmayan dosya deseni budandıktan sonra da dokusunu korur
     });
     if (!r2 || !r2.ents.length) { A.toast(t('error')); return; }
+    /*
+     * Deseni ÜRETEMEDİYSEK bunu sessizce SOLID'e çevirmeyiz: kullanıcı budadığı taramanın
+     * dokusunu kaybettiğini bilmelidir (AutoCAD'de de desen adı korunur, düz dolguya düşmez).
+     */
+    if (r2.dustu) A.toast(t('hatchFail_yogun'), 3000);
     const ents = r2.ents.map(e => ({ ...e, id: newId() }));
     /*
      * Eski tarama silinip yenisi eklenir; 'group' ikisini TEK geri alma adımı yapar. Yerinde

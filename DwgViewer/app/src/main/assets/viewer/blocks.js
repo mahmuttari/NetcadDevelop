@@ -87,7 +87,7 @@ export function withMatrix(ins, m, dz = 0, zs = 1) {
 // Varlık dönüşümü (tek kapı)
 // ---------------------------------------------------------------------------------------
 /** Varlığın dönüşümde korunacak, geometri dışı alanları */
-const KEEP = ['id', 'tag', 'prompt', 'flags', 'vis', 'bg', 'hp', 'hpart', 'pattern', 'hscale', 'hangle', 'alpha', 'itype', 'gid', 'layer', 'color', 'linetype'];
+const KEEP = ['id', 'tag', 'prompt', 'flags', 'vis', 'bg', 'hp', 'hpart', 'pattern', 'hscale', 'hangle', 'alpha', 'itype', 'gid', 'layer', 'color', 'linetype', 'hrec', 'hdefs'];   // hrec / hdefs: taramanın AutoCAD künyesi ve dosyanın kendi desen tanımı (v7.93)
 /**
  * Varlık kümesinin m ile dönüşmüş KOPYASI (z'ye dz eklenir). İç içe yerleştirme (INSERT) matrisini
  * çarparak taşır; ATTDEF konum ve dönüşünü yazı gibi alır, öteki alanları korur; MASKE çokgeni

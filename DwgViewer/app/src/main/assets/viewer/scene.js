@@ -330,6 +330,30 @@ export class SceneBuilder {
       if (typeof e.patternAngle === 'number') inf.hangle = e.patternAngle * 180 / Math.PI;
       const dl = e.definitionLines || e.patternLines;
       if (Array.isArray(dl) && dl.length) inf.hdefs = dl;
+      /*
+       * TARAMANIN KÜNYESİ (v7.93). Yalnız desen / ölçek / açı saklanınca dosya geri yazıldığında
+       * AutoCAD taramayı BİZİM varsayılanlarımızla açıyordu: ada bakıp yeniden ürettiği desen
+       * kullanıcının seçtiği ada kipine, çift taramaya ya da geçişe (gradient) uymuyordu. Künye
+       * DXF ile DWG yolunda AYNI alan adlarıyla gelir (dxf.finishHatch, libredwg-web); burada tek
+       * nesnede toplanır, edit.entToPrim ile taşınır ve edit.writeDxf ile aynen geri yazılır.
+       *
+       * İlişkisellik (71) BİLEREK saklanmaz: ilişkisel tarama sınırını çizen NESNELERE 330 ile
+       * bağlıdır, o nesneler bizde ayrı ilkel olarak durmaz. 71 = 1 yazıp 330'ları yazmamak
+       * AutoCAD'de bozuk tarama demektir; 71 = 0 ise tarama düzenlenebilir kalır.
+       */
+      const hr = {};
+      if (typeof e.hatchStyle === 'number') hr.style = e.hatchStyle | 0;
+      if (typeof e.patternType === 'number') hr.ptype = e.patternType | 0;
+      if (e.patternDouble) hr.dbl = 1;
+      if (typeof e.pixelSize === 'number' && e.pixelSize > 0) hr.pix = e.pixelSize;
+      if (typeof e.elevation === 'number' && e.elevation) hr.elev = e.elevation;
+      const sp = e.seedPoints;
+      if (Array.isArray(sp) && sp.length) hr.seeds = sp.slice(0, 32).map(q => [q.x || 0, q.y || 0]);
+      if (e.gradientFlag > 0) hr.grad = { one: e.gradientColorFlag === 1 ? 1 : 0, name: String(e.gradientName || 'LINEAR'), rot: e.gradientRotation || 0, def: e.gradientDefinition || 0, tint: e.colorTint || 0,
+        colors: (e.gradientColors || []).slice(0, 2).map(c => ({ rgb: c && c.rgb != null ? c.rgb : 0, value: c && c.value != null ? c.value : 0 })) };
+      const bps = e.boundaryPaths;
+      if (Array.isArray(bps) && bps.length) hr.loops = bps.map(b => (b.boundaryPathTypeFlag | 0) || 2);
+      if (Object.keys(hr).length) inf.hrec = hr;
     }
     if (e.type === 'IMAGE') { const d = this.imageDefs.get(e.imageDefHandle); if (d) inf.file = d.fileName; }
     if (e.xdata && e.xdata.length) {
@@ -1413,12 +1437,18 @@ export class SceneBuilder {
             if (first) ops.push([0, ed.start.x, ed.start.y]);
             ops.push([1, ed.end.x, ed.end.y]);
           } else if (ed.type === 2) {
+            /*
+             * DAİRESEL SINIR KENARI YAY OLARAK KALIR (v7.93). Eskiden burada kirişleniyordu:
+             * daire sınırlı bir tarama açılıp geri yazıldığında AutoCAD'e 64 kenarlı çokgen
+             * olarak dönüyor, yarıçap tutamağı ve düzenlenebilirliği kayboluyordu. Yay işlemi
+             * (op 2 / -2) çizici, budayıcı ve DXF yazıcısı tarafından zaten destekleniyor;
+             * yazıcı onu AutoCAD'in kendi gösterimiyle (bulge) geri veriyor.
+             */
             let a0 = ed.startAngle, a1 = ed.endAngle;
             if (Math.abs(a0) > TAU + 0.01 || Math.abs(a1) > TAU + 0.01) { a0 *= Math.PI / 180; a1 *= Math.PI / 180; }
-            const pts = [];
-            if (ed.isCCW !== false) arcPts(ed.center.x, ed.center.y, ed.radius, a0, a1, pts);
-            else { arcPts(ed.center.x, ed.center.y, ed.radius, a1, a0, pts); pts.reverse(); }
-            for (let i = 0; i < pts.length; i++) ops.push([first && i === 0 ? 0 : 1, pts[i][0], pts[i][1]]);
+            const ccw = ed.isCCW !== false, cx = ed.center.x, cy = ed.center.y, r = ed.radius;
+            if (first) ops.push([0, cx + r * Math.cos(a0), cy + r * Math.sin(a0)]);
+            ops.push([ccw ? 2 : -2, cx, cy, r, a0, a1]);
           } else if (ed.type === 3) {
             const rx = Math.hypot(ed.end.x, ed.end.y), ry = rx * (ed.lengthOfMinorAxis || 1), rot = Math.atan2(ed.end.y, ed.end.x);
             let a0 = ed.startAngle, a1 = ed.endAngle;

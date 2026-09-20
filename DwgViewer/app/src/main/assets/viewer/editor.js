@@ -1441,13 +1441,24 @@ function propCmds(sel, F, vals, genel, rapor) {
       const an = changed('hang') ? numv('hang') : h.angle;
       if (!HATCH_PATTERNS[ad]) { basarisiz.push('desen'); continue; }          // dosyanın kendi deseni korunur, dolguya çevrilmez
       if (sc == null || an == null) { basarisiz.push('deger'); continue; }
-      const pts = sinir.ops.filter(o => o[0] === 0 || o[0] === 1).map(o => [o[1], o[2], o[3] || 0]);
+      /*
+       * Sınır KİRİŞLENMEDEN alınır: yay işlemi (daire / yay kenarlı tarama) süzülseydi yayın
+       * MERKEZİ köşe sanılır, tarama bozulurdu. Nokta listesi desen hesabı için düzleştirilir,
+       * yay bilgisi ops olarak ayrıca taşınır (v7.93).
+       */
+      const z0 = (sinir.ops[0] && sinir.ops[0][3]) || 0;
+      const pts = flatten(sinir.ops).map(q => [q[0], q[1], z0]);
       if (pts.length < 3) { basarisiz.push('sinir'); continue; }
       // Aynı Uygula'da katman / renk de değiştiyse YENİ tarama onlarla üretilir: yoksa önce
       // eski ilkellere uygulanır, hemen ardından silinirlerdi ve değişiklik kaybolurdu.
       const lay = genel && genel.layer != null ? genel.layer : sinir.lay;
       const ci = genel && genel.color != null ? genel.color : (sinir.info ? sinir.info.ci : 256);
-      const r = hatchEnts(pts, { pattern: ad, scale: sc, angle: an, gid: gid || newId(), layer: lay, color: ci, alpha: sinir.alpha == null ? 1 : sinir.alpha });
+      const sinf = sinir.info || {};
+      const r = hatchEnts(pts, { pattern: ad, scale: sc, angle: an, gid: gid || newId(), layer: lay, color: ci, alpha: sinir.alpha == null ? 1 : sinir.alpha,
+        ops: sinir.ops, hrec: sinf.hrec,
+        // Dosyanın kendi tanım satırları yalnız DESEN AYNI kaldıysa taşınır: kullanıcı deseni
+        // değiştirdiyse eski desenin satırları yeni ada iliştirilmemelidir.
+        hdefs: ad === String(h.pattern || '').toUpperCase() ? sinf.hdefs : undefined });
       if (!r) { basarisiz.push('uretim'); continue; }
       if (r.dustu) basarisiz.push('yogun');                                    // desen hiçbir ölçekte sığmadı
       else if (r.oto) uyarlanan.push(r.scale);                                 // ölçek kendiliğinden açıldı

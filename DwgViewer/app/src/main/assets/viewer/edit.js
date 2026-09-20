@@ -13,7 +13,7 @@
  *  - writeDxf(): sahne + düzenlemeler → ASCII DXF (AC1015); uygulamanın blok tanımları BLOCKS bölümüne, yerleştirmeleri
  *    INSERT (+ATTRIB) olarak, maskeler WIPEOUT olarak yazılır; DWG'den gelen ve benimsenmemiş yerleştirmeler patlatılmış kalır
  */
-import { TAU, mul, apply, isSim, simScale, simRot, det, arcPts, ellipsePts, opsBBox, flatten, cloudOps, extrudeMesh, patternDefs } from './geom.js';
+import { TAU, mul, apply, isSim, simScale, simRot, det, arcPts, ellipsePts, opsBBox, flatten, cloudOps, extrudeMesh, patternDefs, pointInPoly } from './geom.js';
 import { FG, ACI, BYLAYER, BYBLOCK, normCi, isByLayer, resolveColor } from './scene.js';
 import { transformDef } from './annot.js';
 import { expandInsert, insMatrix, withMatrix, keyOf as blkKey, attrsFor, insFromInfo, decompose, xformEnts } from './blocks.js';
@@ -86,13 +86,20 @@ export function entToPrim(ent, layers) {
       const ops = P.map((p, i) => [i ? 1 : 0, p[0], p[1], p[2] || 0]);
       return { ...base, k: 0, ops, closed: true, fill: true, alpha: ent.alpha == null ? 1 : ent.alpha, w: 0, bb: opsBBox(ops) };
     }
-    case 'HATCH': {                                   // tarama; sınır kapalı çokgen
-      if (P.length < 3) return null;
-      const ops = P.map((p, i) => [i ? 1 : 0, p[0], p[1], p[2] || 0]);
+    case 'HATCH': {                                   // tarama; sınır kapalı çokgen (yaylı olabilir)
+      // ent.ops varsa sınır YAY taşıyor demektir (daire / yay kenarlı tarama): kirişlenmiş pts
+      // yerine ham işlem dizisi kullanılır, böylece yay budamada da DXF'te de yay kalır.
+      const hamOps = Array.isArray(ent.ops) && ent.ops.length >= 2 ? ent.ops.filter(Array.isArray).map(o => o.slice()) : null;
+      if (!hamOps && P.length < 3) return null;
+      const ops = hamOps || P.map((p, i) => [i ? 1 : 0, p[0], p[1], p[2] || 0]);
       const ad = String(ent.pattern || 'SOLID').toUpperCase();
       const dolu = ad === 'SOLID';
       info.pattern = ent.pattern || 'SOLID'; info.solid = dolu;
       info.hscale = ent.hscale == null ? 1 : ent.hscale; info.hangle = ent.hangle == null ? 0 : ent.hangle;   // DXF kod 41 / 52
+      // Tarama künyesi (ada kipi, desen türü, çift, piksel boyu, kot, tohum, geçiş, ilmek bayrakları) ve
+      // dosyanın kendi desen tanım satırları: bloğa / panoya alınıp geri konan tarama da AutoCAD'e aynı çıkar
+      if (ent.hrec && typeof ent.hrec === 'object') info.hrec = ent.hrec;
+      if (Array.isArray(ent.hdefs) && ent.hdefs.length) info.hdefs = ent.hdefs;
       /*
        * Desenli tarama İKİ ilkelden oluşur: SINIR ve desen çizgileri. Ayrı tutulmalarının bir sebebi
        * YAZMA'dır (çizgiler DXF'e ayrıca LWPOLYLINE olarak çıkmamalı; hpart onları süzer), öteki sebep
@@ -1028,20 +1035,63 @@ export function writeDxf(prims, layers, opts = {}) {
       if (p.k !== 0) return;
       const ops = p.ops;
       if (p.bg) { writeWipeout(p, owner); return; }
-      const hatchAd = p.et === 'HATCH' ? String((p.info && p.info.pattern) || 'SOLID').toUpperCase() : '';
+      const hatchTur = p.et === 'HATCH' || (p.info && p.info.t === 'HATCH');
+      const hatchAd = hatchTur ? String((p.info && p.info.pattern) || 'SOLID').toUpperCase() : '';
       // Desenli tarama DOLGUSUZ bir ilkeldir (çizgileri ayrı, hpart'lı bir yolda durur); yine de
       // DXF'e HATCH olarak çıkmalıdır, yoksa dosyada yalnız sınır çokgeni kalır ve tarama kaybolur.
-      if ((p.fill || (hatchAd && hatchAd !== 'SOLID')) && (p.et === 'HATCH' || p.et === 'SOLID' || p.et === 'TRACE')) {
+      if ((p.fill || (hatchAd && hatchAd !== 'SOLID')) && (hatchTur || p.et === 'SOLID' || p.et === 'TRACE')) {
         // Dolu yüzeyler gerçek DXF varlığı olarak yazılır; LWPOLYLINE'a düşürmek dolguyu kaybettirirdi.
         // Alt yollar ayrı sınırdır (moveto her seferinde yeni yol açar).
-        const parts = []; let cur = null;
-        for (const o of ops) {
-          if (o[0] === 0) { cur = [[o[1], o[2]]]; parts.push(cur); }
-          else if (cur) { const qs = o[0] === 1 ? [[o[1], o[2]]] : flatten([o]); for (const q of qs) cur.push([q[0], q[1]]); }
-        }
-        const paths = parts.filter(a => a.length >= 3);
+        /*
+         * İLMEKLER YAYI YAY OLARAK TAŞIR (v7.93). Eskiden her yay kirişlenip 64 kenarlı çokgene
+         * çevriliyordu: AutoCAD'de daire sınırlı bir tarama açılınca sınır artık daire değildi,
+         * tutamağı da yarıçapı da kayboluyordu. Artık yay, AutoCAD'in kendi gösterimiyle —
+         * çokgen ilmeğin BULGE değeriyle (tan(açıklık/4)) — yazılır. Tam daire tek bulge ile
+         * anlatılamaz (tan(pi/2) sonsuzdur): AutoCAD gibi iki yarım yaya bölünür. Elips ve
+         * spline yayında bulge karşılığı yoktur, onlar kirişlenmeye devam eder.
+         */
+        const bulgeLoops = () => {
+          const out = []; let cur = null;
+          const son = () => (cur && cur.length ? cur[cur.length - 1] : null);
+          for (const o of ops) {
+            if (o[0] === 0) { cur = [[o[1], o[2], 0]]; out.push(cur); continue; }
+            if (!cur) continue;
+            if (o[0] === 1) { cur.push([o[1], o[2], 0]); continue; }
+            if (o[0] === 2 || o[0] === -2) {
+              const ccw = o[0] === 2, cx = o[1], cy = o[2], r = o[3];
+              let sw = ccw ? o[5] - o[4] : o[4] - o[5];
+              while (sw <= 1e-12) sw += TAU;                     // arcPts kuralı: sıfır açıklık tam turdur
+              const isaret = ccw ? 1 : -1;
+              const nokta = (a) => [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+              const bas = son();
+              if (!bas) { const s0 = nokta(o[4]); cur.push([s0[0], s0[1], 0]); }
+              if (sw >= TAU - 1e-9) {                            // tam daire: iki yarım yay, bulge = ±1
+                const orta = nokta(o[4] + isaret * Math.PI), bit = nokta(o[4]);
+                const b0 = son(); if (b0) b0[2] = isaret;
+                cur.push([orta[0], orta[1], isaret]);
+                cur.push([bit[0], bit[1], 0]);
+              } else {
+                const b0 = son(); if (b0) b0[2] = isaret * Math.tan(sw / 4);
+                const bit = nokta(o[5]);
+                cur.push([bit[0], bit[1], 0]);
+              }
+              continue;
+            }
+            for (const q of flatten([o])) cur.push([q[0], q[1], 0]);   // elips / spline: kiriş
+          }
+          // Kapalı ilmekte son köşe ilkinin aynısıysa atılır: DXF 73 = 1 zaten kapatır, yinelenen
+          // köşe AutoCAD'de sıfır boylu kenar bırakır (ve bulge'ü ilk köşeye taşımak gerekirdi).
+          for (const l of out) {
+            while (l.length > 2) {
+              const a = l[0], b = l[l.length - 1];
+              if (Math.abs(a[0] - b[0]) < 1e-9 && Math.abs(a[1] - b[1]) < 1e-9 && !b[2]) l.pop(); else break;
+            }
+          }
+          return out.filter(l => l.length >= 3 || l.some(q => q[2]));   // iki köşeli ilmek ancak YAY taşıyorsa alan kapatır (daire)
+        };
+        const paths = bulgeLoops();
         const elev = (ops[0] && ops[0][3]) || 0;
-        if (paths.length && p.fill && p.et !== 'HATCH' && paths.length === 1 && paths[0].length <= 4) {
+        if (paths.length && p.fill && !hatchTur && paths.length === 1 && paths[0].length <= 4 && !paths[0].some(q => q[2])) {
           // Üç ya da dört köşeli dolu: DXF SOLID. Köşe sırası 1-2-4-3'tür, üçgende 4 = 3.
           const q = paths[0];
           const A = q[0], B = q[1], Cc = q[2], Dd = q.length > 3 ? q[3] : q[2];
@@ -1054,6 +1104,7 @@ export function writeDxf(prims, layers, opts = {}) {
         }
         if (paths.length) {
           const inf = p.info || {};
+          const hr = (inf.hrec && typeof inf.hrec === 'object') ? inf.hrec : {};
           const desenli = !!hatchAd && hatchAd !== 'SOLID';
           const olcek = desenli ? (typeof inf.hscale === 'number' && inf.hscale ? inf.hscale : 1) : 1;
           const aci = desenli ? (typeof inf.hangle === 'number' ? inf.hangle : 0) : 0;
@@ -1065,17 +1116,34 @@ export function writeDxf(prims, layers, opts = {}) {
            */
           const dosyaDefs = Array.isArray(inf.hdefs) && inf.hdefs.length ? inf.hdefs : null;
           const defs = desenli ? (patternDefs(hatchAd, olcek, aci).length ? patternDefs(hatchAd, olcek, aci) : (dosyaDefs || [])) : [];
+          /*
+           * ADA (island) BAYRAKLARI. Her ilmeği "dış sınır" (bayrak 1) yazmak yanlıştı: içteki
+           * delik de dış sayılınca AutoCAD onu ayrı bir dolu ada gibi görüyordu. Bir ilmek başka
+           * bir ilmeğin İÇİNDE kalıyorsa iç ilmektir (yalnız bayrak 2 = çokgen). Ekranda da aynı
+           * kural geçerlidir: render.js dolguyu tek-çift (evenodd) kuralıyla çizer, yani AutoCAD'in
+           * NORMAL ada kipiyle birebir — ada kipi bu yüzden öntanımlı olarak 0 yazılır.
+           */
+          const duz = paths.map(l => l.map(q => [q[0], q[1]]));
+          const disMi = duz.map((a, i) => !duz.some((b, j) => j !== i && b.length >= 3 && pointInPoly(b, a[0][0], a[0][1])));
+          const kot = typeof hr.elev === 'number' ? hr.elev : elev;
           common('HATCH', p, 'AcDbHatch', owner);
-          w(10, 0); w(20, 0); w(30, f6(elev));
+          w(10, 0); w(20, 0); w(30, f6(kot));
           w(210, 0); w(220, 0); w(230, 1);
-          w(2, defs.length ? hatchAd : 'SOLID'); w(70, defs.length ? 0 : 1); w(71, 0);
+          w(2, defs.length ? hatchAd : 'SOLID'); w(70, defs.length ? 0 : 1);
+          /*
+           * 71 = 0 (ilişkisiz) HER ZAMAN. İlişkisel tarama sınırını çizen NESNELERE 330 ile
+           * bağlıdır; bizde o nesneler ayrı ilkel olarak durmaz. 71 = 1 yazıp 330'ları yazmamak
+           * AutoCAD'de bozuk tarama demektir — ilişkisizlik dosyayı düzenlenebilir bırakır.
+           */
+          w(71, 0);
           w(91, paths.length);
-          for (const part of paths) {
-            w(92, 3); w(72, 0); w(73, 1); w(93, part.length);       // 92: dış sınır (1) + çokgen (2)
-            for (const q of part) { w(10, f6(q[0])); w(20, f6(q[1])); }
+          for (let i = 0; i < paths.length; i++) {
+            const part = paths[i], bulge = part.some(q => q[2]);
+            w(92, (disMi[i] ? 1 : 0) | 2); w(72, bulge ? 1 : 0); w(73, 1); w(93, part.length);
+            for (const q of part) { w(10, f6(q[0])); w(20, f6(q[1])); if (bulge) w(42, f6(q[2] || 0)); }
             w(97, 0);
           }
-          w(75, paths.length > 1 ? 1 : 0); w(76, 1);
+          w(75, typeof hr.style === 'number' ? hr.style : 0); w(76, typeof hr.ptype === 'number' ? hr.ptype : 1);
           /*
            * Desen tanımı (AutoCAD'in kendi sırası): 52 açı, 41 ölçek, 77 çift, 78 satır sayısı,
            * sonra her satır 53 açı · 43-44 taban · 45-46 kayma · 79 tire sayısı · 49 tireler.
@@ -1083,7 +1151,7 @@ export function writeDxf(prims, layers, opts = {}) {
            * Bu satırlar olmadan AutoCAD deseni çizemez; yalnız ad yazmak boş tarama verir.
            */
           if (defs.length) {
-            w(52, f6(aci)); w(41, f6(olcek)); w(77, 0); w(78, defs.length);
+            w(52, f6(aci)); w(41, f6(olcek)); w(77, hr.dbl ? 1 : 0); w(78, defs.length);
             for (const d of defs) {
               w(53, f6(d.angle * R2D));
               w(43, f6(d.base.x)); w(44, f6(d.base.y));
@@ -1093,7 +1161,22 @@ export function writeDxf(prims, layers, opts = {}) {
               for (const v of dl) w(49, f6(v));
             }
           }
-          w(98, 0);
+          if (hr.pix > 0) w(47, f6(hr.pix));
+          // Tohum noktaları: AutoCAD taramayı yeniden hesaplarken (HATCHEDIT · sınır yeniden kur) buradan başlar
+          const seeds = Array.isArray(hr.seeds) ? hr.seeds.slice(0, 32) : [];
+          w(98, seeds.length);
+          for (const q of seeds) { w(10, f6(q[0])); w(20, f6(q[1])); }
+          /*
+           * Geçiş (gradient) dolgusu: 450 bayrak, 451 ayrılmış, 452 tek renk mi, 453 renk sayısı,
+           * 460 dönüş (radyan), 461 kaydırma, 462 ton, 463 renk değeri, 470 geçiş adı.
+           */
+          if (hr.grad) {
+            const g = hr.grad, cs = Array.isArray(g.colors) && g.colors.length ? g.colors : [{ rgb: 0, value: 0 }, { rgb: 0xffffff, value: 1 }];
+            w(450, 1); w(451, 0); w(452, g.one ? 1 : 0); w(453, g.one ? 1 : Math.min(2, cs.length));
+            w(460, f6(g.rot || 0)); w(461, f6(g.def || 0)); w(462, f6(g.tint || 0));
+            for (const c of cs.slice(0, g.one ? 1 : 2)) { w(463, f6(c.value || 0)); w(421, (c.rgb | 0) >>> 0); }
+            w(470, String(g.name || 'LINEAR'));
+          }
           return;
         }
       }
@@ -1185,6 +1268,10 @@ export function writeDxf(prims, layers, opts = {}) {
   };
   const writeDefEnt = (e, owner) => {
     if (!e || typeof e !== 'object') return;
+    // Taramanın DESEN ÇİZGİLERİ blok tanımında da ayrıca yazılmaz: tarama HATCH varlığı olarak
+    // çıkar, AutoCAD deseni kendi üretir. Yazılsaydı blok içinde hem dolgu hem dev bir zikzak
+    // polyline olur, tarama çift görünür ve dosya şişerdi (üst düzeyde aynı süzgeç ents'tedir).
+    if (e.hpart) return;
     if (e.type === 'INSERT') { writeInsert(e, owner, null); return; }
     if (e.type === 'ATTDEF') { writeAttdef(e, owner); return; }
     const p = entToPrim(e, layers);
