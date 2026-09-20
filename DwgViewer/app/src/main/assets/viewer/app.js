@@ -372,7 +372,7 @@ function togglePan(on) {
     toast(hedef ? tt('panOnMsg', 'Kaydır açık: sürükleyin. Kapatmak için düğmeye yeniden dokunun (Esc).') : tt('panOffMsg', 'Kaydır kapalı'), 2200);
   }
   haptic('toggle');
-  edCall('refreshTiles'); refreshNav(); drawOverlay();
+  edCall('refreshTiles'); edCall('syncQuick'); refreshNav(); drawOverlay();
   return hedef;
 }
 function cancelZoomWindow() {

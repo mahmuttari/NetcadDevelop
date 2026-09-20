@@ -47,7 +47,7 @@ export default {
   a11yTitle: '无障碍与操作', fontScale: '字号', glove: '手套模式（大目标）', leftHand: '左手布局', contrast: '高对比界面', reduceMotion: '减少动效', haptics: '振动', dpad: '方向键', compactStatus: '紧凑状态栏', hintsReset: '重置提示', hintsResetDone: '提示已重置',
   tourTitle: '欢迎', tourSkip: '跳过', tourNext: '下一步', tourDone: '完成',
   tour1: '底部功能区的选项卡：视图、显示、测量、绘图、编辑和三维。再次点按当前选项卡可折叠功能区。', tour2: '长按磁贴可查看说明并显示「添加到收藏」。收藏会成为第一个选项卡。', tour3: '「显示」选项卡控制主题、阳光模式、栅格和可见性过滤；「三维」选项卡控制样式、剖切和垂直放大。用右下角的按钮缩放。',
-  stQuickGrid: '栅格', stQuickLw: '线宽', stQuickText: '文字', stQuickOsnap: '对象捕捉', stQuickUndo: '撤销（最多 10 步）', stQuickRedo: '重做（最多 10 步）', osnapOn: '对象捕捉已开启', osnapOff: '对象捕捉已关闭',
+  stQuickGrid: '栅格', stQuickLw: '线宽', stQuickText: '文字', stQuickOsnap: '对象捕捉', stQuickPan: '平移 (PAN)', stQuickUndo: '撤销（最多 10 步）', stQuickRedo: '重做（最多 10 步）', osnapOn: '对象捕捉已开启', osnapOff: '对象捕捉已关闭',
   selMenuTitle: '选择', selMakeBlock: '创建块', selChangeLayer: '更改图层', selClear: '清除选择', selBadge: '选择菜单', selBoxBtn: '窗口 / 窗交框', selLassoBtn: '多边形（套索）', selBoxHint: '拖动 — 从左到右：完全在内的对象（窗口），从右到左：接触到的对象（窗交）', selLassoHint: '绘制多边形 — 向右开始：仅内部，向左：包括接触到的', selRegionNone: '区域内没有可选对象', selByLayer: '随层 (ByLayer)',
   dimEditTitle: '标注属性', dimText: '标注文字', dimTextHint: '留空：测量值；<> 将替换为测量值', dimTextH: '文字高度', dimArrow: '箭头大小', dimPrec: '小数位数', dimPrecAuto: '按设置', dimPrefix: '前缀', dimSuffix: '后缀', dimFactor: '比例因子（DIMLFAC）', dimUpdated: '标注已更新', notDim: '不是标注', dimSelMenu: '标注属性', dimFromFile: '已重建文件中的标注',
   dimUnsupported: '此类标注无法重建（坐标标注、弧长标注或块内标注）', gripsDim: '标注的各部分通过“编辑标注”修改，而不是夹点', dimExo: '尺寸界线偏移', dimExe: '尺寸界线超出量',

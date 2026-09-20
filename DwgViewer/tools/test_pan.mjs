@@ -114,13 +114,13 @@ const dokun = async (x, y) => drag([[x, y], [x, y]]);
   const acik = await ev(() => window.dwgApp.__pan(true));
   await bekle(150);
   const g = await ev(() => {
-    const k = document.querySelector('#toolbar [data-act="pan"]'), f = document.querySelector('#navFabs [data-nav="pan"]');
-    return { karoOn: k ? k.classList.contains('on') : null, karoAria: k ? k.getAttribute('aria-pressed') : null, fabVar: !!f, fabOn: f ? f.classList.contains('on') : null, fabAria: f ? f.getAttribute('aria-pressed') : null };
+    const k = document.querySelector('#toolbar [data-act="pan"]'), c = document.querySelector('#stQuick [data-quick="pan"]');
+    return { karoOn: k ? k.classList.contains('on') : null, karoAria: k ? k.getAttribute('aria-pressed') : null, cipVar: !!c, cipOn: c ? c.classList.contains('on') : null, cipAria: c ? c.getAttribute('aria-pressed') : null };
   });
   const d = await kip();
   ok('4a __pan(true) kipi açtı ve durum tek kaynaktan okunuyor', acik === true && d.mode === true && d.api === true, J({ acik, d }));
   ok('4b şerit karosu basılı görünüyor', g.karoOn === true && g.karoAria === 'true', J(g));
-  ok('4c ekrandaki FAB kümesinde Kaydır düğmesi var ve basılı', g.fabVar && g.fabOn === true && g.fabAria === 'true', J(g));
+  ok('4c durum çubuğundaki Kaydır çipi var ve basılı (çizimin üstünü kapatmaz)', g.cipVar && g.cipOn === true && g.cipAria === 'true', J(g));
 }
 
 // ---------------------------------------------------------------------------------
@@ -161,11 +161,11 @@ const dokun = async (x, y) => drag([[x, y], [x, y]]);
   await bekle(200);
   const d = await kip();
   const g = await ev(() => {
-    const k = document.querySelector('#toolbar [data-act="pan"]'), f = document.querySelector('#navFabs [data-nav="pan"]');
-    return { karoOn: k ? k.classList.contains('on') : null, fabOn: f ? f.classList.contains('on') : null };
+    const k = document.querySelector('#toolbar [data-act="pan"]'), c = document.querySelector('#stQuick [data-quick="pan"]');
+    return { karoOn: k ? k.classList.contains('on') : null, cipOn: c ? c.classList.contains('on') : null };
   });
   ok('6a Esc kaydır kipini kapattı (araç iptalinden ÖNCE kip kapanır)', d.mode === false && d.api === false, J(d));
-  ok('6b karo ve FAB birlikte söndü', g.karoOn === false && g.fabOn === false, J(g));
+  ok('6b karo ve durum çubuğu çipi birlikte söndü', g.karoOn === false && g.cipOn === false, J(g));
 
   // kip kapalı: seç aracının örtük penceresi yine çalışıyor mu
   await ev(() => { window.dwgApp.editor.sel.clear(); window.dwgApp.editor.tools.cancel(); window.dwgApp.editor.act('t:select'); }); await bekle(220);
@@ -184,11 +184,11 @@ const dokun = async (x, y) => drag([[x, y], [x, y]]);
   await sekme('view'); await bekle(150);
   await ev(() => document.querySelector('#toolbar [data-act="pan"]').click()); await bekle(200);
   const a = await kip();
-  await ev(() => { const f = document.querySelector('#navFabs [data-nav="pan"]'); f.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 9, bubbles: true, cancelable: true })); f.dispatchEvent(new PointerEvent('pointerup', { pointerId: 9, bubbles: true, cancelable: true })); });
+  await ev(() => document.querySelector('#stQuick [data-quick="pan"]').click());
   await bekle(220);
   const b = await kip();
   ok('7a şerit karosu kipi açtı', a.mode === true, J(a));
-  ok('7b ekrandaki FAB kipi kapattı', b.mode === false, J(b));
+  ok('7b durum çubuğu çipi kipi kapattı', b.mode === false, J(b));
 }
 
 // ---------------------------------------------------------------------------------
@@ -202,7 +202,7 @@ const dokun = async (x, y) => drag([[x, y], [x, y]]);
   else {
     const once = await ev(() => window.dwgApp.editor.view3d().opts.touch.oneFinger);
     const a = await ev(() => window.dwgApp.__pan(true)); await bekle(150);
-    const sonra = await ev(() => ({ tek: window.dwgApp.editor.view3d().opts.touch.oneFinger, mode: !!window.dwgApp.state.panMode, karo: (document.querySelector('#toolbar [data-act="pan"]') || {}).className || '' }));
+    const sonra = await ev(() => ({ tek: window.dwgApp.editor.view3d().opts.touch.oneFinger, mode: !!window.dwgApp.state.panMode, cip: (document.querySelector('#stQuick [data-quick="pan"]') || {}).className || '' }));
     const b = await ev(() => window.dwgApp.__pan(false)); await bekle(150);
     const geri = await ev(() => window.dwgApp.editor.view3d().opts.touch.oneFinger);
     ok('8a 3B\'de Kaydır tek parmağı kaydırmaya aldı', once === 'orbit' && a === true && sonra.tek === 'pan', J({ once, a, sonra }));
@@ -213,7 +213,20 @@ const dokun = async (x, y) => drag([[x, y], [x, y]]);
   }
 }
 
-ok('9  konsolda sayfa hatası yok', errors.length === 0, errors.join(' | ').slice(0, 300));
+// ---------------------------------------------------------------------------------
+// 9 · Gezinti düğmeleri çizimi kapatmıyor: Kaydır kümeye EKLENMEDİ
+// ---------------------------------------------------------------------------------
+{
+  const g = await ev(() => {
+    const vp = document.getElementById('viewport').getBoundingClientRect();
+    const nf = document.getElementById('navFabs').getBoundingClientRect();
+    return { n: [...document.querySelectorAll('#navFabs .fab')].filter(b => !b.hidden).length, fab: !!document.querySelector('#navFabs [data-nav="pan"]'), oran: nf.height / vp.height };
+  });
+  ok('9a Kaydır ekrandaki FAB sütununa eklenmedi (sütun altı düğmede kaldı)', !g.fab && g.n <= 6, JSON.stringify({ n: g.n, fab: g.fab }));
+  ok('9b FAB sütunu ekran yüksekliğinin yarısından fazlasını kaplamıyor', g.oran < 0.56, (g.oran * 100).toFixed(0) + '%');
+}
+
+ok('10 konsolda sayfa hatası yok', errors.length === 0, errors.join(' | ').slice(0, 300));
 await page.screenshot({ path: `${out}/pan.png` });
 C.summary(errors);
 await browser.close(); srv.kill();
