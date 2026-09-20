@@ -35,6 +35,7 @@
  *  - Ad karşılaştırması büyük harfe duyarsızdır (AutoCAD blok adları da öyledir).
  */
 import { mul, apply, det, pointInPoly, flatten, segIntersect } from './geom.js';
+import { normCi, resolveColor } from './scene.js';
 import { entToPrim, transformPrim } from './edit.js';
 import { primToEnt } from './blocklib.js';
 
@@ -259,8 +260,8 @@ export function expandInsert(ins, blocks, layers, info, depth = 0) {
   const lay = layers.get(ins.layer);
   const shared = info || {
     t: 'INSERT', h: ins.id, name: def.name, x: m[4], y: m[5], z: say(ins.z), rot: decompose(m).rot, sx: decompose(m).sx, sy: decompose(m).sy, m: m.slice(),
-    attrs: attrsFor(def, ins.attrs), dyn: ins.dyn ? clone(ins.dyn) : undefined, blk: true, lay: ins.layer, ci: ins.color == null ? 256 : ins.color,
-    col: lay ? lay.color : -1, lt: '', lw: lay ? lay.lw : 25, edited: true,
+    attrs: attrsFor(def, ins.attrs), dyn: ins.dyn ? clone(ins.dyn) : undefined, blk: true, lay: ins.layer, ci: normCi(ins.color),
+    col: resolveColor(ins.color, lay ? lay.color : null), lt: '', lw: lay ? lay.lw : 25, edited: true,
   };
   const world = xformEnts(evalDyn(def, ins.dyn), mb, say(ins.z) - say(base[2]));
   const out = [];

@@ -14,7 +14,7 @@
  *    INSERT (+ATTRIB) olarak, maskeler WIPEOUT olarak yazılır; DWG'den gelen ve benimsenmemiş yerleştirmeler patlatılmış kalır
  */
 import { TAU, mul, apply, isSim, simScale, simRot, det, arcPts, ellipsePts, opsBBox, flatten, cloudOps, extrudeMesh, patternDefs } from './geom.js';
-import { FG, ACI } from './scene.js';
+import { FG, ACI, BYLAYER, BYBLOCK, normCi, isByLayer, resolveColor } from './scene.js';
 import { transformDef } from './annot.js';
 import { expandInsert, insMatrix, withMatrix, keyOf as blkKey, attrsFor, insFromInfo, decompose, xformEnts } from './blocks.js';
 
@@ -27,8 +27,16 @@ export const newId = () => 'E' + Date.now().toString(36) + (seq++).toString(36);
 // ---------------------------------------------------------------------------------------
 export function entToPrim(ent, layers) {
   const lay = layers.get(ent.layer);
-  const col = ent.color === -1 || ent.color == null ? (lay ? lay.color : FG) : (ent.color >= 1 && ent.color <= 255 ? ACI[ent.color] : FG);
-  const info = { t: ent.type, h: ent.id, lay: ent.layer, ci: ent.color == null ? 256 : ent.color, col, lt: '', lw: lay ? lay.lw : 25, edited: true, text: ent.text };
+  /*
+   * KATMANDAN (ByLayer) = 256. v7.92'ye kadar bu satır 256'yı hiç ele almıyordu: `256 <= 255`
+   * yanlış olduğu için renk sessizce FG'ye düşüyor, yani "Katmandan" seçilen nesne katman
+   * rengini DEĞİL sabit ön plan rengini alıyordu. Kusur nesne ent'inden her yeniden kurulduğunda
+   * (yapıştırma, blok açılımı, replace, blocksync, patlatma) geri geliyordu. Karar artık
+   * scene.resolveColor'dadır; ci de normalize edilerek saklanır, böylece aşağı akıştaki
+   * "ci === 256" denetimleri -1 / null taşıyan nesneleri atlamaz.
+   */
+  const col = resolveColor(ent.color, lay ? lay.color : null);
+  const info = { t: ent.type, h: ent.id, lay: ent.layer, ci: normCi(ent.color), col, lt: '', lw: lay ? lay.lw : 25, edited: true, text: ent.text };
   if (ent.itype) info.t = ent.itype;            // ok başı SOLID'dir ama ölçü süzgeci onu da gizlemelidir
   if (ent.gid || ent.group) info.gid = ent.gid || ent.group;   // grup: parçalar birlikte seçilir, birlikte silinir ('group' v7.76 öncesi belgelerde)
   const base = { col, lay: ent.layer, lw: lay ? lay.lw : 25, lt: null, lts: 1, info, et: ent.type, key: ent.id, ent };
@@ -500,11 +508,11 @@ export class EditDoc {
           if (cmd.layer) p.lay = cmd.layer;
           if (cmd.lt !== undefined) p.lt = cmd.lt || null;   // '' / null = katmandan (ByLayer); anahtar LTYPE tablosunun büyük harfli adı
           if (cmd.lw !== undefined) { const L2 = C.layers.get(p.lay); p.lw = cmd.lw >= 0 ? cmd.lw : (L2 ? L2.lw : 25); }   // −1 = katmandan (ByLayer)
-          if (cmd.color != null) p.col = cmd.color === 256 ? (C.layers.get(p.lay) ? C.layers.get(p.lay).color : FG) : (cmd.color === -1 ? FG : ACI[cmd.color]);
-          else if (lay && (p.info && p.info.ci === 256)) p.col = lay.color;
+          if (cmd.color != null) p.col = resolveColor(cmd.color, C.layers.get(p.lay) ? C.layers.get(p.lay).color : null);
+          else if (lay && (p.info && isByLayer(p.info.ci))) p.col = lay.color;
           const old = p.info;
           let ni = old ? imap.get(old) : null;
-          if (!ni) { ni = { ...p.info, lay: p.lay, ci: cmd.color != null ? cmd.color : (p.info ? p.info.ci : 256), col: p.col, lt: cmd.lt !== undefined ? (cmd.lt || '') : (p.info ? p.info.lt : ''), ...(cmd.lw !== undefined ? { lw: p.lw } : {}), edited: true }; if (old) imap.set(old, ni); }
+          if (!ni) { ni = { ...p.info, lay: p.lay, ci: normCi(cmd.color != null ? cmd.color : (p.info ? p.info.ci : BYLAYER)), col: p.col, lt: cmd.lt !== undefined ? (cmd.lt || '') : (p.info ? p.info.lt : ''), ...(cmd.lw !== undefined ? { lw: p.lw } : {}), edited: true }; if (old) imap.set(old, ni); }
           p.info = ni;
           if (p.ent) p.ent = { ...p.ent, layer: p.lay, color: cmd.color != null ? cmd.color : p.ent.color, ...(cmd.lt !== undefined ? { linetype: cmd.lt || 'BYLAYER' } : {}) };
         }
@@ -512,7 +520,7 @@ export class EditDoc {
       }
       case 'layer': {
         if (C.layers.has(cmd.name)) return null;
-        C.layers.set(cmd.name, { name: cmd.name, color: cmd.color === -1 || cmd.color == null ? FG : ACI[cmd.color], lt: cmd.lt || 'Continuous', lw: cmd.lw == null ? 25 : cmd.lw, frozen: false, off: false, locked: false, visible: true, count: 0, added: true });
+        C.layers.set(cmd.name, { name: cmd.name, color: resolveColor(cmd.color, null), lt: cmd.lt || 'Continuous', lw: cmd.lw == null ? 25 : cmd.lw, frozen: false, off: false, locked: false, visible: true, count: 0, added: true });
         return () => { C.layers.delete(cmd.name); };
       }
       /*
@@ -554,7 +562,7 @@ export class EditDoc {
         const etkilenen = yeniAd ? this.ctx.prims().filter(p => p.lay === cmd.name) : [];
         const eskiRenkler = new Map();
         if (cmd.color != null) for (const p of this.ctx.prims()) if (p.lay === cmd.name) eskiRenkler.set(p, p.col);
-        if (cmd.color != null) l.color = cmd.color === -1 ? FG : (cmd.color >= 1 && cmd.color <= 255 ? ACI[cmd.color] : FG);
+        if (cmd.color != null) l.color = resolveColor(cmd.color, null);
         if (cmd.lt != null) l.lt = cmd.lt;
         if (cmd.lw != null) l.lw = cmd.lw;
         if (cmd.frozen != null) { l.frozen = !!cmd.frozen; katmanGorunur(l); }
@@ -562,7 +570,7 @@ export class EditDoc {
         if (cmd.locked != null) l.locked = !!cmd.locked;
         l.edited = true;
         // Katman rengiyle çizilen nesneler (colorIndex 256) yeni rengi almalı
-        if (cmd.color != null) for (const p of eskiRenkler.keys()) if (p.info && p.info.ci === 256) p.col = l.color;
+        if (cmd.color != null) for (const p of eskiRenkler.keys()) if (p.info && isByLayer(p.info.ci)) p.col = l.color;
         if (yeniAd) {
           C.layers.delete(cmd.name);
           l.name = yeniAd;
@@ -594,13 +602,13 @@ export class EditDoc {
           for (let i = arr.length - 1; i >= 0; i--) if (set.has(arr[i])) arr.splice(i, 1);
         } else {
           const sifir = C.layers.get('0');
-          for (const p of icerik) { p.lay = '0'; if (p.info) p.info = { ...p.info, lay: '0' }; if (p.ent) p.ent = { ...p.ent, layer: '0' }; if (p.info && p.info.ci === 256 && sifir) p.col = sifir.color; }
+          for (const p of icerik) { p.lay = '0'; if (p.info) p.info = { ...p.info, lay: '0' }; if (p.ent) p.ent = { ...p.ent, layer: '0' }; if (p.info && isByLayer(p.info.ci) && sifir) p.col = sifir.color; }
         }
         C.layers.delete(cmd.name);
         return () => {
           C.layers.set(cmd.name, Object.assign(l, onceki, { faded: l.faded, isoHidden: false })); katmanGorunur(l);   // silinmişken izolasyon değişmiş olabilir: bayat isoHidden taşınmaz
           if (kip === 'ents' && silinen) { const arr = this.ctx.prims(); for (const { p, i } of silinen) arr.splice(Math.min(i, arr.length), 0, p); }
-          else for (const p of icerik) { p.lay = cmd.name; if (p.info) p.info = { ...p.info, lay: cmd.name }; if (p.ent) p.ent = { ...p.ent, layer: cmd.name }; if (p.info && p.info.ci === 256) p.col = l.color; }
+          else for (const p of icerik) { p.lay = cmd.name; if (p.info) p.info = { ...p.info, lay: cmd.name }; if (p.ent) p.ent = { ...p.ent, layer: cmd.name }; if (p.info && isByLayer(p.info.ci)) p.col = l.color; }
         };
       }
       case 'edittext': {
@@ -955,8 +963,16 @@ export function writeDxf(prims, layers, opts = {}) {
   const common = (type, p, sub, owner) => {
     w(0, type); w(5, H()); if (owner) w(330, owner); w(100, 'AcDbEntity'); w(8, p.lay || '0');
     const lay = layers.get(p.lay);
-    const ci = p.info && p.info.ci != null && p.info.ci !== 0 ? (p.info.ci === 256 ? 256 : aciOf(p.col, lay ? lay.color : null)) : aciOf(p.col, lay ? lay.color : null);
-    if (ci !== 256) w(62, ci);
+    /*
+     * RENK KODU 62 (v7.93). Eskiden nesnenin AÇIK indeksi yazılmıyor, renk p.col'dan aciOf ile
+     * YENİDEN TÜRETİLİYORDU; katman rengiyle aynı olan açık bir atama böylece sessizce
+     * KATMANDAN'a dönüşüyordu. BLOKTAN (0) ise — kök kusur p.col'u FG yaptığı için — 62 = 7
+     * olarak çıkıyor, yani blok içi renk kalıcı olarak bozuluyordu. Artık nesnenin kendi
+     * indeksi ne diyorsa o yazılır: 0 = BLOKTAN, 1-255 açık, 256 = KATMANDAN (62 hiç yazılmaz).
+     * İndeksi olmayan eski ilkellerde renkten türetme yedek kalır.
+     */
+    if (p.info && p.info.ci != null) { const ci = normCi(p.info.ci); if (ci !== BYLAYER) w(62, ci); }
+    else { const ci = aciOf(p.col, lay ? lay.color : null); if (ci !== 256) w(62, ci); }
     if (p.lt) w(6, ltypes[p.lt] ? ltypes[p.lt].name : p.lt);
     if (sub) w(100, sub);
   };
@@ -1135,9 +1151,9 @@ export function writeDxf(prims, layers, opts = {}) {
   /** Öznitelik tanımı (blok içinde): AcDbText + AcDbAttributeDefinition */
   const writeAttdef = (e, owner) => {
     const q = (e.pts && e.pts[0]) || [0, 0, 0];
-    const p = { lay: e.layer || '0', col: FG, info: { ci: e.color == null ? 256 : e.color } };
+    const p = { lay: e.layer || '0', col: FG, info: { ci: normCi(e.color) } };
     w(0, 'ATTDEF'); w(5, H()); if (owner) w(330, owner); w(100, 'AcDbEntity'); w(8, p.lay);
-    if (p.info.ci !== 256 && p.info.ci >= 1 && p.info.ci <= 255) w(62, p.info.ci);
+    if (p.info.ci !== BYLAYER) w(62, p.info.ci);   // 0 = BLOKTAN da yazılır
     w(100, 'AcDbText'); w(10, f6(q[0])); w(20, f6(q[1])); w(30, f6(q[2] || 0)); w(40, f6(e.h || 2.5)); w(1, e.text == null ? '' : String(e.text)); w(50, f6((e.rot || 0) * R2D));
     w(100, 'AcDbAttributeDefinition'); w(3, e.prompt == null ? '' : String(e.prompt)); w(2, String(e.tag || 'TAG')); w(70, e.flags | 0);
   };
@@ -1148,9 +1164,9 @@ export function writeDxf(prims, layers, opts = {}) {
     const attdefs = def ? (def.ents || []).filter(e => e && e.type === 'ATTDEF') : [];
     const attrs = attrsFor(def, i.attrs);
     const hasAtt = attdefs.length > 0;
-    const lay = i.lay || i.layer || '0', ci = i.ci != null ? i.ci : (i.color == null ? 256 : i.color);
+    const lay = i.lay || i.layer || '0', ci = normCi(i.ci != null ? i.ci : i.color);
     w(0, 'INSERT'); w(5, H()); if (owner) w(330, owner); w(100, 'AcDbEntity'); w(8, lay);
-    if (ci !== 256 && ci >= 1 && ci <= 255) w(62, ci);
+    if (ci !== BYLAYER) w(62, ci);   // 0 = BLOKTAN da yazılır
     w(100, 'AcDbBlockReference'); if (hasAtt) w(66, 1); w(2, def ? def.name : i.name);
     w(10, f6(d.x)); w(20, f6(d.y)); w(30, f6(i.z || 0)); w(41, f6(d.sx)); w(42, f6(d.sy)); w(43, 1); w(50, f6(d.rot * R2D));
     if (hasAtt) {

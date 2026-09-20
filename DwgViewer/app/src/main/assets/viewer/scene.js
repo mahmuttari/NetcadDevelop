@@ -37,6 +37,28 @@ function hsv(h, s, v) {
   return (Math.round((r + m) * 255) << 16) | (Math.round((g + m) * 255) << 8) | Math.round((b + m) * 255);
 }
 export const ACI = new Array(256).fill(0);
+/*
+ * RENK İNDEKSİNİN ÜÇ MEŞRU DEĞERİ (v7.93). AutoCAD'de bir nesnenin renk indeksi ya 1-255
+ * arasında AÇIK bir ACI'dir, ya 256 = KATMANDAN (ByLayer), ya da 0 = BLOKTAN (ByBlock).
+ * ACI tablosu 256 uzunluktadır, yani ACI[256] YOKTUR ve ACI[0] siyahtır — iki özel değer de
+ * tabloya indislenemez. Kod boyunca bu ayrım beş ayrı yerde elle yapılıyordu ve en az bir
+ * yerde (edit.js entToPrim) 256 hiç ele alınmadığı için "Katmandan" seçilen nesne katman
+ * rengini değil sabit ön plan rengini alıyordu. Karar artık tek yerdedir.
+ */
+export const BYBLOCK = 0, BYLAYER = 256;
+/** Her renk alanını üç meşru değerden birine indirger: 0, 1..255, 256. null / -1 / taşkın → 256 */
+export const normCi = (ci) => (ci == null || ci === -1 ? BYLAYER : (ci === BYBLOCK ? BYBLOCK : (ci >= 1 && ci <= 255 ? ci : BYLAYER)));
+export const isByLayer = (ci) => normCi(ci) === BYLAYER;
+/**
+ * Çizilecek renk. ACI'ye ASLA doğrudan indislenmez.
+ * layColor: nesnenin katmanının rengi (yoksa null) · ctxColor: BLOKTAN için yerleştirmenin rengi
+ */
+export function resolveColor(ci, layColor, ctxColor) {
+  const c = normCi(ci);
+  if (c === BYLAYER) return layColor == null ? FG : layColor;
+  if (c === BYBLOCK) return ctxColor != null ? ctxColor : (layColor == null ? FG : layColor);
+  return ACI[c];
+}
 (() => {
   const base = [0x000000, 0xff0000, 0xffff00, 0x00ff00, 0x00ffff, 0x0000ff, 0xff00ff, 0xffffff, 0x808080, 0xc0c0c0];
   for (let i = 0; i < 10; i++) ACI[i] = base[i];

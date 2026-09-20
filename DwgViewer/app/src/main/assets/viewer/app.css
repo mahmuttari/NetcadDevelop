@@ -649,6 +649,8 @@ body.glove .st-quick button { width: 48px; height: 48px; }
 .swatches { display: flex; flex-wrap: wrap; gap: 6px; }
 .swatches button { width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--line); color: var(--fg); font-weight: 700; font-size: calc(10px * var(--fs)); }
 .swatches button.active { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* KATMANDAN karosu artık katmanın gerçek rengiyle boyanır; 'K' harfi her zemin üstünde okunsun */
+.swatches button.bylayer { text-shadow: 0 0 3px var(--bg), 0 0 3px var(--bg), 0 0 2px var(--bg); }
 .opt-color { width: 44px; height: 40px; border: 1px solid var(--line); border-radius: 8px; background: transparent; padding: 2px; }
 .opt-sel { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font-size: calc(14px * var(--fs)); min-height: 40px; max-width: 100%; }
 .v3opts .opt-sec.dim { opacity: .55; }

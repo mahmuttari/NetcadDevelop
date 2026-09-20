@@ -15,7 +15,7 @@ import { ToolManager, TOOLS, rotM, mirrorM } from './tools.js';
 import { EditDoc, writeDxf, newId, entsToPrims } from './edit.js';
 import { View3D } from './view3d.js';
 import { openView3DOptions, buildViewCube, openCameraBookmarks, renderZScale, renderClip } from './view3d_panel.js';
-import { FG, ACI } from './scene.js';
+import { FG, ACI, BYLAYER, normCi, resolveColor } from './scene.js';
 import { toScreen, toWorld, fmt, store } from './state.js';
 import { bgColor, fgColor } from './render.js';
 import { t, applyI18n, addStrings } from './i18n.js';
@@ -1247,14 +1247,31 @@ function pickLayer() {
     else api.toast(t('layerExists'));
   };
 }
-function colorSwatches(sel) {
-  const ids = [256, 1, 2, 3, 4, 5, 6, 7, 8, 9, 30, 40, 50, 90, 130, 150, 170, 190, 210, 230, 250, 252, 254];
-  return `<div class="swatches">${ids.map(i => `<button type="button" data-ci="${i}" class="${i === sel ? 'active' : ''}" style="background:${i === 256 ? 'transparent' : i === 7 ? '#ffffff' : '#' + (ACI[i] & 0xffffff).toString(16).padStart(6, '0')}" title="${i === 256 ? esc(t('fromLayer')) : i}">${i === 256 ? 'K' : ''}</button>`).join('')}</div>`;
+/** Renk sayısı → CSS; FG (tema ön planı) tema değişkenine bağlanır, sabit beyaz yazılmaz */
+const ciCss = (col) => (col == null || col === FG ? 'var(--fg)' : '#' + (col & 0xffffff).toString(16).padStart(6, '0'));
+/**
+ * Renk karoları. sel: seçili indeks · lay: nesnenin (ya da geçerli) katmanının adı.
+ *
+ * KATMANDAN KAROSU KATMANIN RENGİYLE BOYANIR (v7.93). Eskiden o karo `background: transparent`
+ * ile çizilip içine "K" yazılıyordu: kullanıcı "Katmandan"ı seçtiğinde hangi rengin geleceğini
+ * göremiyor, seçtikten sonra da karo boş kaldığı için renk gelmemiş gibi görünüyordu. Artık
+ * karo katmanın gerçek rengini gösterir; "K" harfi üstte kalır ki açık bir ACI ile karışmasın.
+ */
+function colorSwatches(sel, lay) {
+  const ids = [BYLAYER, 1, 2, 3, 4, 5, 6, 7, 8, 9, 30, 40, 50, 90, 130, 150, 170, 190, 210, 230, 250, 252, 254];
+  const L = S.layers && lay != null ? S.layers.get(lay) : null;
+  const katmanRenk = L ? L.color : null;
+  const cur = normCi(sel);
+  return `<div class="swatches">${ids.map(i => {
+    const bg = i === BYLAYER ? ciCss(katmanRenk) : ciCss(ACI[i]);
+    const ipucu = i === BYLAYER ? esc(t('fromLayer')) + (L ? ' \u00b7 ' + esc(L.name) : '') : String(i);
+    return `<button type="button" data-ci="${i}" class="${i === cur ? 'active' : ''}${i === BYLAYER ? ' bylayer' : ''}" style="background:${bg}" title="${ipucu}">${i === BYLAYER ? 'K' : ''}</button>`;
+  }).join('')}</div>`;
 }
 function pickColor() {
   if (!needDoc()) return;
-  api.openDoc(t('curColor'), `<div class="full">${colorSwatches(ed.curColor)}</div><div class="full muted">${esc(t('colorHint'))} <input id="eCi" type="number" min="1" max="255" style="width:90px" value="${ed.curColor === 256 ? '' : ed.curColor}"> <button class="btn small" id="eCiOk">${esc(t('ok'))}</button></div>`);
-  $('docBody').onclick = (ev) => { const b = ev.target.closest('[data-ci]'); if (b) { ed.curColor = Number(b.dataset.ci); api.hide('docPanel'); api.toast(t('color') + ': ' + (ed.curColor === 256 ? t('fromLayerLc') : ed.curColor)); } };
+  api.openDoc(t('curColor'), `<div class="full">${colorSwatches(ed.curColor, ed.curLayer)}</div><div class="full muted">${esc(t('colorHint'))} <input id="eCi" type="number" min="1" max="255" style="width:90px" value="${normCi(ed.curColor) === BYLAYER ? '' : ed.curColor}"> <button class="btn small" id="eCiOk">${esc(t('ok'))}</button></div>`);
+  $('docBody').onclick = (ev) => { const b = ev.target.closest('[data-ci]'); if (b) { ed.curColor = Number(b.dataset.ci); api.hide('docPanel'); api.toast(t('color') + ': ' + (normCi(ed.curColor) === BYLAYER ? t('fromLayerLc') : ed.curColor)); } };
   $('eCiOk').onclick = () => { const c = parseInt($('eCi').value, 10); if (c >= 1 && c <= 255) { ed.curColor = c; api.hide('docPanel'); } };
 }
 /*
@@ -1484,7 +1501,7 @@ function showProps(all) {
   const lwSel = `<select id="pLw"><option value="-1">${esc(t('selByLayer'))}</option>${LW_LIST.map(v => `<option value="${v}"${v === lwCur ? ' selected' : ''}>${(v / 100).toFixed(2)} mm</option>`).join('')}</select>`;
   const F = propFields(first);
   const same = sel.every(p => typeOf(p) === typeOf(first));   // artık mantıksal tür: taramanın iki parçası da 'HATCH'
-  const rows = [[t('selType'), tur, 1], [t('layer'), layerSelectHtml('pLayer', first.lay), 1], [t('color'), colorSwatches(first.info ? first.info.ci : 256), 1], [t('ltype'), ltSel, 1], [t('lweight'), lwSel, 1]];
+  const rows = [[t('selType'), tur, 1], [t('layer'), layerSelectHtml('pLayer', first.lay), 1], [t('color'), colorSwatches(first.info ? first.info.ci : BYLAYER, first.lay), 1], [t('ltype'), ltSel, 1], [t('lweight'), lwSel, 1]];
   if (same && F.length) {
     rows.push([`<div class="full opt-title">${esc(tt('ety_' + typeOf(first), typeOf(first)))}${sel.length > 1 ? ' · ' + sel.length : ''}</div>`]);
     for (const f of F) {
@@ -1592,7 +1609,7 @@ function selAction(id) {
     case 'color': {
       if (!gate('props')) return;
       const first = [...ed.sel][0];
-      api.openDoc(t('colorSelect'), `<div class="full">${colorSwatches(first.info ? first.info.ci : 256)}</div><div class="full muted">${esc(t('colorHint'))}</div>`);
+      api.openDoc(t('colorSelect'), `<div class="full">${colorSwatches(first.info ? first.info.ci : BYLAYER, first.lay)}</div><div class="full muted">${esc(t('colorHint'))}</div>`);
       $('docBody').onclick = (ev) => { const b = ev.target.closest('[data-ci]'); if (!b) return; api.hide('docPanel'); selProps({ color: Number(b.dataset.ci) }); };
       break;
     }
