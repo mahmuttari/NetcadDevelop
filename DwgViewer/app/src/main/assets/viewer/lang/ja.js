@@ -30,7 +30,7 @@ export default {
   language: '言語', save: '保存', cancel: 'キャンセル', delete: '削除', undo: '元に戻す',
   pen: 'ペン', line: '線分', arrow: '矢印', rect: '長方形', circle: '円', noteText: '文字', photo: '写真', select: '選択', noteColor: '色',
   notesSaved: '注記を保存しました', notePrompt: '注記の内容：', noNotes: 'この図面に注記はありません。',
-  pdfTitle: 'PDF を作成', paper: '用紙', orient: '向き', portrait: '縦', landscape: '横', pdfScale: '尺度 1:', pdfFit: 'ビューに合わせる', dpi: '解像度', title: 'タイトル', create: '作成',
+  pdfTitle: 'PDF を作成', paper: '用紙', orient: '向き', orientAuto: '自動', portrait: '縦', landscape: '横', pdfScale: '尺度 1:', pdfFit: 'ビューに合わせる', dpi: '解像度', title: 'タイトル', create: '作成',
   pdfDone: 'PDF を作成しました', pdfFail: 'PDF を作成できませんでした',
   compareLoad: '比較するファイルを選択', compareOff: '比較を終了', onlyA: 'この図面のみ（削除された）', onlyB: '新しい図面のみ（追加された）', both: '共通',
   profileHint: 'マンホールや点を順にタップします。標高はスナップした点の Z 値から取得し、無い場合は入力します。', enterElev: '標高', slope: '勾配',

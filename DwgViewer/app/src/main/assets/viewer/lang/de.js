@@ -30,7 +30,7 @@ export default {
   language: 'Sprache', save: 'Speichern', cancel: 'Abbrechen', delete: 'Löschen', undo: 'Rückgängig',
   pen: 'Stift', line: 'Linie', arrow: 'Pfeil', rect: 'Rechteck', circle: 'Kreis', noteText: 'Text', photo: 'Foto', select: 'Auswählen', noteColor: 'Farbe',
   notesSaved: 'Notizen gespeichert', notePrompt: 'Notiztext:', noNotes: 'Keine Notizen in dieser Zeichnung.',
-  pdfTitle: 'PDF erstellen', paper: 'Papier', orient: 'Ausrichtung', portrait: 'Hochformat', landscape: 'Querformat', pdfScale: 'Maßstab 1:', pdfFit: 'Ansicht einpassen', dpi: 'Auflösung', title: 'Titel', create: 'Erstellen',
+  pdfTitle: 'PDF erstellen', paper: 'Papier', orient: 'Ausrichtung', orientAuto: 'Automatisch', portrait: 'Hochformat', landscape: 'Querformat', pdfScale: 'Maßstab 1:', pdfFit: 'Ansicht einpassen', dpi: 'Auflösung', title: 'Titel', create: 'Erstellen',
   pdfDone: 'PDF erstellt', pdfFail: 'PDF fehlgeschlagen',
   compareLoad: 'Zu vergleichende Datei wählen', compareOff: 'Vergleich beenden', onlyA: 'Nur in dieser Zeichnung (entfernt)', onlyB: 'Nur in der neuen Zeichnung (hinzugefügt)', both: 'Gemeinsam',
   profileHint: 'Schächte / Punkte der Reihe nach antippen. Höhen stammen aus dem Z des gefangenen Punktes; sonst eingeben.', enterElev: 'Höhe', slope: 'Gefälle',

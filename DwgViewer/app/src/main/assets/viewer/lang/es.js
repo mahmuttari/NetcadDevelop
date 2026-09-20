@@ -30,7 +30,7 @@ export default {
   language: 'Idioma', save: 'Guardar', cancel: 'Cancelar', delete: 'Eliminar', undo: 'Deshacer',
   pen: 'Lápiz', line: 'Línea', arrow: 'Flecha', rect: 'Rectángulo', circle: 'Círculo', noteText: 'Texto', photo: 'Foto', select: 'Seleccionar', noteColor: 'Color',
   notesSaved: 'Notas guardadas', notePrompt: 'Texto de la nota:', noNotes: 'No hay notas en este dibujo.',
-  pdfTitle: 'Crear PDF', paper: 'Papel', orient: 'Orientación', portrait: 'Vertical', landscape: 'Horizontal', pdfScale: 'Escala 1:', pdfFit: 'Ajustar la vista', dpi: 'Resolución', title: 'Título', create: 'Crear',
+  pdfTitle: 'Crear PDF', paper: 'Papel', orient: 'Orientación', orientAuto: 'Automático', portrait: 'Vertical', landscape: 'Horizontal', pdfScale: 'Escala 1:', pdfFit: 'Ajustar la vista', dpi: 'Resolución', title: 'Título', create: 'Crear',
   pdfDone: 'PDF creado', pdfFail: 'No se pudo crear el PDF',
   compareLoad: 'Elija el archivo a comparar', compareOff: 'Detener la comparación', onlyA: 'Solo en este dibujo (eliminado)', onlyB: 'Solo en el dibujo nuevo (añadido)', both: 'Común',
   profileHint: 'Toque los pozos / puntos en orden. Las cotas provienen de la Z del punto forzado; si no, introdúzcalas.', enterElev: 'cota', slope: 'Pendiente',

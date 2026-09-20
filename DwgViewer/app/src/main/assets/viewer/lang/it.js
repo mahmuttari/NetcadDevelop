@@ -30,7 +30,7 @@ export default {
   language: 'Lingua', save: 'Salva', cancel: 'Annulla', delete: 'Elimina', undo: 'Annulla',
   pen: 'Penna', line: 'Linea', arrow: 'Freccia', rect: 'Rettangolo', circle: 'Cerchio', noteText: 'Testo', photo: 'Foto', select: 'Seleziona', noteColor: 'Colore',
   notesSaved: 'Note salvate', notePrompt: 'Testo della nota:', noNotes: 'Nessuna nota in questo disegno.',
-  pdfTitle: 'Crea PDF', paper: 'Carta', orient: 'Orientamento', portrait: 'Verticale', landscape: 'Orizzontale', pdfScale: 'Scala 1:', pdfFit: 'Adatta la vista', dpi: 'Risoluzione', title: 'Titolo', create: 'Crea',
+  pdfTitle: 'Crea PDF', paper: 'Carta', orient: 'Orientamento', orientAuto: 'Automatico', portrait: 'Verticale', landscape: 'Orizzontale', pdfScale: 'Scala 1:', pdfFit: 'Adatta la vista', dpi: 'Risoluzione', title: 'Titolo', create: 'Crea',
   pdfDone: 'PDF creato', pdfFail: 'Creazione del PDF non riuscita',
   compareLoad: 'Scegli il file da confrontare', compareOff: 'Termina il confronto', onlyA: 'Solo in questo disegno (rimosso)', onlyB: 'Solo nel nuovo disegno (aggiunto)', both: 'In comune',
   profileHint: 'Tocca i pozzetti / punti in ordine. Le quote provengono dalla Z del punto agganciato; altrimenti inseriscile.', enterElev: 'quota', slope: 'Pendenza',

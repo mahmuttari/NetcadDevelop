@@ -75,6 +75,7 @@ await kutuAc();
     return { alanlar: ['pTitle', 'pPaper', 'pW', 'pH', 'pOrient', 'pArea', 'pPick', 'pScale', 'pMargin', 'pMode', 'pColor', 'pDpi', 'pFrame', 'pLw'].filter(i => !g(i)),
       kagit, kagitN: kagit.length, ozelVar: kagit.includes('ozel'),
       alan: [...g('pArea').options].map(o => o.value), kip: [...g('pMode').options].map(o => o.value),
+      yon: [...g('pOrient').options].map(o => o.value), boy: g('pSize').textContent,
       ozelSatir: gorunur('ozel'), yonSatir: gorunur('yon'), dpiSatir: gorunur('dpi'), winSatir: gorunur('win') };
   });
   ok('1a kutunun bütün yeni alanları var', r.alanlar.length === 0, r.alanlar.join(','));
@@ -82,15 +83,24 @@ await kutuAc();
   ok('1c kapsam üç seçenek: ekran, sınırlar, pencere', r.alan.join(',') === 'view,ext,win', r.alan.join(','));
   ok('1d çıktı iki seçenek: vektör, raster', r.kip.join(',') === 'vektor,raster', r.kip.join(','));
   ok('1e başlangıçta özel ölçü ve pencere satırı gizli, yön ve dpi görünür', !r.ozelSatir && !r.winSatir && r.yonSatir, JSON.stringify(r));
+  ok('1e2 yön üç seçenek: otomatik, yatay, dikey; yanında sayfanın gerçek mm ölçüsü yazıyor', r.yon.join(',') === 'auto,l,p' && /420\D+297/.test(r.boy), r.yon.join(',') + ' · ' + r.boy);
 }
 {
-  // "Özel" seçilince ölçü satırı açılır, yön satırı kapanır
+  // "Özel" seçilince ölçü satırı açılır; yön satırı ORADA DA durur ve iki sayının sırasıyla eşleşir
   await page.selectOption('#pPaper', 'ozel');
   await page.waitForTimeout(80);
   const r = await ev(() => ({ ozel: [...document.querySelectorAll('#docBody [data-row="ozel"]')].every(e => !e.hidden),
-    yon: [...document.querySelectorAll('#docBody [data-row="yon"]')].every(e => e.hidden) }));
-  ok('1f "Özel ölçü" seçilince G×Y satırı açılır, yön satırı kapanır', r.ozel && r.yon, JSON.stringify(r));
+    yon: [...document.querySelectorAll('#docBody [data-row="yon"]')].every(e => !e.hidden) }));
+  ok('1f "Özel ölçü" seçilince G×Y satırı açılır, yön satırı da açık kalır', r.ozel && r.yon, JSON.stringify(r));
+  // yazılan ölçü yönü belirler; yön değiştirilince sayılar yeniden sıralanır (görünen = basılan)
+  await page.fill('#pW', '300'); await page.fill('#pH', '500'); await page.waitForTimeout(80);
+  const y1 = await ev(() => ({ yon: document.getElementById('pOrient').value, boy: document.getElementById('pSize').textContent }));
+  await page.selectOption('#pOrient', 'l'); await page.waitForTimeout(80);
+  const y2 = await ev(() => ({ w: document.getElementById('pW').value, h: document.getElementById('pH').value, boy: document.getElementById('pSize').textContent }));
+  ok('1f2 özel ölçüde 300 × 500 yazınca yön kendiliğinden DİKEY olur', y1.yon === 'p' && /300\D+500/.test(y1.boy), JSON.stringify(y1));
+  ok('1f3 yön Yatay yapılınca sayılar da 500 × 300 olur', y2.w === '500' && y2.h === '300' && /500\D+300/.test(y2.boy), JSON.stringify(y2));
   await page.selectOption('#pPaper', 'A3');
+  await page.selectOption('#pOrient', 'l');
   await page.selectOption('#pMode', 'raster');
   await page.waitForTimeout(80);
   const r2 = await ev(() => [...document.querySelectorAll('#docBody [data-row="dpi"]')].every(e => !e.hidden));
@@ -140,6 +150,51 @@ await kutuAc();
   const buf = await uret();
   const ham = buf.toString('latin1');
   ok('3a özel ölçü kâğıda birebir yazıldı (500 × 350 mm)', ham.includes('/MediaBox [0 0 1417.323 992.126]'), (ham.match(/\/MediaBox \[[^\]]*\]/) || [''])[0]);
+}
+
+/* ---------- 3B. Sayfa yönü: Otomatik · Yatay · Dikey ---------- */
+{
+  // Yön çözümü dosya üretmeden: kâğıt ölçüleri PAPERS'ta dikey yazılıdır, yön onları çevirir
+  const g = await ev(() => {
+    const A = window.dwgApp, S = A.state, e = S.ext;
+    return {
+      yatay: A.__pdfSayfa({ paper: 'A3', orient: 'l' }),
+      dikey: A.__pdfSayfa({ paper: 'A3', orient: 'p' }),
+      otoEkran: A.__pdfSayfa({ paper: 'A3', orient: 'auto', area: 'view' }),
+      otoSinir: A.__pdfSayfa({ paper: 'A3', orient: 'auto', area: 'ext' }),
+      otoPencereGenis: A.__pdfSayfa({ paper: 'A3', orient: 'auto', area: 'win', win: [0, 0, 400, 100] }),
+      otoPencereUzun: A.__pdfSayfa({ paper: 'A3', orient: 'auto', area: 'win', win: [0, 0, 100, 400] }),
+      ozelYatay: A.__pdfSayfa({ paper: 'ozel', wmm: 300, hmm: 500, orient: 'l' }),
+      ozelDikey: A.__pdfSayfa({ paper: 'ozel', wmm: 500, hmm: 300, orient: 'p' }),
+      ozelOto: A.__pdfSayfa({ paper: 'ozel', wmm: 300, hmm: 500, orient: 'auto', area: 'win', win: [0, 0, 400, 100] }),
+      sinirOran: (e[2] - e[0]) / (e[3] - e[1]),
+      ekranDik: window.innerHeight > window.innerWidth,
+    };
+  });
+  const J2 = JSON.stringify;
+  ok('3b A3 yatay 420 × 297, dikey 297 × 420', J2(g.yatay) === '[420,297]' && J2(g.dikey) === '[297,420]', J2({ l: g.yatay, p: g.dikey }));
+  ok('3c Otomatik pencereyi izler: geniş pencere yatay, uzun pencere dikey',
+    J2(g.otoPencereGenis) === '[420,297]' && J2(g.otoPencereUzun) === '[297,420]', J2({ genis: g.otoPencereGenis, uzun: g.otoPencereUzun }));
+  ok('3d Otomatik çizim sınırlarını izler (bu çizim ' + (g.sinirOran >= 1 ? 'geniş' : 'uzun') + ')',
+    J2(g.otoSinir) === (g.sinirOran >= 1 ? '[420,297]' : '[297,420]'), J2({ oran: g.sinirOran, mm: g.otoSinir }));
+  ok('3e Otomatik ekran kapsamında telefonun dik görünümünü izler',
+    J2(g.otoEkran) === (g.ekranDik ? '[297,420]' : '[420,297]'), J2({ dik: g.ekranDik, mm: g.otoEkran }));
+  ok('3f özel ölçüde de yön geçerli: iki sayı yöne göre sıralanır',
+    J2(g.ozelYatay) === '[500,300]' && J2(g.ozelDikey) === '[300,500]' && J2(g.ozelOto) === '[500,300]', J2({ l: g.ozelYatay, p: g.ozelDikey, oto: g.ozelOto }));
+}
+{
+  // ve kâğıda gerçekten öyle gidiyor mu: A3 DİKEY bas
+  await kutuAc();
+  await page.selectOption('#pPaper', 'A3');
+  await page.selectOption('#pOrient', 'p');
+  await page.waitForTimeout(80);
+  const buf = await uret();
+  fs.writeFileSync(path.join(out, 'vektor_a3_dikey.pdf'), buf);
+  const ham = buf.toString('latin1');
+  ok('3g A3 dikey seçilince MediaBox 841,89 × 1190,551 (yatayın devriği)', ham.includes('/MediaBox [0 0 841.89 1190.551]'), (ham.match(/\/MediaBox \[[^\]]*\]/) || [''])[0]);
+  await kutuAc();
+  await page.selectOption('#pOrient', 'l');
+  await page.waitForTimeout(80);
 }
 
 /* ---------- 4. Alan seçimi (pencere) ---------- */

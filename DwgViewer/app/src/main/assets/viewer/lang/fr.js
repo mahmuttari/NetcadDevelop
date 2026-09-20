@@ -30,7 +30,7 @@ export default {
   language: 'Langue', save: 'Enregistrer', cancel: 'Annuler', delete: 'Supprimer', undo: 'Annuler',
   pen: 'Crayon', line: 'Ligne', arrow: 'Flèche', rect: 'Rectangle', circle: 'Cercle', noteText: 'Texte', photo: 'Photo', select: 'Sélectionner', noteColor: 'Couleur',
   notesSaved: 'Notes enregistrées', notePrompt: 'Texte de la note :', noNotes: 'Aucune note dans ce dessin.',
-  pdfTitle: 'Créer un PDF', paper: 'Papier', orient: 'Orientation', portrait: 'Portrait', landscape: 'Paysage', pdfScale: 'Échelle 1:', pdfFit: 'Ajuster la vue', dpi: 'Résolution', title: 'Titre', create: 'Créer',
+  pdfTitle: 'Créer un PDF', paper: 'Papier', orient: 'Orientation', orientAuto: 'Automatique', portrait: 'Portrait', landscape: 'Paysage', pdfScale: 'Échelle 1:', pdfFit: 'Ajuster la vue', dpi: 'Résolution', title: 'Titre', create: 'Créer',
   pdfDone: 'PDF créé', pdfFail: 'Échec de la création du PDF',
   compareLoad: 'Choisissez le fichier à comparer', compareOff: 'Arrêter la comparaison', onlyA: 'Uniquement dans ce dessin (supprimé)', onlyB: 'Uniquement dans le nouveau dessin (ajouté)', both: 'Commun',
   profileHint: 'Touchez les regards / points dans l\'ordre. Les altitudes proviennent du Z du point accroché ; sinon saisissez-les.', enterElev: 'altitude', slope: 'Pente',

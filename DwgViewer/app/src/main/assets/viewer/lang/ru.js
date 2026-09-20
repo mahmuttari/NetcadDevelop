@@ -30,7 +30,7 @@ export default {
   language: 'Язык', save: 'Сохранить', cancel: 'Отмена', delete: 'Удалить', undo: 'Отменить',
   pen: 'Карандаш', line: 'Отрезок', arrow: 'Стрелка', rect: 'Прямоугольник', circle: 'Окружность', noteText: 'Текст', photo: 'Фото', select: 'Выбрать', noteColor: 'Цвет',
   notesSaved: 'Заметки сохранены', notePrompt: 'Текст заметки:', noNotes: 'В этом чертеже нет заметок.',
-  pdfTitle: 'Создать PDF', paper: 'Бумага', orient: 'Ориентация', portrait: 'Книжная', landscape: 'Альбомная', pdfScale: 'Масштаб 1:', pdfFit: 'Вписать вид', dpi: 'Разрешение', title: 'Заголовок', create: 'Создать',
+  pdfTitle: 'Создать PDF', paper: 'Бумага', orient: 'Ориентация', orientAuto: 'Автоматически', portrait: 'Книжная', landscape: 'Альбомная', pdfScale: 'Масштаб 1:', pdfFit: 'Вписать вид', dpi: 'Разрешение', title: 'Заголовок', create: 'Создать',
   pdfDone: 'PDF создан', pdfFail: 'Не удалось создать PDF',
   compareLoad: 'Выберите файл для сравнения', compareOff: 'Прекратить сравнение', onlyA: 'Только в этом чертеже (удалено)', onlyB: 'Только в новом чертеже (добавлено)', both: 'Общее',
   profileHint: 'Касайтесь колодцев / точек по порядку. Отметки берутся из Z привязанной точки; иначе введите их.', enterElev: 'отметка', slope: 'Уклон',

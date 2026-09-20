@@ -30,7 +30,7 @@ export default {
   language: 'Ngôn ngữ', save: 'Lưu', cancel: 'Huỷ', delete: 'Xoá', undo: 'Hoàn tác',
   pen: 'Bút', line: 'Đoạn thẳng', arrow: 'Mũi tên', rect: 'Hình chữ nhật', circle: 'Đường tròn', noteText: 'Chữ', photo: 'Ảnh', select: 'Chọn', noteColor: 'Màu',
   notesSaved: 'Đã lưu ghi chú', notePrompt: 'Nội dung ghi chú:', noNotes: 'Bản vẽ này không có ghi chú.',
-  pdfTitle: 'Tạo PDF', paper: 'Khổ giấy', orient: 'Hướng', portrait: 'Dọc', landscape: 'Ngang', pdfScale: 'Tỷ lệ 1:', pdfFit: 'Vừa khung nhìn', dpi: 'Độ phân giải', title: 'Tiêu đề', create: 'Tạo',
+  pdfTitle: 'Tạo PDF', paper: 'Khổ giấy', orient: 'Hướng', orientAuto: 'Tự động', portrait: 'Dọc', landscape: 'Ngang', pdfScale: 'Tỷ lệ 1:', pdfFit: 'Vừa khung nhìn', dpi: 'Độ phân giải', title: 'Tiêu đề', create: 'Tạo',
   pdfDone: 'Đã tạo PDF', pdfFail: 'Không tạo được PDF',
   compareLoad: 'Chọn tệp để so sánh', compareOff: 'Dừng so sánh', onlyA: 'Chỉ có trong bản vẽ này (đã bỏ)', onlyB: 'Chỉ có trong bản vẽ mới (đã thêm)', both: 'Chung',
   profileHint: 'Chạm lần lượt vào các hố ga / điểm. Cao độ lấy từ Z của điểm đã bắt; nếu không có thì nhập tay.', enterElev: 'cao độ', slope: 'Độ dốc',

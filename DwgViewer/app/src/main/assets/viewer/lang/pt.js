@@ -30,7 +30,7 @@ export default {
   language: 'Idioma', save: 'Guardar', cancel: 'Cancelar', delete: 'Eliminar', undo: 'Anular',
   pen: 'Caneta', line: 'Linha', arrow: 'Seta', rect: 'Retângulo', circle: 'Círculo', noteText: 'Texto', photo: 'Foto', select: 'Selecionar', noteColor: 'Cor',
   notesSaved: 'Notas guardadas', notePrompt: 'Texto da nota:', noNotes: 'Não há notas neste desenho.',
-  pdfTitle: 'Criar PDF', paper: 'Papel', orient: 'Orientação', portrait: 'Vertical', landscape: 'Horizontal', pdfScale: 'Escala 1:', pdfFit: 'Ajustar a vista', dpi: 'Resolução', title: 'Título', create: 'Criar',
+  pdfTitle: 'Criar PDF', paper: 'Papel', orient: 'Orientação', orientAuto: 'Automático', portrait: 'Vertical', landscape: 'Horizontal', pdfScale: 'Escala 1:', pdfFit: 'Ajustar a vista', dpi: 'Resolução', title: 'Título', create: 'Criar',
   pdfDone: 'PDF criado', pdfFail: 'Não foi possível criar o PDF',
   compareLoad: 'Escolha o ficheiro a comparar', compareOff: 'Terminar a comparação', onlyA: 'Só neste desenho (removido)', onlyB: 'Só no desenho novo (adicionado)', both: 'Comum',
   profileHint: 'Toque nas caixas / pontos por ordem. As cotas vêm do Z do ponto aderido; caso contrário, introduza-as.', enterElev: 'cota', slope: 'Declive',

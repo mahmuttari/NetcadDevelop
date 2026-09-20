@@ -30,7 +30,7 @@ export default {
   language: '语言', save: '保存', cancel: '取消', delete: '删除', undo: '撤消',
   pen: '画笔', line: '直线', arrow: '箭头', rect: '矩形', circle: '圆', noteText: '文字', photo: '照片', select: '选择', noteColor: '颜色',
   notesSaved: '批注已保存', notePrompt: '批注内容：', noNotes: '此图纸中没有批注。',
-  pdfTitle: '生成 PDF', paper: '纸张', orient: '方向', portrait: '纵向', landscape: '横向', pdfScale: '比例 1:', pdfFit: '适应视图', dpi: '分辨率', title: '标题', create: '生成',
+  pdfTitle: '生成 PDF', paper: '纸张', orient: '方向', orientAuto: '自动', portrait: '纵向', landscape: '横向', pdfScale: '比例 1:', pdfFit: '适应视图', dpi: '分辨率', title: '标题', create: '生成',
   pdfDone: 'PDF 已生成', pdfFail: 'PDF 生成失败',
   compareLoad: '选择要比较的文件', compareOff: '停止比较', onlyA: '仅在本图纸中（已删除）', onlyB: '仅在新图纸中（已新增）', both: '共有',
   profileHint: '按顺序点按检查井 / 各点。高程取自捕捉点的 Z 值；没有时请手动输入。', enterElev: '高程', slope: '坡度',

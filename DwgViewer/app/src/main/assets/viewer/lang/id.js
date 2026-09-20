@@ -30,7 +30,7 @@ export default {
   language: 'Bahasa', save: 'Simpan', cancel: 'Batal', delete: 'Hapus', undo: 'Urungkan',
   pen: 'Pena', line: 'Garis', arrow: 'Panah', rect: 'Persegi panjang', circle: 'Lingkaran', noteText: 'Teks', photo: 'Foto', select: 'Pilih', noteColor: 'Warna',
   notesSaved: 'Catatan tersimpan', notePrompt: 'Teks catatan:', noNotes: 'Tidak ada catatan pada gambar ini.',
-  pdfTitle: 'Buat PDF', paper: 'Kertas', orient: 'Orientasi', portrait: 'Tegak', landscape: 'Mendatar', pdfScale: 'Skala 1:', pdfFit: 'Paskan tampilan', dpi: 'Resolusi', title: 'Judul', create: 'Buat',
+  pdfTitle: 'Buat PDF', paper: 'Kertas', orient: 'Orientasi', orientAuto: 'Otomatis', portrait: 'Tegak', landscape: 'Mendatar', pdfScale: 'Skala 1:', pdfFit: 'Paskan tampilan', dpi: 'Resolusi', title: 'Judul', create: 'Buat',
   pdfDone: 'PDF dibuat', pdfFail: 'PDF gagal dibuat',
   compareLoad: 'Pilih berkas yang akan dibandingkan', compareOff: 'Hentikan perbandingan', onlyA: 'Hanya di gambar ini (dihapus)', onlyB: 'Hanya di gambar baru (ditambahkan)', both: 'Sama',
   profileHint: 'Ketuk bak kontrol / titik secara berurutan. Elevasi diambil dari Z titik yang terkancing; jika tidak ada, masukkan sendiri.', enterElev: 'elevasi', slope: 'Kemiringan',

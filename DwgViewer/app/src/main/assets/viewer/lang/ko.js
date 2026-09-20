@@ -30,7 +30,7 @@ export default {
   language: '언어', save: '저장', cancel: '취소', delete: '삭제', undo: '실행 취소',
   pen: '펜', line: '선', arrow: '화살표', rect: '직사각형', circle: '원', noteText: '문자', photo: '사진', select: '선택', noteColor: '색상',
   notesSaved: '메모를 저장했습니다', notePrompt: '메모 내용:', noNotes: '이 도면에는 메모가 없습니다.',
-  pdfTitle: 'PDF 만들기', paper: '용지', orient: '방향', portrait: '세로', landscape: '가로', pdfScale: '축척 1:', pdfFit: '화면에 맞추기', dpi: '해상도', title: '제목', create: '만들기',
+  pdfTitle: 'PDF 만들기', paper: '용지', orient: '방향', orientAuto: '자동', portrait: '세로', landscape: '가로', pdfScale: '축척 1:', pdfFit: '화면에 맞추기', dpi: '해상도', title: '제목', create: '만들기',
   pdfDone: 'PDF를 만들었습니다', pdfFail: 'PDF를 만들지 못했습니다',
   compareLoad: '비교할 파일을 선택하세요', compareOff: '비교 끝내기', onlyA: '이 도면에만 있음(삭제됨)', onlyB: '새 도면에만 있음(추가됨)', both: '공통',
   profileHint: '맨홀 / 점을 순서대로 누르세요. 표고는 스냅된 점의 Z에서 가져오며, 없으면 직접 입력합니다.', enterElev: '표고', slope: '경사',

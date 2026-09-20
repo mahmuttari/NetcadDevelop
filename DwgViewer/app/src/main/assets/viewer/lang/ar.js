@@ -30,7 +30,7 @@ export default {
   language: 'اللغة', save: 'حفظ', cancel: 'إلغاء', delete: 'حذف', undo: 'تراجع',
   pen: 'قلم', line: 'خط', arrow: 'سهم', rect: 'مستطيل', circle: 'دائرة', noteText: 'نص', photo: 'صورة', select: 'تحديد', noteColor: 'اللون',
   notesSaved: 'حُفظت الملاحظات', notePrompt: 'نص الملاحظة:', noNotes: 'لا توجد ملاحظات في هذا الرسم.',
-  pdfTitle: 'إنشاء PDF', paper: 'الورق', orient: 'الاتجاه', portrait: 'طولي', landscape: 'عرضي', pdfScale: 'المقياس 1:', pdfFit: 'ملاءمة العرض', dpi: 'الدقة', title: 'العنوان', create: 'إنشاء',
+  pdfTitle: 'إنشاء PDF', paper: 'الورق', orient: 'الاتجاه', orientAuto: 'تلقائي', portrait: 'طولي', landscape: 'عرضي', pdfScale: 'المقياس 1:', pdfFit: 'ملاءمة العرض', dpi: 'الدقة', title: 'العنوان', create: 'إنشاء',
   pdfDone: 'أُنشئ ملف PDF', pdfFail: 'تعذّر إنشاء ملف PDF',
   compareLoad: 'اختر الملف المراد مقارنته', compareOff: 'إيقاف المقارنة', onlyA: 'في هذا الرسم فقط (محذوف)', onlyB: 'في الرسم الجديد فقط (مضاف)', both: 'مشترك',
   profileHint: 'المس الغرف / النقاط بالترتيب. المناسيب تؤخذ من قيمة Z للنقطة الملتقطة؛ وإلا فأدخلها يدويًا.', enterElev: 'المنسوب', slope: 'الميل',

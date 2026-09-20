@@ -30,7 +30,7 @@ export default {
   language: 'भाषा', save: 'सहेजें', cancel: 'रद्द करें', delete: 'हटाएँ', undo: 'पूर्ववत करें',
   pen: 'कलम', line: 'रेखा', arrow: 'तीर', rect: 'आयत', circle: 'वृत्त', noteText: 'पाठ', photo: 'फ़ोटो', select: 'चुनें', noteColor: 'रंग',
   notesSaved: 'टिप्पणियाँ सहेजी गईं', notePrompt: 'टिप्पणी का पाठ:', noNotes: 'इस रेखांकन में कोई टिप्पणी नहीं है।',
-  pdfTitle: 'PDF बनाएँ', paper: 'कागज़', orient: 'दिशा', portrait: 'खड़ा', landscape: 'आड़ा', pdfScale: 'मापनी 1:', pdfFit: 'दृश्य फ़िट करें', dpi: 'विभेदन', title: 'शीर्षक', create: 'बनाएँ',
+  pdfTitle: 'PDF बनाएँ', paper: 'कागज़', orient: 'दिशा', orientAuto: 'स्वचालित', portrait: 'खड़ा', landscape: 'आड़ा', pdfScale: 'मापनी 1:', pdfFit: 'दृश्य फ़िट करें', dpi: 'विभेदन', title: 'शीर्षक', create: 'बनाएँ',
   pdfDone: 'PDF बन गई', pdfFail: 'PDF नहीं बन सकी',
   compareLoad: 'तुलना के लिए फ़ाइल चुनें', compareOff: 'तुलना बंद करें', onlyA: 'केवल इस रेखांकन में (हटाया गया)', onlyB: 'केवल नए रेखांकन में (जोड़ा गया)', both: 'साझा',
   profileHint: 'मैनहोल / बिंदुओं पर क्रम से टैप करें। तल-ऊँचाई स्नैप किए बिंदु के Z से आती है; न हो तो स्वयं भरें।', enterElev: 'तल-ऊँचाई', slope: 'ढाल',

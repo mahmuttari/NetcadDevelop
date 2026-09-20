@@ -4008,7 +4008,7 @@ function showPdf() {
     [t('title'), `<input id="pTitle" value="${esc(pdfAyar.title || baseName())}">`, 1],
     [t('paper'), `<select id="pPaper">${kagitSecenek}</select>`, 1],
     [t('pdfCustomSize'), `<span class="pair"><input id="pW" type="number" min="10" max="5000" step="1" value="${pdfAyar.wmm}"> × <input id="pH" type="number" min="10" max="5000" step="1" value="${pdfAyar.hmm}"> mm</span>`, 1, 'ozel'],
-    [t('orient'), `<select id="pOrient"><option value="l"${pdfAyar.orient === 'l' ? ' selected' : ''}>${esc(t('landscape'))}</option><option value="p"${pdfAyar.orient === 'p' ? ' selected' : ''}>${esc(t('portrait'))}</option></select>`, 1, 'yon'],
+    [t('orient'), `<span class="pair"><select id="pOrient">${[['auto', t('orientAuto')], ['l', t('landscape')], ['p', t('portrait')]].map(([v, l]) => `<option value="${v}"${v === pdfAyar.orient ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select> <small id="pSize" class="muted"></small></span>`, 1, 'yon'],
     [t('pdfArea'), `<select id="pArea">${alanSecenek}</select>`, 1],
     ['', `<span class="pair"><button class="btn small" id="pPick">${esc(t('pdfPickWin'))}</button> <small id="pWinInfo" class="muted">${esc(pdfWinMetni())}</small></span>`, 1, 'win'],
     [t('pdfScale'), `<input id="pScale" type="number" min="1" step="1" placeholder="${esc(t('pdfFit'))}" value="${esc(pdfAyar.scale)}">`, 1],
@@ -4023,14 +4023,39 @@ function showPdf() {
     [`<div class="full btns"><button class="btn primary small" id="pGo">${t('create')}</button></div>`]]);
   openDoc(t('pdfTitle'), html);
   const satir = (ad, ac) => document.querySelectorAll(`#docBody [data-row="${ad}"]`).forEach(e => { e.hidden = !ac; });
+  /*
+   * Kutunun canlı yanı. Yön satırı ARTIK HER KÂĞITTA görünür (eskiden özel ölçüde gizlenirdi):
+   * özel ölçüde de yön anlamlıdır, yalnız orada iki sayının SIRASI yönü belirler. Bu yüzden
+   * kullanıcı yön seçtiğinde sayılar ona göre sıralanır, sayıları değiştirdiğinde de seçim
+   * onlara uyar — kutuda görünen ölçü ile kâğıda giden ölçü hiçbir durumda ayrışmaz.
+   */
+  const sayfaYaz = () => { pdfAyarOku(); const [w, h] = pdfSayfaMm(pdfAyar, pdfAyar.all); $('pSize').textContent = `${fmt(w)} × ${fmt(h)} mm`; };
   const tazele = () => {
     const ozel = $('pPaper').value === 'ozel';
-    satir('ozel', ozel); satir('yon', !ozel);
+    satir('ozel', ozel);
     satir('dpi', $('pMode').value === 'raster');
     satir('win', $('pArea').value === 'win');
     $('pNot').textContent = $('pMode').value === 'vektor' ? t('pdfHintVector') : t('pdfHintRaster');
+    sayfaYaz();
   };
-  $('pPaper').onchange = tazele; $('pMode').onchange = tazele; $('pArea').onchange = tazele;
+  /** Özel ölçüde yazılan iki sayıyı seçilen yöne göre sıralar (Otomatik'te sayılara dokunulmaz) */
+  const ozelSirala = () => {
+    if ($('pPaper').value !== 'ozel') return;
+    const yon = $('pOrient').value; if (yon !== 'l' && yon !== 'p') return;
+    const w = Number($('pW').value) || 0, h = Number($('pH').value) || 0;
+    if (yon === 'l' ? h > w : w > h) { $('pW').value = String(h); $('pH').value = String(w); }
+  };
+  /** Özel ölçüde sayılar değişince yön seçimi onlara uyar: yazılan ölçü her zaman geçerlidir */
+  const yonuSayidanAl = () => {
+    if ($('pPaper').value !== 'ozel' || $('pOrient').value === 'auto') return;
+    const w = Number($('pW').value) || 0, h = Number($('pH').value) || 0;
+    if (w && h) $('pOrient').value = w >= h ? 'l' : 'p';
+  };
+  $('pPaper').onchange = () => { yonuSayidanAl(); tazele(); };
+  $('pMode').onchange = tazele; $('pArea').onchange = tazele;
+  $('pOrient').onchange = () => { ozelSirala(); tazele(); };
+  $('pW').oninput = $('pH').oninput = () => { yonuSayidanAl(); tazele(); };
+  yonuSayidanAl();
   tazele();
   $('pPick').onclick = () => {
     pdfAyarOku();
@@ -4070,13 +4095,39 @@ const pdfWinMetni = () => (pdfWin ? `${fmt(pdfWin[2] - pdfWin[0])} × ${fmt(pdfW
  * çok düzenli kipte her düzenin kendi sınırları. Ölçek verilmişse kâğıdın o ölçekteki dünya
  * karşılığı kaynağın MERKEZİNE oturtulur, verilmemişse kaynak kâğıdın oranına genişletilir.
  */
-function pdfAlani(o, all, cizimGmm, cizimYmm) {
+function pdfKaynakDik(o, all) {
   let vr;
   if (all) vr = (S.ext || visibleRect()).slice();
   else if (o.area === 'win' && o.win) vr = o.win.slice();
   else if (o.area === 'ext') vr = (S.ext || visibleRect()).slice();
   else vr = visibleRect();
   if (!(isFinite(vr[0]) && vr[2] > vr[0] && vr[3] > vr[1])) vr = visibleRect();
+  return vr;
+}
+/*
+ * SAYFA YÖNÜ. Kâğıt ölçüleri PAPERS'ta DİKEY yazılıdır (A3 = 297 × 420); yön onları çevirir.
+ * 'auto' seçilirse kararı basılacak alanın kendi oranı verir — geniş çizim yatay, uzun çizim
+ * dikey kâğıda gider, kullanıcı her seferinde düşünmek zorunda kalmaz. Özel ölçüde de aynı
+ * kural işler: yazılan iki sayı yöne göre sıralanır, böylece kutuda görünen ile kâğıda giden
+ * ayrışmaz. Çok düzenli çıktıda (bütün sayfa düzenleri) yön belge boyunca tektir ve o anki
+ * düzenin alanına göre seçilir; sayfa başına ayrı yön kâğıt ölçüsünü de sayfa başına
+ * değiştirirdi, bu da tek kâğıt bekleyen çizicide sorun olur.
+ */
+function pdfYon(o, all) {
+  if (o.orient === 'l' || o.orient === 'p') return o.orient;
+  const vr = pdfKaynakDik(o, all);
+  return (vr[2] - vr[0]) >= (vr[3] - vr[1]) ? 'l' : 'p';
+}
+/** Kâğıdın milimetre ölçüsü, yönü uygulanmış olarak: [genişlik, yükseklik] */
+function pdfSayfaMm(o, all) {
+  let w, h;
+  if (o.paper === 'ozel') { w = Number(o.wmm) || 0; h = Number(o.hmm) || 0; }
+  else [w, h] = PAPERS[o.paper] || PAPERS.A3;
+  if (pdfYon(o, all) === 'l' ? h > w : w > h) { const q = w; w = h; h = q; }
+  return [w, h];
+}
+function pdfAlani(o, all, cizimGmm, cizimYmm) {
+  let vr = pdfKaynakDik(o, all);
   const cx = (vr[0] + vr[2]) / 2, cy = (vr[1] + vr[3]) / 2;
   const olcek = Number(o.scale) || 0;
   if (!all && olcek > 0 && S.unitToM) {
@@ -4113,9 +4164,7 @@ async function makePdf(o) {
   await new Promise(r => setTimeout(r, 30));
   const keep = { li: S.layoutIndex, prims: S.prims, tree: S.tree, ext: S.ext, sel: S.selected };
   try {
-    let wmm, hmm;
-    if (o.paper === 'ozel') { wmm = o.wmm; hmm = o.hmm; }
-    else { [wmm, hmm] = PAPERS[o.paper] || PAPERS.A3; if (o.orient === 'l') { const q = wmm; wmm = hmm; hmm = q; } }
+    const [wmm, hmm] = pdfSayfaMm(o, !!o.all);
     if (!(wmm > 0 && hmm > 0)) { toast(t('pdfFail'), { type: 'error' }); return; }
     const dpi = Number(o.dpi) || 150, pxPerMm = dpi / 25.4;
     const kenarMm = Math.max(0, Math.min(Math.min(wmm, hmm) / 3, o.margin == null ? 10 : Number(o.margin)));
@@ -4911,6 +4960,9 @@ window.dwgApp = { osnap: Osnap, paylasGorunum, gorunumPng, loadCurrent, onFilePi
   // kâğıt oranına nasıl oturduğu dosya üretmeden denetlenebilsin
   __pdfAlan: (o, gmm, ymm) => pdfAlani(o, false, gmm, ymm),
   __pan: (on) => (on === undefined ? panOn() : togglePan(on)),
+  // Kâğıdın yönü ve mm ölçüsü (bkz. tools/test_pdf_plot.mjs): 'auto' yönün basılacak alandan
+  // çıktığı dosya üretmeden denetlenebilsin
+  __pdfSayfa: (o) => pdfSayfaMm({ paper: 'A3', orient: 'auto', area: 'view', ...(o || {}) }, !!(o && o.all)),
   // İmleç ve yakalama durumu (bkz. tools/test_pickbox.mjs): nesne istemi mi, kare kaç piksel,
   // o noktada yakalama ne buluyor (nesne isteminde null olmalıdır)
   __pickbox: () => ({ on: pickingObject(), r: pickBoxR(), tol: TOL.pick, hover: penHover ? { sx: penHover.sx, sy: penHover.sy, fx: penHover.fx == null ? null : penHover.fx, fy: penHover.fy == null ? null : penHover.fy, ofs: penHover.ofs ? penHover.ofs.slice() : null, aim: !!penHover.aim, snap: penHover.snap ? penHover.snap.kind : null } : null, loupe: penHover && penHover.aim ? loupeGeom(penHover) : null }),
