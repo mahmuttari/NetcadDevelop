@@ -3139,7 +3139,7 @@ function showDocInfo() {
     [t('xRange'), S.ext ? fmt(S.ext[0]) + ' … ' + fmt(S.ext[2]) : ''], [t('yRange'), S.ext ? fmt(S.ext[1]) + ' … ' + fmt(S.ext[3]) : ''],
     [t('size'), S.ext ? fmt(S.ext[2] - S.ext[0]) + ' × ' + fmt(S.ext[3] - S.ext[1]) + (S.units ? ' ' + S.units : '') : '']];
   { const c2 = S.counts || {}; const list = Object.entries(c2).sort((a, b) => b[1] - a[1]).slice(0, 24).map(([k, v]) => k + ' ' + v).join(', '); if (list) rows.push([t('entityTypes'), list]);
-    const cen = S.scene && S.scene.census; if (cen) { const l2 = Object.entries(cen).sort((a, b) => b[1] - a[1]).slice(0, 24).map(([k, v]) => k + ' ' + v).join(', '); if (l2) rows.push([t('dwgTypes'), l2]); } }
+    const cen = S.scene && S.scene.census; if (cen) { const l2 = Object.entries(cen).sort((a, b) => b[1] - a[1]).slice(0, 24).map(([k, v]) => k + ' ' + v).join(', '); if (l2) rows.push([S.scene.dgn ? t('objTypes') : t('dwgTypes'), l2]); } }
   { const d = S.scene && S.scene.solidDiag; if (d) {
     const surf = Object.entries(d.surfaces || {}).map(([k, v]) => k + ' ' + v).join(', ');
     rows.push([t('solidDiag'), `${d.solids} ${t('solidsN')} · ${d.faces} ${t('facesN')}${d.approx ? ' (' + d.approx + ' ' + t('approxN') + ')' : ''} · ${d.skipped} ${t('skippedN')}` + (surf ? ' · ' + surf : '') + (d.versions.length ? ' · ACIS ' + d.versions.join('/') : '') + (d.unknownTags.length ? ' · ' + t('unknownTag') + ' ' + d.unknownTags.join(' ') : '') + (d.errors.length ? ' · ' + d.errors.join('; ') : '')]);
@@ -3738,7 +3738,7 @@ function showServer() {
 async function fetchIndex(url) {
   if (!url) return;
   store.set('serverUrl', url);
-  if (/\.(dwg|dxf)(\?.*)?$/i.test(url)) { downloadDwg(url, decodeURIComponent(url.split('/').pop().split('?')[0])); return; }
+  if (/\.(dwg|dxf|dgn)(\?.*)?$/i.test(url)) { downloadDwg(url, decodeURIComponent(url.split('/').pop().split('?')[0])); return; }
   const list = $('srvList');
   list.innerHTML = skelList(4);
   try {
@@ -3752,11 +3752,11 @@ async function fetchIndex(url) {
       files = arr.map(f => ({ name: f.name || f.ad || String(f.url || f.adres).split('/').pop(), url: new URL(f.url || f.adres, url).href }));
     } else {
       const html = await r.text();
-      const re = /href="([^"]+\.(?:dwg|dxf))"/ig; let m;
+      const re = /href="([^"]+\.(?:dwg|dxf|dgn))"/ig; let m;
       while ((m = re.exec(html))) files.push({ name: decodeURIComponent(m[1].split('/').pop()), url: new URL(m[1], url).href });
     }
     list.innerHTML = files.length ? `<div class="list">` + files.map((f, i) => `<div class="item" data-f="${i}">${esc(f.name)}<small>${esc(f.url)}</small></div>`).join('') + `</div>`
-      : emptyBox('cloud', t('noResult'), tt('srvNoFiles', 'Bu adreste DWG ya da DXF dosyası bulunamadı.'));
+      : emptyBox('cloud', t('noResult'), tt('srvNoFiles', 'Bu adreste DWG, DXF ya da DGN dosyası bulunamadı.'));
     list.onclick = (ev) => { const it = ev.target.closest('[data-f]'); if (it) { const f = files[Number(it.dataset.f)]; downloadDwg(f.url, f.name); } };
   } catch (e) { list.innerHTML = `<div class="muted">${esc(t('error'))}: ${esc(e.message)}</div>`; }
 }
@@ -3900,7 +3900,7 @@ async function paylasTarayici(data, name, alt) {
   toast(tt('shareSaved', 'Görüntü kaydedildi; paylaşmak için telefondaki uygulamayı kullanın'), { ms: 5000 });
 }
 let lastPng = null;
-const baseName = () => (S.fileName || 'cizim').replace(/\.(dwg|dxf)$/i, '');
+const baseName = () => (S.fileName || 'cizim').replace(/\.(dwg|dxf|dgn)$/i, '');
 const stamp = () => new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '');
 const PAPERS = { A4: [210, 297], A3: [297, 420], A2: [420, 594], A1: [594, 841], A0: [841, 1189] };
 function showPdf() {
@@ -4380,6 +4380,11 @@ async function loadBytes(buf, name, size) {
     await setScene(scene, name, bytes, (p) => { if (my === loadSeq) setLoadingCad(p, sub); });
     // özet toast'ından sonra (toast tek satırdır, hemen üstüne yazılırsa görünmez)
     if (scene.readWarn) setTimeout(() => toast(`${tt('readWarn', 'Dosya eksik/bozuk okunmuş olabilir')} (LibreDWG ${scene.readWarn}); ${tt('readWarnSub', 'çizim eksik olabilir.')}`, { type: 'warn', ms: 8000 }), 1200);
+    // DGN'de çizilmeyen eleman türleri sessiz geçilmez: hangisinden kaç tane atlandığı yazılır
+    if (scene.dgn && scene.dgn.desteksiz && Object.keys(scene.dgn.desteksiz).length) {
+      const d = Object.entries(scene.dgn.desteksiz).sort((a, b) => b[1] - a[1]).map(([k, v]) => k + ' ' + v).join(', ');
+      setTimeout(() => toast(`${t('dgnSkipped')}: ${d}`, { type: 'warn', ms: 8000 }), 1600);
+    }
     const ms = Math.round(performance.now() - t0);
     const hidden = [...S.layers.values()].filter(l => !l.visible).length;
     toast(`${name} · ${S.entityCount} ${t('entity')} · ${ms} ms` + (hidden ? ` · ${hidden} ${t('layersHiddenN')}` : ''));
@@ -4409,6 +4414,7 @@ async function setScene(scene, name, size, rep) {
   { const d = scene.solidDiag; if (d && d.solids > 0 && !d.faces) setTimeout(() => toast(`${d.solids} ${t('solidsUnresolved')} (${(d.errors[0] || '').slice(0, 80)}). ${t('seeSolidDiag')}`, { type: 'warn', ms: 9000 }), 800); }
   S.version = ({ AC1012: 'R13', AC1014: 'R14', AC1015: 'AutoCAD 2000', AC1018: 'AutoCAD 2004', AC1021: 'AutoCAD 2007', AC1024: 'AutoCAD 2010', AC1027: 'AutoCAD 2013', AC1032: 'AutoCAD 2018' })[scene.version] || scene.version || '';
   if (/\.dxf$/i.test(name)) S.version = 'DXF ' + S.version;
+  if (/\.dgn$/i.test(name) && !/^DGN/.test(S.version)) S.version = 'DGN ' + S.version;
   const iu = scene.header.INSUNITS;
   S.units = UNITS[iu] || ''; S.unitToM = UNIT_TO_M[iu] || 0;
   S.images = new Map(); S.compare = null; S.selected = null; S.cacheValid = false;

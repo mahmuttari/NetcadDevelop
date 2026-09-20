@@ -275,7 +275,7 @@ function uploadMenu() {
   if ($('upPng')) $('upPng').onclick = () => { api.hide('docPanel'); const d = api.pngBytes && api.pngBytes(); if (d) upload({ b64: d.b64, name: d.name, mime: 'image/png', folder: target() }); };
   $('upPick').onclick = () => { api.hide('docPanel'); api.pickForUpload && api.pickForUpload(target()); };
 }
-function mimeOf(name) { const e = String(name).toLowerCase().split('.').pop(); return { dwg: 'application/acad', dxf: 'application/dxf', pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', zip: 'application/zip' }[e] || 'application/octet-stream'; }
+function mimeOf(name) { const e = String(name).toLowerCase().split('.').pop(); return { dwg: 'application/acad', dxf: 'application/dxf', dgn: 'application/dgn', pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', zip: 'application/zip' }[e] || 'application/octet-stream'; }
 /** args: { b64 | src:'current' | fileId, name, mime, folder } */
 export async function upload(args) {
   if (!gate('driveUpload')) return null;

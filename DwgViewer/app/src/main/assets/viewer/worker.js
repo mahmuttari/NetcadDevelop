@@ -10,6 +10,7 @@ import * as LW from './lib/dist/libredwg-web.js';
 const { LibreDwg } = LW;
 import { SceneBuilder } from './scene.js';
 import { parseDxf, isDxf } from './dxf.js';
+import { parseDgn, isDgn } from './dgn.js';
 import { readAcDs, mapAsmToHandles, isR2004Family } from './acds.js';
 import { installTextDecoder } from './codepage.js';
 import * as Win from './dwgwin.js';
@@ -71,10 +72,12 @@ const countEntities = (db) => { let n = (db.entities || []).length; for (const r
 async function readDb(bytes, id) {
   const u8 = new Uint8Array(bytes);
   if (isDxf(u8)) { postMessage({ id, stage: 'parse' }); return parseDxf(u8, { onProgress: (p) => postMessage({ id, stage: 'parse', pct: Math.round(p * 100) }) }); }
+  // MicroStation DGN: kabuksuz V7 (ISFF) okunur, OLE kabuklu V8 ayrı bir iletiyle reddedilir
+  if (isDgn(u8)) { postMessage({ id, stage: 'parse' }); return parseDgn(u8, { onProgress: (p) => postMessage({ id, stage: 'parse', pct: Math.round(p * 100) }) }); }
   const head = String.fromCharCode(...u8.slice(0, 6));
   if (!/^AC10\d\d$/.test(head)) {
     if (u8.length === 0) throw new Error('Dosya boş.');
-    throw new Error('Bu bir DWG/DXF dosyası değil (başlık: ' + head.replace(/[^\x20-\x7e]/g, '?') + ').');
+    throw new Error('Bu bir DWG/DXF/DGN dosyası değil (başlık: ' + head.replace(/[^\x20-\x7e]/g, '?') + ').');
   }
   if (head < 'AC1012') throw new Error('Çok eski DWG sürümü (' + head + '). R13 ve sonrası açılabilir.');
   postMessage({ id, stage: 'lib' });
@@ -711,6 +714,7 @@ self.onmessage = async (ev) => {
       scene.readWarn = db.readWarn || 0;
       if (scene.solidDiag) { scene.solidDiag.acds = db.acdsInfo || null; scene.solidDiag.samples = rawSamples(db.raw3d); }
       scene.census = db.census || null;
+      scene.dgn = db.dgn || null;                                 // DGN: boyut, ölçek, birim, çizilmeyen eleman sayıları
       scene.drawOrder = db.sortents ? Object.values(db.sortents).reduce((n, m) => n + m.size, 0) : 0;   // çizim sırası tablosundaki varlık sayısı
       postMessage({ id, stage: 'scene', pct: 100 });   // sahne bitti; sırada aktarım var (bölünemez)
       postMessage({ id, ok: true, scene }, meshBuffers(scene));

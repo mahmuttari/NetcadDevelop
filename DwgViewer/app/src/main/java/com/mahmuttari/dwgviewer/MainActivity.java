@@ -89,7 +89,7 @@ public class MainActivity extends androidx.activity.ComponentActivity {
         MIME.put("docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"); MIME.put("doc", "application/msword");
         MIME.put("xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"); MIME.put("pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation");
         MIME.put("zip", "application/zip"); MIME.put("rar", "application/vnd.rar"); MIME.put("txt", "text/plain"); MIME.put("csv", "text/csv"); MIME.put("xml", "text/xml");
-        MIME.put("gif", "image/gif"); MIME.put("webp", "image/webp"); MIME.put("bmp", "image/bmp"); MIME.put("dxf", "application/dxf"); MIME.put("dwg", "application/acad");
+        MIME.put("gif", "image/gif"); MIME.put("webp", "image/webp"); MIME.put("bmp", "image/bmp"); MIME.put("dxf", "application/dxf"); MIME.put("dwg", "application/acad"); MIME.put("dgn", "application/dgn");
     }
 
     private static boolean crashHookSet;
@@ -622,6 +622,7 @@ public class MainActivity extends androidx.activity.ComponentActivity {
             i.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{
                     "application/acad", "application/x-acad", "application/autocad_dwg", "application/dwg", "application/x-dwg",
                     "application/x-autocad", "image/vnd.dwg", "image/x-dwg", "drawing/dwg", "application/dxf", "image/vnd.dxf",
+                    "application/dgn", "application/x-dgn", "image/vnd.dgn",
                     "application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     "application/zip", "application/x-zip-compressed", "application/vnd.rar", "application/x-rar-compressed", "image/*", "text/*",
                     "application/octet-stream", "*/*"});

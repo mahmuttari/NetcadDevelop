@@ -36,7 +36,7 @@ let api = null;
 const call = (fn, ...a) => { try { return typeof fn === 'function' ? fn(...a) : undefined; } catch (e) { console.warn(e); return undefined; } };
 
 export const KIND = {
-  cad: ['dwg', 'dxf'], pdf: ['pdf'], docx: ['docx', 'docm', 'dotx'], doc: ['doc', 'dot'], xlsx: ['xlsx', 'xlsm', 'xltx', 'xltm', 'xlsb', 'xls', 'xlt', 'xlw', 'ods', 'fods', 'sxc'], office: ['rtf', 'odt', 'ppt', 'pptx', 'odp'],
+  cad: ['dwg', 'dxf', 'dgn'], pdf: ['pdf'], docx: ['docx', 'docm', 'dotx'], doc: ['doc', 'dot'], xlsx: ['xlsx', 'xlsm', 'xltx', 'xltm', 'xlsb', 'xls', 'xlt', 'xlw', 'ods', 'fods', 'sxc'], office: ['rtf', 'odt', 'ppt', 'pptx', 'odp'],
   zip: ['zip', 'jar', 'kmz', 'cbz'], rar: ['rar', 'cbr'], image: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'], text: ['txt', 'csv', 'json', 'xml', 'md', 'log', 'ini', 'gpx', 'kml', 'prj', 'asc', 'ncn', 'nct', 'gml', 'geojson'],
 };
 export function kindOf(name) {

@@ -203,6 +203,7 @@ public class WebDav {
         String l = name.toLowerCase(java.util.Locale.ROOT);
         if (l.endsWith(".dwg")) return "image/vnd.dwg";
         if (l.endsWith(".dxf")) return "image/vnd.dxf";
+        if (l.endsWith(".dgn")) return "application/dgn";
         if (l.endsWith(".pdf")) return "application/pdf";
         if (l.endsWith(".png")) return "image/png";
         if (l.endsWith(".csv")) return "text/csv";

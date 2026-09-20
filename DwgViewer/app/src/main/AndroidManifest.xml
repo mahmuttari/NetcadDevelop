@@ -111,6 +111,33 @@
                 <data android:pathPattern=".*\\..*\\.DXF" />
             </intent-filter>
 
+            <!-- DGN (MicroStation) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="application/dgn" />
+                <data android:mimeType="application/x-dgn" />
+                <data android:mimeType="image/vnd.dgn" />
+                <data android:mimeType="image/x-dgn" />
+                <data android:mimeType="application/vnd.bentley.dgn" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:host="*" />
+                <data android:mimeType="*/*" />
+                <data android:pathPattern=".*\\.dgn" />
+                <data android:pathPattern=".*\\..*\\.dgn" />
+                <data android:pathPattern=".*\\.DGN" />
+                <data android:pathPattern=".*\\..*\\.DGN" />
+            </intent-filter>
+
             <!-- PDF, Word, Excel, ZIP, RAR, KML/KMZ, GPX, GeoJSON, JSON, CSV ve düz metin
                  (image/* ve text/* geneli bilerek yok: uygulama her resim seçicisinde görünmesin) -->
             <intent-filter>
