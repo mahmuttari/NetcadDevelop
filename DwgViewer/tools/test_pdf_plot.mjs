@@ -230,6 +230,109 @@ await kutuAc();
   ok('4f pencere dünya dikdörtgeni doğru köşelerden kuruldu (sol alt / sağ üst)', secilen[2] > secilen[0] && secilen[3] > secilen[1], JSON.stringify(secilen.map(v => Math.round(v))));
 }
 
+/* ---------- 4a2. İKİ KÖŞEYE DOKUNARAK pencere + büyüteçli nişan ---------- */
+{
+  /** Ham işaretçi olayı (görüntü alanına göreli koordinat) */
+  const pt = (t, x, y, o = {}) => ev(([t, x, y, o]) => {
+    const vp = document.getElementById('viewport'), r = vp.getBoundingClientRect();
+    vp.dispatchEvent(new PointerEvent(t, { pointerId: o.id || 7, pointerType: o.pt || 'touch', isPrimary: true, bubbles: true, cancelable: true,
+      clientX: r.left + x, clientY: r.top + y, button: t === 'pointerdown' ? 0 : -1, buttons: (t === 'pointerup' || t === 'pointercancel') ? 0 : 1 }));
+  }, [t, x, y, o]);
+  const dokun = async (x, y) => { await pt('pointerdown', x, y); await page.waitForTimeout(60); await pt('pointerup', x, y); await page.waitForTimeout(140); };
+  const zw = () => ev(() => window.dwgApp.__zw());
+  const istem = () => ev(() => ({ metin: document.getElementById('cmdText').textContent, geri: !!document.querySelector('#cmdBtns [data-zw="geri"]') }));
+  const secimBaslat = async () => {
+    await kutuAc(); await page.selectOption('#pArea', 'win'); await page.waitForTimeout(80);
+    await page.click('#pPick'); await page.waitForTimeout(200);
+  };
+
+  await secimBaslat();
+  const i0 = await istem();
+  ok('4j seçim başlarken istem iki yolu da söylüyor (sürükle ya da iki köşeye dokun), geri düğmesi yok',
+    /dokun|tap/i.test(i0.metin) && !i0.geri, JSON.stringify(i0));
+
+  // birinci köşe: kıpırdamayan dokunuş
+  await dokun(140, 320);
+  const z1 = await zw(), i1 = await istem();
+  ok('4k birinci köşe dokunuşla kondu (pencere kapanmadı, köşe kaydedildi)',
+    !!z1 && z1.iki === true && Math.abs(z1.x0 - 140) < 2 && Math.abs(z1.y0 - 320) < 2, JSON.stringify(z1));
+  ok('4l istem ikinci köşeyi istiyor ve "köşeyi geri al" düğmesi çıktı',
+    /ikinci|second/i.test(i1.metin) && i1.geri, JSON.stringify(i1));
+
+  // köşeyi geri al
+  await ev(() => document.querySelector('#cmdBtns [data-zw="geri"]').click());
+  await page.waitForTimeout(120);
+  const z2 = await zw(), i2 = await istem();
+  ok('4m "Köşeyi geri al" birinci köşeyi kaldırdı, istem başa döndü', !!z2 && z2.iki === false && z2.x0 === null && !i2.geri, JSON.stringify([z2, i2]));
+
+  // yeniden iki köşe: ikincisi BÜYÜTEÇLİ NİŞANLA konur (uzun basış).
+  // Nişanı yalıtmak için nesne yakalama kapatılır; yakalamanın kendisi 4s'de sınanır.
+  await ev(() => window.dwgApp.osnap.setModes([]));
+  await dokun(140, 320);
+  await pt('pointerdown', 300, 560);
+  await page.waitForTimeout(700);                       // TOL.long = 500 ms
+  const nisan = await ev(() => window.dwgApp.__pickbox());
+  ok('4n ikinci köşede uzun basış büyüteçli nişanı açtı (imleç parmağın dışında, mercek var)',
+    !!nisan.hover && nisan.hover.aim === true && !!nisan.loupe && (Math.abs(nisan.hover.sx - 300) > 10 || Math.abs(nisan.hover.sy - 560) > 10),
+    JSON.stringify({ hover: nisan.hover && { sx: Math.round(nisan.hover.sx), sy: Math.round(nisan.hover.sy), aim: nisan.hover.aim }, mercek: !!nisan.loupe }));
+  const imlec = await ev(() => { const h = window.dwgApp.__pickbox().hover; return h ? [h.sx, h.sy] : null; });
+  const bekW = await ev(([a, b]) => { const A = window.dwgApp; const p = A.toWorld(a[0], a[1]), q = A.toWorld(b[0], b[1]); return [Math.min(p[0], q[0]), Math.min(p[1], q[1]), Math.max(p[0], q[0]), Math.max(p[1], q[1])]; }, [[140, 320], imlec]);
+  await pt('pointerup', 300, 560);
+  await page.waitForSelector('#pGo', { timeout: 10000 });
+  const win = await ev(() => window.dwgApp.__pdfWin());
+  const bilgi = await ev(() => document.getElementById('pWinInfo').textContent);
+  ok('4o ikinci dokunuş pencereyi kapattı ve kutu geri açıldı', !!win && /\d/.test(bilgi), JSON.stringify((win || []).map(v => Math.round(v))));
+  ok('4p pencere PARMAĞIN değil, NİŞAN İMLECİNİN noktasından kuruldu (büyüteçle konan köşe)',
+    !!win && win.every((v, i) => Math.abs(v - bekW[i]) < Math.abs(bekW[2] - bekW[0]) * 1e-6 + 1e-6), JSON.stringify({ win: (win || []).map(v => Math.round(v)), bek: bekW.map(v => Math.round(v)) }));
+
+  // dokunuşla kurulan pencere, aynı köşelerden SÜRÜKLENEN pencereyle birebir aynı olmalı
+  await secimBaslat();
+  await pt('pointerdown', 140, 320);
+  await pt('pointermove', 220, 420);
+  await pt('pointermove', 300, 560);
+  await pt('pointerup', 300, 560);
+  await page.waitForSelector('#pGo', { timeout: 10000 });
+  const win2 = await ev(() => window.dwgApp.__pdfWin());
+  const bekW2 = await ev(() => { const A = window.dwgApp; const p = A.toWorld(140, 320), q = A.toWorld(300, 560); return [Math.min(p[0], q[0]), Math.min(p[1], q[1]), Math.max(p[0], q[0]), Math.max(p[1], q[1])]; });
+  ok('4r aynı köşelerden SÜRÜKLEME de aynı pencereyi veriyor (iki yol tek hesapta birleşti)',
+    !!win2 && win2.every((v, i) => Math.abs(v - bekW2[i]) < 1e-6), JSON.stringify({ win: (win2 || []).map(v => Math.round(v)), bek: bekW2.map(v => Math.round(v)) }));
+
+  // nesne yakalama açıkken köşe yakalama noktasına oturur
+  const kose = await ev(() => {
+    const A = window.dwgApp, S = A.state;
+    A.osnap.setModes(['end', 'mid', 'cen', 'int', 'ins', 'node']);
+    for (const p of S.prims) {
+      if (p.k !== 0 || !p.ops || p.ops.length < 2) continue;
+      const o = p.ops[0]; if (o[0] !== 0) continue;
+      const s = A.toScreen(o[1], o[2]);
+      if (s[0] > 60 && s[0] < S.W - 60 && s[1] > 80 && s[1] < S.H - 120) return { w: [o[1], o[2]], s: [s[0], s[1]] };
+    }
+    return null;
+  });
+  if (!kose) C.skip('4s yakalanacak uygun köşe bulunamadı');
+  else {
+    await secimBaslat();
+    const hedef = [kose.s[0] + 4, kose.s[1] + 4];        // köşenin 4 px yanına dokun
+    await dokun(hedef[0], hedef[1]);
+    const z3 = await zw();
+    const g = await ev(([h, k]) => {
+      const A = window.dwgApp, S = A.state;
+      const ham = A.toWorld(h[0], h[1]);
+      const sn = A.__snapAt(ham[0], ham[1]);             // istemdeki yakalama motorunun kendi cevabı
+      const ks = A.__zw();
+      const kw = ks && ks.x0 != null ? A.toWorld(ks.x0, ks.y0) : null;
+      return { sn, kw, ham, olcek: S.view.scale, kosePx: sn ? Math.hypot(A.toScreen(sn.p[0], sn.p[1])[0] - h[0], A.toScreen(sn.p[0], sn.p[1])[1] - h[1]) : null, uc: k };
+    }, [hedef, kose.w]);
+    const esit = !!(g.sn && g.kw) && Math.hypot(g.kw[0] - g.sn.p[0], g.kw[1] - g.sn.p[1]) * g.olcek < 0.6;
+    ok('4s nesne yakalama açıkken köşe, dokunulan yere değil YAKALANAN noktaya oturuyor',
+      !!z3 && z3.iki === true && !!g.sn && esit && g.kosePx > 0.5,
+      JSON.stringify({ kip: g.sn && g.sn.kind, kaydi_px: g.kosePx == null ? null : g.kosePx.toFixed(2) }));
+    await ev(() => { const b = document.querySelector('#cmdBtns [data-zw="cancel"]'); if (b) b.click(); });
+    await page.waitForTimeout(200);
+  }
+  await page.waitForSelector('#pGo', { timeout: 10000 });
+}
+
 /* ---------- 4b. Elle seçilen pencereye pay eklenmez ---------- */
 {
   const r = await ev(() => {

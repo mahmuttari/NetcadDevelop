@@ -51,8 +51,8 @@ android {
         applicationId "com.mahmuttari.dwgviewer"
         minSdk 26
         targetSdk 34
-        versionCode 120
-        versionName "7.97"
+        versionCode 121
+        versionName "7.98"
 
         // Uygulamanın taşıdığı diller. Listede olmayan bir dilde kurulan cihaz İngilizce'ye düşer;
         // bağımlılıkların (AndroidX, Play) 85 dilde etiketi APK'ye girmez. Yeni dil eklerken bu liste,

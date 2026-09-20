@@ -273,13 +273,74 @@ function alanSec(cb, o = {}) {
   if (!S.hasDoc) { toast(t('openFirst')); return false; }
   if (editor.is3D()) { toast(tt('zoomWin3d', 'Pencere yakınlaştırma 2B görünümde çalışır.')); return false; }
   if (editor.tools && editor.tools.running) { toast(tt('toolBusy', 'Önce çalışan aracı bitirin.')); return false; }
-  zoomWin = { pending: true, cb: cb || null, iptal: o.iptal || null };
+  zoomWin = { pending: true, iki: false, x0: null, y0: null, x1: null, y1: null, bas: null, cb: cb || null, iptal: o.iptal || null, ipucu: o.ipucu || '' };
   edCall('cmdTakeOver');
-  const bar = $('cmdBar'); bar.hidden = false;
-  $('cmdText').textContent = o.ipucu || tt('zoomWinHint', 'Pencere: köşeleri sürükleyin'); $('cmdInput').hidden = true;
-  $('cmdBtns').innerHTML = `<button data-zw="cancel">✕ ${t('cancel')}</button>`;
-  $('cmdBtns').onclick = (ev) => { if (ev.target.closest('[data-zw]')) { const f = zoomWin && zoomWin.iptal; cancelZoomWindow(); if (f) f(); } };
+  zwIstem();
   return true;
+}
+/*
+ * PENCERE İKİ KÖŞEYE DOKUNARAK DA KURULUR. Sürükleme küçük ekranda zordur: parmak hedefi örter
+ * ve uzun kenar boyunca sürüklerken köşe kaçar. Artık köşeye DOKUNMAK yeter — birinci dokunuş
+ * köşeyi bırakır, ikinci dokunuş pencereyi kapatır; arada lastik dikdörtgen parmağı izler.
+ * İki yol da aynı yerde biter (zwBitir), böylece sürükleme ile dokunuş aynı pencereyi verir.
+ * Köşe konarken BÜYÜTEÇLİ NİŞAN çalışır: parmak kıpırdamadan beklerse imleç parmağın dışına
+ * çıkar, altındaki yer büyüteçte görünür (aimMove / drawPenHover) ve bırakışta nokta oradan
+ * alınır. Nesne yakalama da açıksa köşe yakalama noktasına oturur — "pastanın üst köşesinden
+ * alt köşesine" dendiğinde kastedilen budur.
+ */
+/** Komut çubuğu istemi: birinci köşeden önce ve sonra ayrı metin, ayrı düğmeler */
+function zwIstem() {
+  if (!zoomWin) return;
+  const bar = $('cmdBar'); bar.hidden = false;
+  $('cmdText').textContent = zoomWin.iki ? tt('zoomWinHint2', 'Pencere: ikinci köşeye dokunun')
+    : (zoomWin.ipucu || tt('zoomWinHint', 'Pencere: köşeleri sürükleyin ya da iki köşeye dokunun'));
+  $('cmdInput').hidden = true;
+  $('cmdBtns').innerHTML = (zoomWin.iki ? `<button data-zw="geri">↶ ${esc(tt('zoomWinBack', 'Köşeyi geri al'))}</button>` : '')
+    + `<button data-zw="cancel">✕ ${esc(t('cancel'))}</button>`;
+  $('cmdBtns').onclick = (ev) => {
+    const b = ev.target.closest('[data-zw]'); if (!b) return;
+    if (b.dataset.zw === 'geri') {
+      if (zoomWin) { zoomWin = { ...zoomWin, pending: true, iki: false, x0: null, y0: null, x1: null, y1: null, bas: null }; zwIstem(); drawOverlay(); }
+      return;
+    }
+    const f = zoomWin && zoomWin.iptal; cancelZoomWindow(); if (f) f();
+  };
+}
+/** Köşenin ekran noktası: nesne yakalama açıksa köşe yakalanan noktaya oturur */
+function zwNokta(sx, sy) {
+  if (!(S.snapModes && S.snapModes.size)) return [sx, sy];
+  let sn = null;
+  try { sn = findSnap(toWorld(sx, sy), { hover: true }); } catch (_) { sn = null; }
+  if (sn && sn.p && isFinite(sn.p[0]) && isFinite(sn.p[1])) { const q = toScreen(sn.p[0], sn.p[1]); return [q[0], q[1]]; }
+  return [sx, sy];
+}
+/** Köşe dokunuşu: birincisini bırakır, ikincisiyle pencereyi kapatır */
+function zwKose(sx, sy) {
+  if (!zoomWin) return false;
+  const [px, py] = zwNokta(sx, sy);
+  if (!zoomWin.iki) {
+    zoomWin = { ...zoomWin, pending: false, iki: true, x0: px, y0: py, x1: px, y1: py, bas: null };
+    haptic('step'); zwIstem(); drawOverlay(); return true;
+  }
+  zwBitir(px, py);
+  return true;
+}
+/** Pencereyi kapatır: yeterince büyükse çağırana gider, değilse söyler */
+function zwBitir(sx, sy) {
+  const zw = zoomWin;
+  if (!zw || zw.x0 == null) { cancelZoomWindow(); return; }
+  cancelZoomWindow();
+  const g = Math.abs(sx - zw.x0), y = Math.abs(sy - zw.y0);
+  const a = toWorld(Math.min(sx, zw.x0), Math.max(sy, zw.y0)), b = toWorld(Math.max(sx, zw.x0), Math.min(sy, zw.y0));
+  if (!(g > 20 && y > 20)) {
+    toast(tt('pdfWinSmall', 'Pencere çok küçük; köşeleri biraz daha ayırın.'), { type: 'warn' });
+    if (zw.cb && zw.iptal) zw.iptal();
+    requestRender(); return;
+  }
+  haptic('step');
+  if (zw.cb) zw.cb([a[0], a[1], b[0], b[1]]);          // alan seçimi: görünüm DEĞİŞMEZ
+  else { fitView([a[0], a[1], b[0], b[1]], 1); viewHistory.push(); }
+  requestRender();
 }
 function zoomWindow() { alanSec(null); }
 /*
@@ -405,10 +466,15 @@ function drawOverlay() {
     c.beginPath(); c.moveTo(s[0], s[1]); c.lineTo(s[0] - 9, s[1] - 22); c.arc(s[0], s[1] - 24, 9, Math.PI * 0.85, Math.PI * 2.15); c.closePath(); c.fill();
     c.fillStyle = S.dark ? '#1c2129' : '#fff'; c.beginPath(); c.arc(s[0], s[1] - 24, 3.5, 0, TAU); c.fill();
   }
-  if (zoomWin && zoomWin.x1 != null) {
-    c.strokeStyle = '#f5b342'; c.lineWidth = 1.5; c.setLineDash([6, 4]); c.fillStyle = 'rgba(245,179,66,.12)';
-    const x = Math.min(zoomWin.x0, zoomWin.x1), y = Math.min(zoomWin.y0, zoomWin.y1), w = Math.abs(zoomWin.x1 - zoomWin.x0), h = Math.abs(zoomWin.y1 - zoomWin.y0);
-    c.fillRect(x, y, w, h); c.strokeRect(x, y, w, h); c.setLineDash([]);
+  if (zoomWin && zoomWin.x0 != null) {
+    c.strokeStyle = '#f5b342'; c.lineWidth = 1.5; c.fillStyle = 'rgba(245,179,66,.12)';
+    if (zoomWin.x1 != null) {
+      c.setLineDash([6, 4]);
+      const x = Math.min(zoomWin.x0, zoomWin.x1), y = Math.min(zoomWin.y0, zoomWin.y1), w = Math.abs(zoomWin.x1 - zoomWin.x0), h = Math.abs(zoomWin.y1 - zoomWin.y0);
+      c.fillRect(x, y, w, h); c.strokeRect(x, y, w, h); c.setLineDash([]);
+    }
+    // Konmuş birinci köşe: ikinci köşe beklenirken nerede olduğu görünsün
+    if (zoomWin.iki) { const k = 8; c.beginPath(); c.moveTo(zoomWin.x0 - k, zoomWin.y0); c.lineTo(zoomWin.x0 + k, zoomWin.y0); c.moveTo(zoomWin.x0, zoomWin.y0 - k); c.lineTo(zoomWin.x0, zoomWin.y0 + k); c.stroke(); }
   }
   drawTrack(c);
   drawCrosshair(c, fg);
@@ -1048,9 +1114,26 @@ vp.addEventListener('pointerdown', (ev) => {
   if (edCall('gizmoBusy')) { if (pointers.size > 1 || (gesture && gesture.type === 'gizmo')) return; edCall('gizmoUp', false); gesture = null; }
   if (arr.length === 1) {
     const [sx, sy] = rel(ev);
-    if (zoomWin && zoomWin.pending) {
-      zoomWin = { x0: sx, y0: sy, x1: null, y1: null, cb: zoomWin.cb, iptal: zoomWin.iptal };
-      gesture = { type: 'zoomwin', x0: sx, y0: sy }; S.gestureActive = true; return;
+    if (zoomWin) {
+      // Pencere seçimi sürerken BÜTÜN işaretçi inişleri ona aittir (birinci köşe, ikinci köşe, sürükleme).
+      if (zoomWin.iki) zoomWin = { ...zoomWin, x1: sx, y1: sy, bas: [sx, sy] };
+      else zoomWin = { ...zoomWin, pending: false, x0: sx, y0: sy, x1: null, y1: null, bas: [sx, sy] };
+      gesture = { type: 'zoomwin', x0: sx, y0: sy }; S.gestureActive = true;
+      /*
+       * Parmak kıpırdamadan beklerse jest BÜYÜTEÇLİ NİŞANA döner: imleç parmağın dışına çıkar,
+       * altındaki yer büyüteçte görünür ve köşe tam istenen noktaya konur. Sürüklemeye geçen
+       * parmakta zamanlayıcı iptal edilir (aşağıda, hareket denetiminde).
+       */
+      if (ev.pointerType === 'touch') {
+        const bx = sx, by = sy, pid = ev.pointerId;
+        longTimer = setTimeout(() => {
+          longTimer = 0;
+          if (!zoomWin || !gesture || gesture.type !== 'zoomwin' || pointers.size !== 1) return;
+          gesture = { type: 'aim', id: pid, ofs: aimOfs0(bx, by), fx: bx, fy: by };
+          haptic('long'); aimMove(bx, by);
+        }, TOL.long);
+      }
+      return;
     }
     // KAYDIR KİPİ, kalem / parmak / fare ayrımından ÖNCE: kip açıkken hiçbir araç, tutamak,
     // not ya da silgi dokunuşu almaz — sürükleme kaydırır, bırakış seçmez (navOnly).
@@ -1133,6 +1216,8 @@ vp.addEventListener('pointermove', (ev) => {
   const [sx, sy] = rel(ev);
   if (!pointers.has(ev.pointerId)) {
     if (!S.hasDoc) return;
+    // İki nokta kipinde lastik dikdörtgen parmak/kalem inmeden de imleci izler (fare ve kalem)
+    if (zoomWin && zoomWin.iki && ev.pointerType !== 'touch') { zoomWin.x1 = sx; zoomWin.y1 = sy; drawOverlay(); }
     // HAVADA GEZİNME: kalem ekrana değmeden de konum bildirir (buttons === 0). CAD'de en çok
     // işe yarayan kalem yeteneği budur — dokunmadan önce nereye düşeceği ve hangi noktaya
     // yakalanacağı görülür, böylece nokta seçimi el yordamıyla değil bakarak yapılır.
@@ -1164,6 +1249,8 @@ vp.addEventListener('pointermove', (ev) => {
     else noteDraft.pts[1] = w;
     drawOverlay();
   } else if (gesture.type === 'zoomwin') {
+    if (!zoomWin) return;
+    if (longTimer && Math.hypot(sx - gesture.x0, sy - gesture.y0) > TOL.drag) clearLong();   // sürüklemeye geçildi: nişan kurulmaz
     zoomWin.x1 = sx; zoomWin.y1 = sy; drawOverlay();
   } else if (gesture.type === 'dtap') {
     const dy = ev.clientY - gesture.y0;
@@ -1471,22 +1558,14 @@ function endPointer(ev) {
     return;
   }
   if (gesture && gesture.type === 'zoomwin') {
-    const zw = zoomWin; gesture = null; S.gestureActive = false;
-    cancelZoomWindow();
-    if (ev.type === 'pointerup' && zw) {
-      const w = Math.abs(sx - zw.x0), h = Math.abs(sy - zw.y0);
-      const yeterli = w > 20 && h > 20;
-      const a = toWorld(Math.min(sx, zw.x0), Math.max(sy, zw.y0)), b = toWorld(Math.max(sx, zw.x0), Math.min(sy, zw.y0));
-      if (zw.cb) {
-        // alan seçimi: görünüm DEĞİŞMEZ, dikdörtgen çağırana gider
-        haptic('step');
-        if (yeterli) zw.cb([a[0], a[1], b[0], b[1]]);
-        else { toast(tt('pdfWinSmall', 'Pencere çok küçük; köşeleri sürükleyin.'), { type: 'warn' }); if (zw.iptal) zw.iptal(); }
-      } else {
-        if (yeterli) fitView([a[0], a[1], b[0], b[1]], 1); else zoomAtScreen(sx, sy, 2);
-        viewHistory.push(); haptic('step');
-      }
-    } else if (zw && zw.iptal) zw.iptal();
+    const zw = zoomWin, bas = zw && zw.bas ? zw.bas : [sx, sy];
+    gesture = null; S.gestureActive = false; clearLong();
+    if (!zw) { requestRender(); return; }
+    // İptal (pointercancel): seçim BİTMEZ, yalnız bu sürükleme geri alınır — kullanıcı yeniden dener.
+    if (ev.type !== 'pointerup') { zoomWin = { ...zw, x1: zw.iki ? zw.x1 : null, bas: null }; drawOverlay(); requestRender(); return; }
+    // Kıpırdamayan dokunuş köşe bırakır (iki nokta kipi); sürükleme pencereyi doğrudan kapatır.
+    if (Math.hypot(sx - bas[0], sy - bas[1]) <= TOL.drag) zwKose(sx, sy);
+    else zwBitir(sx, sy);
     requestRender(); return;
   }
   if (gesture && gesture.type === 'dtap' && pointers.size === 0 && ev.type === 'pointerup') {
@@ -1596,6 +1675,7 @@ function pick(w, tol) {
 /** Şu an bir NOKTA mı isteniyor: çalışan araç nokta adımında ya da ölçü / profil kipi. Boşta (Komut:) ve nesne isteminde yakalama yoktur. */
 function pointPrompt() {
   if (S.mode === 'measure' || S.mode === 'profile') return true;
+  if (zoomWin) return true;   // pencere seçimi de bir NOKTA istemidir: köşe yakalama noktasına oturur
   return !!(editor.tools && editor.tools.running) && !pickingObject();
 }
 /*
@@ -1709,6 +1789,8 @@ function snapFlash(sn) {
 }
 
 async function onTap(sx, sy) {
+  // Pencere seçimi sürüyorsa dokunuş bir KÖŞEDİR: büyüteçli nişanla konan nokta da buraya düşer.
+  if (zoomWin) { updateStatus(sx, sy); zwKose(sx, sy); return; }
   updateStatus(sx, sy);
   const w = toWorld(sx, sy);
   S.lastPoint = [w[0], w[1]];
@@ -4960,6 +5042,10 @@ window.dwgApp = { osnap: Osnap, paylasGorunum, gorunumPng, loadCurrent, onFilePi
   // kâğıt oranına nasıl oturduğu dosya üretmeden denetlenebilsin
   __pdfAlan: (o, gmm, ymm) => pdfAlani(o, false, gmm, ymm),
   __pan: (on) => (on === undefined ? panOn() : togglePan(on)),
+  // Pencere seçiminin iç durumu ve seçilen dünya dikdörtgeni (bkz. tools/test_pdf_plot.mjs):
+  // iki nokta kipi, konmuş birinci köşe ve lastik dikdörtgen sınanabilsin
+  __zw: () => (zoomWin ? { iki: !!zoomWin.iki, pending: !!zoomWin.pending, x0: zoomWin.x0, y0: zoomWin.y0, x1: zoomWin.x1, y1: zoomWin.y1 } : null),
+  __pdfWin: () => (pdfWin ? pdfWin.slice() : null),
   // Kâğıdın yönü ve mm ölçüsü (bkz. tools/test_pdf_plot.mjs): 'auto' yönün basılacak alandan
   // çıktığı dosya üretmeden denetlenebilsin
   __pdfSayfa: (o) => pdfSayfaMm({ paper: 'A3', orient: 'auto', area: 'view', ...(o || {}) }, !!(o && o.all)),

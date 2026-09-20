@@ -673,9 +673,11 @@ body.glove .st-quick button { width: 48px; height: 48px; }
 .a11y-sec .opt-row .btn { min-height: 40px; }
 
 /* --- gezinti FAB kümesi, yön tuşları, görünüm küpü, tur --- */
-.navfabs { position: absolute; right: 12px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 5; transition: opacity .3s; }
+.navfabs { position: absolute; right: 12px; bottom: 16px; display: flex; flex-direction: column; gap: 6px; z-index: 5; transition: opacity .3s; }
 .navfabs.idle { opacity: .45; }
-.navfabs .fab { position: static; width: 48px; height: 48px; padding: 0; font-size: 22px; cursor: pointer; color: var(--fg); }
+.navfabs .fab { position: static; width: 44px; height: 44px; padding: 0; font-size: 21px; cursor: pointer; color: var(--fg); }
+/* Yedi düğmeli küme, eskiden altı düğmenin kapladığı yüksekliğe sığsın: çizimin sağ şeridi kapanmasın
+   (44 px hâlâ 40 px'lik dokunma hedefi sınırının üstündedir). */
 .navfabs .fab:disabled { opacity: .35; }
 /* Sohbete gönderme düğmesi: FAB sütununun tek RENKLİ düğmesidir, aranmadan bulunsun diye.
    Yeşil, gönderilen yerin rengini çağrıştırır; işaret bizimdir (bkz. #i-send-chat). */
