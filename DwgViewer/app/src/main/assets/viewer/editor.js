@@ -455,8 +455,12 @@ function buildToolbar() {
    * Şeritteki Seç karosu KALIR: ikisi de aynı data-act'i taşıdığı için markActive ikisini
    * birlikte vurgular ve kullanıcının alışkanlığı bozulmaz.
    */
-  const pinNeed = need('t:select'), pinKilit = !has('t:select');
-  const pin = `<button type="button" class="tb-pin" data-act="t:select"${pinNeed ? ` data-need="${esc(pinNeed)}"` : ''} data-i18n-title="tl_t:select" title="${esc(tileLabel('t:select'))}"${pinKilit ? '' : ` data-i18n-aria="tl_t:select" aria-label="${esc(tileLabel('t:select'))}"`}>${ICON('i-select')}<span class="lb" data-i18n="tl_t:select">${esc(tileLabel('t:select'))}</span>${lockBadge('t:select', 'bar')}</button>`;
+  // Kilit sözleşmesi karolarla AYNI kapıdan geçer: data-need yalnız KİLİTLİYKEN yazılır
+  // (lockAttr) ve rozet gövdesi lockBadge'den gelir. need() basamak ADINI döndürür, kilidi
+  // bildirmez — doğrudan yazılsaydı Super pakette bile rozet niteliği kalırdı (test_lock 2).
+  // "Kilitlileri gizle" açıkken iğne de gizlenir: şeritten kaldırılan bir aracın kısayolu
+  // orada kalsaydı kullanıcı kapattığı rozeti sekmelerin başında yeniden görürdü.
+  const pin = (lockedOn() || has('t:select')) ? `<button type="button" class="tb-pin" data-act="t:select"${lockAttr('t:select')} data-i18n-title="tl_t:select" title="${esc(tileLabel('t:select'))}" data-i18n-aria="tl_t:select" aria-label="${esc(tileLabel('t:select'))}">${ICON('i-select')}<span class="lb" data-i18n="tl_t:select">${esc(tileLabel('t:select'))}</span>${lockBadge('t:select', 'bar')}</button>` : '';
   tb.innerHTML = `<div class="tb-tabs" role="tablist">${pin}${tabs.map(x => { const n = tabNeed(x); return `<button type="button" role="tab" data-tab="${x.id}"${n ? ` data-need="${n}"` : ''} class="${x.id === ed.tab ? 'active' : ''}${x.id === 'fav' ? ' tab-fav' : ''}" aria-selected="${x.id === ed.tab}">${ICON(x.icon)}<span data-i18n="${x.i18n}">${esc(t(x.i18n))}</span>${lockBadgeFor(n, 'bar')}</button>`; }).join('')}<button type="button" class="tb-collapse" aria-label="${esc(tt('collapsed', 'Katla'))}">${ICON('i-chevron')}</button></div>` + tabs.map(rowHtml).join('');
   if (!tb.dataset.bound) {
     tb.dataset.bound = '1';
