@@ -410,6 +410,11 @@ body.glove .ask-field .opt-text { min-height: 52px; }
 .kv input, .kv select { width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font-size: calc(14px * var(--fs)); min-height: 40px; }
 .kv input[type=color] { min-height: 40px; padding: 2px; }
 .kv label.chk { display: flex; align-items: center; gap: 8px; min-height: 40px; }
+/* Tek satırda iki alan (özel kâğıt G × Y) ya da düğme + bilgi (PDF pencere seçimi) */
+.kv .pair { display: flex; align-items: center; gap: 6px; min-height: 40px; }
+.kv .pair input { flex: 1 1 0; min-width: 0; width: auto; }
+.kv .pair button { flex: 0 0 auto; }
+.kv .pair small { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .list { display: flex; flex-direction: column; }
 .list .item { padding: 10px 4px; border-bottom: 1px solid rgba(128,128,128,.12); cursor: pointer; font-size: calc(13px * var(--fs)); min-height: 44px; }
 .list .item small { color: var(--muted); display: block; }

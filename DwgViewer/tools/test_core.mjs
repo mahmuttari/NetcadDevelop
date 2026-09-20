@@ -101,7 +101,8 @@ for (const [f, raw, label] of VERSIONS) {
   const dl = await dlP; const pdfPath = path.join(out, 'core.pdf'); await dl.saveAs(pdfPath);
   const buf = fs.readFileSync(pdfPath), txt = buf.toString('latin1');
   ok('f1 PDF "%PDF-" ile başlar, "/Type /Page" içerir', buf.subarray(0, 5).toString('latin1') === '%PDF-' && /\/Type \/Page\b/.test(txt), buf.length + ' bayt, ' + dl.suggestedFilename());
-  ok('f2 PDF varsayılan A3 yatay (MediaBox 1190.55×841.89 pt), %%EOF', /\/MediaBox \[0 0 1190\.55 841\.89\]/.test(txt) && txt.includes('%%EOF'));
+  ok('f2 PDF varsayılan A3 yatay (MediaBox 1190.55×841.89 pt), %%EOF', /\/MediaBox \[0 0 1190\.55\d* 841\.89\]/.test(txt) && txt.includes('%%EOF'), (txt.match(/\/MediaBox \[[^\]]*\]/) || [''])[0]);
+  ok('f3 öntanımlı çıktı katmanlı vektördür (v7.94)', /\/OCProperties/.test(txt) && !/\/DCTDecode/.test(txt));
   await ev(() => window.dwgApp.onBack());
 }
 

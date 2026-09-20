@@ -20,6 +20,7 @@ import * as New from './newdoc.js';
 import * as Drive from './drive.js';
 import * as Open from './open.js';
 import * as Ed from './edition.js';
+import { pdfBelge, ilkelleriBas, kagit as PK, PT } from './pdfvec.js';
 import * as Home from './home.js';
 import * as Cloud from './cloud.js';
 import * as Pen from './stylus.js';
@@ -260,17 +261,27 @@ function fitPrims(prims) {
   zoomExtents([bb[0] - m, bb[1] - m, bb[2] + m, bb[3] + m]);
   return true;
 }
-let zoomWin = null; // { pending:true } | { x0,y0,x1,y1 } (ekran px)
-function zoomWindow() {
-  if (!S.hasDoc) { toast(t('openFirst')); return; }
-  if (editor.is3D()) { toast(tt('zoomWin3d', 'Pencere yakınlaştırma 2B görünümde çalışır.')); return; }
-  if (editor.tools && editor.tools.running) { toast(tt('toolBusy', 'Önce çalışan aracı bitirin.')); return; }
-  zoomWin = { pending: true };
+let zoomWin = null; // { pending:true, cb?, iptal? } | { x0,y0,x1,y1, cb?, iptal? } (ekran px)
+/**
+ * Ekranda dikdörtgen seçtirir. Tek kullanıcısı YAKINLAŞTIRMA DEĞİLDİR: cb verilirse seçilen
+ * dünya dikdörtgeni ona gider ve görünüm değişmez — PDF'te "basılacak alanı pencereyle seç"
+ * (AutoCAD PLOT › Window) bu yolla çalışır.
+ * @param cb (bb:[x0,y0,x1,y1]) => void — verilmezse seçilen pencereye yakınlaşılır
+ * @param o  { ipucu, iptal }
+ */
+function alanSec(cb, o = {}) {
+  if (!S.hasDoc) { toast(t('openFirst')); return false; }
+  if (editor.is3D()) { toast(tt('zoomWin3d', 'Pencere yakınlaştırma 2B görünümde çalışır.')); return false; }
+  if (editor.tools && editor.tools.running) { toast(tt('toolBusy', 'Önce çalışan aracı bitirin.')); return false; }
+  zoomWin = { pending: true, cb: cb || null, iptal: o.iptal || null };
   edCall('cmdTakeOver');
-  const bar = $('cmdBar'); bar.hidden = false; $('cmdText').textContent = tt('zoomWinHint', 'Pencere: köşeleri sürükleyin'); $('cmdInput').hidden = true;
+  const bar = $('cmdBar'); bar.hidden = false;
+  $('cmdText').textContent = o.ipucu || tt('zoomWinHint', 'Pencere: köşeleri sürükleyin'); $('cmdInput').hidden = true;
   $('cmdBtns').innerHTML = `<button data-zw="cancel">✕ ${t('cancel')}</button>`;
-  $('cmdBtns').onclick = (ev) => { if (ev.target.closest('[data-zw]')) cancelZoomWindow(); };
+  $('cmdBtns').onclick = (ev) => { if (ev.target.closest('[data-zw]')) { const f = zoomWin && zoomWin.iptal; cancelZoomWindow(); if (f) f(); } };
+  return true;
 }
+function zoomWindow() { alanSec(null); }
 function cancelZoomWindow() {
   if (!zoomWin) return false;
   zoomWin = null;
@@ -1005,6 +1016,10 @@ vp.addEventListener('pointerdown', (ev) => {
   if (edCall('gizmoBusy')) { if (pointers.size > 1 || (gesture && gesture.type === 'gizmo')) return; edCall('gizmoUp', false); gesture = null; }
   if (arr.length === 1) {
     const [sx, sy] = rel(ev);
+    if (zoomWin && zoomWin.pending) {
+      zoomWin = { x0: sx, y0: sy, x1: null, y1: null, cb: zoomWin.cb, iptal: zoomWin.iptal };
+      gesture = { type: 'zoomwin', x0: sx, y0: sy }; S.gestureActive = true; return;
+    }
     // "Kalem çizer, parmak gezinir": açıkken parmak yalnız kaydırır ve yakınlaştırır. Çizim,
     // seçim ve tutamak yalnız kalemin işidir; masaüstü CAD'deki fare/klavye ayrımının karşılığı.
     const navOnly = penNavOnly() && ev.pointerType === 'touch';
@@ -1044,7 +1059,6 @@ vp.addEventListener('pointerdown', (ev) => {
       }
       return;
     }
-    if (zoomWin && zoomWin.pending) { zoomWin = { x0: sx, y0: sy, x1: null, y1: null }; gesture = { type: 'zoomwin', x0: sx, y0: sy }; S.gestureActive = true; return; }
     const now = performance.now();
     if (lastTapPos && now - lastTap < TOL.dbl && Math.hypot(lastTapPos[0] - sx, lastTapPos[1] - sy) < 30 && !S.notesOn) {
       // çift-dokun-ve-sürükle: ikinci dokunuş basılı kalırsa dikey sürükleme yakınlaştırır; bırakılırsa 2×
@@ -1426,10 +1440,18 @@ function endPointer(ev) {
     cancelZoomWindow();
     if (ev.type === 'pointerup' && zw) {
       const w = Math.abs(sx - zw.x0), h = Math.abs(sy - zw.y0);
-      if (w > 20 && h > 20) { const a = toWorld(Math.min(sx, zw.x0), Math.max(sy, zw.y0)), b = toWorld(Math.max(sx, zw.x0), Math.min(sy, zw.y0)); fitView([a[0], a[1], b[0], b[1]], 1); }
-      else zoomAtScreen(sx, sy, 2);
-      viewHistory.push(); haptic('step');
-    }
+      const yeterli = w > 20 && h > 20;
+      const a = toWorld(Math.min(sx, zw.x0), Math.max(sy, zw.y0)), b = toWorld(Math.max(sx, zw.x0), Math.min(sy, zw.y0));
+      if (zw.cb) {
+        // alan seçimi: görünüm DEĞİŞMEZ, dikdörtgen çağırana gider
+        haptic('step');
+        if (yeterli) zw.cb([a[0], a[1], b[0], b[1]]);
+        else { toast(tt('pdfWinSmall', 'Pencere çok küçük; köşeleri sürükleyin.'), { type: 'warn' }); if (zw.iptal) zw.iptal(); }
+      } else {
+        if (yeterli) fitView([a[0], a[1], b[0], b[1]], 1); else zoomAtScreen(sx, sy, 2);
+        viewHistory.push(); haptic('step');
+      }
+    } else if (zw && zw.iptal) zw.iptal();
     requestRender(); return;
   }
   if (gesture && gesture.type === 'dtap' && pointers.size === 0 && ev.type === 'pointerup') {
@@ -1717,10 +1739,19 @@ function toast(msg, opts) {
 }
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 /** [k, v] → satır; [html] → tam satır; [k, html, 1] → ham html değer */
+/**
+ * Etiket / değer satırları. Öğe: [etiket, değer, ham?, satırKimliği?]
+ *  - ham verilirse değer HTML olarak konur (kaçışsız)
+ *  - satırKimliği verilirse iki hücreye de data-row yazılır: koşullu satırlar
+ *    (özel kâğıt ölçüsü, çözünürlük…) tek satırla gizlenip gösterilebilir
+ *  - tek öğeli dizi tam genişlik bir blok üretir
+ */
 function kv(pairs) {
-  return pairs.filter(p => p && (p.length === 1 || (p[1] !== null && p[1] !== undefined && p[1] !== ''))).map(p => p.length === 1
-    ? `<div class="full">${p[0]}</div>`
-    : `<div class="k">${esc(p[0])}</div><div class="v">${p[2] ? p[1] : esc(String(p[1]))}</div>`).join('');
+  return pairs.filter(p => p && (p.length === 1 || (p[1] !== null && p[1] !== undefined && p[1] !== ''))).map(p => {
+    if (p.length === 1) return `<div class="full">${p[0]}</div>`;
+    const r = p[3] ? ` data-row="${esc(p[3])}"` : '';
+    return `<div class="k"${r}>${esc(p[0])}</div><div class="v"${r}>${p[2] ? p[1] : esc(String(p[1]))}</div>`;
+  }).join('');
 }
 // Tek alt sayfa kuralı: #docPanel açılırken paket paneli kapanır. İkisi de .panel.bottom'dır ve paket paneli
 // üç kartla ekranın yarısını kaplar; açık kalırsa altındaki panelin düğmelerini örter (Ayarlar › Kaydet erişilemez olur).
@@ -2852,7 +2883,7 @@ async function runBatch(op, paper) {
         const txt = writeDxf(S.scene.layouts[0].prims, S.layers, { ltypes: S.ltypes });
         saveTextFile(txt, baseName() + '.dxf', 'application/dxf');
       } else if (op === 'pdf') {
-        await makePdf(baseName(), paper || 'A3', 'l', 0, 150, false);
+        await makePdf({ title: baseName(), paper: paper || 'A3', orient: 'l', area: 'ext', scale: 0, dpi: 150, margin: 10, frame: true, lw: true, all: false, vector: true });
       }
       done++;
     } catch (e) { console.warn('batch', f.name, e); failed++; }
@@ -3275,6 +3306,8 @@ function setLayout(i) {
   S.layoutIndex = i; S.prims = L.prims; S.ext = L.ext;
   S.tree = L.isModel ? S.modelTree : (L.tree || (L.tree = new RTree(L.prims, p => p.bb)));
   S.selected = null; S.cacheValid = false;
+  // Model uzayı ile kâğıt düzeninin koordinatları ayrı dünyalardır: seçili PDF alanı taşınamaz
+  pdfWin = null; if (pdfAyar.area === 'win') pdfAyar.area = 'view';
   buildLayoutTabs();
   zoomExtents();
 }
@@ -3902,43 +3935,165 @@ async function paylasTarayici(data, name, alt) {
 let lastPng = null;
 const baseName = () => (S.fileName || 'cizim').replace(/\.(dwg|dxf|dgn)$/i, '');
 const stamp = () => new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '');
-const PAPERS = { A4: [210, 297], A3: [297, 420], A2: [420, 594], A1: [594, 841], A0: [841, 1189] };
+/*
+ * Kâğıt ölçüleri (mm, DİKEY: genişlik × yükseklik). AutoCAD'in çizici kâğıt listesinin
+ * mühendislikte kullanılan bölümüdür: ISO A ve B serileri, ANSI ve ARCH. 'Özel' listede
+ * yoktur — kullanıcı ölçüyü kendi yazar (bkz. showPdf).
+ */
+const PAPERS = {
+  A4: [210, 297], A3: [297, 420], A2: [420, 594], A1: [594, 841], A0: [841, 1189],
+  B4: [250, 353], B3: [353, 500], B2: [500, 707], B1: [707, 1000], B0: [1000, 1414],
+  'ANSI A': [216, 279], 'ANSI B': [279, 432], 'ANSI C': [432, 559], 'ANSI D': [559, 864], 'ANSI E': [864, 1118],
+  'ARCH A': [229, 305], 'ARCH B': [305, 457], 'ARCH C': [457, 610], 'ARCH D': [610, 914], 'ARCH E1': [762, 1067], 'ARCH E': [914, 1219],
+};
+const PAPER_GRUP = [['ISO A', ['A4', 'A3', 'A2', 'A1', 'A0']], ['ISO B', ['B4', 'B3', 'B2', 'B1', 'B0']],
+  ['ANSI', ['ANSI A', 'ANSI B', 'ANSI C', 'ANSI D', 'ANSI E']], ['ARCH', ['ARCH A', 'ARCH B', 'ARCH C', 'ARCH D', 'ARCH E1', 'ARCH E']]];
+/** En son seçilen alan penceresi (dünya dikdörtgeni) — PDF kutusu kapansa da hatırlanır */
+let pdfWin = null;
+/*
+ * PDF KUTUSU — AutoCAD'in "Plot" penceresinin mobil karşılığı.
+ *
+ * Dört yeni karar kullanıcıya bırakılır: (1) basılacak ALAN (ekran / çizim sınırları /
+ * ekrandan pencereyle seçilen dikdörtgen), (2) KÂĞIT ölçüsü — ISO A ve B, ANSI, ARCH ya da
+ * elle yazılan ÖZEL ölçü, (3) kenar boşluğu, (4) ÇIKTI BİÇİMİ: vektör mü raster mı.
+ * Vektör çıktı katman taşır (bkz. pdfvec.js), raster çıktı eski davranıştır.
+ */
+const pdfAyar = { paper: 'A3', wmm: 420, hmm: 297, orient: 'l', area: 'view', scale: '', dpi: 150,
+  margin: 10, mode: 'vektor', renk: 'nesne', frame: true, lw: true, all: false };
+
 function showPdf() {
-  const multi = !!(S.scene && S.scene.layouts.length > 1);   // çok sayfalı seçeneği yalnız birden çok düzen varsa
+  const multi = !!(S.scene && S.scene.layouts.length > 1);
+  const kagitSecenek = PAPER_GRUP.map(([g, ks]) => `<optgroup label="${g}">`
+    + ks.map(k => `<option value="${esc(k)}"${k === pdfAyar.paper ? ' selected' : ''}>${esc(k)} · ${PAPERS[k][0]}×${PAPERS[k][1]}</option>`).join('')
+    + `</optgroup>`).join('')
+    + `<option value="ozel"${pdfAyar.paper === 'ozel' ? ' selected' : ''}>${esc(t('pdfCustom'))}</option>`;
+  const alanSecenek = [['view', t('pdfAreaView')], ['ext', t('pdfAreaExt')], ['win', t('pdfAreaWin')]]
+    .map(([v, l]) => `<option value="${v}"${v === pdfAyar.area ? ' selected' : ''}>${esc(l)}</option>`).join('');
   const html = kv([
-    [t('title'), `<input id="pTitle" value="${esc(baseName())}">`, 1],
-    [t('paper'), `<select id="pPaper">${Object.keys(PAPERS).map(k => `<option ${k === 'A3' ? 'selected' : ''}>${k}</option>`).join('')}</select>`, 1],
-    [t('orient'), `<select id="pOrient"><option value="l">${t('landscape')}</option><option value="p">${t('portrait')}</option></select>`, 1],
-    [t('pdfScale'), `<input id="pScale" type="number" min="1" step="1" placeholder="${t('pdfFit')}" value="">`, 1],
-    [t('dpi'), `<select id="pDpi"><option>100</option><option selected>150</option><option>200</option><option>300</option></select>`, 1],
-    ...(multi ? [[t('scope'), `<label class="chk"><input type="checkbox" id="pAll"> ${esc(t('pdfAllLayouts'))}</label>`, 1]] : []),
-    [`<div class="full muted">Ölçek boş bırakılırsa mevcut görünüm sayfaya sığdırılır. Ölçek verilirse görünüm merkezi esas alınır (çizim birimi: ${S.units || '?'}).</div>`],
+    [t('title'), `<input id="pTitle" value="${esc(pdfAyar.title || baseName())}">`, 1],
+    [t('paper'), `<select id="pPaper">${kagitSecenek}</select>`, 1],
+    [t('pdfCustomSize'), `<span class="pair"><input id="pW" type="number" min="10" max="5000" step="1" value="${pdfAyar.wmm}"> × <input id="pH" type="number" min="10" max="5000" step="1" value="${pdfAyar.hmm}"> mm</span>`, 1, 'ozel'],
+    [t('orient'), `<select id="pOrient"><option value="l"${pdfAyar.orient === 'l' ? ' selected' : ''}>${esc(t('landscape'))}</option><option value="p"${pdfAyar.orient === 'p' ? ' selected' : ''}>${esc(t('portrait'))}</option></select>`, 1, 'yon'],
+    [t('pdfArea'), `<select id="pArea">${alanSecenek}</select>`, 1],
+    ['', `<span class="pair"><button class="btn small" id="pPick">${esc(t('pdfPickWin'))}</button> <small id="pWinInfo" class="muted">${esc(pdfWinMetni())}</small></span>`, 1, 'win'],
+    [t('pdfScale'), `<input id="pScale" type="number" min="1" step="1" placeholder="${esc(t('pdfFit'))}" value="${esc(pdfAyar.scale)}">`, 1],
+    [t('pdfMargin'), `<input id="pMargin" type="number" min="0" max="60" step="1" value="${pdfAyar.margin}">`, 1],
+    [t('pdfMode'), `<select id="pMode"><option value="vektor"${pdfAyar.mode === 'vektor' ? ' selected' : ''}>${esc(t('pdfModeVector'))}</option><option value="raster"${pdfAyar.mode === 'raster' ? ' selected' : ''}>${esc(t('pdfModeRaster'))}</option></select>`, 1],
+    [t('pdfColor'), `<select id="pColor"><option value="nesne"${pdfAyar.renk === 'nesne' ? ' selected' : ''}>${esc(t('pdfColorObj'))}</option><option value="mono"${pdfAyar.renk === 'mono' ? ' selected' : ''}>${esc(t('pdfColorMono'))}</option></select>`, 1],
+    [t('dpi'), `<select id="pDpi">${[100, 150, 200, 300, 400].map(v => `<option${v === pdfAyar.dpi ? ' selected' : ''}>${v}</option>`).join('')}</select>`, 1, 'dpi'],
+    ['', `<label class="chk"><input type="checkbox" id="pFrame"${pdfAyar.frame ? ' checked' : ''}> ${esc(t('pdfFrame'))}</label>`, 1],
+    ['', `<label class="chk"><input type="checkbox" id="pLw"${pdfAyar.lw ? ' checked' : ''}> ${esc(t('pdfLw'))}</label>`, 1],
+    ...(multi ? [['', `<label class="chk"><input type="checkbox" id="pAll"${pdfAyar.all ? ' checked' : ''}> ${esc(t('pdfAllLayouts'))}</label>`, 1]] : []),
+    [`<div class="full muted" id="pNot">${esc(t('pdfHintVector'))}</div>`],
     [`<div class="full btns"><button class="btn primary small" id="pGo">${t('create')}</button></div>`]]);
   openDoc(t('pdfTitle'), html);
-  $('pGo').onclick = () => makePdf($('pTitle').value, $('pPaper').value, $('pOrient').value, Number($('pScale').value) || 0, Number($('pDpi').value) || 150, multi && $('pAll').checked);
+  const satir = (ad, ac) => document.querySelectorAll(`#docBody [data-row="${ad}"]`).forEach(e => { e.hidden = !ac; });
+  const tazele = () => {
+    const ozel = $('pPaper').value === 'ozel';
+    satir('ozel', ozel); satir('yon', !ozel);
+    satir('dpi', $('pMode').value === 'raster');
+    satir('win', $('pArea').value === 'win');
+    $('pNot').textContent = $('pMode').value === 'vektor' ? t('pdfHintVector') : t('pdfHintRaster');
+  };
+  $('pPaper').onchange = tazele; $('pMode').onchange = tazele; $('pArea').onchange = tazele;
+  tazele();
+  $('pPick').onclick = () => {
+    pdfAyarOku();
+    hide('docPanel');
+    alanSec((bb) => { pdfWin = bb; pdfAyar.area = 'win'; showPdf(); }, { ipucu: t('pdfPickHint'), iptal: () => showPdf() });
+  };
+  $('pGo').onclick = () => {
+    pdfAyarOku();
+    if (pdfAyar.area === 'win' && !pdfWin) { toast(t('pdfNoWin'), { type: 'warn' }); return; }
+    makePdf({ ...pdfAyar, win: pdfWin, vector: pdfAyar.mode === 'vektor' });
+  };
 }
+/** Kutudaki değerleri pdfAyar'a alır (pencere seçmeye gidip dönerken kaybolmasınlar) */
+function pdfAyarOku() {
+  if (!$('pPaper')) return;
+  pdfAyar.title = $('pTitle').value;
+  pdfAyar.paper = $('pPaper').value;
+  pdfAyar.wmm = Math.max(10, Math.min(5000, Number($('pW').value) || 420));
+  pdfAyar.hmm = Math.max(10, Math.min(5000, Number($('pH').value) || 297));
+  pdfAyar.orient = $('pOrient').value;
+  pdfAyar.area = $('pArea').value;
+  pdfAyar.scale = $('pScale').value;
+  pdfAyar.margin = Math.max(0, Math.min(60, Number($('pMargin').value) || 0));
+  pdfAyar.mode = $('pMode').value;
+  pdfAyar.renk = $('pColor').value;
+  pdfAyar.dpi = Number($('pDpi').value) || 150;
+  pdfAyar.frame = $('pFrame').checked;
+  pdfAyar.lw = $('pLw').checked;
+  pdfAyar.all = !!($('pAll') && $('pAll').checked);
+}
+const pdfWinMetni = () => (pdfWin ? `${fmt(pdfWin[2] - pdfWin[0])} × ${fmt(pdfWin[3] - pdfWin[1])}` : t('pdfNoWinYet'));
+
 /**
- * PDF oluşturur. all verilirse belgedeki BÜTÜN düzenler (Model + kâğıt sayfaları) ayrı sayfalar olarak
- * tek dosyaya yazılır; her sayfa kendi sınırlarına sığdırılır ve kendi ölçeğini taşır.
- * Tek sayfada ölçek verilebilir (görünüm merkezi esas alınır); çok sayfada ölçek her sayfa için
- * ayrı hesaplanır — farklı büyüklükteki düzenlere tek ölçek dayatılamaz.
+ * Basılacak dünya dikdörtgenini bulur. Kaynak: seçilen pencere, çizim sınırları ya da ekran;
+ * çok düzenli kipte her düzenin kendi sınırları. Ölçek verilmişse kâğıdın o ölçekteki dünya
+ * karşılığı kaynağın MERKEZİNE oturtulur, verilmemişse kaynak kâğıdın oranına genişletilir.
  */
-async function makePdf(title, paper, orient, scaleN, dpi, all) {
-  setLoading(t('pdfTitle'), paper, undefined, 'out');
+function pdfAlani(o, all, cizimGmm, cizimYmm) {
+  let vr;
+  if (all) vr = (S.ext || visibleRect()).slice();
+  else if (o.area === 'win' && o.win) vr = o.win.slice();
+  else if (o.area === 'ext') vr = (S.ext || visibleRect()).slice();
+  else vr = visibleRect();
+  if (!(isFinite(vr[0]) && vr[2] > vr[0] && vr[3] > vr[1])) vr = visibleRect();
+  const cx = (vr[0] + vr[2]) / 2, cy = (vr[1] + vr[3]) / 2;
+  const olcek = Number(o.scale) || 0;
+  if (!all && olcek > 0 && S.unitToM) {
+    const ww = (cizimGmm / 1000) * olcek / S.unitToM, hh = (cizimYmm / 1000) * olcek / S.unitToM;
+    return { bb: [cx - ww / 2, cy - hh / 2, cx + ww / 2, cy + hh / 2], sayfaOlcek: olcek };
+  }
+  if (all || o.area !== 'view') { const m = Math.max(vr[2] - vr[0], vr[3] - vr[1]) * 0.03 || 1; vr = [vr[0] - m, vr[1] - m, vr[2] + m, vr[3] + m]; }
+  const ar = cizimGmm / cizimYmm, vw = Math.max(vr[2] - vr[0], 1e-9), vh = Math.max(vr[3] - vr[1], 1e-9);
+  const c2x = (vr[0] + vr[2]) / 2, c2y = (vr[1] + vr[3]) / 2;
+  let bb;
+  if (vw / vh > ar) { const nh = vw / ar; bb = [vr[0], c2y - nh / 2, vr[2], c2y + nh / 2]; }
+  else { const nw = vh * ar; bb = [c2x - nw / 2, vr[1], c2x + nw / 2, vr[3]]; }
+  return { bb, sayfaOlcek: S.unitToM ? Math.round(((bb[2] - bb[0]) * S.unitToM * 1000) / cizimGmm) : 0 };
+}
+
+/**
+ * PDF oluşturur.
+ *
+ * İKİ ÇIKTI BİÇİMİ vardır ve ikisi de aynı alan / kâğıt / ölçek hesabını kullanır:
+ *  · VEKTÖR (öntanımlı): sahne ilkelleri doğrudan PDF yollarına çevrilir. Sonsuz büyütülebilir,
+ *    yazı seçilebilir ve aranabilir, ÇİZİM KATMANLARI PDF'in içinde katman (OCG) olarak durur —
+ *    okuyucu katmanı açıp kapatabilir. Çizgi kalınlığı kâğıtta gerçekten yazıldığı kadardır.
+ *  · RASTER: sayfa JPEG olarak gömülür (eski davranış). Ekranda ne görünüyorsa o basılır;
+ *    PDF yazı tipinde bulunmayan alfabeler (Kiril, Yunan, CJK) için doğru seçenek budur.
+ *
+ * all verilirse belgedeki BÜTÜN düzenler ayrı sayfalar olarak tek dosyaya yazılır; her sayfa
+ * kendi sınırlarına sığdırılır ve kendi ölçeğini taşır (farklı büyüklükteki düzenlere tek ölçek
+ * dayatılamaz).
+ */
+async function makePdf(o) {
+  const vec = o.vector !== false;
+  const kagitAdi = o.paper === 'ozel' ? `${o.wmm}×${o.hmm} mm` : o.paper;
+  setLoading(t('pdfTitle'), kagitAdi, undefined, 'out');
   await new Promise(r => setTimeout(r, 30));
   const keep = { li: S.layoutIndex, prims: S.prims, tree: S.tree, ext: S.ext, sel: S.selected };
   try {
-    let [wmm, hmm] = PAPERS[paper]; if (orient === 'l') [wmm, hmm] = [hmm, wmm];
-    const pxPerMm = dpi / 25.4;
-    const W = Math.round(wmm * pxPerMm), H = Math.round(hmm * pxPerMm);
-    const margin = 10 * pxPerMm, tb = 18 * pxPerMm;
-    const aw = Math.round(W - 2 * margin), ah = Math.round(H - 2 * margin - tb);
+    let wmm, hmm;
+    if (o.paper === 'ozel') { wmm = o.wmm; hmm = o.hmm; }
+    else { [wmm, hmm] = PAPERS[o.paper] || PAPERS.A3; if (o.orient === 'l') { const q = wmm; wmm = hmm; hmm = q; } }
+    if (!(wmm > 0 && hmm > 0)) { toast(t('pdfFail'), { type: 'error' }); return; }
+    const dpi = Number(o.dpi) || 150, pxPerMm = dpi / 25.4;
+    const kenarMm = Math.max(0, Math.min(Math.min(wmm, hmm) / 3, o.margin == null ? 10 : Number(o.margin)));
+    const kunyeMm = o.frame === false ? 0 : 18;
+    const cizimGmm = wmm - 2 * kenarMm, cizimYmm = hmm - 2 * kenarMm - kunyeMm;
+    if (!(cizimGmm > 5 && cizimYmm > 5)) { toast(t('pdfTooSmall'), { type: 'error' }); return; }
     const layouts = S.scene.layouts;
-    // çok sayfada boş ya da sınırsız düzen baştan elenir: sayfa numarası ("2 / 3") gerçek sayfayı göstersin
+    const all = !!o.all;
     const idxs = all ? layouts.map((_, i) => i).filter(i => layouts[i].prims.length && layouts[i].ext && isFinite(layouts[i].ext[0])) : [S.layoutIndex];
     if (!idxs.length) { toast(t('pdfFail'), { type: 'error' }); return; }
-    if (all) S.selected = null;                      // başka düzene ait seçim yeni sayfada çizilmesin
+    if (all) S.selected = null;
+
+    const belge = vec ? pdfBelge({ baslik: o.title || baseName() }) : null;
     const pages = [];
+    let basilan = 0;
     for (const li of idxs) {
       if (all) {
         const L = layouts[li];
@@ -3947,60 +4102,165 @@ async function makePdf(title, paper, orient, scaleN, dpi, all) {
         setLoading(t('pdfTitle'), `${L.name} (${pages.length + 1}/${idxs.length})`, 100 * pages.length / idxs.length);
         await new Promise(r => setTimeout(r, 0));
       }
-      let bb, pageScale = scaleN;
-      if (!all && scaleN > 0 && S.unitToM) {
-        const ww = (aw / pxPerMm / 1000) * scaleN / S.unitToM, hh = (ah / pxPerMm / 1000) * scaleN / S.unitToM;
-        bb = [S.view.cx - ww / 2, S.view.cy - hh / 2, S.view.cx + ww / 2, S.view.cy + hh / 2];
+      const { bb, sayfaOlcek } = pdfAlani(o, all, cizimGmm, cizimYmm);
+      const bilgi = [`${t('file')}: ${S.fileName}`, layouts[S.layoutIndex].name, idxs.length > 1 ? `${pages.length + 1} / ${idxs.length}` : '',
+        sayfaOlcek ? `${t('pdfScale')}${sayfaOlcek}` : '', S.units ? `${t('drawingUnit')}: ${S.units}` : '',
+        S.geo.active ? S.geo.crs.name : '', new Date().toLocaleString('tr-TR')].filter(Boolean).join('   ·   ');
+      if (vec) {
+        basilan += vektorSayfa(belge, { wmm, hmm, kenarMm, kunyeMm, cizimGmm, cizimYmm, bb, sayfaOlcek, bilgi, o });
+        pages.push(1);
       } else {
-        // tek sayfada ekrandaki görünüm, çok sayfada düzenin kendi sınırları sayfaya sığdırılır
-        let vr = all ? S.ext.slice() : visibleRect();
-        if (all) { const mx = Math.max(vr[2] - vr[0], vr[3] - vr[1]) * 0.03 || 1; vr = [vr[0] - mx, vr[1] - mx, vr[2] + mx, vr[3] + mx]; }
-        const cx = (vr[0] + vr[2]) / 2, cy = (vr[1] + vr[3]) / 2;
-        const ar = aw / ah, vw = Math.max(vr[2] - vr[0], 1e-9), vh = Math.max(vr[3] - vr[1], 1e-9);
-        if (vw / vh > ar) { const nh = vw / ar; bb = [vr[0], cy - nh / 2, vr[2], cy + nh / 2]; } else { const nw = vh * ar; bb = [cx - nw / 2, vr[1], cx + nw / 2, vr[3]]; }
-        pageScale = S.unitToM ? Math.round(((bb[2] - bb[0]) * S.unitToM * 1000) / (aw / pxPerMm)) : 0;
+        pages.push(rasterSayfa({ wmm, hmm, kenarMm, kunyeMm, cizimGmm, cizimYmm, bb, sayfaOlcek, bilgi, pxPerMm, o }));
       }
-      const img = renderRegion(bb, aw, ah, { light: true, overlay: overlayForExport });
-      const page = document.createElement('canvas'); page.width = W; page.height = H;
-      const g = page.getContext('2d');
-      g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
-      g.drawImage(img, margin, margin);
-      g.strokeStyle = '#000'; g.lineWidth = Math.max(1, pxPerMm * 0.35); g.strokeRect(margin, margin, aw, ah);
-      const y0 = margin + ah;
-      g.strokeRect(margin, y0, aw, tb);
-      g.fillStyle = '#000'; g.textBaseline = 'middle';
-      g.font = `bold ${Math.round(4.5 * pxPerMm)}px sans-serif`; g.fillText(title || baseName(), margin + 3 * pxPerMm, y0 + tb * 0.32);
-      g.font = `${Math.round(3 * pxPerMm)}px sans-serif`;
-      const info = [`${t('file')}: ${S.fileName}`, layouts[S.layoutIndex].name, idxs.length > 1 ? `${pages.length + 1} / ${idxs.length}` : '',
-        pageScale ? `${t('pdfScale')}${pageScale}` : '', S.units ? `${t('drawingUnit')}: ${S.units}` : '', S.geo.active ? S.geo.crs.name : '', new Date().toLocaleString('tr-TR')].filter(Boolean).join('   ·   ');
-      g.fillText(info, margin + 3 * pxPerMm, y0 + tb * 0.72);
-      const nx = W - margin - 8 * pxPerMm, ny = y0 + tb / 2;
-      g.beginPath(); g.moveTo(nx, ny - 5 * pxPerMm); g.lineTo(nx + 2.5 * pxPerMm, ny + 4 * pxPerMm); g.lineTo(nx, ny + 2 * pxPerMm); g.lineTo(nx - 2.5 * pxPerMm, ny + 4 * pxPerMm); g.closePath(); g.fill();
-      g.font = `bold ${Math.round(3 * pxPerMm)}px sans-serif`; g.textAlign = 'center'; g.fillText('K', nx, ny - 7 * pxPerMm); g.textAlign = 'left';
-      if (pageScale && S.unitToM) {
-        const worldPerPx = (bb[2] - bb[0]) / aw;
-        const barM = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000].find(v => v / (worldPerPx * S.unitToM) > 25 * pxPerMm) || 1000;
-        const px = barM / (worldPerPx * S.unitToM);
-        const bx = nx - 20 * pxPerMm - px, by = y0 + tb * 0.7;
-        g.fillRect(bx, by, px / 2, 1.5 * pxPerMm); g.strokeRect(bx, by, px, 1.5 * pxPerMm);
-        g.font = `${Math.round(2.5 * pxPerMm)}px sans-serif`; g.fillText('0', bx, by - 2 * pxPerMm); g.fillText(barM + ' m', bx + px - 3 * pxPerMm, by - 2 * pxPerMm);
-      }
-      pages.push({ jpeg: page.toDataURL('image/jpeg', 0.92).split(',')[1], pw: W, ph: H });
     }
-    const pdf = buildPdf(pages, wmm, hmm, title || baseName());
+    const pdf = vec ? await belge.bitir() : buildPdf(pages, wmm, hmm, o.title || baseName());
     const name = baseName() + '_' + stamp() + '.pdf';
     const driveAct = Drive.signedIn() && Ed.has('driveUpload') ? { label: tt('driveUpload', "Drive'a yükle"), fn: () => Drive.uploadWithPicker({ b64: pdf, name, mime: 'application/pdf' }) } : undefined;
-    const done = t('pdfDone') + (pages.length > 1 ? ` (${pages.length} ${t('pagesN')})` : '');
+    let done = t('pdfDone') + (pages.length > 1 ? ` (${pages.length} ${t('pagesN')})` : '');
+    if (vec) done += ` · ${t('pdfLayersN')}: ${belge.katmanSayisi}`;
     if (A() && A().saveFile) { const r = A().saveFile(pdf, name, 'application/pdf', true); toast(r ? done + ': ' + r : t('pdfFail'), { type: r ? 'ok' : 'error', ms: 6000, action: r ? driveAct : undefined }); }
     else { const a = document.createElement('a'); a.href = 'data:application/pdf;base64,' + pdf; a.download = name; a.click(); toast(done, { type: 'ok', action: driveAct }); }
+    // PDF yazı tipinde karşılığı olmayan harf kaldıysa sessiz geçilmez: raster kipi onları olduğu gibi basar
+    if (vec && belge.eksikHarf > 0) setTimeout(() => toast(`${t('pdfGlyphMiss')} (${belge.eksikHarf}) · ${t('pdfGlyphHint')}`, { type: 'warn', ms: 9000 }), 1400);
+    if (vec && !basilan) setTimeout(() => toast(t('pdfEmpty'), { type: 'warn', ms: 7000 }), 900);
     hide('docPanel');
   } catch (e) { fail(e); }
   finally {
     S.layoutIndex = keep.li; S.prims = keep.prims; S.tree = keep.tree; S.ext = keep.ext; S.selected = keep.sel;
-    if (all) { S.cacheValid = false; requestRender(); }   // başka düzen çizildi: ekran önbelleği bayat
-    setLoading(null);                                     // erken çıkışta da yükleme örtüsü kapanır
+    if (o.all) { S.cacheValid = false; requestRender(); }
+    setLoading(null);
   }
 }
+
+/** Vektör sayfa: çizim alanı, kâğıt düzeninin görünüm pencereleri ve künye */
+function vektorSayfa(belge, g) {
+  const { wmm, hmm, kenarMm, kunyeMm, cizimGmm, cizimYmm, bb, sayfaOlcek, bilgi, o } = g;
+  const sayfa = belge.sayfaEkle(wmm, hmm);
+  const px = kenarMm * PT, py = (kenarMm + kunyeMm) * PT, pw = cizimGmm * PT, ph = cizimYmm * PT;
+  const k = pw / Math.max(1e-12, bb[2] - bb[0]);
+  const ortak = {
+    layers: S.layers, ltypes: S.ltypes || {}, show: S.show, hideObj: S.hideObj, isoObj: S.isoObj,
+    ltOn: S.show.ltype, lwOn: o.lw !== false, lwDefault: (S.scene.header && S.scene.header.LWDEFAULT) || 25,
+    pointStyle: S.pointStyle, hatchAlpha: S.hatchAlpha, hatchBack: S.hatchBack !== false,
+    /*
+     * ÇIKTININ RENGİ EKRAN AYARINA BAĞLI DEĞİLDİR. Ekrandaki "katman paleti" / "tek renk" kipleri
+     * bir GÖRÜNTÜLEME yardımıdır; AutoCAD'de de ekran ayarı çizicinin rengini belirlemez, çizim
+     * stili (monochrome.ctb) belirler. Burada karar kullanıcıya kutudan sorulur.
+     */
+    renkOf: o.renk === 'mono' ? ((p) => (p.bg ? 0xffffff : 0)) : null,
+    resimJpeg: pdfResim,
+  };
+  let n = 0;
+  const L = S.scene.layouts[S.layoutIndex];
+  // kâğıt düzeni: model uzayı önce görünüm pencerelerinin içine kırpılarak basılır (ekrandaki sırayla)
+  if (L && !L.isModel && L.viewports && L.viewports.length) {
+    const model = S.scene.layouts[0];
+    for (const vp of L.viewports) {
+      if (!vp.on || !(vp.scale > 0)) continue;
+      const mcx = (vp.x0 + vp.x1) / 2, mcy = (vp.y0 + vp.y1) / 2, tw = vp.twist || 0;
+      const cs = Math.cos(tw), sn = Math.sin(tw), sc = vp.scale;
+      const don = (mx, my) => {
+        const dx = mx - vp.cx, dy = my - vp.cy;
+        return [px + (mcx + sc * (cs * dx - sn * dy) - bb[0]) * k, py + (mcy + sc * (sn * dx + cs * dy) - bb[1]) * k];
+      };
+      const cx0 = px + (vp.x0 - bb[0]) * k, cy0 = py + (vp.y0 - bb[1]) * k;
+      const kx = Math.max(px, cx0), ky = Math.max(py, cy0);
+      const kw = Math.min(px + pw, cx0 + (vp.x1 - vp.x0) * k) - kx, kh = Math.min(py + ph, cy0 + (vp.y1 - vp.y0) * k) - ky;
+      if (!(kw > 0 && kh > 0)) continue;
+      const hw = (vp.x1 - vp.x0) / 2 / sc, hh = (vp.y1 - vp.y0) / 2 / sc, rr = Math.hypot(hw, hh);
+      const psLt = !(S.scene.header && S.scene.header.PSLTSCALE === 0);
+      n += ilkelleriBas(sayfa, belge, { ...ortak, prims: model.prims,
+        bb: tw ? [vp.cx - rr, vp.cy - rr, vp.cx + rr, vp.cy + rr] : [vp.cx - hw, vp.cy - hh, vp.cx + hw, vp.cy + hh],
+        x: kx, y: ky, w: kw, h: kh,
+        donusum: { don, k: k * sc, lin: [k * sc * cs, k * sc * sn, -k * sc * sn, k * sc * cs] },
+        frozen: vp.frozen && vp.frozen.length ? new Set(vp.frozen) : null,
+        ltK: psLt ? 1 / sc : 1 });
+    }
+  }
+  n += ilkelleriBas(sayfa, belge, { ...ortak, prims: S.prims, bb, x: px, y: py, w: pw, h: ph });
+  if (o.frame !== false) kunyeVektor(sayfa, belge, { wmm, hmm, kenarMm, kunyeMm, cizimGmm, cizimYmm, bb, sayfaOlcek, bilgi, baslik: o.title || baseName() });
+  return n;
+}
+
+/** Çerçeve, künye bandı, kuzey oku ve ölçek çubuğu (hepsi vektör) */
+function kunyeVektor(sayfa, belge, g) {
+  const px = g.kenarMm * PT, py = (g.kenarMm + g.kunyeMm) * PT, pw = g.cizimGmm * PT, ph = g.cizimYmm * PT;
+  const tb = g.kunyeMm * PT;
+  PK.dikdortgen(sayfa, px, py, pw, ph, { kalin: 0.35 * PT });
+  PK.dikdortgen(sayfa, px, py - tb, pw, tb, { kalin: 0.35 * PT });
+  PK.yazi(sayfa, belge, px + 3 * PT, py - tb * 0.42, 4.5 * PT, g.baslik);
+  PK.yazi(sayfa, belge, px + 3 * PT, py - tb * 0.78, 3 * PT, g.bilgi);
+  const nx = px + pw - 8 * PT, ny = py - tb / 2;
+  PK.kuzey(sayfa, belge, nx, ny, 4 * PT);
+  if (g.sayfaOlcek && S.unitToM) {
+    const dunyaPerPt = (g.bb[2] - g.bb[0]) / pw;
+    const barM = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000].find(v => v / (dunyaPerPt * S.unitToM) > 25 * PT) || 1000;
+    const boy = barM / (dunyaPerPt * S.unitToM);
+    const bx = nx - 20 * PT - boy, by = py - tb * 0.72;
+    PK.dikdortgen(sayfa, bx, by, boy / 2, 1.5 * PT, { doldur: true });
+    PK.dikdortgen(sayfa, bx, by, boy, 1.5 * PT, { kalin: 0.3 * PT });
+    PK.yazi(sayfa, belge, bx, by + 2.4 * PT, 2.5 * PT, '0');
+    PK.yazi(sayfa, belge, bx + boy, by + 2.4 * PT, 2.5 * PT, barM + ' m', { hiza: 2 });
+  }
+}
+
+/** Bir resim ilkelinin JPEG baytları (vektör PDF'e gömmek için) */
+function pdfResim(p) {
+  const im = S.images.get(p.img);
+  if (!im || !im.ok || !im.img) return null;
+  try {
+    const w = Math.min(p.pw || im.img.naturalWidth || 0, 4096), h = Math.min(p.ph || im.img.naturalHeight || 0, 4096);
+    if (!(w > 0 && h > 0)) return null;
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const c = cv.getContext('2d');
+    c.fillStyle = '#fff'; c.fillRect(0, 0, w, h);
+    c.drawImage(im.img, 0, 0, w, h);
+    const b64 = cv.toDataURL('image/jpeg', 0.9).split(',')[1];
+    const bin = atob(b64), veri = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) veri[i] = bin.charCodeAt(i);
+    return { veri, w, h };
+  } catch (_) { return null; }   // kirlenmiş tuval (başka kökenden gelen resim)
+}
+
+/** Raster sayfa (eski yol): çizim ayrı tuvale çizilir, kâğıda yapıştırılır, JPEG olur */
+function rasterSayfa(g) {
+  const { wmm, hmm, kenarMm, kunyeMm, cizimGmm, cizimYmm, bb, sayfaOlcek, bilgi, pxPerMm, o } = g;
+  const W = Math.round(wmm * pxPerMm), H = Math.round(hmm * pxPerMm);
+  const margin = kenarMm * pxPerMm, tb = kunyeMm * pxPerMm;
+  const aw = Math.round(cizimGmm * pxPerMm), ah = Math.round(cizimYmm * pxPerMm);
+  // Raster yolda renk kararı çizicinin kendi ayarındadır; kutudaki seçim geçici olarak dayatılır
+  const kip = { mode: S.colorMode, mono: S.monoColor };
+  S.colorMode = o.renk === 'mono' ? 'mono' : 'entity'; S.monoColor = 'fg';
+  let img;
+  try { img = renderRegion(bb, aw, ah, { light: true, overlay: overlayForExport }); }
+  finally { S.colorMode = kip.mode; S.monoColor = kip.mono; }
+  const page = document.createElement('canvas'); page.width = W; page.height = H;
+  const c = page.getContext('2d');
+  c.fillStyle = '#fff'; c.fillRect(0, 0, W, H);
+  c.drawImage(img, margin, margin);
+  if (o.frame !== false) {
+    c.strokeStyle = '#000'; c.lineWidth = Math.max(1, pxPerMm * 0.35); c.strokeRect(margin, margin, aw, ah);
+    const y0 = margin + ah;
+    c.strokeRect(margin, y0, aw, tb);
+    c.fillStyle = '#000'; c.textBaseline = 'middle';
+    c.font = `bold ${Math.round(4.5 * pxPerMm)}px sans-serif`; c.fillText(o.title || baseName(), margin + 3 * pxPerMm, y0 + tb * 0.32);
+    c.font = `${Math.round(3 * pxPerMm)}px sans-serif`;
+    c.fillText(bilgi, margin + 3 * pxPerMm, y0 + tb * 0.72);
+    const nx = W - margin - 8 * pxPerMm, ny = y0 + tb / 2;
+    c.beginPath(); c.moveTo(nx, ny - 5 * pxPerMm); c.lineTo(nx + 2.5 * pxPerMm, ny + 4 * pxPerMm); c.lineTo(nx, ny + 2 * pxPerMm); c.lineTo(nx - 2.5 * pxPerMm, ny + 4 * pxPerMm); c.closePath(); c.fill();
+    c.font = `bold ${Math.round(3 * pxPerMm)}px sans-serif`; c.textAlign = 'center'; c.fillText('K', nx, ny - 7 * pxPerMm); c.textAlign = 'left';
+    if (sayfaOlcek && S.unitToM) {
+      const worldPerPx = (bb[2] - bb[0]) / aw;
+      const barM = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000].find(v => v / (worldPerPx * S.unitToM) > 25 * pxPerMm) || 1000;
+      const bpx = barM / (worldPerPx * S.unitToM);
+      const bx = nx - 20 * pxPerMm - bpx, by = y0 + tb * 0.7;
+      c.fillRect(bx, by, bpx / 2, 1.5 * pxPerMm); c.strokeRect(bx, by, bpx, 1.5 * pxPerMm);
+      c.font = `${Math.round(2.5 * pxPerMm)}px sans-serif`; c.fillText('0', bx, by - 2 * pxPerMm); c.fillText(barM + ' m', bx + bpx - 3 * pxPerMm, by - 2 * pxPerMm);
+    }
+  }
+  return { jpeg: page.toDataURL('image/jpeg', 0.92).split(',')[1], pw: W, ph: H };
+}
+
 /**
  * JPEG gömülü PDF (base64). pages: [{jpeg, pw, ph}] — her öğe bir sayfadır, hepsi aynı kâğıt ölçüsünde.
  * Nesne numaraları sayfa sayısına göre üretilir: 1 katalog, 2 sayfa ağacı, sonra sayfa başına üç nesne
@@ -4419,6 +4679,7 @@ async function setScene(scene, name, size, rep) {
   S.units = UNITS[iu] || ''; S.unitToM = UNIT_TO_M[iu] || 0;
   S.images = new Map(); S.compare = null; S.selected = null; S.cacheValid = false;
   S.hideObj = new Set(); S.isoObj = null;   // nesne gizleme / izolasyon dosyaya özeldir
+  pdfWin = null; pdfAyar.title = ''; pdfAyar.area = pdfAyar.area === 'win' ? 'view' : pdfAyar.area;   // PDF alanı ve başlığı dosyaya özeldir
   S.hasDoc = true;
   syncDeskClass();   // masaüstü kipi çizim açıkken geçerlidir: sınıf burada da tazelenir
   Docs.suspend();

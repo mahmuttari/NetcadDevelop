@@ -232,7 +232,13 @@ export class SceneBuilder {
     this.layers = new Map();
     for (const l of db.tables.LAYER.entries) this.layers.set(this.prefix + l.name, {
       name: this.prefix + l.name, color: layerColor(l), lt: (l.lineType || 'Continuous'), lw: lwOf(l.lineweight, this.lwDefault) >= 0 ? lwOf(l.lineweight, this.lwDefault) : this.lwDefault,
-      frozen: !!l.frozen, off: !!l.off, visible: !(l.frozen || l.off), count: 0 });
+      frozen: !!l.frozen, off: !!l.off, visible: !(l.frozen || l.off), count: 0,
+      /*
+       * BASILIR MI? AutoCAD'de katmanın "Plot" sütunu görünürlükten AYRIDIR: katman ekranda
+       * durur ama çizicide yok sayılır (yardımcı çizgiler, DEFPOINTS). Ekran çizimi bu bayrağa
+       * bakmaz — yalnız PDF çıktısı bakar (pdfvec.ilkelleriBas).
+       */
+      plot: l.plotFlag !== 0 && String(l.name || '').toUpperCase() !== 'DEFPOINTS' });
     this.ltypes = {};
     for (const lt of db.tables.LTYPE.entries) {
       const pat = (lt.pattern || []).map(p => p.elementLength || 0);

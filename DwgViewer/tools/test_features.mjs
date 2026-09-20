@@ -41,8 +41,20 @@ if (step === 'all' || step === 'pdf') {
   await page.click('#btnMore'); await page.click('[data-act="pdf"]'); await page.fill('#pScale', '500'); await page.click('#pGo');
   const dl = await dlP; const pdfPath = `${out}/test.pdf`; await dl.saveAs(pdfPath);
   const buf = fs.readFileSync(pdfPath), head = buf.subarray(0, 8).toString('latin1'), txt = buf.toString('latin1');
-  ok('2a PDF başlığı %PDF-1.4', head.startsWith('%PDF-1.4'), head);
-  ok('2b PDF tek sayfa, A3 yatay (1190.55×841.89 pt), JPEG gömülü, > 20 KB', (txt.match(/\/Type \/Page\b/g) || []).length === 1 && /\/MediaBox \[0 0 1190\.55 841\.89\]/.test(txt) && /\/DCTDecode/.test(txt) && txt.includes('%%EOF') && buf.length > 20000, buf.length + ' bayt');
+  // v7.94'ten beri ÖNTANIMLI çıktı katmanlı vektördür (eskiden tek parça JPEG'di)
+  ok('2a PDF başlığı %PDF-1.5 (vektör yazıcı)', head.startsWith('%PDF-1.5'), head);
+  ok('2b PDF tek sayfa, A3 yatay (1190.551×841.89 pt), vektör (JPEG yok), %%EOF',
+    (txt.match(/\/Type \/Page\b/g) || []).length === 1 && /\/MediaBox \[0 0 1190\.551 841\.89\]/.test(txt) && !/\/DCTDecode/.test(txt) && txt.includes('%%EOF'), buf.length + ' bayt');
+  ok('2c çizim katmanları PDF katmanı (OCG) olarak gitti', /\/OCProperties/.test(txt) && (txt.match(/\/Type \/OCG/g) || []).length >= 2, (txt.match(/\/Type \/OCG/g) || []).length + ' katman');
+  // raster kip de çalışmaya devam eder
+  {
+    const dl2P = page.waitForEvent('download', { timeout: 60000 });
+    await page.click('#btnMore'); await page.click('[data-act="pdf"]');
+    await page.selectOption('#pMode', 'raster'); await page.click('#pGo');
+    const dl2 = await dl2P; const p2 = `${out}/test_raster.pdf`; await dl2.saveAs(p2);
+    const t2 = fs.readFileSync(p2).toString('latin1');
+    ok('2d raster kip hâlâ JPEG gömüyor', /\/DCTDecode/.test(t2) && !/\/OCProperties/.test(t2));
+  }
 }
 if (step === 'all' || step === 'compare') {
   await page.evaluate(() => document.getElementById('toast').hidden = true);
