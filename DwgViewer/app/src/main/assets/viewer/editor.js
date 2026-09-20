@@ -441,7 +441,23 @@ function buildToolbar() {
   const tb = $('toolbar');
   const tabs = tabList();
   if (!tabs.some(x => x.id === ed.tab)) ed.tab = 'view';
-  tb.innerHTML = `<div class="tb-tabs" role="tablist">${tabs.map(x => { const n = tabNeed(x); return `<button type="button" role="tab" data-tab="${x.id}"${n ? ` data-need="${n}"` : ''} class="${x.id === ed.tab ? 'active' : ''}${x.id === 'fav' ? ' tab-fav' : ''}" aria-selected="${x.id === ed.tab}">${ICON(x.icon)}<span data-i18n="${x.i18n}">${esc(t(x.i18n))}</span>${lockBadgeFor(n, 'bar')}</button>`; }).join('')}<button type="button" class="tb-collapse" aria-label="${esc(tt('collapsed', 'Katla'))}">${ICON('i-chevron')}</button></div>` + tabs.map(rowHtml).join('');
+  /*
+   * KALICI SEÇ DÜĞMESİ (v7.93). Kullanıcı: "Seç tuşu her zaman erişilebilir olmalı, fazla yer
+   * kaplamadan." Seç, Düzenle şeridindeydi; başka bir sekmedeyken ona ulaşmak sekme değiştirmeyi
+   * gerektiriyordu, şerit katlıyken ise hiç ulaşılamıyordu.
+   *
+   * YERİ SEKME ŞERİDİDİR. Ölçüldü (360 x 800): sekme şeridi 54 px yüksekliğinde ve HER KOŞULDA
+   * ekranda — şerit katlıyken de duruyor, 3B'de de duruyor, yatayda dikey raya dönüşüp orada da
+   * duruyor. Oraya konan düğme ÇİZİM ALANINDAN TEK PİKSEL GÖTÜRMEZ. Öteki adaylar elendi: durum
+   * çubuğu zaten 110 px taşıyor, FAB sütunu 328 px ile görüntü alanının %61'i ve kullanıcı
+   * ayarıyla kapanabiliyor, üst çubuk 360 px'te tam dolu.
+   *
+   * Şeritteki Seç karosu KALIR: ikisi de aynı data-act'i taşıdığı için markActive ikisini
+   * birlikte vurgular ve kullanıcının alışkanlığı bozulmaz.
+   */
+  const pinNeed = need('t:select'), pinKilit = !has('t:select');
+  const pin = `<button type="button" class="tb-pin" data-act="t:select"${pinNeed ? ` data-need="${esc(pinNeed)}"` : ''} data-i18n-title="tl_t:select" title="${esc(tileLabel('t:select'))}"${pinKilit ? '' : ` data-i18n-aria="tl_t:select" aria-label="${esc(tileLabel('t:select'))}"`}>${ICON('i-select')}<span class="lb" data-i18n="tl_t:select">${esc(tileLabel('t:select'))}</span>${lockBadge('t:select', 'bar')}</button>`;
+  tb.innerHTML = `<div class="tb-tabs" role="tablist">${pin}${tabs.map(x => { const n = tabNeed(x); return `<button type="button" role="tab" data-tab="${x.id}"${n ? ` data-need="${n}"` : ''} class="${x.id === ed.tab ? 'active' : ''}${x.id === 'fav' ? ' tab-fav' : ''}" aria-selected="${x.id === ed.tab}">${ICON(x.icon)}<span data-i18n="${x.i18n}">${esc(t(x.i18n))}</span>${lockBadgeFor(n, 'bar')}</button>`; }).join('')}<button type="button" class="tb-collapse" aria-label="${esc(tt('collapsed', 'Katla'))}">${ICON('i-chevron')}</button></div>` + tabs.map(rowHtml).join('');
   if (!tb.dataset.bound) {
     tb.dataset.bound = '1';
     tb.addEventListener('click', (ev) => {
@@ -807,7 +823,7 @@ function act(name, btn) {
     case 'savedelta': saveDxf(true); break;
     case 'layer': pickLayer(); break;
     case 'color': pickColor(); break;
-    case 'props': showProps(); break;
+    case 'props': if (!gate('props')) return; showProps(); break;
     case '3d': if (!needModel()) return; if (ed.is3D()) exit3D(); else enter3D(); break;
     case 'persp': if (v3) { v3.set('persp', !v3.cam.persp); overlay3D(); api.toast(v3.cam.persp ? tt('perspective', 'Perspektif') : tt('orthographic', 'Ortografik'), 1200); } break;
     case 'zscale': optionPop(btn, renderZScale, tt('zscaleTitle', 'Düşey abartı')); break;
@@ -1571,8 +1587,13 @@ function showProps(all) {
  * araçları seçimi koruyarak başlar ve doğrudan taban noktasını sorar; renk / çizgi tipi / katman
  * tek dokunuşla uygulanır ve tek geri alma adımı üretir.
  */
-const SEL_MENU = [['del', 'i-erase'], ['copy', 'i-copyobj'], ['move', 'i-move'], ['block', 'i-block'], ['rotate', 'i-rotate'], ['mirror', 'i-mirror'], ['scale', 'i-scale'], ['color', 'i-palette'], ['ltype', 'i-ltype'], ['layer', 'i-layers'], ['props', 'i-props'], ['similar', 'i-similar'], ['hide', 'i-hideobj'], ['iso', 'i-isoobj'], ['front', 'i-draworder'], ['back', 'i-draworder'], ['cut', 'i-cut'], ['clear', 'i-close']];
-const selMenuLabel = (id) => ({ block: t('selMakeBlock'), color: t('color'), ltype: t('ltype'), layer: t('selChangeLayer'), clear: t('selClear'), props: tileLabel('props'), dimedit: t('dimSelMenu'), similar: t('selSimilar'), hide: t('selHideObj'), iso: t('selIsoObj'), cut: tileLabel('cutclip'), front: t('droFront'), back: t('droBack'), bedit: tileLabel('t:bedit') }[id] || tileLabel('t:' + id));
+/*
+ * AutoCAD'in sağ tık menüsündeki karşılıkları da girdi (v7.93): Dizi, Patlat, Panoya kopyala,
+ * Nesneye yakınlaş, Özellik eşle. Sıra iş sıklığına göredir — silme ve taşıma önde, görünüm
+ * ve çizim sırası arkada. Menü artık ROZETE TIKLAYARAK değil, nesneye UZUN BASARAK da açılır.
+ */
+const SEL_MENU = [['del', 'i-erase'], ['copy', 'i-copyobj'], ['move', 'i-move'], ['rotate', 'i-rotate'], ['mirror', 'i-mirror'], ['scale', 'i-scale'], ['array', 'i-array'], ['explode', 'i-explode'], ['block', 'i-block'], ['copyclip', 'i-copy'], ['cut', 'i-cut'], ['color', 'i-palette'], ['ltype', 'i-ltype'], ['layer', 'i-layers'], ['matchprop', 'i-matchprop'], ['props', 'i-props'], ['zoom', 'i-fit'], ['similar', 'i-similar'], ['hide', 'i-hideobj'], ['iso', 'i-isoobj'], ['front', 'i-draworder'], ['back', 'i-draworder'], ['clear', 'i-close']];
+const selMenuLabel = (id) => ({ block: t('selMakeBlock'), color: t('color'), ltype: t('ltype'), layer: t('selChangeLayer'), clear: t('selClear'), props: tileLabel('props'), dimedit: t('dimSelMenu'), similar: t('selSimilar'), hide: t('selHideObj'), iso: t('selIsoObj'), cut: tileLabel('cutclip'), copyclip: tileLabel('copyclip'), matchprop: tileLabel('t:matchprop'), explode: tileLabel('t:explode'), array: tileLabel('t:array'), zoom: t('zoomTo'), front: t('droFront'), back: t('droBack'), bedit: tileLabel('t:bedit') }[id] || tileLabel('t:' + id));
 const selDimPrim = () => [...ed.sel].find(p => p.info && p.info.t === 'DIMENSION' && (p.info.gid || p.info.dim));
 function selMenu() {
   if (!ed.sel.size) { api.toast(t('selEmpty')); return; }
@@ -1601,8 +1622,31 @@ function selAction(id) {
       refreshUndo(); api.requestRender(); api.drawOverlay(); api.toast(t('deleted')); haptic('toggle');
       break;
     }
-    case 'copy': case 'move': case 'rotate': case 'mirror': case 'scale': act('t:' + id); break;   // seçim korunur, araç taban noktasını sorar
+    case 'copy': case 'move': case 'rotate': case 'mirror': case 'scale': case 'array': act('t:' + id); break;   // seçim korunur, araç taban noktasını / dizi ayarını sorar
     case 'block': act('t:block'); break;   // seçim korunur, araç taban noktasını sorar
+    /*
+     * PATLAT, menüden gelince nesne SORMAZ. Karo yolu "blok yerleştirmesine dokunun" der; oysa
+     * AutoCAD'in sağ tuş menüsünde EXPLODE seçimin kendisine uygulanır, yeniden dokunmak istenmez.
+     * Seçimdeki bütün yerleştirmeler tek geri alma adımında patlar; blok olmayanlar sessizce atlanır.
+     */
+    case 'explode': {
+      if (!gate('t:explode') || !doc) return;
+      const hs = []; for (const p of ed.sel) { const i = p.info; if (i && i.t === 'INSERT' && i.h && !hs.includes(i.h)) hs.push(i.h); }
+      if (!hs.length) { api.toast(t('notBlock')); return; }
+      const cmds = hs.map(h => ({ op: 'explode', h, ids: S.scene.layouts[0].prims.filter(q => q.info && q.info.h === h && q.info.t === 'INSERT').map(() => newId()) }));
+      if (tools.running) { tools.cancel(); markActive(null); }
+      ed.sel.clear();
+      doc.run(cmds.length > 1 ? { op: 'group', cmds } : cmds[0]);
+      refreshUndo(); api.requestRender(); api.drawOverlay(); api.toast(t('exploded') + ' \u00b7 ' + hs.length); haptic('toggle');
+      break;
+    }
+    /*
+     * ÖZELLİK EŞLE menüden gelince seçimi KAYNAK sayar: AutoCAD'de MATCHPROP önce kaynağı ister,
+     * kullanıcı nesneyi zaten seçmiştir. Araç kaynakla başlatılır, sıra doğrudan hedeflere geçer.
+     */
+    case 'matchprop': { if (!gate('t:matchprop')) return; const src = [...ed.sel][0]; if (tools.active !== 'matchprop') act('t:matchprop'); if (tools.matchSrc(src)) { ed.sel.clear(); api.drawOverlay(); } break; }
+    case 'copyclip': act('copyclip'); break;
+    case 'zoom': call(api.fitPrims, [...ed.sel]); break;
     case 'front': drawOrderSel('front'); break;
     case 'back': drawOrderSel('back'); break;
     case 'bedit': { const p = [...ed.sel].find(q => q.info && q.info.t === 'INSERT' && q.info.name); if (!p) { api.toast(t('notBlock')); return; } if (!gate('t:bedit')) return; void beditStart(p.info.name, { h: p.info.h }); break; }
@@ -1639,6 +1683,24 @@ function selAction(id) {
   }
 }
 ed.selMenu = selMenu; ed.selAction = selAction;
+/*
+ * NESNEYE UZUN BASIŞ (v7.93). AutoCAD'de seçili nesnenin üstünde sağ tuş düzenleme menüsünü açar;
+ * dokunmatikte karşılığı uzun basıştır. Rozet küçüktür ve yalnız seçim varken görünür — menüye
+ * giden tek yol oysa kullanıcı nesneyi seçtikten sonra menüyü ARAMAK zorunda kalıyordu.
+ *
+ * Basılan nesne seçimin İÇİNDEYSE seçim olduğu gibi kalır: çoklu seçimde silme, taşıma, renk
+ * hepsine uygulanmalıdır — tek nesneye indirgemek AutoCAD'e de aykırıdır. Değilse nesne, grubuyla
+ * (blok, ölçülendirme, tarama) birlikte seçilir; AutoCAD'in seçili olmayan nesnede sağ tuşu da
+ * önce o nesneyi seçer. false dönerse app.js olağan bağlam listesini açar (boş tuval, 3B, not
+ * kipi, çalışan araç): orada menünün işleri anlamsızdır.
+ */
+ed.selMenuAt = (hit) => {
+  if (!hit || ed.is3D() || S.mode !== 'view' || S.notesOn) return false;
+  if (tools.running && tools.active !== 'select') return false;   // Seç dışındaki araç sürerken uzun basış aracın kendi işidir
+  if (!ed.sel.has(hit)) { ed.sel.clear(); for (const q of tools.groupOf(hit)) ed.sel.add(q); api.drawOverlay(); }
+  selMenu();
+  return true;
+};
 { const b = $('selBadge'); if (b) b.addEventListener('click', () => selMenu()); }
 
 
@@ -2381,6 +2443,13 @@ ed.gizmoMove = (sx, sy) => {
   return true;
 };
 /** commit=false ise (pointercancel) değişiklik atılır */
+/*
+ * Süren tutamak jestinin TÜRÜ: 'region' bölge seçimi sürüklemesi (Pencere / Çokgen kipi), öteki
+ * değerler seçim kutusu ya da düğüm tutamağıdır, null jest yok demektir. app.js buna bakarak
+ * tutamak üstündeki uzun basışta menüyü açar; bölge sürüklemesinde açmaz (kullanıcı bilerek kutu
+ * çiziyordur, menü onu böler).
+ */
+ed.gizmoKind = () => (selDrag ? 'region' : (giz ? String(giz.kind) : null));
 ed.gizmoUp = (commit) => {
   if (selDrag) {
     const d = selDrag; selDrag = null;

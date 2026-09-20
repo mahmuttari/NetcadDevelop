@@ -143,10 +143,45 @@ const yak = (a, b, e = 1e-6) => Math.abs(a - b) < e;
   await ev(() => window.dwgApp.editor.tools.cancel()); await page.waitForTimeout(120);
 
   await setUi({ deskRight: 'menu' }); await page.waitForTimeout(80);
-  await page.mouse.down({ button: 'right' }); await page.mouse.up({ button: 'right' });
-  await page.waitForTimeout(300);
-  ok('4b "Menü" görevinde bağlam menüsü açılır', await ev(() => { const d = document.getElementById('docPanel'); return !!(d && !d.hidden && d.querySelector('.ctx-list')); }));
-  await ev(() => { const d = document.getElementById('docPanel'); if (d) d.hidden = true; });
+  /*
+   * v7.93: sağ tuş menüsü artık AutoCAD gibi İKİ AYRI menüdür. Nesnenin üstünde düzenleme menüsü
+   * (Sil, Taşı, Döndür…), boş yerde eski bağlam listesi (koordinat kopyala, buradan ölç…). İkisi de
+   * aynı kapıdan (longPressMenu) geçer; uzun basış ve kalemin yan düğmesi de buraya iner.
+   */
+  const bosXY = await ev(() => {
+    const A = window.dwgApp, r = document.getElementById('viewport').getBoundingClientRect(), isabet = A.editor.tools.api.pick;
+    for (let gy = 0.12; gy < 0.92; gy += 0.03) for (let gx = 0.06; gx < 0.94; gx += 0.03) {
+      const sx = Math.round(r.width * gx), sy = Math.round(r.height * gy);
+      if (!isabet(A.toWorld(sx, sy))) return [sx, sy];
+    }
+    return null;
+  });
+  if (!bosXY) C.skip('4b boş yerde sağ tuş', 'görüntü alanında boş nokta yok');
+  else {
+    await page.mouse.move(r.x + bosXY[0], r.y + bosXY[1]);
+    await page.mouse.down({ button: 'right' }); await page.mouse.up({ button: 'right' });
+    await page.waitForTimeout(300);
+    ok('4b "Menü" görevinde BOŞ yerde bağlam menüsü açılır', await ev(() => { const d = document.getElementById('docPanel'); return !!(d && !d.hidden && d.querySelector('.ctx-list')); }));
+    await ev(() => { const d = document.getElementById('docPanel'); if (d) d.hidden = true; });
+  }
+  const nesneXY = await ev(() => {
+    const A = window.dwgApp, r = document.getElementById('viewport').getBoundingClientRect(), isabet = A.editor.tools.api.pick;
+    for (let gy = 0.12; gy < 0.92; gy += 0.02) for (let gx = 0.06; gx < 0.94; gx += 0.02) {
+      const sx = Math.round(r.width * gx), sy = Math.round(r.height * gy);
+      if (isabet(A.toWorld(sx, sy))) return [sx, sy];
+    }
+    return null;
+  });
+  if (!nesneXY) C.skip('4b2 nesne üstünde sağ tuş', 'görüntü alanında nesne yok');
+  else {
+    await page.mouse.move(r.x + nesneXY[0], r.y + nesneXY[1]);
+    await page.mouse.down({ button: 'right' }); await page.mouse.up({ button: 'right' });
+    await page.waitForTimeout(300);
+    const dm = await ev(() => { const d = document.getElementById('docPanel'); return { acik: !!(d && !d.hidden), grid: !!(d && d.querySelector('.sel-grid')), n: window.dwgApp.editor.sel.size }; });
+    ok('4b2 nesnenin üstünde sağ tuş DÜZENLEME menüsünü açar (nesne seçilir)', dm.acik && dm.grid && dm.n >= 1, JSON.stringify(dm));
+    await ev(() => { const d = document.getElementById('docPanel'); if (d) d.hidden = true; window.dwgApp.editor.sel.clear(); window.dwgApp.editor.tools.cancel(); });
+  }
+  await page.mouse.move(r.x + 500, r.y + 300);
 
   await setUi({ deskRight: 'none' }); await page.waitForTimeout(80);
   const a0 = await aktif();

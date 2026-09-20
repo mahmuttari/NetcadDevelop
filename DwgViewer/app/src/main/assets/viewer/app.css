@@ -587,6 +587,17 @@ body.dense-bars.glove #cmdOrtho svg.ic, body.dense-bars.glove #cmdTt svg.ic, bod
 .tb-row button.fav-mark::before { content: ""; position: absolute; top: 4px; left: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); opacity: .7; }
 .tb-row .tb-empty { color: var(--muted); font-size: calc(12px * var(--fs)); padding: 12px; align-self: center; }
 #toolbar.collapsed .tb-row { display: none; }
+/* KALICI SEÇ DÜĞMESİ (v7.93): sekme şeridinin başına YAPIŞIR, sekmeler altından kayar.
+   Zemin opak olmak ZORUNDA: .tb-tabs overflow-x:auto'dur, saydam kalsaydı kayan sekmeler
+   düğmenin altından görünürdü. Ölçüsü sekme karosuyla aynıdır (44 x 54), yani şerit büyümez. */
+.tb-pin { position: sticky; inset-inline-start: 0; z-index: 2; flex: 0 0 auto; min-width: 44px; height: 54px;
+  border: 0; border-inline-end: 1px solid var(--line); background: var(--bar); color: var(--muted);
+  padding: 4px 6px 2px; font-size: calc(11px * var(--fs)); font-weight: 600; white-space: nowrap;
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; line-height: 1.1; }
+.tb-pin svg.ic { width: 24px; height: 24px; }
+.tb-pin.active { color: var(--accent); }
+/* Eldiven kipinde sekme şeridi için kural YOKTU (bulgu): karolar 44 px'te kalıyordu. İkisi birden büyür. */
+body.glove .tb-tabs button, body.glove .tb-pin { min-width: 52px; height: 60px; }
 #toolbar .tb-tabs .tb-collapse { flex: 0 0 auto; min-width: 40px; color: var(--muted); }
 #toolbar .tb-tabs .tb-collapse svg.ic { transition: transform .18s; }
 #toolbar.collapsed .tb-tabs .tb-collapse svg.ic { transform: rotate(180deg); }
@@ -719,6 +730,8 @@ body.homemode #tour { display: none; }
   body.left-hand #toolbar { border-left: 0; border-right: 1px solid var(--line); }
   .tb-tabs { flex-direction: column; overflow-y: auto; overflow-x: hidden; width: 44px; flex: 0 0 44px; border-right: 1px solid var(--line); }
   .tb-tabs button { flex: 0 0 auto; min-width: 0; width: 44px; height: 50px; padding: 2px 0; border-bottom: 0; border-right: 2px solid transparent; flex-direction: column; gap: 2px; font-size: calc(9px * var(--fs)); font-weight: 600; }
+  .tb-pin { position: sticky; inset-inline-start: auto; top: 0; width: 44px; height: 50px; min-width: 0; padding: 2px 0; border-inline-end: 0; border-bottom: 1px solid var(--line); font-size: calc(9px * var(--fs)); }
+  body.glove .tb-tabs button, body.glove .tb-pin { min-width: 0; height: 56px; }
   .tb-tabs button.active { border-right-color: var(--accent); }
   .tb-tabs button svg.ic { width: 24px; height: 24px; }
   .tb-tabs button span { max-width: 42px; overflow: hidden; text-overflow: ellipsis; }

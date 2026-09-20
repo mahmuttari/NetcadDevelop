@@ -1022,7 +1022,28 @@ vp.addEventListener('pointerdown', (ev) => {
     }
     // Seçim tutamağı: parmak bir tutamağa indiyse jest kaydırmaya değil dönüşüme gider. "Kalem çizer, parmak gezinir"
     // kipinde de tutamak sürüklenir (açık hedef), yalnız bölge seçimi ve örtük pencere parmağa kapalı kalır.
-    if (edCall('gizmoDown', sx, sy, { handlesOnly: navOnly })) { gesture = { type: 'gizmo' }; S.gestureActive = true; return; }
+    if (edCall('gizmoDown', sx, sy, { handlesOnly: navOnly })) {
+      gesture = { type: 'gizmo', sx, sy }; S.gestureActive = true;
+      /*
+       * TUTAMAĞIN ÜSTÜNDE UZUN BASIŞ DA MENÜYÜ AÇAR. Seçim kutusunun TAŞIMA tutamağı kutunun tam
+       * ortasındadır: seçili nesnenin üstüne uzun basan kullanıcı çoğu kez oraya denk gelir ve menü
+       * hiç açılmazdı. Parmak kıpırdamadan süre dolarsa tutamak jesti İŞLENMEDEN iptal edilir
+       * (hiçbir şey taşınmaz) ve menü açılır. Bölge seçimi sürüklemesi dışarıdadır — orada kullanıcı
+       * bilerek kutu çiziyordur, menü onu bölerdi.
+       */
+      const gk = edCall('gizmoKind');
+      if (gk && gk !== 'region' && !navOnly && S.mode === 'view' && !S.notesOn && !editor.is3D()) {
+        const cx = ev.clientX, cy = ev.clientY;
+        longTimer = setTimeout(() => {
+          longTimer = 0;
+          if (!gesture || gesture.type !== 'gizmo' || pointers.size !== 1) return;
+          edCall('gizmoUp', false);
+          gesture = { type: 'pan', x0: cx, y0: cy, view: { ...S.view }, moved: false, t0: performance.now(), longFired: true };
+          haptic('long'); longPressMenu(sx, sy);
+        }, TOL.long);
+      }
+      return;
+    }
     if (zoomWin && zoomWin.pending) { zoomWin = { x0: sx, y0: sy, x1: null, y1: null }; gesture = { type: 'zoomwin', x0: sx, y0: sy }; S.gestureActive = true; return; }
     const now = performance.now();
     if (lastTapPos && now - lastTap < TOL.dbl && Math.hypot(lastTapPos[0] - sx, lastTapPos[1] - sy) < 30 && !S.notesOn) {
@@ -1031,7 +1052,14 @@ vp.addEventListener('pointerdown', (ev) => {
       lastTap = 0;
     } else {
       gesture = { type: 'pan', x0: ev.clientX, y0: ev.clientY, view: { ...S.view }, moved: false, t0: now, navOnly };
-      const canLong = !navOnly && !(editor.tools && editor.tools.running) && S.mode === 'view' && !S.notesOn && !editor.is3D();
+      /*
+       * Seç aracı sürerken de uzun basış menüsü gelir — ama yalnız NESNENİN üstünde. Boş yerde
+       * nişan büyüteci kalır: ince seçim parmakla onunla yapılır, menü orada zaten boş çıkardı.
+       * pick yalnız araç çalışıyorken hesaplanır (kısa devre), her basışta ağaç taranmaz.
+       */
+      const calisan = !!(editor.tools && editor.tools.running);
+      const canLong = !navOnly && S.mode === 'view' && !S.notesOn && !editor.is3D()
+        && (!calisan || (editor.tools.active === 'select' && !!pick(toWorld(sx, sy), TOL.pick / S.view.scale)));
       // Parmakla nişan alma: araç ya da ölçü çalışırken (menünün olmadığı yerde) uzun basış imleci parmağa bağlar
       const canAim = !canLong && !navOnly && ev.pointerType === 'touch' && ((editor.tools && editor.tools.running) || S.mode === 'measure' || S.mode === 'profile') && !S.notesOn && !editor.is3D();
       if (canLong) longTimer = setTimeout(() => { longTimer = 0; if (gesture && gesture.type === 'pan' && !gesture.moved && pointers.size === 1) { gesture.longFired = true; haptic('long'); longPressMenu(sx, sy); } }, TOL.long);
@@ -1067,6 +1095,7 @@ vp.addEventListener('pointermove', (ev) => {
   pointers.set(ev.pointerId, { ...(pointers.get(ev.pointerId) || {}), x: ev.clientX, y: ev.clientY });
   if (!gesture) return;
   if (gesture.type === 'gizmo') {
+    if (longTimer && Math.hypot(sx - gesture.sx, sy - gesture.sy) > 6) clearLong();   // parmak sürüklemeye geçti: uzun basış menüsü iptal
     edCall('gizmoMove', sx, sy);
   } else if (gesture.type === 'aim') {
     if (gesture.fine && ev.pointerId === gesture.fine.id) {
@@ -1444,6 +1473,13 @@ function longPressMenu(sx, sy) {
   const w = toWorld(sx, sy);
   const hit = pick(w, TOL.pick / S.view.scale);
   S.lastPoint = [w[0], w[1]];
+  /*
+   * NESNEDE UZUN BASIŞ / SAĞ TUŞ = DÜZENLEME MENÜSÜ (v7.93). AutoCAD'de nesnenin üstünde sağ tuş
+   * Sil, Taşı, Döndür, Kopyala… getirir; "bilgi / katmanı izole et" listesi değil. Bu kapı üç yolu
+   * birden karşılar: parmakla uzun basış, kalemin yan düğmesi ve masaüstünde sağ tuş — üçü de
+   * buraya iner. Editör menüyü alamazsa (3B, not kipi, çalışan araç) eski bağlam listesi açılır.
+   */
+  if (hit && edCall('selMenuAt', hit)) return;
   const coordTxt = fmt(w[0]) + ';' + fmt(w[1]);
   const items = hit ? [['info', tt('info', 'Bilgi')], ['zoom', t('zoomTo')], ['select', tt('selectObj', 'Seç')], ['iso', tt('isolate', 'Katmanı izole et')], ['hide', tt('hideLayer', 'Katmanı gizle')], ['copy', t('copyCoord')]]
     : [['copy', t('copyCoord')], ['measure', tt('measureFrom', 'Buradan ölç')], ['note', tt('noteHere', 'Buraya not')], ['goto', tt('gotoCoord', 'Koordinata git')]];

@@ -167,7 +167,7 @@ const box = async (x0, y0, x1, y1) => [await scr(x0, y0), await scr(x1, y1)];   
   await klik('#selBadge');
   const d = await doc();
   const kart = await ev(() => [...document.querySelectorAll('#docBody .sel-grid .os-card')].map(b => b.dataset.sm).join(','));
-  ok('13 rozete dokunmak seçim menüsünü açar: 18 kart (benzerini seç, gizle, izole et, öne getir, arkaya gönder, kes dâhil)', d.acik && /^Seçim · \d+ nesne$/.test(d.baslik) && kart === 'del,copy,move,block,rotate,mirror,scale,color,ltype,layer,props,similar,hide,iso,front,back,cut,clear', J({ d, kart }));
+  ok('13 rozete dokunmak seçim menüsünü açar: 23 kart (dizi, patlat, panoya kopyala, özellik eşle, yakınlaştır dâhil)', d.acik && /^Seçim · \d+ nesne$/.test(d.baslik) && kart === 'del,copy,move,rotate,mirror,scale,array,explode,block,copyclip,cut,color,ltype,layer,matchprop,props,zoom,similar,hide,iso,front,back,clear', J({ d, kart }));
   await shot('secim_menu');
   await klik('#docBody [data-sm="color"]');
   ok('14 Renk: renk kutusu açıldı', (await doc()).baslik === 'Renk seç');
@@ -213,7 +213,7 @@ const box = async (x0, y0, x1, y1) => [await scr(x0, y0), await scr(x1, y1)];   
   await ev((k) => { const S = window.dwgApp.state, E = window.dwgApp.editor; E.sel.add(S.prims.find(q => q.key === k)); E.selMenu(); }, P.key); await bekle();
   const en = await ev(() => ({ baslik: document.getElementById('docTitle').textContent, lbl: [...document.querySelectorAll('#docBody .sel-grid .os-card span')].map(s => s.textContent).slice(0, 4).join('|') }));
   // İngilizce arayüzde araç adı AutoCAD komut adıdır (v7.50 kuralı): ERASE, COPY, MOVE
-  ok('24 EN: "Selection · 1 objects", kart adları İngilizce (AutoCAD komut adları)', /^Selection · 1 /.test(en.baslik) && en.lbl === 'ERASE|COPY|MOVE|Make block', J(en));
+  ok('24 EN: "Selection · 1 objects", kart adları İngilizce (AutoCAD komut adları)', /^Selection · 1 /.test(en.baslik) && en.lbl === 'ERASE|COPY|MOVE|ROTATE', J(en));
   await ev(() => window.dwgApp.onBack()); await dil('tr'); await bekle();
   await ev(() => window.dwgApp.editor.act('t:select')); await bekle();
   const enBtn = await ev(() => document.querySelector('#cmdBtns [data-cmd="sellasso"]').title);
@@ -289,6 +289,143 @@ const box = async (x0, y0, x1, y1) => [await scr(x0, y0), await scr(x1, y1)];   
     if (A.editor.doc.undo()) { A.editor.rebuild(); A.render(); }
     await new Promise(r => setTimeout(r, 200));
   });
+}
+
+// ---------------------------------------------------------------------------------
+// 28 · UZUN BASIŞ DÜZENLEME MENÜSÜ (v7.93) — AutoCAD'in nesne üstündeki sağ tuş menüsü
+// ---------------------------------------------------------------------------------
+{
+  const bas = (type, x, y) => ev(([t, x, y]) => {
+    const vp = document.getElementById('viewport'), r = vp.getBoundingClientRect();
+    vp.dispatchEvent(new PointerEvent(t, { pointerId: 7, pointerType: 'touch', isPrimary: true, bubbles: true, cancelable: true, clientX: r.left + x, clientY: r.top + y, button: t === 'pointerdown' ? 0 : -1, buttons: (t === 'pointerup' || t === 'pointercancel') ? 0 : 1 }));
+  }, [type, x, y]);
+  /** Uzun basış: basılı tut, süre dolsun, açılan paneli oku, bırak */
+  const uzun = async (x, y) => {
+    await bas('pointerdown', x, y); await bekle(720);
+    const d = await doc();
+    const kart = await ev(() => [...document.querySelectorAll('#docBody .sel-grid .os-card')].map(b => b.dataset.sm).join(','));
+    const ctx = await ev(() => [...document.querySelectorAll('#docBody .ctx-list [data-ctx]')].map(b => b.dataset.ctx).join(','));
+    const n = await ev(() => window.dwgApp.editor.sel.size);
+    await bas('pointerup', x, y); await bekle(150);
+    return { ...d, kart, ctx, n };
+  };
+  const kapat = () => ev(() => { const d = document.getElementById('docPanel'); if (d) d.hidden = true; window.dwgApp.editor.sel.clear(); window.dwgApp.editor.tools.cancel(); });
+
+  await ev(() => { window.dwgApp.editor.tools.cancel(); window.dwgApp.editor.sel.clear(); window.dwgApp.editor.drawOverlay ? 0 : 0; });
+  await bekle(120);
+  const mid = await scr((P.bb[0] + P.bb[2]) / 2, (P.bb[1] + P.bb[3]) / 2);
+
+  // 28a · seçili OLMAYAN nesneye uzun basış: nesne (grubuyla) seçilir ve düzenleme menüsü açılır
+  const a = await uzun(mid[0], mid[1]);
+  ok('28a nesneye uzun basış: nesne seçilir ve DÜZENLEME menüsü açılır (bilgi listesi değil)', a.acik && /^Seçim · \d+ nesne$/.test(a.baslik) && a.kart.startsWith('del,copy,move') && a.ctx === '' && a.n >= 1, J(a));
+  await shot('secim_uzunbasis');
+
+  // 28b · ÇOKLU seçim korunur: seçimin içindeki bir nesneye uzun basmak seçimi tek nesneye indirmez
+  const cok = await ev((k) => {
+    const A = window.dwgApp, S = A.state, E = A.editor;
+    const hedef = S.prims.find(q => q.key === k);
+    const baska = S.prims.filter(q => q.k === 0 && q.key !== k && !(S.layers.get(q.lay) && S.layers.get(q.lay).locked)).slice(0, 2);
+    E.setSelection([hedef, ...baska]);
+    return E.sel.size;
+  }, P.key);
+  await bekle(150);
+  const b = await uzun(mid[0], mid[1]);
+  ok('28b seçimin İÇİNDEKİ nesneye uzun basış çoklu seçimi bozmaz', cok >= 2 && b.acik && b.n === cok && b.kart.startsWith('del,copy,move'), J({ cok, b }));
+  await kapat(); await bekle(120);
+
+  // 28c · BOŞ yerde uzun basış eskisi gibi bağlam listesidir (koordinat kopyala, buradan ölç…)
+  // Boş nokta, uygulamanın KENDİ isabet sınamasıyla aranır (kutu örtüşmesi büyük nesnelerde her yeri dolu gösterir)
+  const bosN = await ev(() => {
+    const A = window.dwgApp, r = document.getElementById('viewport').getBoundingClientRect();
+    const isabet = A.editor.tools.api.pick;
+    for (let gy = 0.12; gy < 0.92; gy += 0.03) for (let gx = 0.06; gx < 0.94; gx += 0.03) {
+      const sx = Math.round(r.width * gx), sy = Math.round(r.height * gy);
+      if (!isabet(A.toWorld(sx, sy))) return [sx, sy];
+    }
+    return null;
+  });
+  if (!bosN) C.skip('28c boş yerde uzun basış', 'görüntü alanında boş nokta bulunamadı');
+  else {
+    const c = await uzun(bosN[0], bosN[1]);
+    ok('28c boş yerde uzun basış: eski bağlam listesi (koordinat / ölç / not / git)', c.acik && c.kart === '' && c.ctx === 'copy,measure,note,goto', J({ bosN, c }));
+  }
+  await kapat(); await bekle(120);
+
+  // 28d · TUTAMAK üstünde uzun basış: taşıma tutamağı kutunun TAM ORTASINDADIR, menü yine açılmalı
+  await ev((k) => { const A = window.dwgApp; A.editor.setSelection([A.state.prims.find(q => q.key === k)]); }, P.key);
+  await bekle(160);
+  const gz = await ev(() => window.dwgApp.editor.gizmoInfo());
+  const d28 = gz ? await uzun(Math.round(gz.move[0]), Math.round(gz.move[1])) : null;
+  const yer = await ev((k) => { const p = window.dwgApp.state.prims.find(q => q.key === k); return p.bb.slice(); }, P.key);
+  ok('28d taşıma tutamağının üstünde uzun basış menüyü açar ve nesneyi KIPIRDATMAZ', !!gz && !!d28 && d28.acik && d28.kart.startsWith('del,copy,move') && Math.abs(yer[0] - P.bb[0]) < 1e-9 && Math.abs(yer[1] - P.bb[1]) < 1e-9, J({ gz, d28, yer, bb: P.bb }));
+  await kapat(); await bekle(120);
+
+  // 28e · SEÇ aracı sürerken: nesne üstünde menü, boş yerde nişan büyüteci
+  await ev(() => window.dwgApp.editor.act('t:select')); await bekle(200);
+  const e1 = await uzun(mid[0], mid[1]);
+  ok('28e Seç aracı sürerken nesne üstünde uzun basış menüyü açar', e1.acik && e1.kart.startsWith('del,copy,move'), J(e1));
+  await kapat(); await bekle(120);
+  if (bosN) {
+    await ev(() => window.dwgApp.editor.act('t:select')); await bekle(200);
+    await bas('pointerdown', bosN[0], bosN[1]); await bekle(720);
+    const nis = await ev(() => ({ h: window.dwgApp.__pickbox().hover, doc: !document.getElementById('docPanel').hidden, giz: window.dwgApp.editor.gizmoKind() }));
+    await bas('pointercancel', bosN[0], bosN[1]); await bekle(150);
+    /*
+     * Seç aracında boş yere basmak AutoCAD'in ÖRTÜK PENCERESİNİ kurar (v7.70). Uzun basış menüsü
+     * bunu bölmemelidir: menü yalnız nesnenin üstünde çıkar, boşta kutu sürüklemesi kalır.
+     */
+    ok('28f Seç aracı sürerken BOŞ yerde uzun basış menü açmaz: örtük pencere sürüklemesi bozulmaz', nis.doc === false && nis.h === null && nis.giz === 'region', J(nis));
+  } else C.skip('28f Seç aracında boş yer', 'boş nokta yok');
+  await kapat(); await bekle(120);
+}
+
+// ---------------------------------------------------------------------------------
+// 29 · Menünün yeni kartları (v7.93): Yakınlaştır, Özellik eşle, Panoya kopyala, Patlat
+// ---------------------------------------------------------------------------------
+{
+  const kapat = () => ev(() => { const d = document.getElementById('docPanel'); if (d) d.hidden = true; });
+  // Yakınlaştır: görünüm seçime oturur
+  await ev((k) => { const A = window.dwgApp; A.editor.setSelection([A.state.prims.find(q => q.key === k)]); }, P.key);
+  await ev(() => window.dwgApp.zoomExtents()); await bekle(200);
+  const v0 = await ev(() => ({ ...window.dwgApp.state.view }));
+  await ev(() => window.dwgApp.editor.selAction('zoom')); await bekle(250);
+  const v1 = await ev(() => ({ ...window.dwgApp.state.view }));
+  ok('29a Yakınlaştır: görünüm seçime oturur (ölçek büyür, merkez nesneye gider)', v1.scale > v0.scale, J({ v0, v1 }));
+
+  // Özellik eşle: seçim KAYNAK olur, araç hedef aşamasına geçer
+  await ev((k) => { const A = window.dwgApp; A.editor.setSelection([A.state.prims.find(q => q.key === k)]); }, P.key);
+  await ev(() => window.dwgApp.editor.selAction('matchprop')); await bekle(250);
+  const mp = await ev(() => { const T = window.dwgApp.editor.tools; return { active: T.active, step: T.step, src: T.src ? { key: T.src.key, layer: T.src.layer } : null, n: window.dwgApp.editor.sel.size }; });
+  ok('29b Özellik eşle: seçim kaynak alınır, araç hedef aşamasına (step 1) geçer, seçim bırakılır', mp.active === 'matchprop' && mp.step === 1 && !!mp.src && mp.src.key === P.key && mp.n === 0, J(mp));
+  await ev(() => window.dwgApp.editor.tools.cancel()); await kapat(); await bekle(120);
+
+  // Panoya kopyala: pano kaydı oluşur
+  await ev((k) => { const A = window.dwgApp; A.editor.setSelection([A.state.prims.find(q => q.key === k)]); }, P.key);
+  await ev(() => window.dwgApp.editor.selAction('copyclip')); await bekle(300);
+  const pano = await ev(async () => { const L = await import('./blocklib.js'); const St = (await import('./state.js')).store; const c = L.clipRead(St); return c && c.ents ? c.ents.length : 0; });
+  ok('29c Panoya kopyala: seçim panoya (clipboard) yazıldı', pano >= 1, J({ pano }));
+  await kapat(); await bekle(120);
+
+  // Patlat: seçimdeki blok yerleştirmesi menüden PARÇALANIR (nesne yeniden sorulmaz)
+  const blok = await ev(() => {
+    const S = window.dwgApp.state;
+    const ins = S.prims.find(p => p.info && p.info.t === 'INSERT' && p.info.h && p.k !== 4 && !(S.layers.get(p.lay) && S.layers.get(p.lay).locked));
+    if (!ins) return null;
+    const g = S.prims.filter(p => p.info && p.info.t === 'INSERT' && p.info.h === ins.info.h);
+    window.dwgApp.editor.setSelection(g);
+    return { h: ins.info.h, n: g.length, keys: g.map(p => p.key) };
+  });
+  if (!blok) C.skip('29d menüden Patlat', 'örnek çizimde blok yerleştirmesi yok');
+  else {
+    await bekle(150);
+    const log0 = await ev(() => window.dwgApp.editor.doc.log.length);
+    await ev(() => window.dwgApp.editor.selAction('explode')); await bekle(350);
+    const son = await ev((h) => { const S = window.dwgApp.state; return { kalan: S.prims.filter(p => p.info && p.info.t === 'INSERT' && p.info.h === h).length, log: window.dwgApp.editor.doc.log.length, sel: window.dwgApp.editor.sel.size, arac: window.dwgApp.editor.tools.active }; }, blok.h);
+    ok('29d menüden Patlat: nesne yeniden SORULMAZ, yerleştirme tek adımda parçalanır', son.kalan === 0 && son.log === log0 + 1 && son.sel === 0 && son.arac !== 'explode', J({ blok, son }));
+    await ev(() => { const A = window.dwgApp; if (A.editor.doc.undo()) { A.editor.rebuild(); A.render(); } });
+    await bekle(200);
+  }
+  await ev(() => { window.dwgApp.editor.sel.clear(); window.dwgApp.editor.tools.cancel(); const d = document.getElementById('docPanel'); if (d) d.hidden = true; });
 }
 
 ok('Z sayfa hatası yok', errors.length === 0, errors.join(' | ').slice(0, 300));

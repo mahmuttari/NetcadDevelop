@@ -1585,17 +1585,25 @@ export class ToolManager {
     this.c1 = null; this.draft = null; this.step = 0; this.say(); A.overlay();
   }
   /** Özellik eşle (MATCHPROP): ilk dokunuş kaynak (katman, renk, çizgi tipi), sonrakiler hedef; ölçü grubu bütün olarak alır */
+  /*
+   * KAYNAĞI DOĞRUDAN ALMA. Uzun basış menüsünden ÖZELLİK EŞLE gelince kullanıcı nesneyi zaten
+   * seçmiştir; AutoCAD'de de MATCHPROP seçimi kaynak sayar. Dokunuş yolu ile menü yolu aynı
+   * gövdeyi kullansın diye kaynak kurulumu buraya ayrıldı.
+   */
+  matchSrc(p) {
+    const A = this.api;
+    if (!p || this.active !== 'matchprop') return false;
+    this.src = { key: p.key, layer: p.lay, color: p.info && p.info.ci != null ? p.info.ci : 256, lt: p.lt || '' };
+    this.draft = p.k === 0 ? { segs: segmentsOf(p).segs.map(q => [[q[0], q[1], 0], [q[2], q[3], 0]]), keep: true } : null;
+    this.step = 1; this.say(); A.overlay();
+    A.toast(t('matchSource').replace('%s', p.lay), 1600);
+    return true;
+  }
   matchTap(w) {
     const A = this.api;
     const p = A.pick(w);
     if (!p) { A.toast(t('noObject')); return; }
-    if (this.step === 0 || !this.src) {
-      this.src = { key: p.key, layer: p.lay, color: p.info && p.info.ci != null ? p.info.ci : 256, lt: p.lt || '' };
-      this.draft = p.k === 0 ? { segs: segmentsOf(p).segs.map(q => [[q[0], q[1], 0], [q[2], q[3], 0]]), keep: true } : null;
-      this.step = 1; this.say(); A.overlay();
-      A.toast(t('matchSource').replace('%s', p.lay), 1600);
-      return;
-    }
+    if (this.step === 0 || !this.src) { this.matchSrc(p); return; }
     const keys = this.groupOf(p).map(q => q.key).filter(k => k !== this.src.key);
     if (!keys.length) return;
     if (A.run({ op: 'props', keys, layer: this.src.layer, color: this.src.color, lt: this.src.lt })) { A.render(); A.toast(t('applied') + ' · ' + keys.length, 1200); }
