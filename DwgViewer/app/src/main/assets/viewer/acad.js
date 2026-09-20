@@ -169,6 +169,8 @@ export const COMMANDS = [
   // --- görünüm
   T('ZOOM', 'extents', ['Z', 'ZE'], 'Zoom extents', { note: 'ZOOM alone goes to extents; options are typed after it: Z W (window), Z P (previous), Z E / Z A (extents), Z O (selected objects), Z 2X / Z 0.5X (scale)' }),
   T('REGEN', 'regen', ['RE'], 'Regenerate', { noRepeat: true }),
+  T('PAN', 'pan', ['P', '-PAN'], 'Pan', { noRepeat: true, note: 'a mode, not a held drag: it stays on until you tap the button again or press Esc, so dragging pans even while a tool or a selection is active. In 3D it switches one finger between orbit and pan.' }),
+  T('RTPAN', 'pan', [], 'Real-time pan', { syn: true, noRepeat: true }),
   T('REGENALL', 'regen', ['REA'], 'Regenerate all', { syn: true, noRepeat: true }),
   T('REDRAW', 'regen', ['R'], 'Redraw', { syn: true, noRepeat: true }),
   T('REDRAWALL', 'regen', ['RA'], 'Redraw all', { syn: true, noRepeat: true }),
@@ -470,8 +472,6 @@ export const COMMANDS = [
   NA('HYPERLINK', [], 'Hyperlink'),
 
   // --- görünüm ve gezinme
-  NA('PAN', ['P', '-PAN'], 'Pan', 'drag with the middle button, or with a finger'),
-  NA('RTPAN', [], 'Real-time pan', 'drag with the middle button'),
   NA('RTZOOM', [], 'Real-time zoom', 'wheel, or pinch'),
   NA('DVIEW', ['DV'], 'Dynamic view', 'use 3DORBIT'),
   NA('3DWALK', ['3DW'], '3D walk'),

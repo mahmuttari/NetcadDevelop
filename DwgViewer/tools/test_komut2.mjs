@@ -392,7 +392,7 @@ const N0 = await count();
     };
   });
   ok('9a tablo sağlıklı (dogrula boş)', Array.isArray(g.hata) && g.hata.length === 0, J(g.hata));
-  ok('9b sayılar: 508 kayıt · 220 AutoCAD · 33 özgü · 255 bulunmayan · 755 ad', g.st.total === 508 && g.st.acad === 220 && g.st.ext === 33 && g.st.known === 255 && g.st.names === 755, J(g.st));
+  ok('9b sayılar: 508 kayıt · 222 AutoCAD · 33 özgü · 253 bulunmayan · 755 ad', g.st.total === 508 && g.st.acad === 222 && g.st.ext === 33 && g.st.known === 253 && g.st.names === 755, J(g.st));
   ok('9c çizim komutları: POLYGON/POL, BOUNDARY/BO, DIVIDE/DIV, MEASURE/ME', g.POLYGON === 't:polygon' && g.POL === 't:polygon' && g.BOUNDARY === 't:boundary' && g.BO === 't:boundary' && g.DIVIDE === 't:divide' && g.DIV === 't:divide' && g.MEASURE === 't:measure' && g.ME === 't:measure', J(g));
   ok('9d düzenleme komutları: STRETCH/S, JOIN/J, MATCHPROP/MA, LENGTHEN/LEN→uzat', g.STRETCH === 't:stretch' && g.S === 't:stretch' && g.JOIN === 't:join' && g.J === 't:join' && g.MATCHPROP === 't:matchprop' && g.MA === 't:matchprop' && g.LENGTHEN === 't:extend' && g.LEN === 't:extend', J(g));
   ok('9e seçim / görünürlük: SELECTSIMILAR, QSELECT, HIDEOBJECTS, ISOLATEOBJECTS/ISOLATE, UNISOLATEOBJECTS/UNHIDE, CUTCLIP', g.SELECTSIMILAR === 'selectsimilar' && g.QSELECT === 'selectsimilar' && g.HIDEOBJECTS === 'hideobj' && g.ISOLATEOBJECTS === 'isoobj' && g.ISOLATE === 'isoobj' && g.UNISOLATEOBJECTS === 'unisoobj' && g.UNHIDE === 'unisoobj' && g.CUTCLIP === 'cutclip', J(g));

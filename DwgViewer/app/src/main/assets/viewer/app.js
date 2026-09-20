@@ -282,6 +282,38 @@ function alanSec(cb, o = {}) {
   return true;
 }
 function zoomWindow() { alanSec(null); }
+/*
+ * KAYDIR (PAN) — AutoCAD'in PAN komutu (kısaltması P), dokunmatikte asıl karşılığı olan düğme.
+ * Parmak zaten boşlukta sürükleyince kaydırır; kip şunun için vardır: bir ARAÇ ya da SEÇİM
+ * sürerken sürükleme artık kaydırmaz (tutamak taşır, örtük pencere açılır, not çizer). Kip
+ * açıkken sürükleme yeniden YALNIZ görünümü kaydırır, bırakışta seçim de yapılmaz; AutoCAD'in
+ * saydam PAN'ı gibi, kullanıcı kapatana dek (düğme, karo ya da Esc) sürer.
+ * 3B'de kip yoktur: orada tek parmağın işi zaten bir ayardır (view3d touch.oneFinger), düğme
+ * onu döndür ↔ kaydır arasında çevirir ve ayar kalıcıdır.
+ */
+function panOn() {
+  if (editor.is3D()) { const v = edCall('view3d'); return !!(v && v.opts && v.opts.touch && v.opts.touch.oneFinger === 'pan'); }
+  return !!S.panMode;
+}
+function togglePan(on) {
+  const hedef = on === undefined || on === null ? !panOn() : !!on;
+  if (editor.is3D()) {
+    const v = edCall('view3d');
+    if (!v) return false;
+    v.set('touch.oneFinger', hedef ? 'pan' : 'orbit');
+    toast(hedef ? tt('panOn3', 'Kaydır: tek parmak görünümü kaydırır') : tt('panOff3', 'Döndür: tek parmak görünümü döndürür'), 2000);
+  } else {
+    if (!S.hasDoc) { toast(t('openFirst')); return false; }
+    if (hedef === S.panMode) return hedef;
+    // İki kip de aynı sürüklemeyi ister: pencere seçimi açıkken kaydırmaya geçilmez.
+    if (hedef && zoomWin) cancelZoomWindow();
+    S.panMode = hedef;
+    toast(hedef ? tt('panOnMsg', 'Kaydır açık: sürükleyin. Kapatmak için düğmeye yeniden dokunun (Esc).') : tt('panOffMsg', 'Kaydır kapalı'), 2200);
+  }
+  haptic('toggle');
+  edCall('refreshTiles'); refreshNav(); drawOverlay();
+  return hedef;
+}
 function cancelZoomWindow() {
   if (!zoomWin) return false;
   zoomWin = null;
@@ -1020,6 +1052,9 @@ vp.addEventListener('pointerdown', (ev) => {
       zoomWin = { x0: sx, y0: sy, x1: null, y1: null, cb: zoomWin.cb, iptal: zoomWin.iptal };
       gesture = { type: 'zoomwin', x0: sx, y0: sy }; S.gestureActive = true; return;
     }
+    // KAYDIR KİPİ, kalem / parmak / fare ayrımından ÖNCE: kip açıkken hiçbir araç, tutamak,
+    // not ya da silgi dokunuşu almaz — sürükleme kaydırır, bırakış seçmez (navOnly).
+    if (S.panMode) { gesture = { type: 'pan', x0: ev.clientX, y0: ev.clientY, view: { ...S.view }, moved: false, t0: performance.now(), navOnly: true }; return; }
     // "Kalem çizer, parmak gezinir": açıkken parmak yalnız kaydırır ve yakınlaştırır. Çizim,
     // seçim ve tutamak yalnız kalemin işidir; masaüstü CAD'deki fare/klavye ayrımının karşılığı.
     const navOnly = penNavOnly() && ev.pointerType === 'touch';
@@ -4693,7 +4728,7 @@ async function setScene(scene, name, size, rep) {
   { const sub = $('fileSub'); if (sub) sub.textContent = [S.entityCount + ' ' + t('entity'), S.units || null, S.version || null].filter(Boolean).join(' · '); }
   document.body.classList.add('hasdoc');
   $('gpsBtn').hidden = false;
-  S.isoBackup = null; S.lastPoint = null; S.gotoMarker = null; S.layerPalette.clear();
+  S.isoBackup = null; S.lastPoint = null; S.gotoMarker = null; S.layerPalette.clear(); S.panMode = false;   // kaydır kipi dosyayla birlikte sıfırlanır
   viewHistory.reset();
   applyGeo();
   loadNotes(S.fileKey);
@@ -4823,6 +4858,7 @@ function onBack() {
   if (S.gotoMarker) { S.gotoMarker = null; drawOverlay(); return true; }
   const open = openPanels();
   if (open.length) { for (const id of open) hide(id); dockLayers(); if (S.mode !== 'view') setMode('view'); return true; }
+  if (S.panMode) { togglePan(false); return true; }   // kaydır kipi araç iptalinden önce, panellerden sonra kapanır
   if (editorBack()) return true;
   if (S.notesOn) { toggleNotes(false); return true; }
   if (S.mode !== 'view') { setMode('view'); return true; }
@@ -4874,6 +4910,7 @@ window.dwgApp = { osnap: Osnap, paylasGorunum, gorunumPng, loadCurrent, onFilePi
   // PDF'te basılacak dünya dikdörtgeni (bkz. tools/test_pdf_plot.mjs): kapsam seçiminin
   // kâğıt oranına nasıl oturduğu dosya üretmeden denetlenebilsin
   __pdfAlan: (o, gmm, ymm) => pdfAlani(o, false, gmm, ymm),
+  __pan: (on) => (on === undefined ? panOn() : togglePan(on)),
   // İmleç ve yakalama durumu (bkz. tools/test_pickbox.mjs): nesne istemi mi, kare kaç piksel,
   // o noktada yakalama ne buluyor (nesne isteminde null olmalıdır)
   __pickbox: () => ({ on: pickingObject(), r: pickBoxR(), tol: TOL.pick, hover: penHover ? { sx: penHover.sx, sy: penHover.sy, fx: penHover.fx == null ? null : penHover.fx, fy: penHover.fy == null ? null : penHover.fy, ofs: penHover.ofs ? penHover.ofs.slice() : null, aim: !!penHover.aim, snap: penHover.snap ? penHover.snap.kind : null } : null, loupe: penHover && penHover.aim ? loupeGeom(penHover) : null }),
@@ -4904,11 +4941,11 @@ window.dwgApp = { osnap: Osnap, paylasGorunum, gorunumPng, loadCurrent, onFilePi
   action: (a) => menuAction(a) };
 ensureStatusChips();
 Ed.initEdition({ toast, rebuildToolbar: () => editor.rebuild(), refreshMenu });   // Ücretsiz / Pro: menü, karşılama kartı, Pro paneli, Drive düğmeleri; reklam zamanlayıcısı; onEdition → şerit yeniden kurulur
-D.initDisplay({ requestRender, drawOverlay, toast, openDoc, show, hide, buildLayerList, settings, saveSettings, editorTheme, zoomExtents, zoomBy, fitPrims, viewHistory, setLayout, editor, ui: uiPrefs(), basemaps: BASEMAPS, haptic, paylasGorunum });
+D.initDisplay({ requestRender, drawOverlay, toast, openDoc, show, hide, buildLayerList, settings, saveSettings, editorTheme, zoomExtents, zoomBy, fitPrims, viewHistory, setLayout, editor, ui: uiPrefs(), basemaps: BASEMAPS, haptic, paylasGorunum, togglePan, panOn });
 mountNavFabs(vp);
 initEditor({ S, requestRender, drawOverlay, toast, noFaces: showNoFaces, pick: (w) => pick(w, TOL.pick / S.view.scale), snap: doSnap, snapPeek: findSnap, fromBase, trackClear, hideObjects, showAllObjects, primVisible, osnap: Osnap, xclip: xrefClip, showInfo, openDoc, hide, show, esc, kv, copyText, buildLayerList, fmt, store, RTree, baseName, zoomExtents, tracePath, worldTransform, strokeWorldRect, worldOrigin,
   action: (a) => { if (a === 'layers') $('btnLayers').click(); else if (a === 'search') $('btnSearch').click(); else if (a === 'more') $('btnMore').click(); else if (a === 'open') Open.open(); else if (a === 'new') showNewDoc(); else menuAction(a); },
-  savePng, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, isolateLayers, unisolate, settings, saveSettings, stamp, haptic, openDisplayOptions, setDisplay, getDisplay, toggleDisplay, display: D });
+  savePng, zoomBy, zoomWindow, togglePan, panOn, viewHistory, gotoCoord, fitPrims, isolateLayers, unisolate, settings, saveSettings, stamp, haptic, openDisplayOptions, setDisplay, getDisplay, toggleDisplay, display: D });
 $('stScale').addEventListener('click', showScalePicker);
 // belgeler (PDF / Word / ZIP / RAR) ve Google Drive
 Docs.initDocs({ toast, loadBytes, openDoc, hide, show, esc, kv, goHome, driveAvailable: () => Drive.signedIn(), driveUpload: (d) => { if (d && d.id) Drive.uploadWithPicker({ fileId: d.id, name: d.name, mime: 'application/octet-stream' }); }, driveConvert: (d) => Drive.convertToPdf(d),

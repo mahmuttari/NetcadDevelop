@@ -41,6 +41,10 @@ export const S = {
   basemap: { id: 'none', url: '', opacity: 0.8, wms: '' },
   prec: 3, precPad: false,       // ölçü ve koordinat okumalarında ondalık basamak sayısı ve son sıfır yazımı
   lastRenderMs: 0, cacheValid: false, cacheView: null, gestureActive: false,
+  // KAYDIR (PAN) KİPİ — AutoCAD'in PAN komutu. Açıkken tek parmak / fare sürüklemesi yalnız
+  // görünümü kaydırır; seçim, tutamak, çizim ve örtük pencere o sürüklemeyi hiç görmez.
+  // Oturumluktur, kaydedilmez; dosya kapanınca da kapanır.
+  panMode: false,
 };
 
 // Türetilmiş alanlar: eski okuyucular (S.dark / S.showText / S.mono) çalışmaya devam eder, yazmak da mümkündür.

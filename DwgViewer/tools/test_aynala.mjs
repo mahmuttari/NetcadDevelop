@@ -132,7 +132,7 @@ await zoom([0, 0, 800, 600]);
   await dugme('cancel');
   await dil('tr'); await bekle(150);
   const a = await ev(async () => { const A = await import('./acad.js'); return { mi: A.resolve('MI').note, st: A.stats() }; });
-  ok('5b komut tablosu: MIRROR notu düğmeyi söyler; sayılar değişmedi (508 / 220 / 755)', /Keep original/.test(a.mi || '') && /Erase source/.test(a.mi || '') && a.st.total === 508 && a.st.acad === 220 && a.st.names === 755, J(a));   // v7.81: 3DROTATE, 3DSCALE, MIRROR3D, 3DLINE, 3DOSNAP · v7.89: WHATSAPP ve SHARE (ikisi de ext, acad sayısı DEĞİŞMEZ — AutoCAD'de karşılıkları yok)
+  ok('5b komut tablosu: MIRROR notu düğmeyi söyler; sayılar değişmedi (508 / 222 / 755)', /Keep original/.test(a.mi || '') && /Erase source/.test(a.mi || '') && a.st.total === 508 && a.st.acad === 222 && a.st.names === 755, J(a));   // v7.81: 3DROTATE, 3DSCALE, MIRROR3D, 3DLINE, 3DOSNAP · v7.89: WHATSAPP ve SHARE (ikisi de ext, acad sayısı DEĞİŞMEZ — AutoCAD'de karşılıkları yok) · v7.96: PAN ve RTPAN bulunmayandan çalışana geçti (acad 220 → 222, bulunmayan 255 → 253)
   const dil15 = await ev(async () => { const I = await import('./i18n.js'); const out = { tr: I.TR.mirrorKeepBtn, en: I.EN.mirrorKeepBtn }; for (const l of ['ar', 'de', 'es', 'fr', 'hi', 'id', 'it', 'ja', 'ko', 'pt', 'ru', 'vi', 'zh']) { const M = await import(`./lang/${l}.js`); out[l] = M.default.mirrorKeepBtn; } return out; });
   ok('5c "Orijinal kalsın" 15 dilde de var', Object.values(dil15).every(v => typeof v === 'string' && v.length > 0) && Object.keys(dil15).length === 15, J(dil15));
 }

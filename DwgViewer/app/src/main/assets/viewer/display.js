@@ -491,6 +491,7 @@ export function mountNavFabs(viewportEl) {
     navEl.innerHTML = `<button type="button" class="fab send" data-nav="send" aria-label="${tt('waShare', "WhatsApp'a gönder")}" title="${tt('waShare', "WhatsApp'a gönder")}">${icon('i-send-chat', '↗')}</button>` +
       `<button type="button" class="fab" data-nav="in" aria-label="${tt('zoomIn', 'Yakınlaştır')}" title="${tt('zoomIn', 'Yakınlaştır')}">${icon('i-zoom-in', '+')}</button>` +
       `<button type="button" class="fab" data-nav="out" aria-label="${tt('zoomOut', 'Uzaklaştır')}" title="${tt('zoomOut', 'Uzaklaştır')}">${icon('i-zoom-out', '−')}</button>` +
+      `<button type="button" class="fab" data-nav="pan" aria-pressed="false" aria-label="${tt('tl_pan', 'Kaydır')}" title="${tt('tl_pan', 'Kaydır')}">${icon('i-hand', '✋')}</button>` +
       `<button type="button" class="fab" data-nav="fit" aria-label="${t('fit')}" title="${t('fit')}">${icon('i-fit', '⌂')}</button>` +
       `<button type="button" class="fab" data-nav="prev" aria-label="${tt('prevView', 'Önceki görünüm')}" title="${tt('prevView', 'Önceki görünüm')}" disabled>${icon('i-prev', '↶')}</button>`;
     vp.appendChild(navEl);
@@ -514,6 +515,8 @@ function refreshNav() {
   let canBack = false;
   try { const v = v3(); if (v) canBack = typeof v.canHistoryBack === 'function' ? v.canHistoryBack() : false; else canBack = ctx.viewHistory ? ctx.viewHistory.canBack() : S.viewHist.i > 0; } catch (_) { canBack = false; }
   const prev = navEl.querySelector('[data-nav="prev"]'); if (prev) prev.disabled = !canBack;
+  const pan = navEl.querySelector('[data-nav="pan"]');
+  if (pan) { const on = !!call(ctx.panOn); pan.classList.toggle('on', on); pan.setAttribute('aria-pressed', String(on)); pan.disabled = !S.hasDoc && !v3(); }
   if (dpadEl) {
     let uiDpad = false; try { uiDpad = !!(ctx.ui && (ctx.ui.dpad || ctx.ui.glove)); } catch (_) { uiDpad = false; }
     dpadEl.hidden = !(S.ui2d.dpad || uiDpad) || !S.hasDoc;
@@ -556,6 +559,8 @@ function bindNav(el) {
   if (gonder) hold(gonder, () => call(ctx.paylasGorunum, 'com.whatsapp', 'WhatsApp'), null, 0, () => call(ctx.paylasGorunum, '', ''), 500);
   hold(el.querySelector('[data-nav="in"]'), () => zoom2(1.5), () => zoom2(1.03), 80);
   hold(el.querySelector('[data-nav="out"]'), () => zoom2(1 / 1.5), () => zoom2(1 / 1.03), 80);
+  // Kaydır: ekrandan da açılıp kapanır — araç ya da seçim sürerken şeride gitmeden kaydırmak için
+  hold(el.querySelector('[data-nav="pan"]'), () => { call(ctx.togglePan); refreshNav(); });
   hold(el.querySelector('[data-nav="fit"]'), () => { const v = v3(); if (v) { v.fit(); render3D(); } else call(ctx.zoomExtents); }, null, 0,
     () => { const v = v3(); if (v) { v.fit(); render3D(); return; } if (!gotoHome()) call(ctx.zoomExtents); }, 500,
     () => { let sel = []; try { sel = ctx.editor && ctx.editor.sel ? [...ctx.editor.sel] : []; } catch (_) { sel = []; } if (!sel.length && S.selected) sel = [S.selected]; if (!call(ctx.fitPrims, sel)) call(ctx.zoomExtents); });

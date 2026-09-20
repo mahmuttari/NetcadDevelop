@@ -310,7 +310,7 @@ await page.click('#toolbar [data-tab="edit"]');
   await dil('tr'); await page.waitForTimeout(150);
   await dugme('cancel');
   const a = await ev(async () => { const A = await import('./acad.js'); return { o: A.resolve('O').note, tr: A.resolve('TR').note, ex: A.resolve('EX').note, f: A.resolve('F').note, cha: A.resolve('CHA').note, len: A.resolve('LEN').note, st: A.stats() }; });
-  ok('11b komut tablosu: beş komutun notu Ekran / Ölçü sorusunu söyler, LENGTHEN notu Ölçü kipine yönlendirir; sayılar değişmedi', [a.o, a.tr, a.ex, a.f, a.cha].every(n => /Screen or Measure/.test(n || '')) && /Measure mode/.test(a.len || '') && a.st.total === 508 && a.st.acad === 220 && a.st.names === 755, J(a));
+  ok('11b komut tablosu: beş komutun notu Ekran / Ölçü sorusunu söyler, LENGTHEN notu Ölçü kipine yönlendirir; sayılar değişmedi', [a.o, a.tr, a.ex, a.f, a.cha].every(n => /Screen or Measure/.test(n || '')) && /Measure mode/.test(a.len || '') && a.st.total === 508 && a.st.acad === 222 && a.st.names === 755, J(a));
 }
 
 await page.screenshot({ path: `${out}/kip.png` });
