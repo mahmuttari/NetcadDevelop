@@ -4000,7 +4000,9 @@ function showPdf() {
   $('pPick').onclick = () => {
     pdfAyarOku();
     hide('docPanel');
-    alanSec((bb) => { pdfWin = bb; pdfAyar.area = 'win'; showPdf(); }, { ipucu: t('pdfPickHint'), iptal: () => showPdf() });
+    const basladi = alanSec((bb) => { pdfWin = bb; pdfAyar.area = 'win'; showPdf(); },
+      { ipucu: t('pdfPickHint'), iptal: () => showPdf() });
+    if (!basladi) showPdf();   // seçim başlamadıysa (3B görünüm, çalışan araç) kutu geri gelir
   };
   $('pGo').onclick = () => {
     pdfAyarOku();
@@ -4046,7 +4048,7 @@ function pdfAlani(o, all, cizimGmm, cizimYmm) {
     const ww = (cizimGmm / 1000) * olcek / S.unitToM, hh = (cizimYmm / 1000) * olcek / S.unitToM;
     return { bb: [cx - ww / 2, cy - hh / 2, cx + ww / 2, cy + hh / 2], sayfaOlcek: olcek };
   }
-  if (all || o.area !== 'view') { const m = Math.max(vr[2] - vr[0], vr[3] - vr[1]) * 0.03 || 1; vr = [vr[0] - m, vr[1] - m, vr[2] + m, vr[3] + m]; }
+  if (all || o.area === 'ext') { const m = Math.max(vr[2] - vr[0], vr[3] - vr[1]) * 0.03 || 1; vr = [vr[0] - m, vr[1] - m, vr[2] + m, vr[3] + m]; }
   const ar = cizimGmm / cizimYmm, vw = Math.max(vr[2] - vr[0], 1e-9), vh = Math.max(vr[3] - vr[1], 1e-9);
   const c2x = (vr[0] + vr[2]) / 2, c2y = (vr[1] + vr[3]) / 2;
   let bb;
@@ -4869,6 +4871,9 @@ window.dwgApp = { osnap: Osnap, paylasGorunum, gorunumPng, loadCurrent, onFilePi
     toast('GPS: ' + m, perm && openSet ? { ms: 8000, action: { label: tt('settings', 'Ayarlar'), fn: openSet } } : undefined); },
   // sınama tutamağı: aşamalı açılış görselini gerçek dosya açmadan yüzde yüzde sürer
   __cadLoad: (pct, file) => setLoadingCad(pct, file), setLoading, cancelLoading,
+  // PDF'te basılacak dünya dikdörtgeni (bkz. tools/test_pdf_plot.mjs): kapsam seçiminin
+  // kâğıt oranına nasıl oturduğu dosya üretmeden denetlenebilsin
+  __pdfAlan: (o, gmm, ymm) => pdfAlani(o, false, gmm, ymm),
   // İmleç ve yakalama durumu (bkz. tools/test_pickbox.mjs): nesne istemi mi, kare kaç piksel,
   // o noktada yakalama ne buluyor (nesne isteminde null olmalıdır)
   __pickbox: () => ({ on: pickingObject(), r: pickBoxR(), tol: TOL.pick, hover: penHover ? { sx: penHover.sx, sy: penHover.sy, fx: penHover.fx == null ? null : penHover.fx, fy: penHover.fy == null ? null : penHover.fy, ofs: penHover.ofs ? penHover.ofs.slice() : null, aim: !!penHover.aim, snap: penHover.snap ? penHover.snap.kind : null } : null, loupe: penHover && penHover.aim ? loupeGeom(penHover) : null }),

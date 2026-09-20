@@ -175,6 +175,26 @@ await kutuAc();
   ok('4f pencere dünya dikdörtgeni doğru köşelerden kuruldu (sol alt / sağ üst)', secilen[2] > secilen[0] && secilen[3] > secilen[1], JSON.stringify(secilen.map(v => Math.round(v))));
 }
 
+/* ---------- 4b. Elle seçilen pencereye pay eklenmez ---------- */
+{
+  const r = await ev(() => {
+    const A = window.dwgApp;
+    const pencere = [1000, 2000, 5000, 4000];              // 4000 × 2000 dünya birimi
+    const win = A.__pdfAlan({ area: 'win', win: pencere, scale: '' }, 400, 200);   // kâğıt oranı 2:1, pencere de 2:1
+    const ext = A.__pdfAlan({ area: 'ext', scale: '' }, 400, 200);
+    const genis = A.__pdfAlan({ area: 'win', win: [0, 0, 1000, 100], scale: '' }, 400, 200);  // pencere 10:1, kâğıt 2:1
+    return { win: win.bb, ext: ext.bb, genis: genis.bb, sinir: A.state.ext };
+  });
+  ok('4g kâğıt oranına eşit pencere BİREBİR basılır (pay eklenmez)',
+    r.win.every((v, i) => Math.abs(v - [1000, 2000, 5000, 4000][i]) < 1e-6), JSON.stringify(r.win));
+  ok('4h pencere kâğıttan genişse yalnız kısa kenar büyür, uzun kenar korunur',
+    Math.abs(r.genis[0] - 0) < 1e-6 && Math.abs(r.genis[2] - 1000) < 1e-6 && (r.genis[3] - r.genis[1]) > 400,
+    JSON.stringify(r.genis.map(v => Math.round(v))));
+  ok('4i çizim sınırlarında ise küçük bir pay bırakılır (nesneler kenara yapışmasın)',
+    r.sinir && (r.ext[0] < r.sinir[0] - 1e-9) && (r.ext[2] > r.sinir[2] - 1e-9),
+    JSON.stringify([r.ext[0], r.sinir[0]].map(v => Math.round(v))));
+}
+
 /* ---------- 5. Raster kip hâlâ çalışıyor ---------- */
 {
   await kutuAc();
