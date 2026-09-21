@@ -154,8 +154,14 @@ const MESH_PICK_V = 8;   // ağ gövdesi başına yakalama/seçim için örnekle
 const FAST_MESH_IDX = 2000000, FAST_FRAME_MS = 45, FAST_GAP_MS = 350, FAST_SETTLE_MS = 220;
 
 const PRESET_ANGLES = {
-  top: { yaw: -Math.PI / 2, pitch: Math.PI / 2 - 1e-3 },
-  bottom: { yaw: -Math.PI / 2, pitch: -Math.PI / 2 + 1e-3 },
+  /*
+   * ÜST VE ALT TAM DİK BAKIŞTIR. Eğim TAM 90° yapılamaz: lookAt'in yukarı vektörü (0,0,1)
+   * bakış doğrultusuyla çakışır ve taban kurulamaz. 1e-6'lık pay bunu önler; eski 1e-3'lük
+   * pay 200 m'lik bir yapının tepesini planda 20 cm yana kaydırıyordu, 1e-6 ile bu 0,2 mm'ye
+   * iner — plan çizimi için ölçülemez.
+   */
+  top: { yaw: -Math.PI / 2, pitch: Math.PI / 2 - 1e-6 },
+  bottom: { yaw: -Math.PI / 2, pitch: -Math.PI / 2 + 1e-6 },
   front: { yaw: -Math.PI / 2, pitch: 0.001 },
   back: { yaw: Math.PI / 2, pitch: 0.001 },
   left: { yaw: Math.PI, pitch: 0.001 },
@@ -768,6 +774,19 @@ export class View3D {
   preset(name, { animate = true } = {}) {
     const a = PRESET_ANGLES[name] || PRESET_ANGLES.iso;
     this.pushHistory();
+    /*
+     * PLAN GÖRÜNÜŞÜ SONSUZ YÜKSEKLİKTENDİR (v8.3). Paralel izdüşümde göz yüksekliğinin
+     * görüntüye hiçbir etkisi yoktur: bakış sonsuzdan gelir, model ne kadar yüksek olursa
+     * olsun tepeden görünür, düşey kenarlar nokta olur ve ölçü her yerde aynı ölçekte kalır —
+     * harita planının tanımı budur. Perspektifte bu mümkün değildir: göz sonlu bir yükseklikte
+     * durur, yüksek yapılar dışa yatar ve kullanıcı yakınlaşmışsa göz modelin İÇİNDE kalır.
+     * Bu yüzden üst/alt görünüşe geçerken izdüşüm paralele alınır; durum çubuğunda yazar ve
+     * kullanıcı isterse perspektifi yeniden açar.
+     */
+    if ((name === 'top' || name === 'bottom') && this.cam.persp) {
+      this.cam.persp = false; this._persist();
+      this._emit('persp', false); this._emit('planOrtho', name);
+    }
     this._goto({ yaw: a.yaw, pitch: a.pitch }, animate);
     this.pushHistory();
   }
@@ -855,11 +874,38 @@ export class View3D {
     const near = Math.max(this.radius * 1e-6, c.dist * 0.002), far = c.dist * 10 + this.radius * 10;
     const fov = clamp(this.opts.fov, 10, 120) * Math.PI / 180;
     const hh = c.dist * Math.tan(fov / 2);
-    // paralel: derinlik aralığı modele sığacak kadar (göz ± uzaklık + 2,5 yarıçap); eski 20 x uzaklık aralığı 16 bit derinlik
-    // tamponlu cihazlarda siluet kabuğu ile yüzleri aynı derinlik basamağına düşürüp dik yüzleri karartıyordu
-    const ofar = c.dist + this.radius * 2.5;
-    const proj = c.persp ? perspective(fov, aspect, near, far) : ortho(-hh * aspect, hh * aspect, -hh, hh, -ofar, ofar);
+    // paralel: derinlik aralığı KUTUNUN kendisinden hesaplanır (bkz. _orthoAralik)
+    const oa = c.persp ? null : this._orthoAralik(eye, tgt);
+    const proj = c.persp ? perspective(fov, aspect, near, far) : ortho(-hh * aspect, hh * aspect, -hh, hh, oa[0], oa[1]);
     return mul4(proj, view);
+  }
+  /*
+   * PARALEL İZDÜŞÜMÜN DERİNLİK ARALIĞI (v8.3). Eskiden sabitti: göz ± (uzaklık + 2,5 yarıçap).
+   * O sabit modelin ÖLÇEKLİ yüksekliğini hesaba katmıyordu; düşey abartı (Z×) 2,5'in üstüne
+   * çıkınca ya da hedef modelin dışına kayınca ÜSTTEN BAKIŞTA MODELİN ALTI KIRPILIYORDU —
+   * kullanıcı "model ne kadar yüksek olursa olsun en tepeden görünmeli" derken tam bunu
+   * kastediyor. Artık sınır kutusunun sekiz köşesi bakış doğrultusuna izdüşürülür ve aralık
+   * oradan kurulur: ne eksik kalır (kırpma olmaz) ne de gereksiz genişler — geniş aralık
+   * 16/24 bit derinlik tamponunda z-savaşı doğurur ve siluet kabuğunu yüzlere karıştırır.
+   * Yarıçapın yüzde biri en küçük yarı aralıktır: bakış doğrultusunda kalınlığı sıfır olan
+   * bir model (plandaki düz pafta) derinliği sıfır bir hacme sıkışmasın.
+   */
+  _orthoAralik(eye, tgt) {
+    const bb = this.bb;
+    if (!bb) { const r = this.radius * 2.5; return [-r, r]; }
+    let fx = tgt[0] - eye[0], fy = tgt[1] - eye[1], fz = tgt[2] - eye[2];
+    const L = Math.hypot(fx, fy, fz) || 1; fx /= L; fy /= L; fz /= L;
+    const zs = this.zScale;
+    let lo = Infinity, hi = -Infinity;
+    for (let i = 0; i < 8; i++) {
+      const x = (i & 1 ? bb[3] : bb[0]) - eye[0], y = (i & 2 ? bb[4] : bb[1]) - eye[1], z = (i & 4 ? bb[5] : bb[2]) * zs - eye[2];
+      const t = x * fx + y * fy + z * fz;
+      if (t < lo) lo = t;
+      if (t > hi) hi = t;
+    }
+    if (!isFinite(lo) || !isFinite(hi)) { const r = this.radius * 2.5; return [-r, r]; }
+    const orta = (lo + hi) / 2, yari = Math.max((hi - lo) / 2 * 1.02, this.radius * 0.01, 1e-6);
+    return [orta - yari, orta + yari];
   }
   /** hedef uzaklığında bir CSS pikselinin dünya birimi karşılığı (paralelde tam, perspektifte hedef düzleminde) */
   _worldPerPixel(c) {

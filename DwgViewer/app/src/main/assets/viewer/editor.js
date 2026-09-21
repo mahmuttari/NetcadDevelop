@@ -283,7 +283,7 @@ export function initEditor(a) {
   bindSideTabs();
   D.setRender3d((body) => v3 ? openView3DOptions(v3, body, host3()) : null);
   window.addEventListener('dwg:display', () => { refreshTiles(); syncQuick(); });
-  window.addEventListener('dwg:view3d', (ev) => { refreshTiles(); if (ev.detail && ['cube', 'hud', 'hudPos'].includes(ev.detail.key)) syncCube(); if (ev.detail && ev.detail.key === 'context') ctx3Olay(ev.detail.value); statusMode3D(); });
+  window.addEventListener('dwg:view3d', (ev) => { refreshTiles(); if (ev.detail && ['cube', 'hud', 'hudPos'].includes(ev.detail.key)) syncCube(); if (ev.detail && ev.detail.key === 'context') ctx3Olay(ev.detail.value); if (ev.detail && ev.detail.key === 'planOrtho') api.toast(tt('planOrthoMsg', 'Plan görünüşü sonsuz yükseklikten bakar: izdüşüm paralele alındı.'), 3000); statusMode3D(); });
   window.addEventListener('dwg:viewhist', () => refreshTiles());
   landscapeMq.addEventListener('change', () => { applyCollapse(); closePop(); });
   wideMq.addEventListener('change', () => dockDisplay());
