@@ -45,6 +45,9 @@ export const S = {
   // görünümü kaydırır; seçim, tutamak, çizim ve örtük pencere o sürüklemeyi hiç görmez.
   // Oturumluktur, kaydedilmez; dosya kapanınca da kapanır.
   panMode: false,
+  // ÇIKTI RENGİ EŞLEMESİ (AutoCAD çizim stili / .ctb karşılığı). Yalnız kâğıda basarken ve
+  // PDF önizlemesinde kurulur, ekranda hep null'dur: { mod:'gri'|'tablo', tablo:{...} }
+  plot: null,
 };
 
 // Türetilmiş alanlar: eski okuyucular (S.dark / S.showText / S.mono) çalışmaya devam eder, yazmak da mümkündür.

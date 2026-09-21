@@ -481,6 +481,51 @@ await kutuAc();
     mr.size > 0 && [...mr].every(v => /^(0 0 0|1 1 1) (RG|rg)$/.test(v)) && [...mr].some(v => /^0 0 0/.test(v)),
     [...mr].join(' | ').slice(0, 80));
   await ev(() => { window.dwgApp.state.colorMode = 'entity'; window.dwgApp.requestRender(); });
+
+  /* --- 6e. GRİ TONLAMA (AutoCAD "Grayscale") --- */
+  await kutuAc();
+  await page.selectOption('#pColor', 'gri');
+  await page.waitForTimeout(80);
+  const gri = icerikCoz(await uret());
+  const gr = new Set((gri.match(/^[\d.]+ [\d.]+ [\d.]+ (?:RG|rg)$/gm) || []));
+  const notr = [...gr].every(v => { const [r, g, b] = v.split(' ').map(Number); return Math.abs(r - g) < 0.004 && Math.abs(g - b) < 0.004; });
+  ok('6e "Gri tonlama" seçilince kâğıtta renk kalmaz, yalnız gri tonlar (r = g = b)',
+    gr.size > 0 && notr && [...gr].some(v => !/^(0 0 0|1 1 1)/.test(v)), [...gr].join(' | ').slice(0, 90));
+
+  /* --- 6f. RENK TABLOSU (renge bağlı çizim stili, .ctb) --- */
+  const kullanilan = await ev(() => window.dwgApp.__pdfCtb());
+  ok('6f çizimde kullanılan renkler ACI numarasıyla listeleniyor (tablo satırları)',
+    kullanilan.renkler.length > 0 && kullanilan.renkler.every(r => /^(\d{1,3}|#[0-9a-f]{6})$/.test(r.k)) && kullanilan.renkler.every(r => r.n > 0),
+    JSON.stringify(kullanilan.renkler.slice(0, 4)));
+  // eşlemenin kendisi: ACI 1 (kırmızı) ve gri dönüşümü
+  const esle = await ev(() => {
+    const A = window.dwgApp;
+    return { kirmizi: A.__plotRgb(0xff0000, { mod: 'tablo', tablo: { 1: '#0000ff' } }),
+      eslenmeyen: A.__plotRgb(0x00ff00, { mod: 'tablo', tablo: { 1: '#0000ff' } }),
+      gri: A.__plotRgb(0xff0000, { mod: 'gri' }), beyazGri: A.__plotRgb(0xffffff, { mod: 'gri' }) };
+  });
+  ok('6g eşleme kuralı: tabloda olan renk çevrilir, olmayan KENDİ rengiyle basılır (AutoCAD "use object color")',
+    esle.kirmizi === 0x0000ff && esle.eslenmeyen === 0x00ff00, JSON.stringify({ k: esle.kirmizi.toString(16), e: esle.eslenmeyen.toString(16) }));
+  ok('6h gri tonlama parlaklığa (BT.709) iner: kırmızı → 0x363636, beyaz → 0xffffff',
+    esle.gri === 0x363636 && esle.beyazGri === 0xffffff, JSON.stringify({ gri: esle.gri.toString(16), beyaz: esle.beyazGri.toString(16) }));
+  // kutudan tablo kurulup basılınca kâğıtta yalnız seçilen renk olmalı
+  const ilkAci = (kullanilan.renkler.find(r => /^\d+$/.test(r.k)) || {}).k;
+  if (!ilkAci) C.skip('6i çizimde ACI renkli nesne yok');
+  else {
+    const tablo = {}; for (const r of kullanilan.renkler) tablo[r.k] = '#00007f';   // hepsini lacivert bas
+    await ev((t) => window.dwgApp.__pdfCtb(t), tablo);
+    await kutuAc();
+    await page.selectOption('#pColor', 'tablo');
+    await page.waitForTimeout(120);
+    const dugme = await ev(() => !document.getElementById('pCtb').hidden);
+    const tab = icerikCoz(await uret());
+    const tr2 = new Set((tab.match(/^[\d.]+ [\d.]+ [\d.]+ (?:RG|rg)$/gm) || []));
+    const lacivert = [...tr2].filter(v => /^0 0 0\.49[0-9]* /.test(v));
+    ok('6i renk tablosu kâğıda uygulanıyor: bütün renkler seçilen kaleme (#00007f) çevrildi',
+      dugme && tr2.size > 0 && lacivert.length > 0 && [...tr2].every(v => /^(0 0 0\.49|1 1 1|0 0 0 )/.test(v)),
+      [...tr2].join(' | ').slice(0, 90));
+    await ev(() => window.dwgApp.__pdfCtb({}));
+  }
   await kutuAc();
   await page.selectOption('#pColor', 'nesne');
   await page.waitForTimeout(60);

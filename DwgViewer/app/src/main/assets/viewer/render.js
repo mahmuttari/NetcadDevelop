@@ -8,7 +8,7 @@
  *  - uzamsal indeks ile görünür ilkel seçimi, kaydırırken sadeleştirme
  */
 import { S, visibleRect } from './state.js';
-import { FG } from './scene.js';
+import { FG, ACI } from './scene.js';
 import { drawBasemap } from './tiles.js';
 
 /** Tema tablosu (§A.2). `dark` arayüz/foreground türetimi, `minLw` en az çizgi kalınlığı (px). */
@@ -39,6 +39,43 @@ export const rgbCss = (c, fg) => c === FG ? fg : '#' + (c & 0xffffff).toString(1
 // Renk önbelleği: tam sayı renk → css (yüksek kontrastta parlaklık kısıtlaması uygulanmış). Tema değişince sıfırlanır.
 const colCache = new Map();
 let colCacheKey = '';
+/*
+ * ÇIKTI RENGİ EŞLEMESİ — AutoCAD'in RENGE BAĞLI ÇİZİM STİLİ TABLOSUNUN (.ctb) karşılığı.
+ *
+ * Ekranın renk kipinden ayrıdır ve ayrı olmalıdır: ekrandaki "katman paleti" / "tek renk" bir
+ * GÖRÜNTÜLEME yardımıdır, kâğıdın rengini AutoCAD'de de çizim stili belirler. İki kip:
+ *   'gri'   — her renk kendi parlaklığına iner (ITU-R BT.709 luma): renk gider, koyu-açık ayrımı
+ *             kalır. AutoCAD'in çizici ayarındaki "Grayscale" kutusunun karşılığıdır.
+ *   'tablo' — renk renk eşleme: hangi rengin hangi renkle basılacağını kullanıcı seçer. AutoCAD
+ *             255 ACI rengini listeler; burada çizimde GERÇEKTEN kullanılan renkler listelenir,
+ *             tabloda karşılığı olmayan renk AutoCAD'deki gibi "nesne rengiyle" basılır.
+ * Anahtar rengin ACI numarasıdır (bulunursa); doğrudan (true color) renkler '#rrggbb' anahtarıyla
+ * durur. Ön plan rengi (FG) kâğıtta 7 numaralı kalemdir — AutoCAD'de de siyah/beyaz olan odur.
+ */
+let aciIdx = null;
+function aciNo(rgb) {
+  if (!aciIdx) { aciIdx = new Map(); for (let i = 1; i < 256; i++) { const v = (ACI[i] | 0) & 0xffffff; if (!aciIdx.has(v)) aciIdx.set(v, i); } }
+  const i = aciIdx.get(rgb & 0xffffff);
+  return i === undefined ? 0 : i;
+}
+export function plotKey(col) {
+  if (col === FG) return '7';
+  const i = aciNo(col);
+  return i ? String(i) : '#' + (col & 0xffffff).toString(16).padStart(6, '0');
+}
+/** Eşlenmiş renk (tam sayı rgb). plan: { mod:'gri'|'tablo', tablo:{anahtar:'#rrggbb'} } */
+export function plotRgb(col, plan) {
+  const v = col === FG ? 0 : (col & 0xffffff);
+  if (!plan || !plan.mod) return v;
+  if (plan.mod === 'tablo') {
+    const h = plan.tablo ? plan.tablo[plotKey(col)] : null;
+    if (h) { const n = parseInt(String(h).replace('#', ''), 16); if (isFinite(n)) return n & 0xffffff; }
+    return v;
+  }
+  if (plan.mod === 'gri') { const g = Math.round(0.2126 * ((v >> 16) & 255) + 0.7152 * ((v >> 8) & 255) + 0.0722 * (v & 255)); return (g << 16) | (g << 8) | g; }
+  return v;
+}
+const plotCss = (col, plan) => '#' + (plotRgb(col, plan) >>> 0).toString(16).padStart(6, '0');
 function entityCss(c, fg) {
   if (c === FG) return fg;
   let s = colCache.get(c);
@@ -214,7 +251,11 @@ export function drawPrims(c, prims, scale, rect, opt) {
     if (L && !L.visible) continue;
     if (frozen && frozen.has(p.lay)) continue;
     if (!passFilters(p)) continue;
-    let col = opt.colorOf ? opt.colorOf(p) : (monoCol || (mode === 'layer' ? layerPalette(p.lay) : entityCss(p.col, fg)));
+    // Çıktı eşlemesi (S.plot) yalnız kâğıda / dışa aktarmada kurulur; ekranda her zaman null'dur.
+    // Kurulduğunda tema kıstırması (clampAci) uygulanmaz: kullanıcının seçtiği kalem rengi aynen basılır.
+    let col = opt.colorOf ? opt.colorOf(p)
+      : (S.plot && S.plot.mod ? plotCss(p.col, S.plot)
+        : (monoCol || (mode === 'layer' ? layerPalette(p.lay) : entityCss(p.col, fg))));
     if (col === null) continue;
     let alpha = alpha0;
     if (L && (L.faded || L.locked)) alpha = fadeA;

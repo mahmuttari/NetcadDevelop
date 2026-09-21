@@ -5,7 +5,7 @@
 import { S, toWorld, toScreen, fitView, zoomAtScreen, visibleRect, UNITS, UNIT_TO_M, fmt, fmtUnit, store, clampPrec, PREC_MIN, PREC_MAX } from './state.js';
 import { RTree, snapPoint, snapCandidates, primDist, flatten, pathLength, pathLength3, polyArea, meshMetrics, TAU, segmentsOf, segIntersect } from './geom.js';
 import { FG, ACI, primSignature } from './scene.js';
-import { drawFrame, rgbCss, bgColor, fgColor, tracePath, renderRegion, gridState, niceStep, worldTransform as renderWorldTransform, worldOrigin } from './render.js';
+import { drawFrame, rgbCss, bgColor, fgColor, tracePath, renderRegion, gridState, niceStep, worldTransform as renderWorldTransform, worldOrigin, plotRgb, plotKey } from './render.js';
 import * as D from './display.js';
 import { DISPLAY_DEFAULTS, setDisplay, getDisplay, toggleDisplay, primVisible, isolateLayers, unisolate, isIsolated, setLayerFaded, openDisplayOptions, closeDisplayOptions, mountNavFabs, gridLabel, refreshNav } from './display.js';
 import * as editorMod from './editor.js';
@@ -4076,7 +4076,18 @@ let pdfWin = null;
  * Vektör çıktı katman taşır (bkz. pdfvec.js), raster çıktı eski davranıştır.
  */
 const pdfAyar = { paper: 'A3', wmm: 420, hmm: 297, orient: 'l', area: 'view', scale: '', dpi: 150,
-  margin: 10, mode: 'vektor', renk: 'nesne', frame: true, lw: true, all: false };
+  margin: 10, mode: 'vektor', renk: 'nesne', ctb: {}, frame: true, lw: true, all: false };
+/*
+ * KÂĞIDIN RENK KARARI. Dört seçenek AutoCAD'in çizici ayarlarının karşılığıdır:
+ *   nesne — nesne renkleri (çizim stili yok)
+ *   gri   — gri tonlama (AutoCAD'in "Grayscale" kutusu): her renk kendi parlaklığına iner
+ *   mono  — tümü siyah (monochrome.ctb)
+ *   tablo — RENGE GÖRE çıktı rengi (renge bağlı çizim stili tablosu, .ctb): hangi rengin
+ *           hangi renkle basılacağını kullanıcı seçer; seçilmeyen renk nesne rengiyle basılır
+ * Eşlemenin kendisi render.js'tedir (plotRgb) — vektör, raster ve önizleme aynı işlevi kullanır,
+ * böylece kâğıt ile önizleme ayrışamaz.
+ */
+const pdfPlan = (o) => (o.renk === 'gri' ? { mod: 'gri' } : o.renk === 'tablo' ? { mod: 'tablo', tablo: o.ctb || {} } : null);
 
 /*
  * KUTUNUN GÖRSELLEŞTİRİLMESİ (v7.99).
@@ -4135,13 +4146,13 @@ function pdfOnizCiz() {
   if (aw > 3 && ah > 3) {
     const alan = pdfAlani(o, !!o.all, Math.max(1, aw / k), Math.max(1, ah / k));
     olcek = alan.sayfaOlcek || 0;
-    const kip = { mode: S.colorMode, mono: S.monoColor };
-    S.colorMode = o.renk === 'mono' ? 'mono' : 'entity'; S.monoColor = 'fg';
+    const kip = { mode: S.colorMode, mono: S.monoColor, plot: S.plot };
+    S.colorMode = o.renk === 'mono' ? 'mono' : 'entity'; S.monoColor = 'fg'; S.plot = pdfPlan(o);
     try {
       const img = renderRegion(alan.bb, Math.max(8, Math.round(aw * dpr)), Math.max(8, Math.round(ah * dpr)), { light: true });
       c.drawImage(img, px + kenar, py + kenar, aw, ah);
     } catch (_) { /* önizleme çizilemedi: kâğıt yine görünür */ }
-    finally { S.colorMode = kip.mode; S.monoColor = kip.mono; }
+    finally { S.colorMode = kip.mode; S.monoColor = kip.mono; S.plot = kip.plot; }
     c.strokeStyle = '#9aa3ad'; c.lineWidth = 1;
     if (kenar > 0.5) { c.setLineDash([3, 3]); c.strokeRect(px + kenar, py + kenar, aw, ah + kunye); c.setLineDash([]); }
     if (kunye > 1.5) { c.strokeStyle = '#555'; c.strokeRect(px + kenar, py + kenar + ah, aw, kunye); }
@@ -4152,6 +4163,54 @@ function pdfOnizCiz() {
     const yon = pdfYon(o, !!o.all) === 'l' ? t('landscape') : t('portrait');
     bilgi.textContent = `${fmt(wmm)} × ${fmt(hmm)} mm · ${yon}` + (olcek > 0 ? ` · 1:${fmt(olcek)}` : '');
   }
+}
+/*
+ * RENK TABLOSU DÜZENLEYİCİSİ — AutoCAD'in çizim stili (.ctb) kutusunun karşılığı.
+ *
+ * AutoCAD 255 ACI rengini listeler; telefonda bu liste kullanılamaz. Bunun yerine ÇİZİMDE
+ * GERÇEKTEN KULLANILAN renkler, çok kullanılandan aza doğru listelenir (en çok 64 satır): her
+ * satırda rengin kendisi, ACI numarası, kaç nesnede geçtiği ve basılacak renk vardır. Tabloda
+ * karşılığı olmayan renk AutoCAD'deki gibi kendi rengiyle basılır ("Use object color").
+ */
+function pdfKullanilanRenkler() {
+  const say = new Map();
+  for (const p of S.prims) {
+    if (!p || p.k === 4 || p.bg) continue;
+    if (!primVisible(p)) continue;                       // gizli / dondurulmuş nesne kâğıda gitmez
+    const k = plotKey(p.col);
+    const r = say.get(k);
+    if (r) r.n++; else say.set(k, { key: k, col: p.col === FG ? 0 : (p.col & 0xffffff), n: 1 });
+  }
+  return [...say.values()].sort((a, b) => b.n - a.n).slice(0, 64);
+}
+function pdfCtbDuzenle() {
+  const liste = pdfKullanilanRenkler();
+  const hx = (v) => '#' + (v >>> 0).toString(16).padStart(6, '0');
+  const satir = (r) => {
+    const kaynak = hx(r.col), hedef = pdfAyar.ctb[r.key] || kaynak;
+    const ad = /^#/.test(r.key) ? t('pdfCtbTrue') : `${t('pdfCtbAci')} ${r.key}`;
+    return [`<div class="full ctb-row"><i class="sw" style="background:${esc(kaynak)}"></i><b>${esc(ad)}</b><small class="muted">${r.n}</small><span class="ar">→</span><input type="color" data-ctb="${esc(r.key)}" value="${esc(hedef)}" aria-label="${esc(ad)}"></div>`];
+  };
+  const html = kv([
+    [`<div class="full muted">${esc(t('pdfCtbHint'))}</div>`],
+    ...(liste.length ? liste.map(satir) : [[`<div class="full muted">${esc(t('noObject'))}</div>`]]),
+    [`<div class="full btns"><button type="button" class="btn small" data-ctba="siyah">${esc(t('pdfCtbAllBlack'))}</button><button type="button" class="btn small" data-ctba="gri">${esc(t('pdfCtbGray'))}</button><button type="button" class="btn small" data-ctba="sifirla">${esc(t('pdfCtbReset'))}</button><button type="button" class="btn primary small" data-ctba="bitti">${esc(t('ok'))}</button></div>`],
+  ]);
+  openDoc(t('pdfCtbTitle'), html);
+  const yaz = () => { for (const el of document.querySelectorAll('#docBody [data-ctb]')) pdfAyar.ctb[el.dataset.ctb] = el.value; };
+  $('docBody').oninput = (ev) => { const el = ev.target.closest('[data-ctb]'); if (el) pdfAyar.ctb[el.dataset.ctb] = el.value; };
+  $('docBody').onclick = (ev) => {
+    const b = ev.target.closest('[data-ctba]'); if (!b) return;
+    const a = b.dataset.ctba;
+    if (a === 'bitti') { yaz(); $('docBody').oninput = null; pdfAyar.renk = 'tablo'; showPdf(); return; }
+    for (const el of document.querySelectorAll('#docBody [data-ctb]')) {
+      if (a === 'sifirla') { const r = liste.find(x => x.key === el.dataset.ctb); el.value = hx(r ? r.col : 0); delete pdfAyar.ctb[el.dataset.ctb]; continue; }
+      const kay = parseInt(el.value.replace('#', ''), 16) || 0;
+      el.value = a === 'siyah' ? '#000000' : hx(plotRgb(kay, { mod: 'gri' }));
+      pdfAyar.ctb[el.dataset.ctb] = el.value;
+    }
+    haptic('toggle');
+  };
 }
 function showPdf() {
   const multi = !!(S.scene && S.scene.layouts.length > 1);
@@ -4172,7 +4231,7 @@ function showPdf() {
     [t('pdfScale'), `<input id="pScale" type="number" min="1" step="1" placeholder="${esc(t('pdfFit'))}" value="${esc(pdfAyar.scale)}">`, 1],
     [t('pdfMargin'), `<input id="pMargin" type="number" min="0" max="60" step="1" value="${pdfAyar.margin}">`, 1],
     [t('pdfMode'), `<select id="pMode"><option value="vektor"${pdfAyar.mode === 'vektor' ? ' selected' : ''}>${esc(t('pdfModeVector'))}</option><option value="raster"${pdfAyar.mode === 'raster' ? ' selected' : ''}>${esc(t('pdfModeRaster'))}</option></select>`, 1],
-    [t('pdfColor'), `<select id="pColor"><option value="nesne"${pdfAyar.renk === 'nesne' ? ' selected' : ''}>${esc(t('pdfColorObj'))}</option><option value="mono"${pdfAyar.renk === 'mono' ? ' selected' : ''}>${esc(t('pdfColorMono'))}</option></select>`, 1],
+    [t('pdfColor'), `<span class="pair"><select id="pColor">${[['nesne', t('pdfColorObj')], ['gri', t('pdfColorGray')], ['mono', t('pdfColorMono')], ['tablo', t('pdfColorTable')]].map(([v, l]) => `<option value="${v}"${v === pdfAyar.renk ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select><button type="button" class="btn icon" id="pCtb" title="${esc(t('pdfCtbTitle'))}" aria-label="${esc(t('pdfCtbTitle'))}"><svg class="ic" aria-hidden="true"><use href="#i-palette"/></svg></button></span>`, 1],
     [t('dpi'), `<select id="pDpi">${[100, 150, 200, 300, 400].map(v => `<option${v === pdfAyar.dpi ? ' selected' : ''}>${v}</option>`).join('')}</select>`, 1, 'dpi'],
     ['', `<label class="chk"><input type="checkbox" id="pFrame"${pdfAyar.frame ? ' checked' : ''}> ${esc(t('pdfFrame'))}</label>`, 1],
     ['', `<label class="chk"><input type="checkbox" id="pLw"${pdfAyar.lw ? ' checked' : ''}> ${esc(t('pdfLw'))}</label>`, 1],
@@ -4194,6 +4253,7 @@ function showPdf() {
     satir('dpi', $('pMode').value === 'raster');
     satir('win', $('pArea').value === 'win');
     $('pNot').textContent = $('pMode').value === 'vektor' ? t('pdfHintVector') : t('pdfHintRaster');
+    const ctb = $('pCtb'); if (ctb) ctb.hidden = $('pColor').value !== 'tablo';   // renk tablosu yalnız kendi kipinde düzenlenir
     sayfaYaz();
   };
   /** Özel ölçüde yazılan iki sayıyı seçilen yöne göre sıralar (Otomatik'te sayılara dokunulmaz) */
@@ -4215,8 +4275,10 @@ function showPdf() {
   $('pW').oninput = $('pH').oninput = () => { yonuSayidanAl(); tazele(); };
   // Önizlemeyi etkileyen öteki alanlar: ölçek, kenar boşluğu, renk, çerçeve, başlık
   for (const id of ['pScale', 'pMargin', 'pTitle']) { const el = $(id); if (el) el.oninput = sayfaYaz; }
-  for (const id of ['pColor', 'pFrame', 'pLw', 'pAll']) { const el = $(id); if (el) el.onchange = sayfaYaz; }
+  for (const id of ['pFrame', 'pLw', 'pAll']) { const el = $(id); if (el) el.onchange = sayfaYaz; }
+  $('pColor').onchange = tazele;   // renk kipi tablo düğmesinin görünürlüğünü de değiştirir
   $('pPaperPick').onclick = () => { void pdfKagitSec(); };
+  $('pCtb').onclick = () => { pdfAyarOku(); pdfCtbDuzenle(); };
   yonuSayidanAl();
   tazele();
   $('pPick').onclick = () => {
@@ -4395,7 +4457,8 @@ function vektorSayfa(belge, g) {
      * bir GÖRÜNTÜLEME yardımıdır; AutoCAD'de de ekran ayarı çizicinin rengini belirlemez, çizim
      * stili (monochrome.ctb) belirler. Burada karar kullanıcıya kutudan sorulur.
      */
-    renkOf: o.renk === 'mono' ? ((p) => (p.bg ? 0xffffff : 0)) : null,
+    renkOf: o.renk === 'mono' ? ((p) => (p.bg ? 0xffffff : 0))
+      : (pdfPlan(o) ? ((p) => (p.bg ? 0xffffff : plotRgb(p.col, pdfPlan(o)))) : null),
     resimJpeg: pdfResim,
   };
   let n = 0;
@@ -4477,11 +4540,11 @@ function rasterSayfa(g) {
   const margin = kenarMm * pxPerMm, tb = kunyeMm * pxPerMm;
   const aw = Math.round(cizimGmm * pxPerMm), ah = Math.round(cizimYmm * pxPerMm);
   // Raster yolda renk kararı çizicinin kendi ayarındadır; kutudaki seçim geçici olarak dayatılır
-  const kip = { mode: S.colorMode, mono: S.monoColor };
-  S.colorMode = o.renk === 'mono' ? 'mono' : 'entity'; S.monoColor = 'fg';
+  const kip = { mode: S.colorMode, mono: S.monoColor, plot: S.plot };
+  S.colorMode = o.renk === 'mono' ? 'mono' : 'entity'; S.monoColor = 'fg'; S.plot = pdfPlan(o);
   let img;
   try { img = renderRegion(bb, aw, ah, { light: true, overlay: overlayForExport }); }
-  finally { S.colorMode = kip.mode; S.monoColor = kip.mono; }
+  finally { S.colorMode = kip.mode; S.monoColor = kip.mono; S.plot = kip.plot; }
   const page = document.createElement('canvas'); page.width = W; page.height = H;
   const c = page.getContext('2d');
   c.fillStyle = '#fff'; c.fillRect(0, 0, W, H);
@@ -5126,6 +5189,9 @@ window.dwgApp = { osnap: Osnap, paylasGorunum, gorunumPng, loadCurrent, onFilePi
   // iki nokta kipi, konmuş birinci köşe ve lastik dikdörtgen sınanabilsin
   __zw: () => (zoomWin ? { iki: !!zoomWin.iki, pending: !!zoomWin.pending, x0: zoomWin.x0, y0: zoomWin.y0, x1: zoomWin.x1, y1: zoomWin.y1 } : null),
   __pdfWin: () => (pdfWin ? pdfWin.slice() : null),
+  // Çıktı rengi eşlemesi (bkz. tools/test_pdf_plot.mjs): kullanılan renkler, tablo ve eşlemenin kendisi
+  __pdfCtb: (t) => { if (t) Object.assign(pdfAyar.ctb, t); return { tablo: { ...pdfAyar.ctb }, renkler: pdfKullanilanRenkler().map(r => ({ k: r.key, col: r.col, n: r.n })) }; },
+  __plotRgb: (col, plan) => plotRgb(col, plan),
   // Kâğıdın yönü ve mm ölçüsü (bkz. tools/test_pdf_plot.mjs): 'auto' yönün basılacak alandan
   // çıktığı dosya üretmeden denetlenebilsin
   __pdfSayfa: (o) => pdfSayfaMm({ paper: 'A3', orient: 'auto', area: 'view', ...(o || {}) }, !!(o && o.all)),

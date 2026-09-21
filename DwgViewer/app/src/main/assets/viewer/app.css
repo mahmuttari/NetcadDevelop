@@ -672,6 +672,13 @@ body.glove .st-quick button { width: 48px; height: 48px; }
 .v3opts .opt-sec.dim { opacity: .55; }
 .a11y-sec .opt-row .btn { min-height: 40px; }
 
+/* Renk tablosu (çizim stili) satırı: kaynak renk · ad · sayı · basılacak renk */
+.ctb-row { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.ctb-row .sw { width: 22px; height: 22px; border-radius: 5px; border: 1px solid var(--line); flex: 0 0 auto; }
+.ctb-row b { font-weight: 600; }
+.ctb-row .ar { margin-left: auto; color: var(--muted); }
+.ctb-row input[type=color] { width: 52px; flex: 0 0 auto; }
+
 /* PDF kutusundaki canlı sayfa önizlemesi: gerçek kâğıt oranı, kenar boşluğu, künye ve çizimin küçük resmi */
 .pdf-prev { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 2px 0 6px; }
 .pdf-prev canvas { position: static; inset: auto; width: 100%; max-width: 340px; height: 150px; display: block; border-radius: 8px; background: rgba(127,127,127,.12); }
