@@ -283,7 +283,7 @@ export function initEditor(a) {
   bindSideTabs();
   D.setRender3d((body) => v3 ? openView3DOptions(v3, body, host3()) : null);
   window.addEventListener('dwg:display', () => { refreshTiles(); syncQuick(); });
-  window.addEventListener('dwg:view3d', (ev) => { refreshTiles(); if (ev.detail && ['cube', 'hud', 'hudPos'].includes(ev.detail.key)) syncCube(); if (ev.detail && ev.detail.key === 'context' && ev.detail.value === 'restored' && ed.is3D()) { overlay3D(); api.toast(tt('ctx3Restored', '3B görünüm yeniden kuruldu'), 1500); } statusMode3D(); });
+  window.addEventListener('dwg:view3d', (ev) => { refreshTiles(); if (ev.detail && ['cube', 'hud', 'hudPos'].includes(ev.detail.key)) syncCube(); if (ev.detail && ev.detail.key === 'context') ctx3Olay(ev.detail.value); statusMode3D(); });
   window.addEventListener('dwg:viewhist', () => refreshTiles());
   landscapeMq.addEventListener('change', () => { applyCollapse(); closePop(); });
   wideMq.addEventListener('change', () => dockDisplay());
@@ -2595,6 +2595,19 @@ export function overlay(c) {
 // ---------------------------------------------------------------------------------
 let cube = null;
 function host3() { return { toast: (m, o) => api.toast(m, o), esc, fmt, units: S.units || '', fileKey: S.fileKey, ui, onChange: () => { overlay3D(); refreshTiles(); statusMode3D(); } }; }
+/*
+ * WebGL BAĞLAM OLAYI. 'lost': tuval boşaldı, kullanıcı neden boşaldığını bilsin ve bekleyeceğini
+ * anlasın. 'restored': tamponlar view3d içinde yeniden yüklendi. 'rebuild': yeni bağlamda 32 bit
+ * indeks uzantısı yok, ağ tamponu çizilemez — sahne kaynaktan (setScene) yeniden kurulur, yoksa
+ * yüzeyler kalıcı olarak görünmez kalırdı.
+ */
+function ctx3Olay(durum) {
+  if (!ed.is3D()) return;
+  if (durum === 'lost') { api.toast(tt('ctx3Lost', '3B görüntü sürücüsü belleği geri aldı; görünüm yeniden kuruluyor…'), 3000); return; }
+  if (durum === 'rebuild') { refresh3D(); if (v3) v3.render(); }
+  overlay3D();
+  api.toast(tt('ctx3Restored', '3B görünüm yeniden kuruldu'), 1500);
+}
 function enter3D() {
   const cv = $('cv3d');
   if (!v3) {
@@ -2624,7 +2637,17 @@ export function exit3D() {
   D.refreshNav();
 }
 function syncCube() { const c3 = $('cube3d'); if (!c3) return; c3.hidden = !(ed.is3D() && v3 && v3.opts.cube && cube); if (v3) c3.classList.toggle('below-hud', !!(v3.opts.hud && v3.opts.hudPos === 'tl')); if (!c3.hidden && cube) cube.update(); if (ed.is3D() && v3) overlay3D(); }
-function resize3D() { const cv = $('cv3d'); const r = cv.getBoundingClientRect(); cv.width = Math.round(r.width * S.dpr); cv.height = Math.round(r.height * S.dpr); }
+/*
+ * Tuval ölçüsü view3d.render()'ın kullandığı ölçünün AYNISIDIR (clientWidth/Height x dpr).
+ * Eskiden getBoundingClientRect kullanılıyordu; kesirli genişlikte iki ölçü bir cihaz pikseli
+ * ayrışıyor, render kendi düzeltmesini ikinci kez uygulayıp kamera uzaklığını kaydırıyordu.
+ * Sıfır ölçü yazılmaz: 0 genişlikli tuval bir daha çizilmez (render erken döner).
+ */
+function resize3D() {
+  const cv = $('cv3d');
+  const w = Math.round(cv.clientWidth * S.dpr), h = Math.round(cv.clientHeight * S.dpr);
+  if (w > 0 && h > 0) { cv.width = w; cv.height = h; }
+}
 /*
  * 3B görünümün kaynağı HER ZAMAN Model uzayıdır: kâğıt düzeni tanımı gereği iki boyutludur,
  * gövde geometrisi Model'de durur. Kullanıcı bir pafta sekmesindeyken 3B'ye geçerse ekrandaki

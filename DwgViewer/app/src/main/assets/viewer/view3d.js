@@ -257,15 +257,34 @@ export class View3D {
   }
   /** WebGL bağlam kaybı: preventDefault ile geri verilmesi istenir; geri gelince her şey yeniden kurulur */
   _bindContext() {
-    this.cv.addEventListener('webglcontextlost', (e) => { e.preventDefault(); this._lost = true; this._anim = null; if (this._turn) this.setTurntable(false); });
+    /*
+     * BAĞLAM KAYBI SESSİZ KALMAZ (v8.1). Android WebView bellek baskısında ya da uygulama arka
+     * plana alındığında WebGL bağlamını düşürebilir; o anda tuval boşalır ve kullanıcı "3B görüntü
+     * kayboldu" der. preventDefault bağlamın geri verilmesini ISTER ama garanti etmez, bu yüzden:
+     *   (1) durum dışarı bildirilir ('lost') — kabuk kullanıcıya ne olduğunu söyler,
+     *   (2) tarayıcı kendiliğinden geri vermezse WEBGL_lose_context.restoreContext() ile BİR KEZ
+     *       denenir (uzantı yoksa ya da yok sayılırsa zarar vermez).
+     */
+    this.cv.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault();
+      this._lost = true; this._anim = null; if (this._turn) this.setTurntable(false);
+      this._emit('context', 'lost');
+      clearTimeout(this._restoreT);
+      this._restoreT = setTimeout(() => {
+        if (!this._lost) return;
+        try { const x = this.gl.getExtension('WEBGL_lose_context'); if (x && x.restoreContext) x.restoreContext(); } catch (_) { /* geri getirilemedi: kabuk sahneyi yeniden kurar */ }
+      }, 1200);
+    });
     this.cv.addEventListener('webglcontextrestored', () => {
+      try { this._initGL(); } catch (_) { return; }   // kurulum başarısızsa _lost açık kalır: ölü programla çizilmez
       this._lost = false;
-      try { this._initGL(); } catch (_) { return; }
+      clearTimeout(this._restoreT);
       this.bufs = {}; this._smoothReady = false;
       this._uploadBgQuad();
       this._reupload();
       this.render();
-      this._emit('context', 'restored');
+      // 32 bit indeks uzantısı yeni bağlamda yoksa ağ tamponu çizilemez: sahne kaynaktan yeniden kurulmalı
+      this._emit('context', (!this.u32 && (this._nIdx.mesh || 0) > 0) ? 'rebuild' : 'restored');
     });
   }
   /** sahne tamponlarını `src`ten, yardımcı tamponları (ızgara, eksen, kesit kutusu, seçim) üreticilerinden yeniden yükler */
@@ -450,6 +469,12 @@ export class View3D {
       t.nrm.push3(nx, ny, nz); t.nrm.push3(nx, ny, nz); t.nrm.push3(nx, ny, nz);
     };
     this.meshPrims = [];
+    /*
+     * Ağ ilkellerinin KENDİ kenar köşesi sayısı. Etkileşim sadeleştirmesi (bkz. render) ağ
+     * yüzeylerini atlar; geriye o ağın tel kafesi kalmıyorsa model ekrandan tümden silinir.
+     * Bu sayaç, sadeleştirmenin ancak geri düşülecek bir tel kafes varken açılmasını sağlar.
+     */
+    let meshEdgeN = 0;
     for (const p of prims) {
       if (p.inf || p.k === 4 || p.k === 3) continue;
       const lay = layers.get(p.lay); if (lay && !lay.visible) continue;
@@ -466,7 +491,7 @@ export class View3D {
           if (a + 2 >= V.length || b2 + 2 >= V.length || c2 + 2 >= V.length) continue;
           tri([V[a], V[a + 1], V[a + 2]], [V[b2], V[b2 + 1], V[b2 + 2]], [V[c2], V[c2 + 1], V[c2 + 2]]);
         }
-        for (let i = 0; i + 5 < S2.length; i += 6) { push(B.edges, S2[i], S2[i + 1], S2[i + 2]); push(B.edges, S2[i + 3], S2[i + 4], S2[i + 5]); }
+        for (let i = 0; i + 5 < S2.length; i += 6) { push(B.edges, S2[i], S2[i + 1], S2[i + 2]); push(B.edges, S2[i + 3], S2[i + 4], S2[i + 5]); meshEdgeN += 2; }
         if (!S2.length && !useIdx) for (let i = 0; i + 2 < V.length; i += 3) bbx(V[i], V[i + 1], V[i + 2]);
         // yakalama/seçim köşeleri: bütün köşeler listeye sığmaz (milyonlarca), gövde başına en çok
         // MESH_PICK_V tanesi eşit aralıkla örneklenir — 3B'de gövde seçilebilir kalsın diye
@@ -525,6 +550,7 @@ export class View3D {
     this.src.mesh.idx = midx;
     this.uploadIdx('mesh', midx);
     this._nIdx.mesh = midx.length;
+    this._nMeshEdge = meshEdgeN;
     this._smoothReady = false;
     this._applyOverhang();
     this.recolor();
@@ -861,10 +887,19 @@ export class View3D {
      * kurulur: sahne AĞIRSA (indeksli ağ tamponu eşiği aşıyorsa), ÖNCEKİ kare yavaş sürdüyse ve yeni istek
      * hemen ardından geldiyse (yani kullanıcı sürüklüyorsa) o kare yalnız kenarlarla çizilir. Hareket
      * durunca kısa bir gecikmeyle tam kalitede yeniden çizilir.
+     *
+     * SADELEŞTİRME MODELİ GÖRÜNMEZ KILAMAZ (v8.1). Atlanan şey ağ YÜZEYLERİDİR; geriye o ağın kendi
+     * TEL KAFESİ kalmalıdır. İki durumda kalmıyordu ve kullanıcı "görüntü bir ara kayboldu" diyordu:
+     *   (a) ağ ilkelinin hiç kenar dizisi (seg) yoksa — geriye çizilecek bir şey kalmaz;
+     *   (b) Gölgeli / Gerçekçi gibi KENAR ÇİZMEYEN stillerde (STYLES.shaded.edges === false) —
+     *       yüzey atlanır, kenar da zaten çizilmez, ekran boşalır.
+     * (a) için sadeleştirme hiç açılmaz; (b) için o karede kenarlar ZORLA çizilir (AutoCAD de
+     * döndürürken tel kafese iner) ve kenar rengi geçersiz kılınmaz — koyu kenar koyu zeminde
+     * görünmezdi, nesne kendi rengiyle çizilir.
      */
     {
       const nowMs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-      const heavy = (this._nIdx.mesh || 0) > FAST_MESH_IDX;
+      const heavy = (this._nIdx.mesh || 0) > FAST_MESH_IDX && (this._nMeshEdge || 0) > 0;
       this._fastFrame = heavy && (this._lastFrameMs || 0) > FAST_FRAME_MS && (nowMs - (this._lastRenderAt || 0)) < FAST_GAP_MS;
       this._frameT0 = nowMs;
     }
@@ -980,14 +1015,18 @@ export class View3D {
     const offs = lw === 'thick' ? LINE_OFFS[Math.min(4, dprS + 1)] : lw === 'normal' ? LINE_OFFS[dprS] : LINE_OFFS[1];
     const edgeCol = o.edgeColor === 'black' ? [0, 0, 0] : o.edgeColor === 'white' ? [1, 1, 1] : o.edgeColor === 'fg' ? fgEff : (fx.shade || fx.gray || fx.faces === 'lit' && o.style !== 'shadedEdges' ? darkEdge : null);
     const jitterAmt = fx.jitter ? fx.jitter * 1.6 * px : 0;
+    // Sadeleştirilmiş karede yüzeyler atlandı: kenar çizmeyen stillerde bile tel kafes görünsün (bkz. render başı)
+    const hizliKenar = this._fastFrame && !fx.edges && (this._n.edges | 0) > 0;
+    const kenarCiz = fx.edges || hizliKenar;
+    const edgeColEff = hizliKenar ? null : edgeCol;   // yalnız sadeleştirme için çizilen kenar KENDİ rengiyle çizilir
     for (let i = 0; i < offs.length; i++) {
       gl.uniform2f(u.uOff, offs[i][0] * px, offs[i][1] * py);
       this._draw('lines', gl.LINES, dim);
-      if (fx.edges) {
-        if (edgeCol) gl.uniform4f(u.uOverride, edgeCol[0], edgeCol[1], edgeCol[2], 1);
+      if (kenarCiz) {
+        if (edgeColEff) gl.uniform4f(u.uOverride, edgeColEff[0], edgeColEff[1], edgeColEff[2], 1);
         if (jitterAmt) { for (let j = 0; j < 3; j++) { gl.uniform1f(u.uJitter, jitterAmt); gl.uniform1f(u.uSeed, j * 7.13); this._draw('edges', gl.LINES, dim * 0.8); } gl.uniform1f(u.uJitter, 0); }
         else this._draw('edges', gl.LINES, dim);
-        if (edgeCol) gl.uniform4f(u.uOverride, 0, 0, 0, 0);
+        if (edgeColEff) gl.uniform4f(u.uOverride, 0, 0, 0, 0);
       }
     }
     gl.uniform1f(u.uGray, 0);
@@ -1195,6 +1234,13 @@ export class View3D {
   // ---------------------------------------------------------------------------------
   /** WebGL tuvali + (varsa) kaplama tuvali cihaz pikselinde birleştirilir → dataURL */
   screenshot({ overlay = null } = {}) {
+    /*
+     * RESİM HER ZAMAN TAM KALİTEDİR. Sadeleştirme ölçütü "önceki kare yavaştı ve hemen ardından
+     * yeni istek geldi"dir; kullanıcı modeli döndürüp hemen paylaş düğmesine basarsa bu ölçüt
+     * hâlâ doğrudur ve resim ağ yüzeyleri OLMADAN kaydedilirdi. Sayaçlar sıfırlanır: kaydedilen
+     * görüntü ekranda duran görüntüden eksik olamaz.
+     */
+    this._lastFrameMs = 0; this._lastRenderAt = 0; this._fastFrame = false;
     this.render();
     const cv = this.cv, out = document.createElement('canvas');
     out.width = cv.width; out.height = cv.height;
