@@ -930,6 +930,7 @@ function bindStatusBar() {
     if (k === 'undo' || k === 'redo') { act(k); syncQuick(); return; }   // titreşim ve ileti act içinde
     if (k === 'grid') D.toggleDisplay('grid'); else if (k === 'lw') D.toggleDisplay('lw'); else if (k === 'text') D.toggleDisplay('showText'); else if (k === 'osnap') toggleOsnap();
     else if (k === 'pan') { call(api.togglePan); syncQuick(); refreshTiles(); return; }   // titreşim ve ileti togglePan içinde
+    else if (k === 'plot') { act('pdf'); return; }   // PDF kutusu: kapı ve ileti act içinde
     haptic('toggle'); syncQuick(); refreshTiles();
   });
   // OSNAP düğmesi: dokunuş açar / kapar (F3), uzun basış ya da sağ tık ayar kutusunu açar (AutoCAD durum çubuğu gibi)
@@ -946,7 +947,7 @@ function bindStatusBar() {
 function syncQuick() {
   if (!S) return;
   const on = { grid: S.grid.on, lw: !!S.lw, text: S.show.text, osnap: S.snapModes.size > 0, pan: !!(api && typeof api.panOn === 'function' && api.panOn()) };
-  document.querySelectorAll('#stQuick [data-quick]').forEach(b => { const k = b.dataset.quick; if (k === 'undo' || k === 'redo') return; const v = !!on[k]; b.classList.toggle('on', v); b.setAttribute('aria-pressed', String(v)); });
+  document.querySelectorAll('#stQuick [data-quick]').forEach(b => { const k = b.dataset.quick; if (k === 'undo' || k === 'redo' || k === 'plot') return; const v = !!on[k]; b.classList.toggle('on', v); b.setAttribute('aria-pressed', String(v)); });
   // geri al / yinele: kalan adım rozeti (10 geri · 10 ileri), adım yoksa devre dışı
   const nU = doc ? doc.undoStack.length : 0, nR = doc ? doc.redoStack.length : 0;
   for (const [k, n] of [['undo', nU], ['redo', nR]]) {

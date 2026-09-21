@@ -177,9 +177,18 @@ await kutuAc();
   await ev(() => { const b = document.querySelector('#docPanel [data-close="docPanel"], #docPanel .close'); if (b) b.click(); });
   await page.waitForTimeout(250);
   const kapali = await ev(() => document.getElementById('docPanel').hidden);
+  // durum çubuğundaki PDF çipi (öntanımlı yol) ve isteğe bağlı FAB
+  await ev(() => document.querySelector('#stQuick [data-quick="plot"]').click());
+  await page.waitForSelector('#pGo', { timeout: 10000 });
+  const cipActi = await ev(() => !document.getElementById('docPanel').hidden);
+  await ev(() => { const b = document.querySelector('#docPanel [data-close="docPanel"], #docPanel .close'); if (b) b.click(); });
+  await page.waitForTimeout(250);
+  await ev(() => window.dwgApp.display.setDisplay('fabPlot', true)); await page.waitForTimeout(200);
   await ev(() => { const f = document.querySelector('#navFabs [data-nav="pdf"]'); f.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 11, bubbles: true, cancelable: true })); f.dispatchEvent(new PointerEvent('pointerup', { pointerId: 11, bubbles: true, cancelable: true })); });
   await page.waitForSelector('#pGo', { timeout: 10000 });
-  ok('1t ekrandaki PDF düğmesi kutuyu açıyor (şeride gitmeden)', kapali && await ev(() => !document.getElementById('docPanel').hidden), String(kapali));
+  ok('1t durum çubuğundaki PDF çipi ve (açılınca) ekrandaki PDF düğmesi kutuyu açıyor',
+    kapali && cipActi && await ev(() => !document.getElementById('docPanel').hidden), JSON.stringify({ kapali, cipActi }));
+  await ev(() => window.dwgApp.display.setDisplay('fabPlot', false));
 }
 
 /* ---------- 2. Vektör çıktı: katmanlar PDF'in içinde ---------- */

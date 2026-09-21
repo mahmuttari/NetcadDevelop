@@ -25,7 +25,9 @@ export const DISPLAY_DEFAULTS = Object.freeze({
   fade: false, fadePct: 70, selColor: '#ff9f0a', selWidth: 3, smooth: true, fastPan: 'auto',
   scaleBar: true, north: true, northBig: false, navFabs: true, dpad: false, coordInfo: true, vpFrames: true, compareOnlyDiff: false,
   // Ekrandaki düğmeler tek tek kapatılabilir: küme büyüdükçe çizimden yer çalar (bkz. v7.98 bulgusu)
-  fabSend: true, fabZoom: true, fabPlot: true, fabFit: true, fabPrev: true, fabGps: true,
+  // fabPlot ÖNTANIMLI KAPALI: PDF düğmesi durum çubuğundadır; kümeye eklenince sütun yedi
+  // düğmeye çıkar ve çizimin sağ şeridinden yer alır (v7.98'de sınamalar bunu yakaladı).
+  fabSend: true, fabZoom: true, fabPlot: false, fabFit: true, fabPrev: true, fabGps: true,
   basemapOpacity: 0.8,
 });
 export const THEME_IDS = ['dark', 'light', 'blueprint', 'sepia', 'hicontrast', 'system'];
