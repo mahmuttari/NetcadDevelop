@@ -97,6 +97,22 @@ await ev(() => { document.getElementById('toast').hidden = true; });
   // 21 küp
   const v = await ev(() => { const v3 = window.dwgApp.editor.view3d(); return { cube: !document.getElementById('cube3d').hidden, faces: document.querySelectorAll('#cube3d [data-face]').length }; });
   ok('21a küp görünür', v.cube && v.faces === 6, JSON.stringify(v));
+  /*
+   * KÜP VE PUSULA HUD'UN HEMEN ALTINDA (v8.0). Küp, HUD açıkken 62 px'e iniyordu; o sayı HUD
+   * iki satırlıyken (32 px) konmuştu. Yoğun HUD 16 px'e inince arada 30 px'lik boş şerit kaldı
+   * ve pusula da küpe bağlı olduğu için gereksiz yere aşağıdaydı. Artık kutunun gerçek alt
+   * kenarı CSS'e bildirilir (--hud3-h) ve küp onun 6 px altına oturur.
+   */
+  const yer = await ev(() => {
+    const c3 = document.getElementById('cube3d'), vp = document.getElementById('viewport');
+    const b = c3.getBoundingClientRect(), r = vp.getBoundingClientRect();
+    const v3 = window.dwgApp.editor.view3d(), hb = v3 && v3._hudBox;
+    return { top: b.top - r.top, hudAlt: hb ? hb.y + hb.h : null, hud: !!(v3 && v3.opts.hud), pos: v3 && v3.opts.hudPos,
+      css: getComputedStyle(document.documentElement).getPropertyValue('--hud3-h').trim(), sinif: c3.classList.contains('below-hud') };
+  });
+  ok('21a2 küp HUD kutusunun hemen altında (boş şerit yok): üst kenar = kutunun altı + 6 px',
+    yer.hud && yer.pos === 'tl' ? (yer.sinif && yer.hudAlt != null && Math.abs(yer.top - (yer.hudAlt + 6)) <= 2 && yer.top <= 40) : yer.top <= 16,
+    JSON.stringify({ top: Math.round(yer.top), hudAlt: yer.hudAlt, css: yer.css }));
   await page.click('#cube3d [data-face="top"]'); await page.waitForTimeout(450);
   ok('21b top', await ev(() => Math.abs(window.dwgApp.editor.view3d().cam.pitch - Math.PI / 2) < 0.01));
   /* v7.91 · KÜP KAMERANIN KENDİSİDİR: tam tepeden bakarken küp de tek kare yüz olur.

@@ -271,9 +271,23 @@ let zoomWin = null; // { pending:true, cb?, iptal? } | { x0,y0,x1,y1, cb?, iptal
  */
 function alanSec(cb, o = {}) {
   if (!S.hasDoc) { toast(t('openFirst')); return false; }
-  if (editor.is3D()) { toast(tt('zoomWin3d', 'Pencere yakınlaştırma 2B görünümde çalışır.')); return false; }
   if (editor.tools && editor.tools.running) { toast(tt('toolBusy', 'Önce çalışan aracı bitirin.')); return false; }
-  zoomWin = { pending: true, iki: false, x0: null, y0: null, x1: null, y1: null, bas: null, cb: cb || null, iptal: o.iptal || null, ipucu: o.ipucu || '' };
+  /*
+   * 3B GÖRÜNÜMDE DE ÇALIŞIR (v8.0). 3B tuvali işaretçi olaylarını kendi tutar (stopPropagation),
+   * bu yüzden dikdörtgeni orada editor çizer (ed.alan3) ve köşeleri zemin düzlemine düşürerek
+   * dünya dikdörtgenini verir. Komut çubuğundaki istem, "köşeyi geri al" ve iptal iki görünümde
+   * de buradadır — kullanıcı için tek akıştır.
+   */
+  const uc = editor.is3D();
+  if (uc) {
+    const ok = edCall('alan3', {
+      cb: (bb) => { const f = zoomWin && zoomWin.cb; cancelZoomWindow(); if (f) f(bb); },
+      iptal: o.iptal || null,
+      adim: () => { if (zoomWin) { zoomWin = { ...zoomWin, pending: false, iki: true }; zwIstem(); } },
+    });
+    if (!ok) { toast(tt('zoomWin3d', 'Pencere yakınlaştırma 2B görünümde çalışır.')); return false; }
+  }
+  zoomWin = { pending: true, iki: false, uc, x0: null, y0: null, x1: null, y1: null, bas: null, cb: cb || null, iptal: o.iptal || null, ipucu: o.ipucu || '' };
   edCall('cmdTakeOver');
   zwIstem();
   return true;
@@ -300,7 +314,10 @@ function zwIstem() {
   $('cmdBtns').onclick = (ev) => {
     const b = ev.target.closest('[data-zw]'); if (!b) return;
     if (b.dataset.zw === 'geri') {
-      if (zoomWin) { zoomWin = { ...zoomWin, pending: true, iki: false, x0: null, y0: null, x1: null, y1: null, bas: null }; zwIstem(); drawOverlay(); }
+      if (zoomWin) {
+        if (zoomWin.uc) edCall('alan3Geri');
+        zoomWin = { ...zoomWin, pending: true, iki: false, x0: null, y0: null, x1: null, y1: null, bas: null }; zwIstem(); drawOverlay();
+      }
       return;
     }
     const f = zoomWin && zoomWin.iptal; cancelZoomWindow(); if (f) f();
@@ -377,7 +394,9 @@ function togglePan(on) {
 }
 function cancelZoomWindow() {
   if (!zoomWin) return false;
+  const uc = zoomWin.uc;
   zoomWin = null;
+  if (uc) edCall('alan3Iptal');   // 3B dikdörtgeni de kalkar (iptal işlevi çağrılmaz, çağıran karar verir)
   const bar = $('cmdBar'); if ($('cmdBtns').onclick) { $('cmdBtns').onclick = null; }
   // Çubuğu gizlemek yerine devri geri ver: komut satırı açıksa boştaki isteme döner.
   if (!(editor.tools && editor.tools.running) && !editor.m3) { bar.hidden = true; edCall('cmdRelease'); }

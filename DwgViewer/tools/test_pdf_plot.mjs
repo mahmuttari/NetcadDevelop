@@ -407,6 +407,65 @@ await kutuAc();
   await page.waitForSelector('#pGo', { timeout: 10000 });
 }
 
+/* ---------- 4a3. 3B GÖRÜNÜMDE alan seçimi (v8.0) ---------- */
+{
+  const uc3 = async () => ev(async () => { const E = window.dwgApp.editor; if (!E.is3D()) { E.act('3d'); await new Promise(r => setTimeout(r, 1200)); } return E.is3D(); });
+  const acik = await uc3();
+  await page.waitForTimeout(500);
+  if (!acik) C.skip('4t 3B görünüm açılamadı (WebGL yok)');
+  else {
+    const pt3 = (t, x, y) => ev(([t, x, y]) => {
+      const cv = document.getElementById('cv3d'), r = cv.getBoundingClientRect();
+      cv.dispatchEvent(new PointerEvent(t, { pointerId: 3, pointerType: 'touch', isPrimary: true, bubbles: true, cancelable: true,
+        clientX: r.left + x, clientY: r.top + y, button: t === 'pointerdown' ? 0 : -1, buttons: t === 'pointerup' ? 0 : 1 }));
+    }, [t, x, y]);
+    const secimAc = async () => {
+      await kutuAc(); await page.selectOption('#pArea', 'win'); await page.waitForTimeout(120);
+      await page.click('#pPick'); await page.waitForTimeout(350);
+    };
+    await secimAc();
+    const bas = await ev(() => ({ acik: window.dwgApp.editor.alan3Acik(), cmd: document.getElementById('cmdText').textContent, panel: document.getElementById('docPanel').hidden }));
+    ok('4t 3B\'de "Pencere seç" artık reddetmiyor: seçim başlıyor, kutu kapanıp istem çıkıyor',
+      bas.acik === true && bas.panel && /alan|area/i.test(bas.cmd), JSON.stringify(bas));
+    // sürükleme
+    await pt3('pointerdown', 120, 320); await page.waitForTimeout(60);
+    await pt3('pointermove', 200, 400); await pt3('pointermove', 320, 520); await page.waitForTimeout(80);
+    const drag = await ev(() => window.dwgApp.editor.sel3DragState());
+    ok('4u 3B tuvalinde sürükleme alan dikdörtgenini çiziyor (seçim kutusu değil)', !!drag && drag.mode === 'box', JSON.stringify(drag));
+    await pt3('pointerup', 320, 520);
+    await page.waitForSelector('#pGo', { timeout: 10000 }); await page.waitForTimeout(400);
+    const w1 = await ev(() => ({ win: window.dwgApp.__pdfWin(), alan: document.getElementById('pArea').value, acik: window.dwgApp.editor.alan3Acik(), bilgi: document.getElementById('pWinInfo').textContent }));
+    ok('4v bırakışta dünya dikdörtgeni kuruldu, kutu geri açıldı ve ölçüyü yazdı',
+      !!w1.win && w1.win[2] > w1.win[0] && w1.win[3] > w1.win[1] && w1.alan === 'win' && !w1.acik && /\d/.test(w1.bilgi),
+      JSON.stringify((w1.win || []).map(v => Math.round(v))));
+    // köşeler ZEMİN DÜZLEMİNE düşürülüyor mu: aynı iki köşe, editörün kendi hesabıyla
+    const bek = await ev(() => {
+      const E = window.dwgApp.editor, cv = document.getElementById('cv3d'), r = cv.getBoundingClientRect();
+      const v3 = E.view3d(); const zs = v3.zScale || 1, zw = v3.gridZ != null ? v3.gridZ : (v3.bb ? v3.bb[2] : 0);
+      const nok = (x, y) => { const ray = v3.screenRay(x, y); const t = (zw * zs - ray.o[2]) / ray.d[2]; return [ray.o[0] + ray.d[0] * t, ray.o[1] + ray.d[1] * t]; };
+      const a = nok(120, 320), b = nok(320, 520);
+      return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])];
+    });
+    ok('4y dikdörtgen ekran değil DÜNYA koordinatıdır: köşeler zemin düzlemine ışınla düşürülmüş',
+      w1.win && w1.win.every((v, i) => Math.abs(v - bek[i]) < Math.max(1e-6, Math.abs(bek[i]) * 1e-9)),
+      JSON.stringify({ win: (w1.win || []).map(v => Math.round(v)), bek: bek.map(v => Math.round(v)) }));
+    // iki köşeye dokunma 3B'de de çalışır
+    await secimAc();
+    await pt3('pointerdown', 150, 300); await page.waitForTimeout(40); await pt3('pointerup', 150, 300); await page.waitForTimeout(250);
+    const ara = await ev(() => ({ acik: window.dwgApp.editor.alan3Acik(), cmd: document.getElementById('cmdText').textContent, geri: !!document.querySelector('#cmdBtns [data-zw="geri"]'), panel: document.getElementById('docPanel').hidden }));
+    ok('4z 3B\'de birinci köşe dokunuşla konuyor; istem ikinciyi istiyor ve "geri al" çıkıyor',
+      ara.acik && ara.panel && /ikinci|second/i.test(ara.cmd) && ara.geri, JSON.stringify(ara));
+    await pt3('pointerdown', 330, 500); await page.waitForTimeout(40); await pt3('pointerup', 330, 500);
+    await page.waitForSelector('#pGo', { timeout: 10000 }); await page.waitForTimeout(300);
+    const w2 = await ev(() => ({ win: window.dwgApp.__pdfWin(), acik: window.dwgApp.editor.alan3Acik() }));
+    ok('4z2 ikinci dokunuş pencereyi kapatıyor', !!w2.win && w2.win[2] > w2.win[0] && !w2.acik, JSON.stringify((w2.win || []).map(v => Math.round(v))));
+    // 2B'ye dön
+    await ev(async () => { const E = window.dwgApp.editor; if (E.is3D()) { E.act('3d'); await new Promise(r => setTimeout(r, 900)); } });
+    await page.waitForTimeout(500);
+    await kutuAc(); await page.selectOption('#pArea', 'view'); await page.waitForTimeout(120);
+  }
+}
+
 /* ---------- 4b. Elle seçilen pencereye pay eklenmez ---------- */
 {
   const r = await ev(() => {

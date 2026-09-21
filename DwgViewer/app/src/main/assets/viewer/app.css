@@ -718,7 +718,9 @@ body.left-hand .dpad { left: auto; right: 12px; }
    küpün altı doğrudan sütunun ilk düğmesidir. */
 .cube { position: absolute; right: 10px; top: 10px; width: 86px; padding: 4px; border-radius: 12px; background: color-mix(in srgb, var(--panel) 70%, transparent); border: 1px solid var(--line); color: var(--fg); touch-action: none; }
 .cube .cube-svg { width: 70px; height: 70px; margin: 0 auto; }
-.cube.below-hud { top: 62px; }
+/* HUD açıkken küp kutunun HEMEN altına oturur: yükseklik view3d'den gelir (--hud3-h).
+   Eski 62 px, iki satırlı HUD'dan kalmaydı; yoğun HUD 16 px'e inince arada boş şerit kalıyordu. */
+.cube.below-hud { top: calc(var(--hud3-h, 24px) + 6px); }
 .cube [data-face] { cursor: pointer; }
 .cube [data-face]:hover, .cube [data-corner]:hover { fill-opacity: .6; }
 body.cmd-open .cube { right: 72px; }

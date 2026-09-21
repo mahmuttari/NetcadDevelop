@@ -1246,6 +1246,13 @@ export class View3D {
       const lab = (p, t, col) => { if (p[2] < -1 || p[2] > 1) return; c.fillStyle = col; c.fillText(t, p[0] + 3, p[1] - 14); };
       lab(this.project(bb[0] + a, bb[1], bb[2]), 'X', '#ff453a'); lab(this.project(bb[0], bb[1] + a, bb[2]), 'Y', '#30d158'); lab(this.project(bb[0], bb[1], bb[2] + a), 'Z', '#4285f4');
     }
+    /*
+     * HUD KUTUSUNUN GERÇEK YÜKSEKLİĞİ CSS'E BİLDİRİLİR (v8.0). Görünüm küpü HUD açıkken 62 px'e
+     * iniyordu; o sayı HUD iki satırlı (32 px) olduğu günden kalmaydı. Yoğun HUD 16 px'e inince
+     * küple kutu arasında 30 px'lik boş şerit kaldı ve küple pusula gereksiz yere aşağıdaydı.
+     * Artık kutunun kendi alt kenarı yazılır, küp (ve ona bağlı pusula) hemen altına oturur.
+     */
+    let hudAlt = 0;
     // kamera metni
     if (o.hud) {
       c.font = mono;
@@ -1270,11 +1277,16 @@ export class View3D {
       const w = Math.max(...lines.map(s => c.measureText(s).width)) + pad * 2, h = lh * lines.length + pad * 2;
       const x = 8, y = o.hudPos === 'bl' ? H - 8 - h : 8;
       this._hudBox = { x, y, w, h };   // pusula bu kutudan kaçınır
+      hudAlt = o.hudPos === 'bl' ? 0 : y + h;   // küp yalnız ÜSTTEKİ kutunun altına iner
       c.fillStyle = boxBg; c.beginPath();
       if (c.roundRect) c.roundRect(x, y, w, h, 5); else c.rect(x, y, w, h);
       c.fill();
       c.fillStyle = fg; top.forEach((s, i) => c.fillText(s, x + pad, y + pad + lh * i));
       if (l2 && ayri) { c.fillStyle = cl ? accent : fg; c.fillText(l2, x + pad, y + pad + lh * top.length); }
+    }
+    if (this._hudAlt !== hudAlt) {
+      this._hudAlt = hudAlt;
+      try { document.documentElement.style.setProperty('--hud3-h', hudAlt + 'px'); } catch (_) { /* CSS değişkeni yoksa .cube kendi varsayılanını kullanır */ }
     }
     // kot lejantı (sağda dikey)
     if (o.colorMode === 'elevation') {

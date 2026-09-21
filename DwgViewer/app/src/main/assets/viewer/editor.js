@@ -2339,6 +2339,16 @@ function finishSelDrag(d) {
 export const SEL_COLORS = { window: '#4da3ff', crossing: '#3ddc84' };
 function drawSelDrag(c, drag) {
   const d = drag === undefined ? selDrag : drag; if (!d) return;
+  // PDF alan seçimi: seçim kutusu değil, BASILACAK ALANDIR — 2B'deki lastik dikdörtgenle
+  // aynı turuncu, kesikli çizgi; "Pencere / Kesen" etiketi burada anlamsız olurdu.
+  if (d.alan) {
+    const moved2 = Math.abs(d.x1 - d.x0) >= 4 || Math.abs(d.y1 - d.y0) >= 4;
+    if (!moved2) return;
+    c.save(); c.strokeStyle = '#f5b342'; c.fillStyle = 'rgba(245,179,66,.12)'; c.lineWidth = 1.5; c.setLineDash([6, 4]);
+    const x = Math.min(d.x0, d.x1), y = Math.min(d.y0, d.y1), w = Math.abs(d.x1 - d.x0), h = Math.abs(d.y1 - d.y0);
+    c.fillRect(x, y, w, h); c.strokeRect(x, y, w, h); c.restore();
+    return;
+  }
   const crossing = d.crossing === true, col = crossing ? SEL_COLORS.crossing : SEL_COLORS.window;
   const moved = Math.abs(d.x1 - d.x0) >= 6 || Math.abs(d.y1 - d.y0) >= 6 || d.pts.length > 2;
   if (!moved) return;
@@ -2644,6 +2654,7 @@ const p3 = {
   pointers: new Map(), last: null, d0: 0, mid0: null, ang0: 0, moved: false,
   snap: null, snapKind: null, pts: [], lastTap: 0, lastTapAt: null,
   region: null,      // süren bölge seçimi (2B selDrag ile aynı biçim): { mode, pts, x0, y0, x1, y1, crossing, implied }
+  alan: null,        // PDF alan (pencere) seçimi 3B'de: { cb, iptal, adim, ilk } — bkz. ed.alan3
   aim: null,         // parmakla nişan: { sx, sy } — imleç parmağın altında, bırakınca nokta oraya işlenir
   aimTimer: 0,
 };
@@ -2668,6 +2679,8 @@ const bolgeAcik = () => !!(ed.m3 && ed.m3.name === 'select');
 /** 3B bölge seçiminde hangi ilkeller aranır: görünür katmanda, gizlenmemiş, yol ya da ağ gövdesi */
 const bolgeUygun = (q) => !!q && (q.k === 0 || q.k === 5) && !q.inf && objShown(q) && (() => { const l = S.layers.get(q.lay); return !l || l.visible; })();
 function bolgeBaslat(sx, sy) {
+  // PDF alan seçimi 3B'de de çalışır: dikdörtgen SEÇİM değil, basılacak alandır (bkz. ed.alan3)
+  if (p3.alan && v3) { p3.region = { mode: 'box', alan: true, pts: [[sx, sy]], x0: sx, y0: sy, x1: sx, y1: sy, crossing: null }; return true; }
   if (!bolgeAcik() || !v3) return false;
   const kip = ed.m3.selMode || 'tap';
   if (kip === 'box' || kip === 'lasso') { p3.region = { mode: kip, pts: [[sx, sy]], x0: sx, y0: sy, x1: sx, y1: sy, crossing: null }; return true; }
@@ -2698,6 +2711,57 @@ function bolgeBitir(d) {
   if (n) haptic('snap');
   v3.setSelection(ed.sel); v3.render(); prompt3D();
 }
+/*
+ * 3B'DE ALAN (PENCERE) SEÇİMİ — v8.0.
+ *
+ * PDF'in "Pencere" kapsamı 3B görünümde reddediliyordu ("2B görünümde çalışır"), oysa kullanıcı
+ * çoğu kez modele 3B bakarken hangi bölgeyi basacağına karar verir. Ekranda çizilen dikdörtgen
+ * 3B'de bir PİRAMİTTİR, dünyada bir dikdörtgen değil; kâğıda basılan ise modelin 2B çizimidir.
+ * Bu yüzden köşeler ZEMİN DÜZLEMİNE (ızgara kotu; yoksa modelin alt kotu) ışınla düşürülür ve
+ * dünya XY dikdörtgeni oradan kurulur: kullanıcı 3B'de baktığı yeri seçer, kâğıda o yerin plan
+ * çizimi gider. Kamera zemine tam paralel bakıyorsa ışın düzlemi kesmez; o durumda seçim
+ * yapılmaz ve neden söylenir.
+ */
+function alanNokta3(sx, sy) {
+  if (!v3) return null;
+  let ray; try { ray = v3.screenRay(sx, sy); } catch (_) { return null; }
+  if (!ray || !ray.o || !ray.d || Math.abs(ray.d[2]) < 1e-12) return null;
+  const zs = v3.zScale || 1;
+  const zw = v3.gridZ != null ? v3.gridZ : (v3.bb ? v3.bb[2] : 0);
+  const tt = (zw * zs - ray.o[2]) / ray.d[2];
+  if (!isFinite(tt) || tt <= 0) return null;
+  const p = [ray.o[0] + ray.d[0] * tt, ray.o[1] + ray.d[1] * tt];
+  return p.every(isFinite) ? p : null;
+}
+/** İki ekran köşesinden dünya XY dikdörtgeni kurar ve çağırana verir */
+function alanBitir3(ax, ay, bx, by) {
+  const a = alanNokta3(ax, ay), b = alanNokta3(bx, by);
+  const al = p3.alan;
+  if (!a || !b) { api.toast(tt('area3Plane', 'Zemine paralel bakışta alan seçilemez; kamerayı biraz eğin.'), 2600); return; }
+  const bb = [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])];
+  if (!(bb[2] - bb[0] > 0 && bb[3] - bb[1] > 0)) { api.toast(tt('pdfWinSmall', 'Pencere çok küçük; köşeleri biraz daha ayırın.'), { type: 'warn' }); return; }
+  p3.alan = null; overlay3D();
+  haptic('step');
+  if (al && al.cb) al.cb(bb);
+}
+/** Alan kipinde bırakış: sürükleme pencereyi kapatır, kıpırdamayan dokunuş köşe bırakır */
+function alanDokunus3(sx, sy, d) {
+  const al = p3.alan; if (!al) return;
+  if (d && !bolgeKucuk(d)) { alanBitir3(d.x0, d.y0, d.x1, d.y1); return; }
+  if (!al.ilk) { al.ilk = [sx, sy]; haptic('step'); if (al.adim) call(al.adim, 1); overlay3D(); return; }
+  alanBitir3(al.ilk[0], al.ilk[1], sx, sy);
+}
+/** o = { cb(bb), iptal(), adim(n) } — 3B'de alan seçimini başlatır */
+ed.alan3 = (o = {}) => {
+  if (!v3 || !ed.is3D()) return false;
+  p3.alan = { cb: o.cb || null, iptal: o.iptal || null, adim: o.adim || null, ilk: null };
+  p3.region = null; overlay3D();
+  return true;
+};
+ed.alan3Acik = () => !!p3.alan;
+ed.alan3Geri = () => { if (!p3.alan) return false; p3.alan.ilk = null; p3.region = null; overlay3D(); return true; };
+/** Seçimi bırakır; çağıranın iptal işlevini DÖNDÜRÜR (çağırmaz) */
+ed.alan3Iptal = () => { const f = p3.alan && p3.alan.iptal; p3.alan = null; p3.region = null; overlay3D(); return f || null; };
 /*
  * PARMAKLA NİŞAN ALMA — 3B (v7.84). 2B'de araç çalışırken uzun basış imleci parmağa bağlar
  * (app.js canAim); o koşulda `!editor.is3D()` yazdığı için 3B'de hiç yoktu ve kullanıcı
@@ -2745,7 +2809,10 @@ function bind3D(cv) {
   const geom = () => { const a = [...p3.pointers.values()]; const n = a.length; let mx = 0, my = 0; for (const p of a) { mx += p[0]; my += p[1]; } mx /= n; my /= n; const d = n >= 2 ? Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]) : 0; const ang = n >= 2 ? Math.atan2(a[1][1] - a[0][1], a[1][0] - a[0][0]) : 0; return { n, mid: [mx, my], d, ang }; };
   const touch = () => v3.opts.touch;
   cv.addEventListener('pointerdown', (ev) => {
-    ev.stopPropagation(); cv.setPointerCapture(ev.pointerId);
+    ev.stopPropagation();
+    // Yakalama başarısız olabilir (işaretçi çoktan bırakılmışsa NotFoundError atar); jest yine
+    // yürümelidir — 2B tarafındaki aynı koruma (app.js pointerdown).
+    try { cv.setPointerCapture(ev.pointerId); } catch (_) { /* yakalama yoksa jest yine çalışır */ }
     p3.pointers.set(ev.pointerId, [ev.clientX, ev.clientY]); if (p3.pointers.size === 1) p3.moved = false;
     const g = geom(); p3.d0 = g.d; p3.mid0 = g.mid; p3.ang0 = g.ang;
     p3.last = [ev.clientX, ev.clientY];
@@ -2794,6 +2861,11 @@ function bind3D(cv) {
        * çalışmaz olurdu — v7.84 taslağında böyleydi.
        */
       const d = p3.region; p3.region = null;
+      if (d.alan) {
+        // Alan seçimi: sürükleme pencereyi kapatır, kıpırdamayan dokunuş köşe bırakır (2B ile aynı)
+        if (ev.type === 'pointerup') { const r2 = cv.getBoundingClientRect(); alanDokunus3(ev.clientX - r2.left, ev.clientY - r2.top, d); }
+        overlay3D(); return;
+      }
       if (ev.type === 'pointerup' && !bolgeKucuk(d)) { bolgeBitir(d); overlay3D(); return; }
       overlay3D();
     }
@@ -3384,6 +3456,8 @@ function overlay3D() {
     c.restore();
   }
   drawSelDrag(c, p3.region);
+  // Alan seçiminde konmuş birinci köşe: ikinci köşe beklenirken nerede olduğu görünsün (2B ile aynı artı)
+  if (p3.alan && p3.alan.ilk) { const k = 8, [ax, ay] = p3.alan.ilk; c.save(); c.strokeStyle = '#f5b342'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(ax - k, ay); c.lineTo(ax + k, ay); c.moveTo(ax, ay - k); c.lineTo(ax, ay + k); c.stroke(); c.restore(); }
   if (p3.aim) mercek3(c);   // büyüteç en üstte: parmağın altını örten hiçbir şey kalmasın
 }
 /** Kamera yer imleri (#docPanel içinde #camName / #camSave) */
