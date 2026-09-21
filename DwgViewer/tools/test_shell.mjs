@@ -229,6 +229,21 @@ for (const vp of [[412, 915], [360, 640]]) {
   await page.click('#btnMore'); await page.waitForTimeout(100);
   const bad = await ev(() => [...document.querySelectorAll('#toolbar button, #navFabs button, #statusbar button, .panel-head button, #cmdBtns button, #moreMenu button')].filter(b => { const r = b.getBoundingClientRect(); return r.width > 0 && r.height > 0 && (r.width < 40 || r.height < 40); }).map(b => (b.id || b.className || b.dataset.act || '?') + ':' + Math.round(b.getBoundingClientRect().width) + 'x' + Math.round(b.getBoundingClientRect().height)));
   ok('46 hedefler ' + vp.join('x'), bad.length === 0, bad.join(' | ').slice(0, 300));
+  /*
+   * DURUM ÇUBUĞU HİÇBİR ŞEYİ YARIM GÖSTERMEZ (v8.4). Çubuk tek satırdır ve sekiz hızlı düğme
+   * tek başına 412 px'lik bir telefonun neredeyse tamamını yer; kalan çipler `overflow: hidden`
+   * ile kırpılıyordu ("3B · Paralel" yerine yarım bir "3B", "2917" yerine "291"). Artık yerleşim
+   * üç geçişle sığdırılır (sıkışık kip → kayan düğme şeridi → önem sırasına göre düşürme) ve
+   * çubuğun içeriği hiçbir durumda kutusunu aşmaz.
+   */
+  const st = await ev(() => {
+    const b = document.getElementById('statusbar');
+    const yarim = [...b.children].filter(e => !e.hidden && getComputedStyle(e).display !== 'none' && e.id !== 'stQuick' && e.id !== 'stCoord')   /* stCoord esneyen öğedir: sözleşmesi gereği üç noktayla kısalır */
+      .filter(e => e.scrollWidth > e.clientWidth + 1).map(e => e.id);
+    return { tasma: b.scrollWidth - b.clientWidth, yarim };
+  });
+  ok('46b durum çubuğu taşmıyor ' + vp.join('x'), st.tasma <= 1, JSON.stringify(st));
+  ok('46c hiçbir bilgi çipi yarım yazılmıyor ' + vp.join('x'), st.yarim.length === 0, st.yarim.join(','));
   await ev(() => window.dwgApp.onBack());
 }
 // 39 yatay

@@ -274,6 +274,52 @@ const dokun = async (x, y) => drag([[x, y], [x, y]]);
   await bekle(200);
 }
 
+/*
+ * KAYDIR AÇILINCA ÇALIŞAN KOMUT DÜŞER (v8.4). Kaydır ile bir komut aynı sürüklemeyi ister:
+ * Seç açıkken tek parmak seçim kutusu çizer, Kaydır açıkken görünümü kaydırmalıdır. İkisi
+ * birlikte açık kalınca kullanıcı hangisinin çalıştığını bilemez — bildirilen belirti buydu.
+ */
+{
+  // 2B: Seç aracı çalışırken Kaydır'a basılınca araç iptal olur
+  await ev(() => window.dwgApp.__pan(false)); await bekle(100);
+  await page.click('#toolbar [data-tab="edit"]'); await bekle(200);
+  await page.click('#toolbar [data-act="t:select"]'); await bekle(300);
+  const once = await ev(() => ({ calisan: !!(window.dwgApp.editor.tools && window.dwgApp.editor.tools.running), pan: window.dwgApp.__pan() }));
+  ok('11a 2B: Seç aracı çalışıyor, kaydır kapalı', once.calisan === true && once.pan === false, JSON.stringify(once));
+  await ev(() => window.dwgApp.__pan(true)); await bekle(250);
+  const sonra = await ev(() => ({ calisan: !!(window.dwgApp.editor.tools && window.dwgApp.editor.tools.running), pan: window.dwgApp.__pan() }));
+  ok('11b 2B: Kaydır açılınca araç iptal oldu', sonra.pan === true && sonra.calisan === false, JSON.stringify(sonra));
+  // Kaydır'ı KAPATMAK hiçbir şeyi iptal etmez (kullanıcı kaldığı yerden devam edebilsin)
+  await page.click('#toolbar [data-act="t:select"]'); await bekle(300);
+  await ev(() => window.dwgApp.__pan(false)); await bekle(200);
+  const kapat = await ev(() => ({ calisan: !!(window.dwgApp.editor.tools && window.dwgApp.editor.tools.running), pan: window.dwgApp.__pan() }));
+  ok('11c Kaydır kapanırken araca dokunulmuyor', kapat.pan === false && kapat.calisan === true, JSON.stringify(kapat));
+  await ev(() => window.dwgApp.onBack()); await bekle(200);
+}
+{
+  // 3B: Seç komutu açıkken Kaydır'a basılınca komut düşer ve tek parmak artık bölge kutusu çizmez
+  await page.click('#toolbar [data-tab="3d"]'); await bekle(150);
+  await page.click('#toolbar [data-act="3d"]'); await bekle(700);
+  await page.click('#toolbar [data-tab="draw"]'); await bekle(200);
+  await page.click('#toolbar [data-act="3:select"]'); await bekle(300);
+  const a3 = await ev(() => ({ m3: !!window.dwgApp.editor.m3, pan: window.dwgApp.__pan() }));
+  ok('11d 3B: Seç komutu açık, kaydır kapalı', a3.m3 === true && a3.pan === false, JSON.stringify(a3));
+  await ev(() => window.dwgApp.__pan(true)); await bekle(300);
+  const b3 = await ev(() => ({ m3: !!window.dwgApp.editor.m3, pan: window.dwgApp.__pan() }));
+  ok('11e 3B: Kaydır açılınca komut iptal oldu', b3.pan === true && b3.m3 === false, JSON.stringify(b3));
+  // Kaydır açıkken tek parmak sürüklemesi bölge kutusu AÇMAZ (kaydırma çalışır)
+  const kutu = await page.locator('#cv3d').boundingBox();
+  const pt = (tip, x, y) => page.evaluate(([t, X, Y]) => { const cv = document.getElementById('cv3d'); const r = cv.getBoundingClientRect();
+    cv.dispatchEvent(new PointerEvent(t, { pointerId: 1, isPrimary: true, bubbles: true, clientX: r.left + X, clientY: r.top + Y, pointerType: 'touch' })); }, [tip, x, y]);
+  await pt('pointerdown', kutu.width / 2, kutu.height / 2); await bekle(60);
+  await pt('pointermove', kutu.width / 2 + 60, kutu.height / 2 + 40); await bekle(80);
+  const bolge = await ev(() => window.dwgApp.editor.sel3DragState());
+  await pt('pointerup', kutu.width / 2 + 60, kutu.height / 2 + 40); await bekle(100);
+  ok('11f Kaydır açıkken tek parmak bölge kutusu açmıyor', !bolge, JSON.stringify(bolge));
+  await ev(() => window.dwgApp.__pan(false)); await bekle(150);
+  await ev(() => window.dwgApp.onBack()); await bekle(300);
+}
+
 ok('10 konsolda sayfa hatası yok', errors.length === 0, errors.join(' | ').slice(0, 300));
 await page.screenshot({ path: `${out}/pan.png` });
 C.summary(errors);

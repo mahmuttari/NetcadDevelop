@@ -446,7 +446,7 @@ export function buildViewCube(container, v3, host = {}) {
   const onBtn = (ev) => {
     const b = ev.target.closest('[data-cube]'); if (!b) return; ev.stopPropagation();
     if (b.dataset.cube === 'persp') { v3.set('persp', !v3.cam.persp); update(); emit('persp', v3.cam.persp); }
-    else if (b.dataset.cube === 'home') { v3.fit({ animate: false }); v3.preset('iso', { animate: !(host.ui && host.ui.reduceMotion) }); emit('preset', 'iso'); update(); }
+    else if (b.dataset.cube === 'home') { v3.preset('iso', { animate: false }); v3.fit({ animate: !(host.ui && host.ui.reduceMotion) }); emit('preset', 'iso'); update(); }   // önce açı sonra kadraj (yön duyarlı sığdırma)
   };
   btns.addEventListener('click', onBtn);
   const stop = (ev) => ev.stopPropagation();

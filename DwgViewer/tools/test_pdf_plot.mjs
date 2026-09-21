@@ -607,6 +607,44 @@ await kutuAc();
 }
 
 ok('8  sayfa hatası yok', errors.length === 0, errors.join(' | ').slice(0, 300));
+/*
+ * 3B GÖRÜNÜŞÜN ÇIKTISI (v8.4). Kullanıcı 3B modele bakarken PDF'e bastığında gördüğü şeyi bekler;
+ * kutu ise paftanın PLANINI basıyordu ("3B görünümde PDF çıktı almıyor"). Artık 3B'de "Basılacak
+ * alan" listesine "3B görünüş" eklenir ve öntanımlı olur: sayfa, WebGL tuvalinin resmidir.
+ * Vektöre çevrilemeyeceği için biçim rastere sabitlenir, 1:N ölçeği kalkar, künyeye bakış açıları
+ * yazılır. Kullanıcı 3B'de PENCERE seçtiyse o seçim korunur.
+ */
+{
+  await page.evaluate(() => { const t = document.getElementById('docPanel'); if (t) t.hidden = true; });
+  await page.click('#toolbar [data-tab="3d"]'); await page.waitForTimeout(150);
+  await page.click('#toolbar [data-act="3d"]'); await page.waitForTimeout(800);
+  await page.click('#stQuick [data-quick="plot"]');
+  await page.waitForSelector('#pGo', { timeout: 10000 }); await page.waitForTimeout(300);
+  // Önceki bölümlerden kalan 20x20 mm özel kâğıt çizim alanını sıfırlar; makul bir kâğıda dönülür
+  await page.selectOption('#pPaper', 'A4'); await page.waitForTimeout(600);
+  const d = await ev(() => {
+    const cv = document.getElementById('pPrev'), c = cv.getContext('2d');
+    const im = c.getImageData(0, 0, cv.width, cv.height).data;
+    let koyu = 0; for (let i = 0; i < im.length; i += 16) { if (im[i + 3] > 8 && im[i] < 120 && im[i + 1] < 120 && im[i + 2] < 120) koyu++; }
+    return { alan: document.getElementById('pArea').value,
+      secenek: [...document.getElementById('pArea').options].map(o => o.value).join(','),
+      mod: document.getElementById('pMode').value, modKilitli: document.getElementById('pMode').disabled,
+      olcekGizli: [...document.querySelectorAll('#docBody [data-row="olcek"]')].every(e => e.hidden),
+      pencereGizli: [...document.querySelectorAll('#docBody [data-row="win"]')].every(e => e.hidden),
+      bilgi: document.getElementById('pPrevInfo').textContent, koyu };
+  });
+  ok('6a 3B\'de "Basılacak alan" listesinde 3B görünüş var ve öntanımlı', d.alan === '3d' && /^3d,/.test(d.secenek), JSON.stringify(d.secenek));
+  ok('6b 3B sayfası raster: biçim seçimi kilitli', d.mod === 'raster' && d.modKilitli === true, JSON.stringify({ mod: d.mod, kilit: d.modKilitli }));
+  ok('6c ölçek ve pencere satırları gizli (3B görünüşte 1:N yoktur)', d.olcekGizli && d.pencereGizli, JSON.stringify(d));
+  ok('6d önizleme bilgisi ölçek YAZMIYOR', !/1:/.test(d.bilgi), d.bilgi);
+  ok('6e kâğıt önizlemesinde 3B görüntüsü var (boş sayfa değil)', d.koyu > 200, String(d.koyu));
+  const bek5 = page.waitForEvent('download', { timeout: 60000 });
+  await page.click('#pGo');
+  const dl5 = await bek5;
+  ok('6f 3B görünüşten PDF üretildi', /\.pdf$/i.test(dl5.suggestedFilename()), dl5.suggestedFilename());
+  await page.waitForTimeout(400);
+}
+
 C.summary(errors);
 await browser.close(); srv.kill();
 C.exit();

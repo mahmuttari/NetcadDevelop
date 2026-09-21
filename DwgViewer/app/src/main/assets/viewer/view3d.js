@@ -399,13 +399,13 @@ export class View3D {
     // ön geçiş: kaba boyut tahmini (kapasite)
     const est = Math.min(1 << 18, Math.max(4096, prims.length * 8));
     const B = {};
-    for (const n of ['lines', 'edges', 'tris', 'pts', 'txt']) B[n] = { pos: new Grow(n === 'lines' ? est * 3 : 4096), rgb: new Grow(n === 'lines' ? est * 3 : 4096), lay: new Grow(n === 'lines' ? est : 1024), nrm: n === 'tris' ? new Grow(4096) : null };
+    for (const n of ['lines', 'edges', 'tris', 'pts', 'txt']) B[n] = { pos: new Grow(n === 'lines' ? est * 3 : 4096), rgb: new Grow(n === 'lines' ? est * 3 : 4096), lay: new Grow(n === 'lines' ? est : 1024), alp: new Grow(n === 'lines' ? est : 1024), nrm: n === 'tris' ? new Grow(4096) : null };
     // ağ ilkelleri (k=5) indeksli çizilir: köşeler paylaşılır, üçgen başına köşe kopyalanmaz
     let mv = 0, mi = 0;
     for (const p of prims) if (p.k === 5 && p.vtx) { mv += p.vtx.length; mi += p.idx.length; }
     const useIdx = this.u32 && mi > 0;
     const capV = Math.max(4096, Math.ceil(mv * 1.4));
-    B.mesh = { pos: new Grow(capV), rgb: new Grow(capV), lay: new Grow(Math.max(1024, Math.ceil(capV / 3))), nrm: new Grow(capV) };
+    B.mesh = { pos: new Grow(capV), rgb: new Grow(capV), lay: new Grow(Math.max(1024, Math.ceil(capV / 3))), alp: new Grow(Math.max(1024, Math.ceil(capV / 3))), nrm: new Grow(capV) };
     const MIDX = new GrowU32(Math.max(1024, mi));
     let gAssign = new Uint16Array(64), cornerOut = new Uint32Array(1024);
     /*
@@ -450,7 +450,7 @@ export class View3D {
         for (const G of gr) {
           const L = Math.hypot(G.ax, G.ay, G.az) || 1;
           G.out = B.mesh.pos.n / 3;
-          B.mesh.pos.push3(x, y, z); B.mesh.rgb.push3(c[0], c[1], c[2]); B.mesh.lay.push1(li); B.mesh.nrm.push3(G.ax / L, G.ay / L, G.az / L);
+          B.mesh.pos.push3(x, y, z); B.mesh.rgb.push3(c[0], c[1], c[2]); B.mesh.lay.push1(li); B.mesh.alp.push1(alp); B.mesh.nrm.push3(G.ax / L, G.ay / L, G.az / L);
           bbx(x, y, z);
         }
         for (let a = s0; a < e0; a++) cornerOut[adj[a]] = gr[gAssign[a - s0]].out;
@@ -463,9 +463,15 @@ export class View3D {
     let bb = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
     const fg = this.fg;
     const col = (c) => c === FG || c == null ? fg : [((c >> 16) & 255) / 255, ((c >> 8) & 255) / 255, (c & 255) / 255];
-    const bbx = (x, y, z) => { if (x < bb[0]) bb[0] = x; if (y < bb[1]) bb[1] = y; if (z < bb[2]) bb[2] = z; if (x > bb[3]) bb[3] = x; if (y > bb[4]) bb[4] = y; if (z > bb[5]) bb[5] = z; };
-    let li = 0, c = fg;
-    const push = (b, x, y, z) => { b.pos.push3(x, y, z); b.rgb.push3(c[0], c[1], c[2]); b.lay.push1(li); bbx(x, y, z); };
+    /*
+     * Sınır kutusuna AYKIRI DEĞER TAVANI (scene.js'teki 1e15 ile aynı). Bozuk bir DWG'de tek bir
+     * saçma koordinat kutuyu şişirir; 2B bu tavanı uyguladığı için etkilenmez, 3B uygulamadığı
+     * için aynı çizimde kadrajı ve kot aralığını kaybediyordu.
+     */
+    const SANE = 1e15;
+    const bbx = (x, y, z) => { if (!(Math.abs(x) <= SANE && Math.abs(y) <= SANE && Math.abs(z) <= SANE)) return; if (x < bb[0]) bb[0] = x; if (y < bb[1]) bb[1] = y; if (z < bb[2]) bb[2] = z; if (x > bb[3]) bb[3] = x; if (y > bb[4]) bb[4] = y; if (z > bb[5]) bb[5] = z; };
+    let li = 0, c = fg, alp = 1;
+    const push = (b, x, y, z) => { b.pos.push3(x, y, z); b.rgb.push3(c[0], c[1], c[2]); b.lay.push1(li); b.alp.push1(alp); bbx(x, y, z); };
     const tri = (a, b2, c2) => {
       const t = B.tris;
       // düz normal
@@ -483,9 +489,22 @@ export class View3D {
     let meshEdgeN = 0;
     for (const p of prims) {
       if (p.inf || p.k === 4 || p.k === 3) continue;
+      /*
+       * DESENLİ TARAMANIN İKİ NÜSHASI VARDIR (scene.js): desen çizgileri (p.hp) ve uzaktan
+       * bakışta onların yerine çizilen saydam dolgu (p.hpFill). 2B bunlardan birini EKRAN
+       * ÖLÇEĞİNE göre seçer; 3B'de ölçek kameraya ve kota göre her pikselde değişir, tek bir
+       * seçim yapılamaz. İkisi birden çizildiği için tarama iki kat koyu çıkıyor ve opak dolgu
+       * desenin üstünü kapatıyordu — 2B'de boş görünen bir alan 3B'de gri bir kütleye dönüyordu.
+       * 3B'de her zaman DESEN çizgileri kullanılır, dolgu nüshası atlanır.
+       */
+      if (p.hpFill != null) continue;
       const lay = layers.get(p.lay); if (lay && !lay.visible) continue;
       li = idx.has(p.lay) ? idx.get(p.lay) : unk;
       c = col(p.col);
+      // Maske (WIPEOUT) nesnenin kendi rengiyle değil ARKA PLAN rengiyle basılır: işi örtmektir
+      if (p.bg) c = this.bgTheme;
+      // Saydamlık ilkelin kendi değeridir: %18'lik tarama dolgusu 3B'de de %18 kalır
+      alp = (p.alpha == null || !isFinite(p.alpha)) ? 1 : Math.max(0, Math.min(1, p.alpha));
       if (p.k === 2) { push(B.pts, p.x, p.y, p.z || 0); vert(p.x, p.y, p.z || 0, p); continue; }
       if (p.k === 1) { push(B.txt, p.x, p.y, p.z || 0); continue; }
       if (p.k === 5) {                                        // ağ ilkeli
@@ -548,7 +567,7 @@ export class View3D {
     for (const n of ['lines', 'edges', 'tris', 'pts', 'txt', 'mesh']) {
       const b = B[n], pos = b.pos.out(), o = this.origin;
       for (let i = 0; i < pos.length; i += 3) { pos[i] -= o[0]; pos[i + 1] -= o[1]; pos[i + 2] -= o[2]; }
-      this.src[n] = { rgb: b.rgb.out(), lay: b.lay.out(), alpha: n === 'txt' ? 0.6 : 1, pos, nrm: b.nrm ? b.nrm.out() : null, smooth: null };   // pos: bağlam kaybında yeniden yükleme
+      this.src[n] = { rgb: b.rgb.out(), lay: b.lay.out(), alp: b.alp.out(), alpha: n === 'txt' ? 0.6 : 1, pos, nrm: b.nrm ? b.nrm.out() : null, smooth: null };   // pos: bağlam kaybında yeniden yükleme
       this.uploadPos(n, pos); if (b.nrm) this.uploadNrm(n, this.src[n].nrm);
       this._n[n] = pos.length / 3;
     }
@@ -580,7 +599,7 @@ export class View3D {
         const li = s.lay[i];
         if (byLayer) { out[i * 4] = lr[li * 3]; out[i * 4 + 1] = lr[li * 3 + 1]; out[i * 4 + 2] = lr[li * 3 + 2]; }
         else { out[i * 4] = s.rgb[i * 3]; out[i * 4 + 1] = s.rgb[i * 3 + 1]; out[i * 4 + 2] = s.rgb[i * 3 + 2]; }
-        out[i * 4 + 3] = s.alpha * (fade && fade.has(names[li]) ? fa : 1);
+        out[i * 4 + 3] = (s.alp && i < s.alp.length ? s.alp[i] : 1) * s.alpha * (fade && fade.has(names[li]) ? fa : 1);
       }
       this.uploadCol(n, out);
     }
@@ -741,10 +760,49 @@ export class View3D {
   _fovK() { return Math.tan(26 * Math.PI / 180) / Math.tan(clamp(this.opts.fov, 10, 120) * Math.PI / 360); }
   /** sığdırma çarpanı: izdüşüm yüksekliğe göre kurulduğundan dikey (dar) tuvalde genişliğe de sığması için uzaklık büyütülür */
   _fitK() { const asp = this.cv.width / Math.max(1, this.cv.height); return this._fovK() * (asp > 0 && asp < 1 ? 1 / asp : 1); }
-  /** sahneyi sığdırır (hedef = merkez) */
+  /*
+   * GÖRÜNÜŞE GÖRE KADRAJ (v8.4).
+   *
+   * Eski sığdırma modelin BİÇİMİNİ ve BAKIŞ DOĞRULTUSUNU hiç okumuyordu: uzaklığı yalnız sınır
+   * KÜRESİNİN yarıçapından kuruyor (hypot(dx,dy,dz)/2), dar tuvalde de 1/en-boy ile büyütüyordu.
+   * Bu iki kuralın birleşik sonucu kapalı biçimde yazılabilir: görünen dünya penceresi her zaman
+   * kısa ekran kenarında 2,146·R, uzun kenarında 2,146·R/oran olur. Model hiçbir eksende 2R'yi
+   * geçemediğinden UZUN EKSENİN en az %58'i tanımı gereği boş kalıyordu — bir dere güzergâhı gibi
+   * uzun ve ince bir paftada model ekranın ortasında ince bir şerit hâlinde duruyor, kullanıcı
+   * elle on kat yakınlaşmak zorunda kalıyordu. Üstten bakışta ayrıca GÖRÜNMEYEN kot farkı da
+   * küreye girdiği için kadrajı ayrıca büyütüyordu.
+   *
+   * Yenisi kutunun sekiz köşesini kameranın SAĞ ve YUKARI eksenlerine izdüşürür, iki ekseni ayrı
+   * kısıtlar (yatayda en-boy oranına böler) ve uzaklığı bağlayıcı eksenden kurar. Üstten bakışta
+   * kot ekran katkısı sıfıra indiği için plan, 2B'deki "Sığdır" ile aynı kadrajı verir.
+   */
+  _kadraj(bb) {
+    const b = bb || this.bb;
+    const zs = this.zScale, c = this.cam;
+    const varsayilan = { target: this.center.slice(), dist: Math.max(1e-6, this.radius * 2.2 * this._fitK()) };
+    if (!b || !isFinite(b[0])) return varsayilan;
+    const merkez = [(b[0] + b[3]) / 2, (b[1] + b[4]) / 2, (b[2] + b[5]) / 2];
+    // lookAt ile aynı taban: sağ = up x z, yukarı = z x sağ  (z = gözden hedefe ters yön)
+    const cp = Math.cos(c.pitch), sp = Math.sin(c.pitch), cy = Math.cos(c.yaw), sy = Math.sin(c.yaw);
+    const rx = -sy, ry = cy;                       // sağ ekseni (z bileşeni sıfır)
+    const ux = -sp * cy, uy = -sp * sy, uz = cp;   // yukarı ekseni
+    let hx = 0, hy = 0;
+    const mz = merkez[2] * zs;
+    for (let i = 0; i < 8; i++) {
+      const dx = (i & 1 ? b[3] : b[0]) - merkez[0], dy = (i & 2 ? b[4] : b[1]) - merkez[1], dz = (i & 4 ? b[5] : b[2]) * zs - mz;
+      hx = Math.max(hx, Math.abs(dx * rx + dy * ry));
+      hy = Math.max(hy, Math.abs(dx * ux + dy * uy + dz * uz));
+    }
+    const asp = this.cv.width / Math.max(1, this.cv.height);
+    const yari = Math.max(hy, asp > 0 ? hx / asp : hx) * 1.07;
+    const hh = Math.max(yari, this.radius * 1e-5);
+    const dist = hh / Math.tan(clamp(this.opts.fov, 10, 120) * Math.PI / 360);
+    return { target: merkez, dist: isFinite(dist) && dist > 0 ? dist : varsayilan.dist };
+  }
+  /** sahneyi sığdırır (hedef = merkez, uzaklık bakış doğrultusuna göre) */
   fit({ animate = true } = {}) {
     this.pushHistory();
-    this._goto({ target: this.center.slice(), dist: this.radius * 2.2 * this._fitK() }, animate);
+    this._goto(this._kadraj(null), animate);
     this.pushHistory();
   }
   /** seçime sığdırır; seçim boşsa false */
@@ -764,9 +822,16 @@ export class View3D {
       }
     }
     if (!isFinite(bb[0])) return false;
-    const r = Math.max(this.radius * 0.02, Math.hypot(bb[3] - bb[0], bb[4] - bb[1], bb[5] - bb[2]) / 2);
+    /*
+     * Seçime yakınlaşma da aynı yön duyarlı hesabı kullanır (bkz. _kadraj). Kutu, this.bb ile
+     * AYNI düzendedir: [minX, minY, minZ, maxX, maxY, maxZ]. Tek noktalı ya da çok ince bir
+     * seçimde kutu merkezinden en az yarıçapın %2'sine genişletilir, yoksa uzaklık sıfıra iner.
+     */
+    const enk = this.radius * 0.02;
+    const gen = (a, b2) => { const o = (a + b2) / 2, h = Math.max((b2 - a) / 2, enk / 2); return [o - h, o + h]; };
+    const [x0, x1] = gen(bb[0], bb[3]), [y0, y1] = gen(bb[1], bb[4]);
     this.pushHistory();
-    this._goto({ target: [(bb[0] + bb[3]) / 2, (bb[1] + bb[4]) / 2, (bb[2] + bb[5]) / 2], dist: r * 2.2 * this._fitK() }, animate);
+    this._goto(this._kadraj([x0, y0, bb[2], x1, y1, bb[5]]), animate);
     this.pushHistory();
     return true;
   }
@@ -1279,7 +1344,7 @@ export class View3D {
   // ekran görüntüsü ve HUD
   // ---------------------------------------------------------------------------------
   /** WebGL tuvali + (varsa) kaplama tuvali cihaz pikselinde birleştirilir → dataURL */
-  screenshot({ overlay = null } = {}) {
+  screenshot({ overlay = null, raw = false } = {}) {
     /*
      * RESİM HER ZAMAN TAM KALİTEDİR. Sadeleştirme ölçütü "önceki kare yavaştı ve hemen ardından
      * yeni istek geldi"dir; kullanıcı modeli döndürüp hemen paylaş düğmesine basarsa bu ölçüt
@@ -1293,7 +1358,7 @@ export class View3D {
     const c = out.getContext('2d');
     c.drawImage(cv, 0, 0);
     if (overlay && overlay.width && overlay.height) c.drawImage(overlay, 0, 0, overlay.width, overlay.height, 0, 0, out.width, out.height);
-    return out.toDataURL('image/png');
+    return raw ? out : out.toDataURL('image/png');   // raw: kâğıda gömmek için tuvalin kendisi
   }
   /** durum çubuğu / HUD metni */
 /*

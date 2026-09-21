@@ -106,16 +106,79 @@ ok('5 ön görünüşte perspektife dokunulmuyor', yan === true, String(yan));
 const px = await page.evaluate(() => {
   const v = window.dwgApp.editor.view3d();
   v.set('persp', false); v.set('zScale', 8); v.set('style', 'shaded');
-  v.fit({ animate: false }); v.preset('top', { animate: false });
+  // ÖNCE açı, SONRA kadraj: sığdırma bakış doğrultusuna bağlıdır (view3d._kadraj)
+  v.preset('top', { animate: false }); v.fit({ animate: false });
   v._lastFrameMs = 0; v._lastRenderAt = 0; v.render();
   const cv = v.cv, c = document.createElement('canvas'); c.width = cv.width; c.height = cv.height;
   const g = c.getContext('2d'); g.drawImage(cv, 0, 0);
-  const d = g.getImageData(0, 0, c.width, c.height).data, bg = [d[0], d[1], d[2]];
+  /*
+   * Arka plan SOL ÜST PİKSELDEN alınamaz: kadraj düzeldikten sonra (v8.4, yön duyarlı sığdırma)
+   * kule ekranın tamamını dolduruyor ve sol üst piksel de kulenin kendisi oluyor. Ölçüt, görünümün
+   * KENDİ temizleme rengidir.
+   */
+  const d = g.getImageData(0, 0, c.width, c.height).data;
+  const bgf = v._bgColor(), bg = [Math.round(bgf[0] * 255), Math.round(bgf[1] * 255), Math.round(bgf[2] * 255)];
   const orta = ((c.height >> 1) * c.width + (c.width >> 1)) * 4;
   let n = 0; for (let k = 0; k < d.length; k += 16) if (Math.abs(d[k] - bg[0]) + Math.abs(d[k + 1] - bg[1]) + Math.abs(d[k + 2] - bg[2]) > 24) n++;
   return { dolu: n, ortaDolu: Math.abs(d[orta] - bg[0]) + Math.abs(d[orta + 1] - bg[1]) + Math.abs(d[orta + 2] - bg[2]) > 24 };
 });
 ok('6 Z×8 düşey abartıda bile kule üstten dolu çiziliyor', px.dolu > 50 && px.ortaDolu === true, JSON.stringify(px));
+
+/*
+ * KADRAJ: SIĞDIRMA BAKIŞ DOĞRULTUSUNU OKUR (v8.4). Eski sığdırma sınır KÜRESİNİ kullanıyordu;
+ * uzun ve ince bir modelde (dere güzergâhı gibi) model ekranın ortasında ince bir şerit hâlinde
+ * kalıyor, ekranın büyük kısmı boş duruyordu. Kapalı biçimde türetilebilir bir tavanı vardı:
+ * görünen pencere uzun ekranda 2,146·R/oran olduğundan model uzun ekseni EN ÇOK %41,96
+ * doldurabiliyordu. Aşağıdaki denetim bu tavanı kırdığımızı sayıyla gösterir.
+ */
+{
+  const kad = await page.evaluate(() => {
+    const V = [0, 0, 0, 3000, 0, 0, 3000, 400, 0, 0, 400, 0, 0, 0, 20, 3000, 0, 20, 3000, 400, 20, 0, 400, 20];
+    const F = [0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 1, 5, 0, 5, 4, 1, 2, 6, 1, 6, 5, 2, 3, 7, 2, 7, 6, 3, 0, 4, 3, 4, 7];
+    const E = [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]];
+    const seg = []; for (const [a, b] of E) seg.push(V[a * 3], V[a * 3 + 1], V[a * 3 + 2], V[b * 3], V[b * 3 + 1], V[b * 3 + 2]);
+    const prim = { k: 5, vtx: new Float32Array(V), idx: new Uint32Array(F), seg: new Float32Array(seg),
+      bb: [0, 0, 3000, 400], zmin: 0, zmax: 20, face: true, alpha: 1, w: 0,
+      col: 0xffffff, lay: '0', lt: null, lts: 1, lw: 0, info: { h: 'G1', t: 'POLYLINE_PFACE' }, et: 'POLYLINE_PFACE' };
+    const layers = new Map([['0', { name: '0', color: null, visible: true, lw: -1, lt: 'Continuous', count: 1 }]]);
+    const v = window.dwgApp.editor.view3d();
+    v.setScene([prim], layers, { dark: true });
+    v.set('grid', false); v.set('axes', false); v.set('hud', false); v.set('persp', false); v.set('zScale', 1);
+    v.preset('top', { animate: false }); v.fit({ animate: false }); v.render();
+    const W = v.cv.clientWidth, H = v.cv.clientHeight, bb = v.bb;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (let i = 0; i < 8; i++) { const p = v.project(i & 1 ? bb[3] : bb[0], i & 2 ? bb[4] : bb[1], i & 4 ? bb[5] : bb[2]);
+      x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); }
+    return { W, H, enOran: (x1 - x0) / W, boyOran: (y1 - y0) / H, tasma: x0 < -1 || y0 < -1 || x1 > W + 1 || y1 > H + 1 };
+  });
+  // Telefon dikey (412x915), model 3000x400: bağlayıcı eksen YATAYDIR, ekranın en az %80'ini doldurmalı
+  ok('7a uzun ve ince model üstten bakışta ekranı dolduruyor (eski tavan %41,96)',
+    kad.enOran > 0.8, `en %${Math.round(kad.enOran * 100)} · boy %${Math.round(kad.boyOran * 100)}`);
+  ok('7b model ekranın dışına taşmıyor', kad.tasma === false, JSON.stringify(kad));
+  // Yatay tuvalde de aynı: bağlayıcı eksen değişse de doluluk korunur
+  await page.setViewportSize({ width: 915, height: 412 }); await page.waitForTimeout(350);
+  const yat = await page.evaluate(() => {
+    const v = window.dwgApp.editor.view3d();
+    v.preset('top', { animate: false }); v.fit({ animate: false }); v.render();
+    const W = v.cv.clientWidth, H = v.cv.clientHeight, bb = v.bb;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (let i = 0; i < 8; i++) { const p = v.project(i & 1 ? bb[3] : bb[0], i & 2 ? bb[4] : bb[1], i & 4 ? bb[5] : bb[2]);
+      x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); }
+    return { enOran: (x1 - x0) / W, boyOran: (y1 - y0) / H, tasma: x0 < -1 || y0 < -1 || x1 > W + 1 || y1 > H + 1 };
+  });
+  ok('7c yatay tuvalde de doluluk korunuyor', yat.enOran > 0.8 && yat.tasma === false, `en %${Math.round(yat.enOran * 100)} · boy %${Math.round(yat.boyOran * 100)}`);
+  await page.setViewportSize({ width: 412, height: 915 }); await page.waitForTimeout(300);
+  // Kot farkı üstten bakışta GÖRÜNMEZ: yalnız Z'yi büyütmek kadrajı değiştirmemeli
+  const z = await page.evaluate(() => {
+    const v = window.dwgApp.editor.view3d();
+    v.set('zScale', 1); v.preset('top', { animate: false }); v.fit({ animate: false });
+    const d1 = v.cam.dist;
+    v.set('zScale', 20); v.fit({ animate: false });
+    return { d1, d2: v.cam.dist };
+  });
+  ok('7d düşey abartı üstten bakıştaki kadrajı değiştirmiyor (kot ekranda görünmez)',
+    Math.abs(z.d2 - z.d1) / z.d1 < 0.02, JSON.stringify({ d1: Math.round(z.d1), d2: Math.round(z.d2) }));
+}
 
 C.summary(errors);
 await browser.close(); try { srv.kill && srv.kill(); } catch (_) { /* geç */ }

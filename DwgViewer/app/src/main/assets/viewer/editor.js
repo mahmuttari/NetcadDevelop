@@ -966,6 +966,7 @@ function renderMode() {
   const el = $('stMode'); if (!el) return;
   const txt = mode3Text || modeText;
   el.hidden = !txt; el.textContent = txt || '';
+  call(api.statusFit);   // çip belirip kaybolunca çubuğun yerleşimi yeniden kurulur
 }
 
 // ---------------------------------------------------------------------------------
@@ -2266,6 +2267,20 @@ export function tap(w, sx, sy) {
   if (!tools.running) return false;
   return tools.tap(w, [sx, sy]);
 }
+/*
+ * KAYDIR AÇILINCA ÇALIŞAN KOMUT DÜŞER. Kaydır ile bir komut AYNI sürüklemeyi ister: Seç açıkken
+ * tek parmak bölge kutusu çizer, Kaydır açıkken görünümü kaydırmalıdır. İkisi birlikte açık
+ * kalınca kullanıcı hangisinin çalıştığını bilemez ve kaydırma "çalışmıyor" görünür — kullanıcı
+ * bildirimi böyleydi. AutoCAD'de de PAN çalışan komutu keser. İptal edilecek bir şey varsa true.
+ */
+ed.komutIptal = () => {
+  let vardi = false;
+  if (cmdSeq) { cmdSeqCancel(); vardi = true; }
+  if (ed.m3) { ed.m3 = null; showPrompt(null); markActive(null); if (v3) overlay3D(); vardi = true; }
+  if (tools && tools.running) { tools.cancel(); markActive(null); vardi = true; }
+  if (vardi) refreshTiles();
+  return vardi;
+};
 export function back() {
   if (cmdSeq) { cmdSeqCancel(); return true; }
   const pop = $('tbPop'); if (pop && !pop.hidden) { closePop(); return true; }
@@ -2619,7 +2634,9 @@ function enter3D() {
   cv.hidden = false; document.body.classList.add('mode3d');
   resize3D();
   refresh3D();
-  v3.fit({ animate: false }); v3.preset('iso', { animate: false }); v3.render();
+  // ÖNCE açı, SONRA kadraj: sığdırma artık bakış doğrultusuna bağlı (bkz. view3d._kadraj),
+  // ters sırada iso kadrajı bir önceki bakışa göre kurulurdu.
+  v3.preset('iso', { animate: false }); v3.fit({ animate: false }); v3.render();
   if (!cube) { try { cube = buildViewCube($('cube3d'), v3, host3()); } catch (e) { console.warn(e); cube = null; } }
   syncCube();
   api.toast(tileHint('3d'), 2200);
@@ -2661,11 +2678,23 @@ function refresh3D() {
     api.toast(tt('view3dModelOnly', '3B görünüm Model uzayını gösterir'), 3500);
   }
   const fadeLayers = new Set([...S.layers.values()].filter(l => l.faded).map(l => l.name));
-  v3.setScene(model.prims, S.layers, { dark: S.dark, mono: S.mono, bg: bgColor(), fg: fgColor(), fade: S.fade.on && fadeLayers.size ? { pct: S.fade.pct, layers: fadeLayers } : null, selColor: S.selColor });
+  /*
+   * 3B SAHNESİ 2B'NİN GÖRÜNÜRLÜK KURALLARINDAN GEÇER. Eskiden ham ilkel listesi veriliyordu ve
+   * view3d'nin tek elemesi "sonsuz / görüntü / yok sayılan" ile kapalı katmandı. Sonuç: 2B'de
+   * KAPATILMIŞ tarama, yazı, ölçü, blok, gizlenen nesne (HIDEOBJECTS) ve izolasyon dışı her şey
+   * 3B'de geri geliyordu — kullanıcı 2B'de boş gördüğü koridoru 3B'de dolu buluyordu. Katı model
+   * üçgenleri (p.tri) bunun tersidir: 2B'de tanımı gereği gizlidirler ama 3B'nin asıl gövdesini
+   * onlar kurar, o yüzden süzgeçten ayrık tutulurlar.
+   */
+  // Süzgeç yoksa (eski kabuk) hiçbir şey elenmez: boş bir 3B sahnesi, süzülmemiş sahneden kötüdür
+  const gorunur = typeof api.primVisible === 'function' ? model.prims.filter(p => (p && p.tri) || api.primVisible(p)) : model.prims;
+  v3.setScene(gorunur, S.layers, { dark: S.dark, mono: S.mono, bg: bgColor(), fg: fgColor(), fade: S.fade.on && fadeLayers.size ? { pct: S.fade.pct, layers: fadeLayers } : null, selColor: S.selColor });
   v3.setSelection(ed.sel);
   if (!v3.counts.tris && typeof api.noFaces === 'function' && ed._noFaceKey !== S.fileKey) { ed._noFaceKey = S.fileKey; try { api.noFaces(); } catch (_) { /* geç */ } }
 }
 function render3D() { if (v3 && ed.is3D()) { v3.render(); overlay3D(); statusMode3D(); if (cube) cube.update(); } }
+/** Sahneyi kaynaktan yeniden kurar (2B görünürlük anahtarları değişince; sınamalar da bunu çağırır) */
+ed.yenile3B = () => { if (!v3 || !ed.is3D()) return false; refresh3D(); render3D(); return true; };
 export function onResize() {
   if (!ed.is3D()) return;
   const k0 = v3._fitK(); resize3D(); const k1 = v3._fitK();
@@ -2705,6 +2734,8 @@ function bolgeBaslat(sx, sy) {
   // PDF alan seçimi 3B'de de çalışır: dikdörtgen SEÇİM değil, basılacak alandır (bkz. ed.alan3)
   if (p3.alan && v3) { p3.region = { mode: 'box', alan: true, pts: [[sx, sy]], x0: sx, y0: sy, x1: sx, y1: sy, crossing: null }; return true; }
   if (!bolgeAcik() || !v3) return false;
+  // Kaydır açıkken tek parmak GÖRÜNÜMÜ kaydırır; bölge kutusu o sürüklemeyi çalamaz (bkz. ed.komutIptal)
+  if (v3.opts.touch && v3.opts.touch.oneFinger === 'pan') return false;
   const kip = ed.m3.selMode || 'tap';
   if (kip === 'box' || kip === 'lasso') { p3.region = { mode: kip, pts: [[sx, sy]], x0: sx, y0: sy, x1: sx, y1: sy, crossing: null }; return true; }
   if (pick3At(sx, sy)) return false;   // nesnenin üstü: dokunuş onu seçsin, kutu açılmasın

@@ -36,19 +36,34 @@ await page.click('#toolbar [data-act="v:iso"]'); await page.waitForTimeout(200);
 // 3B mesafe: ekranda görünen ilk iki köşe (B1 hattının iki ucu, z 52.4 / 51.9)
 await page.click('#toolbar [data-tab="draw"]'); await page.waitForTimeout(250);   // v7.80: 3B araçları Çiz şeridindedir
 await page.click('#toolbar [data-act="3:dist"]');
-const vs = await page.evaluate(() => { const v = window.dwgApp.editor.view3d(); const W = v.cv.clientWidth, H = v.cv.clientHeight; const seen = new Set(); const out = []; for (const a of v.vertices) { const s = v.project(a[0], a[1], a[2]); const k = Math.round(s[0]) + ',' + Math.round(s[1]); if (s[0] > 40 && s[0] < W - 40 && s[1] > 60 && s[1] < H - 60 && !seen.has(k)) { seen.add(k); out.push(s); } if (out.length === 2) break; } return out; });
-ok('3a iki köşe ekranda bulundu', vs.length === 2, JSON.stringify(vs.map(s => s.slice(0, 2).map(Math.round))));
-{ const r = await page.locator('#cv3d').boundingBox(); for (const s of vs) { await page.touchscreen.tap(r.x + s[0], r.y + s[1]); await page.waitForTimeout(250); } }
+/*
+ * Ekranda görünen ilk iki köşe seçilir ve DÜNYA koordinatları da alınır: ölçümün doğruluğu,
+ * sabit bir sayıya değil, gerçekten dokunulan iki köşenin arasındaki uzaklığa göre sınanır.
+ * (Kadraj değişirse — v8.4'te sığdırma bakış doğrultusuna bağlandı — ekranda görünen köşe
+ * kümesi de değişir; sınama o yüzden kadrajdan bağımsız kurulur.)
+ */
+const vs = await page.evaluate(() => { const v = window.dwgApp.editor.view3d(); const W = v.cv.clientWidth, H = v.cv.clientHeight; const seen = new Set(); const out = []; for (const a of v.vertices) { const s = v.project(a[0], a[1], a[2]); const k = Math.round(s[0]) + ',' + Math.round(s[1]); if (s[0] > 40 && s[0] < W - 40 && s[1] > 60 && s[1] < H - 60 && !seen.has(k)) { seen.add(k); out.push({ s, w: [a[0], a[1], a[2]] }); } if (out.length === 2) break; } return out; });
+ok('3a iki köşe ekranda bulundu', vs.length === 2, JSON.stringify(vs.map(o => o.s.slice(0, 2).map(Math.round))));
+{ const r = await page.locator('#cv3d').boundingBox(); for (const o of vs) { await page.touchscreen.tap(r.x + o.s[0], r.y + o.s[1]); await page.waitForTimeout(250); } }
 {
   const txt = (await page.locator('#docBody').innerText()).replace(/\n/g, ' | ');
-  ok('3b 3B mesafe 107,704 m, ΔZ -0,5 m', /3B mesafe \| 107,704 m/.test(txt) && /ΔZ \| -0,5 m/.test(txt), txt.slice(0, 120));
-  ok('3c uç noktalar (100;100;52,4) → (200;140;51,9)', txt.includes('100 ; 100 ; 52,4') && txt.includes('200 ; 140 ; 51,9'), txt.slice(120, 220));
+  const [a, b] = vs.map(o => o.w);
+  const d3 = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]), dz = b[2] - a[2];
+  const tr = (v, n = 3) => v.toFixed(n).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d)(?![,\d]))/g, '');
+  const say = (v, n) => new Intl.NumberFormat('tr-TR', { minimumFractionDigits: n, maximumFractionDigits: n }).format(v);
+  ok('3b ölçülen 3B mesafe DOKUNULAN iki köşenin arasındaki uzaklıktır', txt.includes('3B mesafe | ' + say(d3, 3) + ' m') && txt.includes('ΔZ | ' + say(dz, 1) + ' m'),
+    `${say(d3, 3)} / ${say(dz, 1)} ⟵ ${txt.slice(0, 110)}`);
+  // Panel sayıları uygulamanın kendi biçimiyle yazar (Türkçe, gereksiz sıfırlar atılmış); sayıya çevirip karşılaştırılır
+  const trSayi = (x) => parseFloat(String(x).replace(/\./g, '').replace(',', '.'));
+  const nokta = [...txt.matchAll(/nokta \| ([-\d.,]+) ; ([-\d.,]+) ; ([-\d.,]+)/g)].map(m => m.slice(1, 4).map(trSayi));
+  ok('3c uç noktalar tam olarak dokunulan köşeler', nokta.length === 2 && [a, b].every((w, i) => w.every((v, j) => Math.abs(v - nokta[i][j]) < 0.01)),
+    JSON.stringify({ dokunulan: [a, b], yazan: nokta }));
 }
 await page.screenshot({ path: `${out}/e_3d_dist.png` });
 await page.evaluate(() => window.dwgApp.onBack());
 // 3B: seç + kot ata (giriş kutusu cevabı 7)
 await page.click('#toolbar [data-act="3:select"]');
-{ const r = await page.locator('#cv3d').boundingBox(); await page.touchscreen.tap(r.x + vs[0][0], r.y + vs[0][1]); await page.waitForTimeout(250); }
+{ const r = await page.locator('#cv3d').boundingBox(); await page.touchscreen.tap(r.x + vs[0].s[0], r.y + vs[0].s[1]); await page.waitForTimeout(250); }
 ok('4a 3B seçim: LINE', (await page.evaluate(() => [...window.dwgApp.editor.sel].map(p => p.et).join(','))) === 'LINE');
 await queueAnswers(page, '7'); await page.click('#toolbar [data-act="3:setz"]'); await page.waitForTimeout(300);
 {

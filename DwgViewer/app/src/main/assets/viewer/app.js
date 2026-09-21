@@ -166,6 +166,7 @@ function resize() {
   S.cacheValid = false;
   requestRender();
   editorResize();
+  statusFit();
 }
 new ResizeObserver(resize).observe(vp);
 window.addEventListener('resize', resize);
@@ -375,6 +376,12 @@ function panOn() {
 }
 function togglePan(on) {
   const hedef = on === undefined || on === null ? !panOn() : !!on;
+  /*
+   * Kaydır AÇILIRKEN çalışan ne varsa düşer: pencere seçimi, 2B aracı, 3B komutu. Üçü de aynı
+   * sürüklemeyi ister; birlikte açık kalırlarsa kaydırma çalışmıyor görünür. Kapatırken hiçbir
+   * şeye dokunulmaz — kullanıcı kaydırmayı bırakıp kaldığı yerden devam edebilsin.
+   */
+  if (hedef) { if (zoomWin) cancelZoomWindow(); edCall('komutIptal'); }
   if (editor.is3D()) {
     const v = edCall('view3d');
     if (!v) return false;
@@ -383,8 +390,6 @@ function togglePan(on) {
   } else {
     if (!S.hasDoc) { toast(t('openFirst')); return false; }
     if (hedef === S.panMode) return hedef;
-    // İki kip de aynı sürüklemeyi ister: pencere seçimi açıkken kaydırmaya geçilmez.
-    if (hedef && zoomWin) cancelZoomWindow();
     S.panMode = hedef;
     toast(hedef ? tt('panOnMsg', 'Kaydır açık: sürükleyin. Kapatmak için düğmeye yeniden dokunun (Esc).') : tt('panOffMsg', 'Kaydır kapalı'), 2200);
   }
@@ -976,6 +981,55 @@ function updateStatus(sx, sy) {
     if (S.geo.active) { const ll = S.geo.toLonLat(w[0], w[1]); if (ll) s += '  φ ' + ll[1].toFixed(6) + ' λ ' + ll[0].toFixed(6); }
     $('stCoord').textContent = s;
   }
+  statusFit();
+}
+/*
+ * DURUM ÇUBUĞU HİÇBİR ŞEYİ YARIM GÖSTERMEZ.
+ *
+ * Çubuk tek satırdır ve içeriği ekranı aşabilir: 2B'de sekiz hızlı düğme (8 x 40 = 320 px) tek
+ * başına 412 px'lik bir telefonun neredeyse tamamını yer; geriye kalan koordinat, ızgara, ölçek,
+ * kip ve sayaç çipleri `overflow: hidden` ile KIRPILIYORDU. Kullanıcı bunu "ölçeğin sağındaki
+ * bilgi yazıları biçimsiz kalıyor" diye bildirdi: ekranda yarım bir "3B" rozeti ve kesik bir
+ * "291" duruyordu.
+ *
+ * Çözüm kırpmayı değil YERLEŞİMİ düzeltmektir. Üç geçiş sırayla denenir ve hangisinde sığarsa
+ * orada durulur:
+ *   1) SIKIŞIK KİP — düğmeler 40 → 34 px, boşluklar ve çip iç boşluğu daralır.
+ *   2) KAYAN DÜĞME ŞERİDİ — hızlı düğmeler çubuğun en çok %42'sini kaplar, gerisi yatay kayar
+ *      (sağ kenardaki solma bunu belli eder). Bilgi çipleri böylece yerini korur.
+ *   3) BİLGİ DÜŞÜRME — hâlâ sığmıyorsa çipler ÖNEM SIRASININ TERSİNDEN bütünüyle kaldırılır.
+ *      Sıra, başka yerde karşılığı olandan başlar: yakalama çipi ve ızgara çipi kendi hızlı
+ *      düğmelerinde zaten görünür, GPS'in kendi düğmesi vardır. Ölçek en sonda kalır — haritacı
+ *      için çubuktaki en değerli sayı odur.
+ * Kendi sebebiyle gizlenmiş bir çip (ızgara kapalıysa #stGrid) zaten `hidden`'dır; bu geçiş
+ * yalnız `st-squeeze` sınıfını ekler, `hidden`a dokunmaz — iki karar birbirine karışmaz.
+ */
+const ST_DUSME = ['stSnap', 'stGrid', 'stGps', 'stCount', 'stCoord', 'stMode', 'stScale'];
+let stFitRaf = 0;
+function statusFit() {
+  if (stFitRaf) return;
+  stFitRaf = requestAnimationFrame(() => {
+    stFitRaf = 0;
+    const bar = $('statusbar'); if (!bar || bar.hidden || !bar.clientWidth) return;
+    const q = $('stQuick');
+    const sigar = () => bar.scrollWidth <= bar.clientWidth + 1;
+    for (const id of ST_DUSME) { const e = $(id); if (e) e.classList.remove('st-squeeze'); }
+    { const c = $('stCount'); if (c && c.dataset.uzun) c.textContent = c.dataset.uzun; }
+    document.body.classList.remove('st-tight');
+    if (q) q.classList.remove('st-scroll');
+    if (sigar()) return;
+    document.body.classList.add('st-tight');
+    if (sigar()) return;
+    { const c = $('stCount'); if (c && c.dataset.kisa) c.textContent = c.dataset.kisa; }   // sayaç kısa yazıma iner
+    if (sigar()) return;
+    if (q) { q.classList.add('st-scroll'); if (sigar()) return; }
+    for (const id of ST_DUSME) {
+      const e = $(id);
+      if (!e || e.hidden || getComputedStyle(e).display === 'none') continue;
+      e.classList.add('st-squeeze');
+      if (sigar()) return;
+    }
+  });
 }
 function ensureStatusChips() {
   const bar = $('statusbar'); if (!bar) return;
@@ -4170,6 +4224,38 @@ async function pdfKagitSec() {
 }
 /** Canlı önizleme: kâğıt, kenar boşluğu, künye ve basılacak alanın küçük resmi */
 function pdfOnizle() { clearTimeout(pdfOnizZaman); pdfOnizZaman = setTimeout(pdfOnizCiz, 220); }
+/*
+ * 3B GÖRÜNÜŞÜN KÂĞIT GÖRÜNTÜSÜ. Üç boyutlu bir görünüş vektöre çevrilemez — ekranda görünen şey
+ * derinlik sıralı, aydınlatılmış bir RESİMDİR; onu yollara indirmek gölgeyi, gizli çizgiyi ve
+ * kesişimi kaybettirir. Bu yüzden 3B sayfası her zaman rasterdir ve kaynağı WebGL tuvalinin
+ * kendisidir (preserveDrawingBuffer ile okunabilir). screenshot() sadeleştirme sayaçlarını
+ * sıfırlar, yani kâğıda giden resim ekrandakinden eksik olamaz.
+ */
+function ucBoyutGorsel({ taze = true } = {}) {
+  if (!editor.is3D()) return null;
+  const v = edCall('view3d');
+  if (!v || typeof v.screenshot !== 'function') return null;
+  /*
+   * ÖNİZLEME KAMERAYI KIPIRDATMAZ. screenshot() tazeler, tazeleme de gerekirse tuvali yeniden
+   * boyutlandırır ve kamera uzaklığını en-boy oranına taşır — küçük bir önizleme için bu bedel
+   * ödenmez, üstelik kullanıcının seçtiği pencere ile o pencereyi kuran ışınlar ayrışır.
+   * preserveDrawingBuffer açık olduğundan son kare tuvalde durur; önizleme onu okur.
+   */
+  try {
+    if (taze) return v.screenshot({ raw: true });
+    const c3 = v.cv; if (!c3 || !c3.width || !c3.height) return null;
+    const out = document.createElement('canvas'); out.width = c3.width; out.height = c3.height;
+    out.getContext('2d').drawImage(c3, 0, 0);
+    return out;
+  } catch (e) { console.warn(e); return null; }
+}
+/** 3B sayfasının künye satırı: ölçek yerine BAKIŞ yazılır (yaw / pitch / izdüşüm / stil) */
+function ucBoyutBilgi() {
+  const v = edCall('view3d'); if (!v) return '';
+  const d = (r) => fmt(r * 180 / Math.PI, 0);
+  return [`${t('hudYaw')} ${d(v.cam.yaw)}°`, `${t('hudPitch')} ${d(v.cam.pitch)}°`,
+    v.cam.persp ? t('hudPersp') : t('hudOrtho'), `Z×${fmt(v.zScale, 2)}`].join('   ·   ');
+}
 function pdfOnizCiz() {
   const cv = $('pPrev'); if (!cv || !cv.isConnected) return;
   pdfAyarOku();
@@ -4189,7 +4275,17 @@ function pdfOnizCiz() {
   const kunye = (o.frame === false ? 0 : 18) * k;
   const aw = pw - 2 * kenar, ah = ph - 2 * kenar - kunye;
   let olcek = 0;
-  if (aw > 3 && ah > 3) {
+  if (aw > 3 && ah > 3 && o.area === '3d') {
+    // 3B sayfası: tuvalin görüntüsü oranı korunarak çizim alanına oturur
+    const g3 = ucBoyutGorsel({ taze: false });
+    if (g3 && g3.width && g3.height) {
+      const kk = Math.min(aw / g3.width, ah / g3.height), dw = g3.width * kk, dh = g3.height * kk;
+      c.drawImage(g3, px + kenar + (aw - dw) / 2, py + kenar + (ah - dh) / 2, dw, dh);
+    }
+    c.strokeStyle = '#9aa3ad'; c.lineWidth = 1;
+    if (kenar > 0.5) { c.setLineDash([3, 3]); c.strokeRect(px + kenar, py + kenar, aw, ah + kunye); c.setLineDash([]); }
+    if (kunye > 1.5) { c.strokeStyle = '#555'; c.strokeRect(px + kenar, py + kenar + ah, aw, kunye); }
+  } else if (aw > 3 && ah > 3) {
     const alan = pdfAlani(o, !!o.all, Math.max(1, aw / k), Math.max(1, ah / k));
     olcek = alan.sayfaOlcek || 0;
     const kip = { mode: S.colorMode, mono: S.monoColor, plot: S.plot };
@@ -4264,7 +4360,16 @@ function showPdf() {
     + ks.map(k => `<option value="${esc(k)}"${k === pdfAyar.paper ? ' selected' : ''}>${esc(k)} · ${PAPERS[k][0]}×${PAPERS[k][1]}</option>`).join('')
     + `</optgroup>`).join('')
     + `<option value="ozel"${pdfAyar.paper === 'ozel' ? ' selected' : ''}>${esc(t('pdfCustom'))}</option>`;
-  const alanSecenek = [['view', t('pdfAreaView')], ['ext', t('pdfAreaExt')], ['win', t('pdfAreaWin')]]
+  /*
+   * BASILACAK ALAN. 3B görünümdeyken listeye "3B görünüş" eklenir ve ÖNTANIMLI olur: kullanıcı
+   * üç boyutlu modele bakarken PDF'e bastığında gördüğü şeyi bekler, paftanın planını değil.
+   * 3B seçili değilken bu değer listede yoktur; eski bir ayardan geliyorsa ekran görünümüne düşer.
+   */
+  const ucBoyut = editor.is3D();
+  // Kullanıcı 3B'de PENCERE seçtiyse o seçim korunur; yoksa 3B görünüş öntanımlıdır
+  if (ucBoyut && !(pdfAyar.area === 'win' && pdfWin)) pdfAyar.area = '3d';
+  else if (pdfAyar.area === '3d') pdfAyar.area = 'view';
+  const alanSecenek = [...(ucBoyut ? [['3d', tt('pdfArea3d', '3B görünüş (resim)')]] : []), ['view', t('pdfAreaView')], ['ext', t('pdfAreaExt')], ['win', t('pdfAreaWin')]]
     .map(([v, l]) => `<option value="${v}"${v === pdfAyar.area ? ' selected' : ''}>${esc(l)}</option>`).join('');
   const html = kv([
     [`<div class="full pdf-prev"><canvas id="pPrev" role="img" aria-label="${esc(tt('pdfPreview', 'Sayfa önizlemesi'))}"></canvas><div id="pPrevInfo" class="muted"></div></div>`],
@@ -4274,7 +4379,7 @@ function showPdf() {
     [t('orient'), `<span class="pair"><select id="pOrient">${[['auto', t('orientAuto')], ['l', t('landscape')], ['p', t('portrait')]].map(([v, l]) => `<option value="${v}"${v === pdfAyar.orient ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select> <small id="pSize" class="muted"></small></span>`, 1, 'yon'],
     [t('pdfArea'), `<select id="pArea">${alanSecenek}</select>`, 1],
     ['', `<span class="pair"><button class="btn small" id="pPick"><svg class="ic" aria-hidden="true"><use href="#i-zoom-window"/></svg> ${esc(t('pdfPickWin'))}</button> <small id="pWinInfo" class="muted">${esc(pdfWinMetni())}</small></span>`, 1, 'win'],
-    [t('pdfScale'), `<input id="pScale" type="number" min="1" step="1" placeholder="${esc(t('pdfFit'))}" value="${esc(pdfAyar.scale)}">`, 1],
+    [t('pdfScale'), `<input id="pScale" type="number" min="1" step="1" placeholder="${esc(t('pdfFit'))}" value="${esc(pdfAyar.scale)}">`, 1, 'olcek'],
     [t('pdfMargin'), `<input id="pMargin" type="number" min="0" max="60" step="1" value="${pdfAyar.margin}">`, 1],
     [t('pdfMode'), `<select id="pMode"><option value="vektor"${pdfAyar.mode === 'vektor' ? ' selected' : ''}>${esc(t('pdfModeVector'))}</option><option value="raster"${pdfAyar.mode === 'raster' ? ' selected' : ''}>${esc(t('pdfModeRaster'))}</option></select>`, 1],
     [t('pdfColor'), `<span class="pair"><select id="pColor">${[['nesne', t('pdfColorObj')], ['gri', t('pdfColorGray')], ['mono', t('pdfColorMono')], ['tablo', t('pdfColorTable')]].map(([v, l]) => `<option value="${v}"${v === pdfAyar.renk ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select><button type="button" class="btn icon" id="pCtb" title="${esc(t('pdfCtbTitle'))}" aria-label="${esc(t('pdfCtbTitle'))}"><svg class="ic" aria-hidden="true"><use href="#i-palette"/></svg></button></span>`, 1],
@@ -4295,10 +4400,15 @@ function showPdf() {
   const sayfaYaz = () => { const el = $('pSize'); if (!el) return; pdfAyarOku(); const [w, h] = pdfSayfaMm(pdfAyar, pdfAyar.all); el.textContent = `${fmt(w)} × ${fmt(h)} mm`; pdfOnizle(); };   // kutu kapandıysa (kâğıt seçici) sessizce çık
   const tazele = () => {
     const ozel = $('pPaper').value === 'ozel';
+    const u3 = $('pArea').value === '3d';
+    // 3B sayfası vektöre çevrilemez: biçim rastere sabitlenir, 1:N ölçeği ve pencere satırı kalkar
+    if (u3 && $('pMode').value !== 'raster') $('pMode').value = 'raster';
+    $('pMode').disabled = u3;
     satir('ozel', ozel);
     satir('dpi', $('pMode').value === 'raster');
-    satir('win', $('pArea').value === 'win');
-    $('pNot').textContent = $('pMode').value === 'vektor' ? t('pdfHintVector') : t('pdfHintRaster');
+    satir('win', !u3 && $('pArea').value === 'win');
+    satir('olcek', !u3);
+    $('pNot').textContent = u3 ? tt('pdfHint3d', '3B görünüş kâğıda resim olarak basılır: ekranda görünen bakış, aydınlatma ve gizli çizgi olduğu gibi gider. Ölçek verilemez; künyeye bakış açıları yazılır.') : ($('pMode').value === 'vektor' ? t('pdfHintVector') : t('pdfHintRaster'));
     const ctb = $('pCtb'); if (ctb) ctb.hidden = $('pColor').value !== 'tablo';   // renk tablosu yalnız kendi kipinde düzenlenir
     sayfaYaz();
   };
@@ -4337,6 +4447,7 @@ function showPdf() {
   $('pGo').onclick = () => {
     pdfAyarOku();
     if (pdfAyar.area === 'win' && !pdfWin) { toast(t('pdfNoWin'), { type: 'warn' }); return; }
+    if (pdfAyar.area === '3d' && !editor.is3D()) { toast(t('pdfFail'), { type: 'error' }); return; }
     makePdf({ ...pdfAyar, win: pdfWin, vector: pdfAyar.mode === 'vektor' });
   };
 }
@@ -4367,6 +4478,8 @@ const pdfWinMetni = () => (pdfWin ? `${fmt(pdfWin[2] - pdfWin[0])} × ${fmt(pdfW
  */
 function pdfKaynakDik(o, all) {
   let vr;
+  // 3B görünüş bir RESİMDİR: otomatik yön kararını veren oran, dünya dikdörtgeni değil tuvalin oranıdır
+  if (!all && o.area === '3d') { const v = edCall('view3d'); if (v && v.cv && v.cv.width > 0 && v.cv.height > 0) return [0, 0, v.cv.width, v.cv.height]; }
   if (all) vr = (S.ext || visibleRect()).slice();
   else if (o.area === 'win' && o.win) vr = o.win.slice();
   else if (o.area === 'ext') vr = (S.ext || visibleRect()).slice();
@@ -4428,7 +4541,7 @@ function pdfAlani(o, all, cizimGmm, cizimYmm) {
  * dayatılamaz).
  */
 async function makePdf(o) {
-  const vec = o.vector !== false;
+  const vec = o.vector !== false && o.area !== '3d';   // 3B görünüş resimdir: vektör belgesi kurulmaz
   const kagitAdi = o.paper === 'ozel' ? `${o.wmm}×${o.hmm} mm` : o.paper;
   setLoading(t('pdfTitle'), kagitAdi, undefined, 'out');
   await new Promise(r => setTimeout(r, 30));
@@ -4458,11 +4571,15 @@ async function makePdf(o) {
         setLoading(t('pdfTitle'), `${L.name} (${pages.length + 1}/${idxs.length})`, 100 * pages.length / idxs.length);
         await new Promise(r => setTimeout(r, 0));
       }
-      const { bb, sayfaOlcek } = pdfAlani(o, all, cizimGmm, cizimYmm);
-      const bilgi = [`${t('file')}: ${S.fileName}`, layouts[S.layoutIndex].name, idxs.length > 1 ? `${pages.length + 1} / ${idxs.length}` : '',
-        sayfaOlcek ? `${t('pdfScale')}${sayfaOlcek}` : '', S.units ? `${t('drawingUnit')}: ${S.units}` : '',
+      const uc3 = o.area === '3d';
+      const gorsel = uc3 ? ucBoyutGorsel() : null;
+      if (uc3 && !gorsel) { toast(t('pdfFail'), { type: 'error' }); return; }
+      const { bb, sayfaOlcek } = uc3 ? { bb: S.ext || visibleRect(), sayfaOlcek: 0 } : pdfAlani(o, all, cizimGmm, cizimYmm);
+      const bilgi = [`${t('file')}: ${S.fileName}`, uc3 ? tt('pdfArea3d', '3B görünüş (resim)') : layouts[S.layoutIndex].name, idxs.length > 1 ? `${pages.length + 1} / ${idxs.length}` : '',
+        uc3 ? ucBoyutBilgi() : (sayfaOlcek ? `${t('pdfScale')}${sayfaOlcek}` : ''), S.units ? `${t('drawingUnit')}: ${S.units}` : '',
         S.geo.active ? S.geo.crs.name : '', new Date().toLocaleString('tr-TR')].filter(Boolean).join('   ·   ');
-      if (vec) {
+      if (uc3) { pages.push(rasterSayfa({ wmm, hmm, kenarMm, kunyeMm, cizimGmm, cizimYmm, bb, sayfaOlcek: 0, bilgi, pxPerMm, o, gorsel })); }
+      else if (vec) {
         basilan += vektorSayfa(belge, { wmm, hmm, kenarMm, kunyeMm, cizimGmm, cizimYmm, bb, sayfaOlcek, bilgi, o });
         pages.push(1);
       } else {
@@ -4581,20 +4698,24 @@ function pdfResim(p) {
 
 /** Raster sayfa (eski yol): çizim ayrı tuvale çizilir, kâğıda yapıştırılır, JPEG olur */
 function rasterSayfa(g) {
-  const { wmm, hmm, kenarMm, kunyeMm, cizimGmm, cizimYmm, bb, sayfaOlcek, bilgi, pxPerMm, o } = g;
+  const { wmm, hmm, kenarMm, kunyeMm, cizimGmm, cizimYmm, bb, sayfaOlcek, bilgi, pxPerMm, o, gorsel } = g;
   const W = Math.round(wmm * pxPerMm), H = Math.round(hmm * pxPerMm);
   const margin = kenarMm * pxPerMm, tb = kunyeMm * pxPerMm;
   const aw = Math.round(cizimGmm * pxPerMm), ah = Math.round(cizimYmm * pxPerMm);
   // Raster yolda renk kararı çizicinin kendi ayarındadır; kutudaki seçim geçici olarak dayatılır
   const kip = { mode: S.colorMode, mono: S.monoColor, plot: S.plot };
   S.colorMode = o.renk === 'mono' ? 'mono' : 'entity'; S.monoColor = 'fg'; S.plot = pdfPlan(o);
-  let img;
-  try { img = renderRegion(bb, aw, ah, { light: true, overlay: overlayForExport }); }
-  finally { S.colorMode = kip.mode; S.monoColor = kip.mono; S.plot = kip.plot; }
+  let img = null;
+  if (!gorsel) {
+    try { img = renderRegion(bb, aw, ah, { light: true, overlay: overlayForExport }); }
+    finally { S.colorMode = kip.mode; S.monoColor = kip.mono; S.plot = kip.plot; }
+  } else { S.colorMode = kip.mode; S.monoColor = kip.mono; S.plot = kip.plot; }
   const page = document.createElement('canvas'); page.width = W; page.height = H;
   const c = page.getContext('2d');
   c.fillStyle = '#fff'; c.fillRect(0, 0, W, H);
-  c.drawImage(img, margin, margin);
+  // Hazır görsel (3B görünüş): oranı korunur ve çizim alanına ortalanır; renderRegion alanı zaten doldurur
+  if (gorsel) { const kk = Math.min(aw / gorsel.width, ah / gorsel.height), dw = gorsel.width * kk, dh = gorsel.height * kk; c.drawImage(gorsel, margin + (aw - dw) / 2, margin + (ah - dh) / 2, dw, dh); }
+  else c.drawImage(img, margin, margin);
   if (o.frame !== false) {
     c.strokeStyle = '#000'; c.lineWidth = Math.max(1, pxPerMm * 0.35); c.strokeRect(margin, margin, aw, ah);
     const y0 = margin + ah;
@@ -4604,9 +4725,12 @@ function rasterSayfa(g) {
     c.font = `${Math.round(3 * pxPerMm)}px sans-serif`;
     c.fillText(bilgi, margin + 3 * pxPerMm, y0 + tb * 0.72);
     const nx = W - margin - 8 * pxPerMm, ny = y0 + tb / 2;
-    c.beginPath(); c.moveTo(nx, ny - 5 * pxPerMm); c.lineTo(nx + 2.5 * pxPerMm, ny + 4 * pxPerMm); c.lineTo(nx, ny + 2 * pxPerMm); c.lineTo(nx - 2.5 * pxPerMm, ny + 4 * pxPerMm); c.closePath(); c.fill();
-    c.font = `bold ${Math.round(3 * pxPerMm)}px sans-serif`; c.textAlign = 'center'; c.fillText('K', nx, ny - 7 * pxPerMm); c.textAlign = 'left';
-    if (sayfaOlcek && S.unitToM) {
+    // Kuzey oku PLANIN okudur; 3B görünüşte bakış döndüğü için yazılmaz (künyede yaw / pitch durur)
+    if (!gorsel) {
+      c.beginPath(); c.moveTo(nx, ny - 5 * pxPerMm); c.lineTo(nx + 2.5 * pxPerMm, ny + 4 * pxPerMm); c.lineTo(nx, ny + 2 * pxPerMm); c.lineTo(nx - 2.5 * pxPerMm, ny + 4 * pxPerMm); c.closePath(); c.fill();
+      c.font = `bold ${Math.round(3 * pxPerMm)}px sans-serif`; c.textAlign = 'center'; c.fillText('K', nx, ny - 7 * pxPerMm); c.textAlign = 'left';
+    }
+    if (!gorsel && sayfaOlcek && S.unitToM) {
       const worldPerPx = (bb[2] - bb[0]) / aw;
       const barM = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000].find(v => v / (worldPerPx * S.unitToM) > 25 * pxPerMm) || 1000;
       const bpx = barM / (worldPerPx * S.unitToM);
@@ -5044,7 +5168,16 @@ async function setScene(scene, name, size, rep) {
   if (S.notesOn) toggleNotes(false);
   Home.hide(); hide('infoPanel'); hide('docPanel'); hide('searchPanel'); Open.close(); refreshMenu();
   showFileName(name);
-  $('stCount').textContent = S.entityCount + ' ' + t('entity') + ' · ' + S.layers.size + ' ' + t('layerCount');
+  /*
+   * Sayaç iki boyda yazılır: geniş çubukta "2917 varlık · 42 katman", dar çubukta yalnız sayı.
+   * Kısaltma statusFit'in işidir; burada iki metin de hazırlanır ki geçiş metni yeniden kurmasın.
+   */
+  {
+    const el = $('stCount');
+    el.dataset.uzun = S.entityCount + ' ' + t('entity') + ' · ' + S.layers.size + ' ' + t('layerCount');
+    el.dataset.kisa = String(S.entityCount);
+    el.textContent = el.dataset.uzun;
+  }
   { const sub = $('fileSub'); if (sub) sub.textContent = [S.entityCount + ' ' + t('entity'), S.units || null, S.version || null].filter(Boolean).join(' · '); }
   document.body.classList.add('hasdoc');
   $('gpsBtn').hidden = S.ui2d.fabGps === false;   // görünürlüğü Ekran ayarları > Ekrandaki düğmeler belirler
@@ -5231,6 +5364,7 @@ window.dwgApp = { osnap: Osnap, paylasGorunum, gorunumPng, loadCurrent, onFilePi
   // kâğıt oranına nasıl oturduğu dosya üretmeden denetlenebilsin
   __pdfAlan: (o, gmm, ymm) => pdfAlani(o, false, gmm, ymm),
   __pan: (on) => (on === undefined ? panOn() : togglePan(on)),
+  __stFit: () => { const b = $('statusbar'); return { tasma: b.scrollWidth - b.clientWidth, tight: document.body.classList.contains('st-tight'), scroll: $('stQuick').classList.contains('st-scroll'), dusen: ST_DUSME.filter(i => $(i) && $(i).classList.contains('st-squeeze')) }; },
   // Pencere seçiminin iç durumu ve seçilen dünya dikdörtgeni (bkz. tools/test_pdf_plot.mjs):
   // iki nokta kipi, konmuş birinci köşe ve lastik dikdörtgen sınanabilsin
   __zw: () => (zoomWin ? { iki: !!zoomWin.iki, pending: !!zoomWin.pending, x0: zoomWin.x0, y0: zoomWin.y0, x1: zoomWin.x1, y1: zoomWin.y1 } : null),
@@ -5275,7 +5409,7 @@ D.initDisplay({ requestRender, drawOverlay, toast, openDoc, show, hide, buildLay
 mountNavFabs(vp);
 initEditor({ S, requestRender, drawOverlay, toast, noFaces: showNoFaces, pick: (w) => pick(w, TOL.pick / S.view.scale), snap: doSnap, snapPeek: findSnap, fromBase, trackClear, hideObjects, showAllObjects, primVisible, osnap: Osnap, xclip: xrefClip, showInfo, openDoc, hide, show, esc, kv, copyText, buildLayerList, fmt, store, RTree, baseName, zoomExtents, tracePath, worldTransform, strokeWorldRect, worldOrigin,
   action: (a) => { if (a === 'layers') $('btnLayers').click(); else if (a === 'search') $('btnSearch').click(); else if (a === 'more') $('btnMore').click(); else if (a === 'open') Open.open(); else if (a === 'new') showNewDoc(); else menuAction(a); },
-  savePng, zoomBy, zoomWindow, togglePan, panOn, viewHistory, gotoCoord, fitPrims, isolateLayers, unisolate, settings, saveSettings, stamp, haptic, openDisplayOptions, setDisplay, getDisplay, toggleDisplay, display: D });
+  savePng, zoomBy, zoomWindow, togglePan, panOn, viewHistory, gotoCoord, fitPrims, isolateLayers, unisolate, settings, saveSettings, stamp, haptic, openDisplayOptions, setDisplay, getDisplay, toggleDisplay, statusFit, display: D });
 $('stScale').addEventListener('click', showScalePicker);
 // belgeler (PDF / Word / ZIP / RAR) ve Google Drive
 Docs.initDocs({ toast, loadBytes, openDoc, hide, show, esc, kv, goHome, driveAvailable: () => Drive.signedIn(), driveUpload: (d) => { if (d && d.id) Drive.uploadWithPicker({ fileId: d.id, name: d.name, mime: 'application/octet-stream' }); }, driveConvert: (d) => Drive.convertToPdf(d),
