@@ -4078,6 +4078,81 @@ let pdfWin = null;
 const pdfAyar = { paper: 'A3', wmm: 420, hmm: 297, orient: 'l', area: 'view', scale: '', dpi: 150,
   margin: 10, mode: 'vektor', renk: 'nesne', frame: true, lw: true, all: false };
 
+/*
+ * KUTUNUN GÖRSELLEŞTİRİLMESİ (v7.99).
+ *
+ * PDF kutusu bir form listesiydi: kâğıt adı, iki sayı, "Pencere" yazan bir açılır liste.
+ * Kullanıcı Oluştur'a basmadan ne alacağını göremiyordu — kâğıt yatay mı duruyor, seçilen
+ * alan kâğıda nasıl oturuyor, künye nereye geliyor, ölçek kaç çıkıyor. Üçü eklendi:
+ *   1. CANLI SAYFA ÖNİZLEMESİ — gerçek kâğıt oranında bir pafta; içinde kenar boşluğu,
+ *      künye bandı ve BASILACAK ALANIN KENDİ küçük resmi (renderRegion ile, PNG çıktısıyla
+ *      aynı çizici). Her ayar değişiminde yenilenir, altında ölçü ve 1:N ölçeği yazar.
+ *   2. KÂĞIT SEÇİCİ — açılır listenin yanındaki küçük düğme, kâğıtları ORANLARIYLA kart kart
+ *      gösterir (A3 dikdörtgeni gerçekten A3 oranındadır); "Özel ölçü" de listededir.
+ *   3. PENCERE DÜĞMESİ SİMGELİ — hangi düğmenin alan seçtirdiği yazıya değil şekle bakarak
+ *      anlaşılır.
+ * Önizleme ağır bir işe dönüşmesin diye 220 ms geciktirilir ve tek kare ile sınırlanır.
+ */
+let pdfOnizZaman = 0;
+/** Kâğıt kartı: dikdörtgen gerçek en/boy oranındadır (44 px kutuya oturtulmuş) */
+function pdfKagitSvg(w, h) {
+  const k = 38 / Math.max(w, h), a = Math.max(6, w * k), b = Math.max(6, h * k);
+  return `<svg viewBox="0 0 44 44" aria-hidden="true"><rect x="${((44 - a) / 2).toFixed(1)}" y="${((44 - b) / 2).toFixed(1)}" width="${a.toFixed(1)}" height="${b.toFixed(1)}" rx="1.5" fill="currentColor" fill-opacity=".16" stroke="currentColor" stroke-width="1.6"/></svg>`;
+}
+/** Kâğıt seçici: kartlı, oranlı liste (askForm 'grid') */
+async function pdfKagitSec() {
+  pdfAyarOku();
+  const yon = pdfYon({ ...pdfAyar, win: pdfWin }, !!pdfAyar.all);
+  const kart = (w, h) => pdfKagitSvg(yon === 'l' ? Math.max(w, h) : Math.min(w, h), yon === 'l' ? Math.min(w, h) : Math.max(w, h));
+  const secenek = Object.keys(PAPERS).map(k => [k, `${k} · ${PAPERS[k][0]}×${PAPERS[k][1]}`, kart(PAPERS[k][0], PAPERS[k][1])]);
+  secenek.push(['ozel', t('pdfCustom'), `<svg viewBox="0 0 44 44" aria-hidden="true"><rect x="4" y="9" width="36" height="26" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="3 2.4"/></svg>`]);
+  const r = await askForm(t('paper'), [{ id: 'p', label: t('paper'), type: 'grid', value: pdfAyar.paper, options: secenek }], { ok: t('ok') });
+  if (!r || !r.p) { showPdf(); return; }
+  pdfAyar.paper = r.p;
+  showPdf();
+}
+/** Canlı önizleme: kâğıt, kenar boşluğu, künye ve basılacak alanın küçük resmi */
+function pdfOnizle() { clearTimeout(pdfOnizZaman); pdfOnizZaman = setTimeout(pdfOnizCiz, 220); }
+function pdfOnizCiz() {
+  const cv = $('pPrev'); if (!cv || !cv.isConnected) return;
+  pdfAyarOku();
+  const o = { ...pdfAyar, win: pdfWin };
+  const [wmm, hmm] = pdfSayfaMm(o, !!o.all);
+  const kw = Math.max(80, Math.round(cv.clientWidth || 260)), kh = Math.max(60, Math.round(cv.clientHeight || 150));
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  cv.width = Math.round(kw * dpr); cv.height = Math.round(kh * dpr);
+  const c = cv.getContext('2d'); if (!c) return;
+  c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, kw, kh);
+  if (!(wmm > 0 && hmm > 0)) return;
+  const pad = 8, k = Math.min((kw - 2 * pad) / wmm, (kh - 2 * pad) / hmm);
+  const pw = wmm * k, ph = hmm * k, px = Math.round((kw - pw) / 2), py = Math.round((kh - ph) / 2);
+  c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(px + 3, py + 3, pw, ph);
+  c.fillStyle = '#fff'; c.fillRect(px, py, pw, ph);
+  const kenar = Math.max(0, Math.min(Math.min(wmm, hmm) / 3, Number(o.margin) || 0)) * k;
+  const kunye = (o.frame === false ? 0 : 18) * k;
+  const aw = pw - 2 * kenar, ah = ph - 2 * kenar - kunye;
+  let olcek = 0;
+  if (aw > 3 && ah > 3) {
+    const alan = pdfAlani(o, !!o.all, Math.max(1, aw / k), Math.max(1, ah / k));
+    olcek = alan.sayfaOlcek || 0;
+    const kip = { mode: S.colorMode, mono: S.monoColor };
+    S.colorMode = o.renk === 'mono' ? 'mono' : 'entity'; S.monoColor = 'fg';
+    try {
+      const img = renderRegion(alan.bb, Math.max(8, Math.round(aw * dpr)), Math.max(8, Math.round(ah * dpr)), { light: true });
+      c.drawImage(img, px + kenar, py + kenar, aw, ah);
+    } catch (_) { /* önizleme çizilemedi: kâğıt yine görünür */ }
+    finally { S.colorMode = kip.mode; S.monoColor = kip.mono; }
+    c.strokeStyle = '#9aa3ad'; c.lineWidth = 1;
+    if (kenar > 0.5) { c.setLineDash([3, 3]); c.strokeRect(px + kenar, py + kenar, aw, ah + kunye); c.setLineDash([]); }
+    if (kunye > 1.5) { c.strokeStyle = '#555'; c.strokeRect(px + kenar, py + kenar + ah, aw, kunye); }
+  }
+  c.strokeStyle = '#666'; c.lineWidth = 1; c.strokeRect(px + 0.5, py + 0.5, pw, ph);
+  const bilgi = $('pPrevInfo');
+  if (bilgi) {
+    const yon = pdfYon(o, !!o.all) === 'l' ? t('landscape') : t('portrait');
+    bilgi.textContent = `${fmt(wmm)} × ${fmt(hmm)} mm · ${yon}` + (olcek > 0 ? ` · 1:${fmt(olcek)}` : '');
+  }
+}
 function showPdf() {
   const multi = !!(S.scene && S.scene.layouts.length > 1);
   const kagitSecenek = PAPER_GRUP.map(([g, ks]) => `<optgroup label="${g}">`
@@ -4087,12 +4162,13 @@ function showPdf() {
   const alanSecenek = [['view', t('pdfAreaView')], ['ext', t('pdfAreaExt')], ['win', t('pdfAreaWin')]]
     .map(([v, l]) => `<option value="${v}"${v === pdfAyar.area ? ' selected' : ''}>${esc(l)}</option>`).join('');
   const html = kv([
+    [`<div class="full pdf-prev"><canvas id="pPrev" role="img" aria-label="${esc(tt('pdfPreview', 'Sayfa önizlemesi'))}"></canvas><div id="pPrevInfo" class="muted"></div></div>`],
     [t('title'), `<input id="pTitle" value="${esc(pdfAyar.title || baseName())}">`, 1],
-    [t('paper'), `<select id="pPaper">${kagitSecenek}</select>`, 1],
+    [t('paper'), `<span class="pair"><select id="pPaper">${kagitSecenek}</select><button type="button" class="btn icon" id="pPaperPick" title="${esc(tt('pdfPaperPick', 'Kâğıtları göster'))}" aria-label="${esc(tt('pdfPaperPick', 'Kâğıtları göster'))}"><svg class="ic" aria-hidden="true"><use href="#i-layout"/></svg></button></span>`, 1],
     [t('pdfCustomSize'), `<span class="pair"><input id="pW" type="number" min="10" max="5000" step="1" value="${pdfAyar.wmm}"> × <input id="pH" type="number" min="10" max="5000" step="1" value="${pdfAyar.hmm}"> mm</span>`, 1, 'ozel'],
     [t('orient'), `<span class="pair"><select id="pOrient">${[['auto', t('orientAuto')], ['l', t('landscape')], ['p', t('portrait')]].map(([v, l]) => `<option value="${v}"${v === pdfAyar.orient ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select> <small id="pSize" class="muted"></small></span>`, 1, 'yon'],
     [t('pdfArea'), `<select id="pArea">${alanSecenek}</select>`, 1],
-    ['', `<span class="pair"><button class="btn small" id="pPick">${esc(t('pdfPickWin'))}</button> <small id="pWinInfo" class="muted">${esc(pdfWinMetni())}</small></span>`, 1, 'win'],
+    ['', `<span class="pair"><button class="btn small" id="pPick"><svg class="ic" aria-hidden="true"><use href="#i-zoom-window"/></svg> ${esc(t('pdfPickWin'))}</button> <small id="pWinInfo" class="muted">${esc(pdfWinMetni())}</small></span>`, 1, 'win'],
     [t('pdfScale'), `<input id="pScale" type="number" min="1" step="1" placeholder="${esc(t('pdfFit'))}" value="${esc(pdfAyar.scale)}">`, 1],
     [t('pdfMargin'), `<input id="pMargin" type="number" min="0" max="60" step="1" value="${pdfAyar.margin}">`, 1],
     [t('pdfMode'), `<select id="pMode"><option value="vektor"${pdfAyar.mode === 'vektor' ? ' selected' : ''}>${esc(t('pdfModeVector'))}</option><option value="raster"${pdfAyar.mode === 'raster' ? ' selected' : ''}>${esc(t('pdfModeRaster'))}</option></select>`, 1],
@@ -4111,7 +4187,7 @@ function showPdf() {
    * kullanıcı yön seçtiğinde sayılar ona göre sıralanır, sayıları değiştirdiğinde de seçim
    * onlara uyar — kutuda görünen ölçü ile kâğıda giden ölçü hiçbir durumda ayrışmaz.
    */
-  const sayfaYaz = () => { pdfAyarOku(); const [w, h] = pdfSayfaMm(pdfAyar, pdfAyar.all); $('pSize').textContent = `${fmt(w)} × ${fmt(h)} mm`; };
+  const sayfaYaz = () => { const el = $('pSize'); if (!el) return; pdfAyarOku(); const [w, h] = pdfSayfaMm(pdfAyar, pdfAyar.all); el.textContent = `${fmt(w)} × ${fmt(h)} mm`; pdfOnizle(); };   // kutu kapandıysa (kâğıt seçici) sessizce çık
   const tazele = () => {
     const ozel = $('pPaper').value === 'ozel';
     satir('ozel', ozel);
@@ -4137,6 +4213,10 @@ function showPdf() {
   $('pMode').onchange = tazele; $('pArea').onchange = tazele;
   $('pOrient').onchange = () => { ozelSirala(); tazele(); };
   $('pW').oninput = $('pH').oninput = () => { yonuSayidanAl(); tazele(); };
+  // Önizlemeyi etkileyen öteki alanlar: ölçek, kenar boşluğu, renk, çerçeve, başlık
+  for (const id of ['pScale', 'pMargin', 'pTitle']) { const el = $(id); if (el) el.oninput = sayfaYaz; }
+  for (const id of ['pColor', 'pFrame', 'pLw', 'pAll']) { const el = $(id); if (el) el.onchange = sayfaYaz; }
+  $('pPaperPick').onclick = () => { void pdfKagitSec(); };
   yonuSayidanAl();
   tazele();
   $('pPick').onclick = () => {
@@ -4858,7 +4938,7 @@ async function setScene(scene, name, size, rep) {
   $('stCount').textContent = S.entityCount + ' ' + t('entity') + ' · ' + S.layers.size + ' ' + t('layerCount');
   { const sub = $('fileSub'); if (sub) sub.textContent = [S.entityCount + ' ' + t('entity'), S.units || null, S.version || null].filter(Boolean).join(' · '); }
   document.body.classList.add('hasdoc');
-  $('gpsBtn').hidden = false;
+  $('gpsBtn').hidden = S.ui2d.fabGps === false;   // görünürlüğü Ekran ayarları > Ekrandaki düğmeler belirler
   S.isoBackup = null; S.lastPoint = null; S.gotoMarker = null; S.layerPalette.clear(); S.panMode = false;   // kaydır kipi dosyayla birlikte sıfırlanır
   viewHistory.reset();
   applyGeo();
@@ -5079,7 +5159,7 @@ window.dwgApp = { osnap: Osnap, paylasGorunum, gorunumPng, loadCurrent, onFilePi
   action: (a) => menuAction(a) };
 ensureStatusChips();
 Ed.initEdition({ toast, rebuildToolbar: () => editor.rebuild(), refreshMenu });   // Ücretsiz / Pro: menü, karşılama kartı, Pro paneli, Drive düğmeleri; reklam zamanlayıcısı; onEdition → şerit yeniden kurulur
-D.initDisplay({ requestRender, drawOverlay, toast, openDoc, show, hide, buildLayerList, settings, saveSettings, editorTheme, zoomExtents, zoomBy, fitPrims, viewHistory, setLayout, editor, ui: uiPrefs(), basemaps: BASEMAPS, haptic, paylasGorunum, togglePan, panOn });
+D.initDisplay({ requestRender, drawOverlay, toast, openDoc, show, hide, buildLayerList, settings, saveSettings, editorTheme, zoomExtents, zoomBy, fitPrims, viewHistory, setLayout, editor, ui: uiPrefs(), basemaps: BASEMAPS, haptic, paylasGorunum, togglePan, panOn, plot: () => showPdf() });
 mountNavFabs(vp);
 initEditor({ S, requestRender, drawOverlay, toast, noFaces: showNoFaces, pick: (w) => pick(w, TOL.pick / S.view.scale), snap: doSnap, snapPeek: findSnap, fromBase, trackClear, hideObjects, showAllObjects, primVisible, osnap: Osnap, xclip: xrefClip, showInfo, openDoc, hide, show, esc, kv, copyText, buildLayerList, fmt, store, RTree, baseName, zoomExtents, tracePath, worldTransform, strokeWorldRect, worldOrigin,
   action: (a) => { if (a === 'layers') $('btnLayers').click(); else if (a === 'search') $('btnSearch').click(); else if (a === 'more') $('btnMore').click(); else if (a === 'open') Open.open(); else if (a === 'new') showNewDoc(); else menuAction(a); },

@@ -412,7 +412,7 @@ body.glove .ask-field .opt-text { min-height: 52px; }
 .kv label.chk { display: flex; align-items: center; gap: 8px; min-height: 40px; }
 /* Tek satırda iki alan (özel kâğıt G × Y) ya da düğme + bilgi (PDF pencere seçimi) */
 .kv .pair { display: flex; align-items: center; gap: 6px; min-height: 40px; }
-.kv .pair input { flex: 1 1 0; min-width: 0; width: auto; }
+.kv .pair input, .kv .pair select { flex: 1 1 0; min-width: 0; width: auto; }
 .kv .pair button { flex: 0 0 auto; }
 .kv .pair small { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .list { display: flex; flex-direction: column; }
@@ -672,9 +672,18 @@ body.glove .st-quick button { width: 48px; height: 48px; }
 .v3opts .opt-sec.dim { opacity: .55; }
 .a11y-sec .opt-row .btn { min-height: 40px; }
 
+/* PDF kutusundaki canlı sayfa önizlemesi: gerçek kâğıt oranı, kenar boşluğu, künye ve çizimin küçük resmi */
+.pdf-prev { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 2px 0 6px; }
+.pdf-prev canvas { position: static; inset: auto; width: 100%; max-width: 340px; height: 150px; display: block; border-radius: 8px; background: rgba(127,127,127,.12); }
+.pdf-prev .muted { font-size: 12px; }
+
 /* --- gezinti FAB kümesi, yön tuşları, görünüm küpü, tur --- */
 .navfabs { position: absolute; right: 12px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 5; transition: opacity .3s; }
 .navfabs.idle { opacity: .45; }
+/* Sıkışık kip: küme altıdan fazla düğme taşıyınca (PDF düğmesi açıkken) 44 px'e iner —
+   yedi düğme, altı düğmenin kapladığı yere sığar ve çizimin sağ şeridi kapanmaz. */
+.navfabs.dense { gap: 6px; }
+.navfabs.dense .fab { width: 44px; height: 44px; font-size: 21px; }
 .navfabs .fab { position: static; width: 48px; height: 48px; padding: 0; font-size: 22px; cursor: pointer; color: var(--fg); }
 .navfabs .fab:disabled { opacity: .35; }
 /* Sohbete gönderme düğmesi: FAB sütununun tek RENKLİ düğmesidir, aranmadan bulunsun diye.

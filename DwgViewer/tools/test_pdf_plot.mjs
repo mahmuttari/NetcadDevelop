@@ -117,6 +117,71 @@ await kutuAc();
   ok('1i dokunma hedefleri en az 40 px', kucuk.length === 0, kucuk.join(' '));
 }
 
+/* ---------- 1B. Kutunun görselleştirilmesi: canlı sayfa önizlemesi ve kâğıt seçici ---------- */
+{
+  await kutuAc();
+  await page.selectOption('#pPaper', 'A3');
+  await page.selectOption('#pOrient', 'l');
+  await page.waitForTimeout(600);
+  const oku = () => ev(() => {
+    const cv = document.getElementById('pPrev');
+    const c = cv && cv.getContext('2d');
+    let dolu = 0, beyaz = 0;
+    if (c && cv.width) {
+      const d = c.getImageData(0, 0, cv.width, cv.height).data;
+      for (let i = 0; i < d.length; i += 4 * 53) { if (d[i + 3] > 8) dolu++; if (d[i] > 200 && d[i + 1] > 200 && d[i + 2] > 200 && d[i + 3] > 200) beyaz++; }
+    }
+    const b = cv ? cv.getBoundingClientRect() : null;
+    return { var: !!cv, w: cv && cv.width, dolu, beyaz, bilgi: (document.getElementById('pPrevInfo') || {}).textContent || '',
+      kutu: b ? { w: Math.round(b.width), h: Math.round(b.height), t: Math.round(b.top) } : null,
+      panelUst: Math.round(document.querySelector('#docPanel .panel-head').getBoundingClientRect().bottom) };
+  });
+  const y = await oku();
+  ok('1j kutunun başında canlı sayfa önizlemesi var ve boş değil', y.var && y.dolu > 50 && y.beyaz > 20, JSON.stringify({ dolu: y.dolu, beyaz: y.beyaz, w: y.w }));
+  ok('1k önizleme panelin İÇİNDE duruyor (başlığın üstüne taşmıyor)', y.kutu && y.kutu.t >= y.panelUst - 1 && y.kutu.h > 60, JSON.stringify({ prev: y.kutu, head: y.panelUst }));
+  ok('1l altındaki satır ölçüyü, yönü ve ölçeği yazıyor', /420\D+297\s*mm/.test(y.bilgi) && /(Yatay|Landscape)/i.test(y.bilgi) && /1:\s?[\d.,]+/.test(y.bilgi), y.bilgi);
+  await page.selectOption('#pOrient', 'p');
+  await page.waitForTimeout(600);
+  const d2 = await oku();
+  ok('1m yön değişince önizleme ve yazı da değişiyor (dikey)', /297\D+420\s*mm/.test(d2.bilgi) && /(Dikey|Portrait)/i.test(d2.bilgi), d2.bilgi);
+  await page.selectOption('#pOrient', 'l'); await page.waitForTimeout(300);
+
+  // kâğıt seçici: kartlar oranlıdır ve seçim açılır listeye işlenir
+  await page.click('#pPaperPick'); await page.waitForTimeout(400);
+  const kart = await ev(() => {
+    const cs = [...document.querySelectorAll('.ask-grid .ask-cell')];
+    const a4 = cs.find(c => /A4/.test(c.textContent)), a0 = cs.find(c => /A0/.test(c.textContent));
+    const oran = (c) => { const r = c && c.querySelector('svg rect'); return r ? +(+r.getAttribute('width') / +r.getAttribute('height')).toFixed(3) : null; };
+    return { n: cs.length, svg: cs.filter(c => c.querySelector('svg')).length, secili: (cs.find(c => c.classList.contains('on')) || {}).dataset,
+      a4: oran(a4), a0: oran(a0), ozel: !!cs.find(c => c.dataset.v === 'ozel') };
+  });
+  ok('1n kâğıt seçici 22 kart açıyor, her kartta oranlı bir dikdörtgen var', kart.n === 22 && kart.svg === 22 && kart.ozel, JSON.stringify({ n: kart.n, svg: kart.svg }));
+  ok('1o kartın dikdörtgeni gerçek kâğıt oranındadır (A4 ile A0 aynı oran: √2, yatay)',
+    kart.a4 && kart.a0 && Math.abs(kart.a4 - Math.SQRT2) < 0.06 && Math.abs(kart.a4 - kart.a0) < 0.03, JSON.stringify({ a4: kart.a4, a0: kart.a0 }));
+  ok('1p açık kâğıt kartta işaretli', kart.secili && kart.secili.v === 'A3', JSON.stringify(kart.secili || {}));
+  await ev(() => { const c = [...document.querySelectorAll('.ask-grid .ask-cell')].find(x => x.dataset.v === 'A2'); if (c) c.click(); });
+  await page.waitForTimeout(120);
+  await ev(() => { const b = [...document.querySelectorAll('#askDlg button, .ask-btns button, dialog button')].find(x => /Tamam|OK/i.test(x.textContent)); if (b) b.click(); });
+  await page.waitForSelector('#pGo', { timeout: 10000 }); await page.waitForTimeout(500);
+  const sonra = await ev(() => ({ kagit: document.getElementById('pPaper').value, bilgi: (document.getElementById('pPrevInfo') || {}).textContent || '' }));
+  ok('1r karttan seçilen kâğıt kutuya ve önizlemeye işlendi (A2 = 594 × 420 mm yatay)',
+    sonra.kagit === 'A2' && /594\D+420/.test(sonra.bilgi), JSON.stringify(sonra));
+  await page.selectOption('#pPaper', 'A3'); await page.waitForTimeout(200);
+
+  // pencere düğmesi simgeli
+  await page.selectOption('#pArea', 'win'); await page.waitForTimeout(120);
+  const simge = await ev(() => { const b = document.getElementById('pPick'); return { svg: !!(b && b.querySelector('svg use')), href: b && b.querySelector('svg use') ? b.querySelector('svg use').getAttribute('href') : '' }; });
+  ok('1s "Pencere seç" düğmesi simgeli (yazıya değil şekle bakarak bulunur)', simge.svg && simge.href === '#i-zoom-window', JSON.stringify(simge));
+  await page.selectOption('#pArea', 'view'); await page.waitForTimeout(120);
+  // ekrandaki PDF düğmesi kutuyu açıyor mu
+  await ev(() => { const b = document.querySelector('#docPanel [data-close="docPanel"], #docPanel .close'); if (b) b.click(); });
+  await page.waitForTimeout(250);
+  const kapali = await ev(() => document.getElementById('docPanel').hidden);
+  await ev(() => { const f = document.querySelector('#navFabs [data-nav="pdf"]'); f.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 11, bubbles: true, cancelable: true })); f.dispatchEvent(new PointerEvent('pointerup', { pointerId: 11, bubbles: true, cancelable: true })); });
+  await page.waitForSelector('#pGo', { timeout: 10000 });
+  ok('1t ekrandaki PDF düğmesi kutuyu açıyor (şeride gitmeden)', kapali && await ev(() => !document.getElementById('docPanel').hidden), String(kapali));
+}
+
 /* ---------- 2. Vektör çıktı: katmanlar PDF'in içinde ---------- */
 {
   const buf = await uret();

@@ -222,8 +222,48 @@ const dokun = async (x, y) => drag([[x, y], [x, y]]);
     const nf = document.getElementById('navFabs').getBoundingClientRect();
     return { n: [...document.querySelectorAll('#navFabs .fab')].filter(b => !b.hidden).length, fab: !!document.querySelector('#navFabs [data-nav="pan"]'), oran: nf.height / vp.height };
   });
-  ok('9a Kaydır ekrandaki FAB sütununa eklenmedi (sütun altı düğmede kaldı)', !g.fab && g.n <= 6, JSON.stringify({ n: g.n, fab: g.fab }));
+  ok('9a Kaydır ekrandaki FAB sütununa eklenmedi (sütun altı düğmede kaldı)', !g.fab && g.n <= 7, JSON.stringify({ n: g.n, fab: g.fab }));
   ok('9b FAB sütunu ekran yüksekliğinin yarısından fazlasını kaplamıyor', g.oran < 0.56, (g.oran * 100).toFixed(0) + '%');
+}
+
+// ---------------------------------------------------------------------------------
+// 9c · Ekrandaki düğmeler ayarı: her düğme tek tek kapanır, küme sıkışık kipe geçer
+// ---------------------------------------------------------------------------------
+{
+  const kume = () => ev(() => {
+    const nf = document.getElementById('navFabs'), vp = document.getElementById('viewport');
+    return { gorunen: [...document.querySelectorAll('#navFabs .fab')].filter(b => !b.hidden).map(b => b.dataset.nav || b.id),
+      dense: nf.classList.contains('dense'), gizli: nf.hidden, oran: nf.getBoundingClientRect().height / vp.getBoundingClientRect().height };
+  });
+  const ayar = (k, v) => ev(([k, v]) => window.dwgApp.display.setDisplay(k, v), [k, v]);
+  const a0 = await kume();
+  ok('9c PDF (plot) düğmesi kümede ve küme yedi düğmede sıkışık kipe geçti',
+    a0.gorunen.includes('pdf') && a0.dense === true && a0.oran < 0.56, JSON.stringify({ n: a0.gorunen, dense: a0.dense, oran: +a0.oran.toFixed(2) }));
+  await ayar('fabPlot', false); await bekle(150);
+  const a1 = await kume();
+  ok('9d "PDF (plot)" kapatılınca düğme kalktı ve küme yeniden geniş kipe döndü',
+    !a1.gorunen.includes('pdf') && a1.dense === false, JSON.stringify(a1.gorunen));
+  await ayar('fabZoom', false); await ayar('fabSend', false); await bekle(150);
+  const a2 = await kume();
+  ok('9e yakınlaştırma ve gönderme düğmeleri de tek tek kapanıyor',
+    !a2.gorunen.includes('in') && !a2.gorunen.includes('out') && !a2.gorunen.includes('send') && a2.gorunen.includes('fit'), JSON.stringify(a2.gorunen));
+  await ayar('fabFit', false); await ayar('fabPrev', false); await ayar('fabGps', false); await bekle(150);
+  const a3 = await kume();
+  ok('9f hepsi kapatılınca küme tümden gizleniyor (boş kutu kalmıyor)', a3.gizli === true || a3.gorunen.length === 0, JSON.stringify(a3));
+  for (const k of ['fabPlot', 'fabZoom', 'fabSend', 'fabFit', 'fabPrev', 'fabGps']) await ayar(k, true);
+  await bekle(150);
+  const a4 = await kume();
+  ok('9g ayarlar geri açılınca küme eski hâline dönüyor', a4.gorunen.length >= 6 && !a4.gizli, JSON.stringify(a4.gorunen));
+  // ayar paneli: "Ekrandaki düğmeler" bölümü ve anahtarları
+  await ev(() => window.dwgApp.openDisplayOptions({ seg: '2d' })); await bekle(250);
+  const panel = await ev(() => {
+    const sec = document.querySelector('#displayBody [data-section="hudbtn"]');
+    return { var: !!sec, anahtar: sec ? [...sec.querySelectorAll('[data-key]')].map(e => e.dataset.key) : [] };
+  });
+  ok('9h Ekran ayarlarında "Ekrandaki düğmeler" bölümü ve yedi anahtarı var',
+    panel.var && ['navFabs', 'fabZoom', 'fabFit', 'fabPrev', 'fabPlot', 'fabSend', 'fabGps', 'dpad'].every(k => panel.anahtar.includes(k)), JSON.stringify(panel.anahtar));
+  await ev(() => window.dwgApp.display.closeDisplayOptions && window.dwgApp.display.closeDisplayOptions());
+  await bekle(150);
 }
 
 ok('10 konsolda sayfa hatası yok', errors.length === 0, errors.join(' | ').slice(0, 300));

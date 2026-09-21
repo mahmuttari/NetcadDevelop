@@ -24,20 +24,23 @@ export const DISPLAY_DEFAULTS = Object.freeze({
   grid: false, gridStep: 'auto', gridStyle: 'line', rulers: false, crosshair: 'small',
   fade: false, fadePct: 70, selColor: '#ff9f0a', selWidth: 3, smooth: true, fastPan: 'auto',
   scaleBar: true, north: true, northBig: false, navFabs: true, dpad: false, coordInfo: true, vpFrames: true, compareOnlyDiff: false,
+  // Ekrandaki düğmeler tek tek kapatılabilir: küme büyüdükçe çizimden yer çalar (bkz. v7.98 bulgusu)
+  fabSend: true, fabZoom: true, fabPlot: true, fabFit: true, fabPrev: true, fabGps: true,
   basemapOpacity: 0.8,
 });
 export const THEME_IDS = ['dark', 'light', 'blueprint', 'sepia', 'hicontrast', 'system'];
 const PRESET_IDS = ['field', 'office', 'print', 'custom'];
-const BOOL_KEYS = new Set(['sun', 'hatchBack', 'showText', 'showHatch', 'showDim', 'showPoint', 'showImage', 'showAttrib', 'showBlock', 'showLtype', 'lw', 'grid', 'rulers', 'fade', 'smooth', 'scaleBar', 'north', 'northBig', 'navFabs', 'dpad', 'coordInfo', 'vpFrames', 'compareOnlyDiff']);
+const BOOL_KEYS = new Set(['sun', 'hatchBack', 'showText', 'showHatch', 'showDim', 'showPoint', 'showImage', 'showAttrib', 'showBlock', 'showLtype', 'lw', 'grid', 'rulers', 'fade', 'smooth', 'scaleBar', 'north', 'northBig', 'navFabs', 'dpad', 'coordInfo', 'vpFrames', 'compareOnlyDiff', 'fabSend', 'fabZoom', 'fabPlot', 'fabFit', 'fabPrev', 'fabGps']);
 /** Düz anahtar → S yolu ([nesne, alan]); listede olmayan anahtar doğrudan S[key] */
 const PATH = {
   showText: ['show', 'text'], showHatch: ['show', 'hatch'], showDim: ['show', 'dim'], showPoint: ['show', 'point'], showImage: ['show', 'image'], showAttrib: ['show', 'attrib'], showBlock: ['show', 'block'], showLtype: ['show', 'ltype'],
   grid: ['grid', 'on'], gridStep: ['grid', 'step'], gridStyle: ['grid', 'style'], fade: ['fade', 'on'], fadePct: ['fade', 'pct'],
   scaleBar: ['ui2d', 'scaleBar'], north: ['ui2d', 'north'], northBig: ['ui2d', 'northBig'], navFabs: ['ui2d', 'navFabs'], dpad: ['ui2d', 'dpad'], coordInfo: ['ui2d', 'coordInfo'], vpFrames: ['ui2d', 'vpFrames'], compareOnlyDiff: ['ui2d', 'compareOnlyDiff'],
+  fabSend: ['ui2d', 'fabSend'], fabZoom: ['ui2d', 'fabZoom'], fabPlot: ['ui2d', 'fabPlot'], fabFit: ['ui2d', 'fabFit'], fabPrev: ['ui2d', 'fabPrev'], fabGps: ['ui2d', 'fabGps'],
   basemapOpacity: ['basemap', 'opacity'],
 };
 /** Yalnız kaplamayı etkileyen anahtarlar (tuval önbelleği geçerli kalır) */
-const OVERLAY_ONLY = new Set(['rulers', 'crosshair', 'selColor', 'selWidth', 'scaleBar', 'north', 'northBig', 'navFabs', 'dpad', 'coordInfo', 'preset']);
+const OVERLAY_ONLY = new Set(['rulers', 'crosshair', 'selColor', 'selWidth', 'scaleBar', 'north', 'northBig', 'navFabs', 'dpad', 'coordInfo', 'preset', 'fabSend', 'fabZoom', 'fabPlot', 'fabFit', 'fabPrev', 'fabGps']);
 
 let ctx = null;
 const noop = () => {};
@@ -117,7 +120,7 @@ export function setDisplay(key, value, o = {}) {
   if (key === 'basemapOpacity' && ctx.settings) ctx.settings.opacity = value;
   if (!OVERLAY_ONLY.has(key)) S.cacheValid = false;
   if (OVERLAY_ONLY.has(key)) call(ctx.drawOverlay); else call(ctx.requestRender, !!o.fast);
-  if (key === 'navFabs' || key === 'dpad') refreshNav();
+  if (key === 'navFabs' || key === 'dpad' || /^fab[A-Z]/.test(key)) refreshNav();
   if (key === 'grid' || key === 'gridStep') syncGridChip();
   if (o.persist !== false) saveDisplay();
   if (!o.silent) emit(key, value);
@@ -241,7 +244,7 @@ export const widgets = {
 };
 function fmtVal(v, unit) { const n = Number(v); const s = Number.isInteger(n) ? String(n) : fmt(n, 2); return s + (unit === '%' ? ' %' : unit ? ' ' + unit : ''); }
 
-const SEC_IDS = ['preset', 'theme', 'filters', 'lines', 'helpers', 'layers', 'selection', 'points', 'basemap'];
+const SEC_IDS = ['preset', 'theme', 'filters', 'lines', 'helpers', 'hudbtn', 'layers', 'selection', 'points', 'basemap'];
 function typeCount(keys) { let n = 0; for (const k of keys) n += (S.counts && S.counts[k]) || 0; return n; }
 function sectionHtml(id) {
   const W = widgets;
@@ -282,10 +285,24 @@ function sectionHtml(id) {
         W.sw('north', S.ui2d.north, tt('northArrow', 'Kuzey oku')) +
         W.sw('northBig', S.ui2d.northBig, tt('northBig', 'Büyük kuzey oku')) +
         W.sw('coordInfo', S.ui2d.coordInfo, tt('coordInfo', 'Koordinat bilgisi')) +
-        W.sw('navFabs', S.ui2d.navFabs, tt('navFabs', 'Ekran zoom düğmeleri')) +
-        W.sw('dpad', S.ui2d.dpad, tt('dpad', 'Yön tuşları')) +
         (S.scene && S.scene.layouts.length > 1 ? W.sw('vpFrames', S.ui2d.vpFrames, tt('vpFrames', 'Görünüm penceresi çerçeveleri')) : '') +
         (S.compare ? W.sw('compareOnlyDiff', S.ui2d.compareOnlyDiff, tt('compareOnlyDiff', 'Karşılaştırma: yalnız farklar')) : ''), id);
+    /*
+     * EKRANDAKİ DÜĞMELER. Çizimin üstünde duran her düğme oradan yer çalar: gezinti kümesi
+     * yedi düğmeye çıktığında telefonda ekranın yarısından fazlasını kaplıyordu (v7.98).
+     * Bu yüzden düğmeler TEK TEK kapatılabilir ve küme altıdan fazla düğme taşıdığında
+     * kendiliğinden sıkışık kipe geçer (44 px / 6 px aralık).
+     */
+    case 'hudbtn':
+      return W.sec(tt('dispHudBtn', 'Ekrandaki düğmeler'),
+        W.sw('navFabs', S.ui2d.navFabs, tt('navFabs', 'Gezinti düğmeleri')) +
+        W.sw('fabZoom', S.ui2d.fabZoom, tt('fabZoom', 'Yakınlaştır / uzaklaştır')) +
+        W.sw('fabFit', S.ui2d.fabFit, t('fit')) +
+        W.sw('fabPrev', S.ui2d.fabPrev, tt('prevView', 'Önceki görünüm')) +
+        W.sw('fabPlot', S.ui2d.fabPlot, tt('fabPlot', 'PDF (plot)')) +
+        W.sw('fabSend', S.ui2d.fabSend, tt('waShare', "WhatsApp'a gönder")) +
+        W.sw('fabGps', S.ui2d.fabGps, 'GPS') +
+        W.sw('dpad', S.ui2d.dpad, tt('dpad', 'Yön tuşları')), id);
     case 'layers':
       return W.sec(tt('dispLayers', 'Katmanlar'),
         W.sw('fade', S.fade.on, tt('fadeOthers', 'Diğer katmanları soldur')) +
@@ -491,6 +508,7 @@ export function mountNavFabs(viewportEl) {
     navEl.innerHTML = `<button type="button" class="fab send" data-nav="send" aria-label="${tt('waShare', "WhatsApp'a gönder")}" title="${tt('waShare', "WhatsApp'a gönder")}">${icon('i-send-chat', '↗')}</button>` +
       `<button type="button" class="fab" data-nav="in" aria-label="${tt('zoomIn', 'Yakınlaştır')}" title="${tt('zoomIn', 'Yakınlaştır')}">${icon('i-zoom-in', '+')}</button>` +
       `<button type="button" class="fab" data-nav="out" aria-label="${tt('zoomOut', 'Uzaklaştır')}" title="${tt('zoomOut', 'Uzaklaştır')}">${icon('i-zoom-out', '−')}</button>` +
+      `<button type="button" class="fab" data-nav="pdf" aria-label="${tt('fabPlot', 'PDF (plot)')}" title="${tt('fabPlot', 'PDF (plot)')}">${icon('i-pdf', '⎙')}</button>` +
       `<button type="button" class="fab" data-nav="fit" aria-label="${t('fit')}" title="${t('fit')}">${icon('i-fit', '⌂')}</button>` +
       `<button type="button" class="fab" data-nav="prev" aria-label="${tt('prevView', 'Önceki görünüm')}" title="${tt('prevView', 'Önceki görünüm')}" disabled>${icon('i-prev', '↶')}</button>`;
     vp.appendChild(navEl);
@@ -514,6 +532,18 @@ function refreshNav() {
   let canBack = false;
   try { const v = v3(); if (v) canBack = typeof v.canHistoryBack === 'function' ? v.canHistoryBack() : false; else canBack = ctx.viewHistory ? ctx.viewHistory.canBack() : S.viewHist.i > 0; } catch (_) { canBack = false; }
   const prev = navEl.querySelector('[data-nav="prev"]'); if (prev) prev.disabled = !canBack;
+  /*
+   * Düğme başına görünürlük ve SIKIŞIK KİP. Her düğme çizimin üstünden yer alır; küme altıdan
+   * fazla düğme taşıdığında 44 px / 6 px aralığa geçer (dokunma hedefi sınırı 40 px'in üstünde),
+   * böylece kullanıcı düğme eklediğinde sütun çizimi yutmaz.
+   */
+  const gorunur = { send: S.ui2d.fabSend !== false, in: S.ui2d.fabZoom !== false, out: S.ui2d.fabZoom !== false,
+    pdf: S.ui2d.fabPlot !== false && S.hasDoc, fit: S.ui2d.fabFit !== false, prev: S.ui2d.fabPrev !== false };
+  let n = 0;
+  for (const [ad, ac] of Object.entries(gorunur)) { const b = navEl.querySelector(`[data-nav="${ad}"]`); if (!b) continue; b.hidden = !ac; if (ac) n++; }
+  const gps = $('gpsBtn'); if (gps && gps.parentElement === navEl) { const ac = S.ui2d.fabGps !== false && S.hasDoc; gps.hidden = !ac; if (ac) n++; }
+  navEl.classList.toggle('dense', n > 6);
+  if (!n) navEl.hidden = true;
   if (dpadEl) {
     let uiDpad = false; try { uiDpad = !!(ctx.ui && (ctx.ui.dpad || ctx.ui.glove)); } catch (_) { uiDpad = false; }
     dpadEl.hidden = !(S.ui2d.dpad || uiDpad) || !S.hasDoc;
@@ -556,6 +586,8 @@ function bindNav(el) {
   if (gonder) hold(gonder, () => call(ctx.paylasGorunum, 'com.whatsapp', 'WhatsApp'), null, 0, () => call(ctx.paylasGorunum, '', ''), 500);
   hold(el.querySelector('[data-nav="in"]'), () => zoom2(1.5), () => zoom2(1.03), 80);
   hold(el.querySelector('[data-nav="out"]'), () => zoom2(1 / 1.5), () => zoom2(1 / 1.03), 80);
+  // PDF (plot): kutuyu açar — çizimden çıkmadan, şeride gitmeden
+  hold(el.querySelector('[data-nav="pdf"]'), () => call(ctx.plot));
   hold(el.querySelector('[data-nav="fit"]'), () => { const v = v3(); if (v) { v.fit(); render3D(); } else call(ctx.zoomExtents); }, null, 0,
     () => { const v = v3(); if (v) { v.fit(); render3D(); return; } if (!gotoHome()) call(ctx.zoomExtents); }, 500,
     () => { let sel = []; try { sel = ctx.editor && ctx.editor.sel ? [...ctx.editor.sel] : []; } catch (_) { sel = []; } if (!sel.length && S.selected) sel = [S.selected]; if (!call(ctx.fitPrims, sel)) call(ctx.zoomExtents); });
