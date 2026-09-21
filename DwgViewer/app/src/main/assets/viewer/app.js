@@ -11,7 +11,7 @@ import { DISPLAY_DEFAULTS, setDisplay, getDisplay, toggleDisplay, primVisible, i
 import * as editorMod from './editor.js';
 import { setTileCallback, basemapAttribution } from './tiles.js';
 import { notes, loadNotes, saveNotes, addNote, removeNote, hitNote, drawNotes } from './notes.js';
-import { CRS, GeoRef, BASEMAPS, nameOf } from './proj.js';
+import { CRS, GeoRef, BASEMAPS, nameOf, crsById } from './proj.js';
 import { t, setLang, getLang, applyI18n, LANGS, langInfo, resolveLang } from './i18n.js';
 import { askText, askConfirm, askForm, isOpen as askOpen, cancel as askCancel } from './dialog.js';
 import { initEditor, onScene as editorScene, tap as editorTap, back as editorBack, overlay as editorOverlay, onResize as editorResize, onTheme as editorTheme, editor } from './editor.js';
@@ -3587,13 +3587,19 @@ function langOptions() {
     LANGS.map(l => `<option value="${l.id}"${sel(l.id)}>${esc(l.native)}</option>`).join('');
 }
 
-function showSettings() {
+/*
+ * Ayarlar. `ek`, projeksiyon seçicisinden dönerken formun yazılmamış değerlerini geri getirir:
+ * kullanıcı birim ya da kaydırma yazdıysa harita kutusuna gidip gelmek onları silmemelidir.
+ */
+function showSettings(ek) {
   const g = S.fileKey ? (store.json('geo:' + S.fileKey, null) || {}) : {};
-  const cur = { crs: g.crs || settings.crs, unit: g.unit || settings.unit, swap: g.swap != null ? g.swap : settings.swap, dx: g.dx || settings.dx || 0, dy: g.dy || settings.dy || 0 };
+  const cur = { crs: g.crs || settings.crs, unit: g.unit || settings.unit, swap: g.swap != null ? g.swap : settings.swap, dx: g.dx || settings.dx || 0, dy: g.dy || settings.dy || 0, ...(ek || {}) };
   const unitOpts = [['auto', t('unitFromDrawing') + (S.units ? ': ' + S.units : '') + ')'], ['0.001', 'mm'], ['0.01', 'cm'], ['1', 'm'], ['0.1', 'dm'], ['1000', 'km']];
   const html = kv([
     [t('language'), `<select id="sLang">${langOptions()}</select>`, 1],
     [t('crs'), `<select id="sCrs">${CRS.map(c => `<option value="${c.id}" ${c.id === cur.crs ? 'selected' : ''}>${esc(nameOf(c))}</option>`).join('')}</select>`, 1],
+    // Dilim ve datumu kullanıcı hesaplamasın: yerden (il/ilçe, harita, adres, koordinat ya da çizimin kendisi) seçilsin
+    [`<div class="full btns"><button type="button" class="btn small" id="sCrsPick">${esc(tt('psOpen', 'Yerden seç: il / ilçe · harita · adres'))}</button></div>`],
     [t('drawingUnit'), `<select id="sUnit">${unitOpts.map(o => `<option value="${o[0]}" ${String(cur.unit) === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('')}</select>`, 1],
     [t('axisSwap'), `<label class="chk"><input type="checkbox" id="sSwap" ${cur.swap ? 'checked' : ''}> ${esc(t('axisSwapHint'))}</label>`, 1],
     [t('offset') + ' X', `<input id="sDx" type="number" step="any" value="${cur.dx}">`, 1],
@@ -3609,6 +3615,27 @@ function showSettings() {
   try { if (typeof editorMod.accessibilitySection === 'function') a11y = editorMod.accessibilitySection(); } catch (e) { console.warn(e); a11y = null; }
   openDoc(t('settings'), html + (a11y && a11y.html ? a11y.html : ''));
   if (a11y && typeof a11y.bind === 'function') { try { a11y.bind($('docBody')); } catch (e) { console.warn(e); } }
+  $('sCrsPick').onclick = () => {
+    // Form değerleri korunur: seçiciden dönünce kullanıcı yazdığı birim ve kaydırmayı yeniden yazmasın
+    const form = { unit: $('sUnit').value, swap: $('sSwap').checked, dx: Number($('sDx').value) || 0, dy: Number($('sDy').value) || 0 };
+    const birim = form.unit && form.unit !== 'auto' ? Number(form.unit) : (S.unitToM || 1);
+    const ext = S.ext && isFinite(S.ext[0]) ? S.ext.map(v => v * birim) : null;
+    /*
+     * Haritanın karoları kullanıcının seçtiği altlıktan gelir (uydu seçiliyse uydudan seçer);
+     * altlık yoksa ya da özel adres girilmemişse OpenStreetMap kullanılır. `window.__psKaro`
+     * sınama kancasıdır: karolar yerel sunucudan verilsin diye.
+     */
+    const bm = BASEMAPS.find(b => b.id === S.basemap.id);
+    const sablon = (bm && bm.custom ? S.basemap.url : (bm && bm.url)) || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+    const karoUrl = window.__psKaro || ((x, y, z) => sablon.replace('{z}', z).replace('{x}', x).replace('{y}', y).replace('{-y}', (2 ** z - 1 - y)).replace('{s}', 'abc'[(x + y) % 3]));
+    import('./projsec.js').then((m) => {
+      m.acProjSecici({
+        openDoc, toast, ext, karoUrl,
+        lonLat0: (S.gps && S.gps.lon != null) ? [S.gps.lon, S.gps.lat] : (S.geo.active ? S.geo.toLonLat((S.ext[0] + S.ext[2]) / 2, (S.ext[1] + S.ext[3]) / 2) : null),
+        uygula: (id) => { showSettings({ ...form, crs: id }); toast(tt('psSelected', 'Koordinat sistemi seçildi') + ': ' + nameOf(crsById(id)), 2600); },
+      });
+    }).catch((e) => { console.warn(e); toast(t('error') + ': ' + e.message, { type: 'error' }); });
+  };
   $('sDisplay').onclick = () => { hide('docPanel'); openDisplayOptions(); };
   $('sSave').onclick = () => {
     settings.lang = $('sLang').value; settings.lwScale = Number($('sLw').value) || 3;

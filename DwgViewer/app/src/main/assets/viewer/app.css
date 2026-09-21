@@ -1823,3 +1823,24 @@ body[data-theme="hicontrast"] .empty-ill, body.contrast .empty-ill { opacity: 1;
 .bedit-bar .btn.small { min-height: 34px; padding: 4px 8px; display: inline-flex; align-items: center; gap: 4px; }
 .bedit-bar .btn.small svg.ic { width: 16px; height: 16px; }
 @media (max-width: 480px) { .bedit-bar .btn.small span { display: none; } .bedit-bar .btn.small svg.ic { width: 18px; height: 18px; } }
+
+/* ---- projeksiyon (dilim) seçici: projsec.js ------------------------------------------------
+   Kutu dar telefonda da tek sütun kalır; harita 200 px'lik bir şerittir, sonuç kartları
+   iki sütuna sığar. Kart bir DÜĞMEDİR: dokunma hedefi 44 px'in altına inmez. */
+.ps { display: flex; flex-direction: column; gap: 10px; }
+.ps-seg { width: 100%; }
+.ps-map { position: relative; height: 200px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: #8ea3b8; }
+.ps-map canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+.ps-map-btns { position: absolute; right: 8px; top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.ps-map-btns .btn { min-width: 40px; min-height: 40px; padding: 0; }
+.ps-map-attr { position: absolute; left: 6px; bottom: 4px; font-size: calc(10px * var(--fs)); color: #21303f; background: rgba(255,255,255,.7); border-radius: 4px; padding: 1px 4px; }
+.ps-sonuc { display: flex; flex-direction: column; gap: 8px; }
+.ps-yer { font-size: calc(13px * var(--fs)); }
+.ps-dilim { display: flex; flex-direction: column; gap: 2px; font-size: calc(12px * var(--fs)); color: var(--muted); }
+.ps-uyari { font-size: calc(12px * var(--fs)); border-left: 3px solid var(--accent); padding: 4px 8px; background: color-mix(in srgb, var(--accent) 12%, transparent); border-radius: 0 8px 8px 0; }
+.ps-kartlar { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.ps-card { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; text-align: left; min-height: 62px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--fg); }
+.ps-card b { font-size: calc(12.5px * var(--fs)); }
+.ps-card small, .ps-card em { color: var(--muted); font-size: calc(11px * var(--fs)); font-style: normal; }
+.ps-card:active { background: color-mix(in srgb, var(--accent) 18%, var(--panel)); }
+.small { font-size: calc(11.5px * var(--fs)); }

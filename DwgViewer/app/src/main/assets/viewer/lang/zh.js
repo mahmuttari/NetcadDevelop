@@ -396,4 +396,5 @@ export default {
   denseBars: '紧凑栏（细命令行）',
   // --- v7.89 · ekrandaki görüntüyü paylaşma
   waShare: '发送到 WhatsApp', shareView: '分享视图', shareTarget: '分享', shareNoDoc: '请先打开一张图纸', shareCaption: '由 DWG OfficeZip 分享', shareNotInstalled: '%s 未安装在此设备上', shareOther: '其他应用', shareFail: '无法分享视图', shareSaved: '视图已保存；请从相册发送', shareDocFail: '无法从此设备分享该文档',
+  psOpen: '按地点选择：省 / 区 · 地图 · 地址', psTitle: '选择投影', psProvince: '省 / 区', psMap: '地图', psAddress: '地址', psCoord: '坐标', psDrawing: '取自图纸', psPickIl: '省', psPickIlce: '区', psIlCenter: '全省（中心）', psSearch: '搜索', psSearchPh: '街区、街道、地名…', psGps: '我的位置', psCoordPh: '40.7654, 29.9187', psApply: '选择', psScale: '比例因子', psFalseE: '东偏常数', psZone3: '3° 带', psZone6: '6° 带 (UTM)', psCM: '中央子午线', psEdge: '到带界的距离', psEdgeWarn: '作业区靠近带界 (%s)。若无法完全落在同一带内，选带属于项目决策。', psOutside: '所选点位于土耳其境外；建议仅限土耳其分带。', psDatumNote: '基准面无法由坐标推断：同一带内 ED50 与 ITRF96 相差数百米。请从项目文件中确认基准面。', psNoNet: '地址搜索需要联网。', psNoResult: '没有结果。', psBadCoord: '无法读取坐标。', psDrawGuess: '由图纸坐标推测', psDrawNone: '图纸坐标不落在任何土耳其分带内；请按省/区或在地图上选择位置。', psPicked: '所选位置', psSelected: '已选择坐标系',
 };

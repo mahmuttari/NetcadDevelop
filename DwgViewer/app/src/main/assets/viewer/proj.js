@@ -24,10 +24,21 @@ export const nameOf = (o) => (o && o.i18n ? t(o.i18n) : (o ? o.name : ''));
 export const attrOf = (o) => (o && o.attrI18n ? t(o.attrI18n) : (o ? o.attr || '' : ''));
 export const CRS = [
   { id: 'NONE', name: 'Tanımsız / yerel', i18n: 'crsNone', tm: null },
-  ...[27, 30, 33, 36, 39, 42, 45].map(l => ({ id: 'ITRF96_TM' + l, name: `ITRF96 / TM${l} (3°)  EPSG:${5253 + (l - 27) / 3}`, ell: 'GRS80', lon0: l, k0: 1, fe: 500000, fn: 0, datum: 'WGS84' })),
-  ...[35, 36, 37].map(z => ({ id: 'WGS84_UTM' + z, name: `WGS84 / UTM ${z}N (6°)  EPSG:326${z}`, ell: 'WGS84', lon0: z * 6 - 183, k0: 0.9996, fe: 500000, fn: 0, datum: 'WGS84' })),
-  ...[27, 30, 33, 36, 39, 42, 45].map(l => ({ id: 'ED50_TM' + l, name: `ED50 / TM${l} (3°)  EPSG:${2319 + (l - 27) / 3}`, ell: 'INTL1924', lon0: l, k0: 1, fe: 500000, fn: 0, datum: 'ED50' })),
-  ...[35, 36, 37].map(z => ({ id: 'ED50_UTM' + z, name: `ED50 / UTM ${z}N (6°)  EPSG:230${z}`, ell: 'INTL1924', lon0: z * 6 - 183, k0: 0.9996, fe: 500000, fn: 0, datum: 'ED50' })),
+  ...[27, 30, 33, 36, 39, 42, 45].map(l => ({ id: 'ITRF96_TM' + l, name: `ITRF96 / TM${l} (3°)  EPSG:${5253 + (l - 27) / 3}`, ell: 'GRS80', lon0: l, k0: 1, fe: 500000, fn: 0, datum: 'WGS84', tm: l / 3 })),
+  /*
+   * 3 DERECELİK GAUSS-KRÜGER (dilim önekli sağa değer). Kadastro ve büyük ölçekli haritada
+   * kullanılan asıl biçim budur: sağa değerin başına dilim numarası yazılır (10. dilimde
+   * 10 500 000 gibi) ve resmî eksen sırası Kuzey-Doğu'dur. Üstteki TMxx kayıtlarıyla aynı
+   * izdüşümdür, yalnız sağa değerin sabiti farklıdır; ikisi karıştırılırsa çizim tam
+   * dilim numarası kadar (milyon metre) kayar.
+   */
+  ...[9, 10, 11, 12, 13, 14, 15].map(z => ({ id: 'ITRF96_GK' + z, name: `ITRF96 / 3° GK ${z} — CM ${z * 3}° · FE ${z}.500.000  EPSG:${5260 + z}`, ell: 'GRS80', lon0: z * 3, k0: 1, fe: z * 1e6 + 500000, fn: 0, datum: 'WGS84', gk: z })),
+  ...[9, 10, 11, 12, 13, 14, 15].map(z => ({ id: 'ED50_GK' + z, name: `ED50 / 3° GK ${z} — CM ${z * 3}° · FE ${z}.500.000  EPSG:${2197 + z}`, ell: 'INTL1924', lon0: z * 3, k0: 1, fe: z * 1e6 + 500000, fn: 0, datum: 'ED50', gk: z })),
+  // 6 derecelik UTM. EPSG'de TUREF/ITRF96 için ayrı bir UTM kaydı yoktur; ITRF96 ile WGS84
+  // arasındaki fark santimetre düzeyindedir, bu yüzden sayısal karşılık WGS84 / UTM kaydıdır.
+  ...[35, 36, 37, 38].map(z => ({ id: 'WGS84_UTM' + z, name: `ITRF96 / WGS84 — UTM ${z}N (6°)  EPSG:326${z}`, ell: 'WGS84', lon0: z * 6 - 183, k0: 0.9996, fe: 500000, fn: 0, datum: 'WGS84', utm: z })),
+  ...[27, 30, 33, 36, 39, 42, 45].map(l => ({ id: 'ED50_TM' + l, name: `ED50 / TM${l} (3°)  EPSG:${2319 + (l - 27) / 3}`, ell: 'INTL1924', lon0: l, k0: 1, fe: 500000, fn: 0, datum: 'ED50', tm: l / 3 })),
+  ...[35, 36, 37, 38].map(z => ({ id: 'ED50_UTM' + z, name: `ED50 / UTM ${z}N (6°)  EPSG:230${z}`, ell: 'INTL1924', lon0: z * 6 - 183, k0: 0.9996, fe: 500000, fn: 0, datum: 'ED50', utm: z })),
   { id: 'WEBMERC', name: 'Web Merkator  EPSG:3857', merc: true, datum: 'WGS84' },
 ];
 export const crsById = (id) => CRS.find(c => c.id === id) || CRS[0];
@@ -136,6 +147,62 @@ export class GeoRef {
     if (this.swap) [ex, ny] = [ny, ex];
     return [ex / this.unitToM + this.dx, ny / this.unitToM + this.dy];
   }
+}
+
+// ---- dilim (zone) seçimi ---------------------------------------------------------------------
+/*
+ * TÜRKİYE'DE DİLİM SEÇİMİ. Üç derecelik dilimlerin orta meridyenleri 27°, 30°, 33°, 36°, 39°,
+ * 42°, 45°'tir ve dilim numarası orta meridyenin üçte biridir (9…15). Altı derecelik UTM
+ * dilimlerinin orta meridyeni 27°, 33°, 39°, 45° (35N…38N). Bir nokta, orta meridyenine en
+ * yakın dilime girer; sınır, iki orta meridyenin tam ortasıdır (3°'de ±1,5°, 6°'da ±3°).
+ * Sınıra yakın bir çalışma alanı iki dilime birden düşebilir — o zaman dilim seçimi ölçü
+ * hatası değil KARAR meselesidir ve kullanıcıya söylenmelidir.
+ */
+export const TR_BBOX = [25.5, 35.7, 45.0, 42.2];
+export const inTR = (lon, lat) => lon >= TR_BBOX[0] && lon <= TR_BBOX[2] && lat >= TR_BBOX[1] && lat <= TR_BBOX[3];
+/** boylamdan 3° dilim: { dilim: 9…15, om } */
+export function dilim3(lon) { const d = Math.min(15, Math.max(9, Math.round(lon / 3))); return { dilim: d, om: d * 3 }; }
+/** boylamdan 6° UTM dilimi: { dilim: 35…38, om } */
+export function dilim6(lon) { const d = Math.min(38, Math.max(35, Math.floor((lon + 180) / 6) + 1)); return { dilim: d, om: d * 6 - 183 }; }
+/** dilim sınırına kalan pay: { derece, metre, om } — metre, o enlemde boylam derecesinin karşılığıdır */
+export function sinirPayi(lon, lat, adim = 3) {
+  const om = adim === 3 ? dilim3(lon).om : dilim6(lon).om;
+  const derece = adim / 2 - Math.abs(lon - om);
+  return { derece, metre: derece * 111320 * Math.cos(lat * D2R), om };
+}
+/**
+ * Bir konum için altı öneri: ITRF96 (TUREF) ve ED50 datumlarının her biri için 3° TM,
+ * 3° Gauss-Krüger (dilim önekli) ve 6° UTM. Ayrıca iki ölçekte de sınıra kalan pay.
+ */
+export function crsOner(lon, lat) {
+  const z3 = dilim3(lon), z6 = dilim6(lon);
+  const bul = (id) => CRS.find(c => c.id === id) || null;
+  const liste = [bul('ITRF96_TM' + z3.om), bul('ITRF96_GK' + z3.dilim), bul('WGS84_UTM' + z6.dilim),
+    bul('ED50_TM' + z3.om), bul('ED50_GK' + z3.dilim), bul('ED50_UTM' + z6.dilim)].filter(Boolean);
+  return { lon, lat, d3: z3, d6: z6, pay3: sinirPayi(lon, lat, 3), pay6: sinirPayi(lon, lat, 6), liste, turkiye: inTR(lon, lat) };
+}
+/*
+ * ÇİZİMDEN DİLİM TAHMİNİ. Bir koordinat çifti verildiğinde her aday CRS ile coğrafi koordinata
+ * çevrilir; Türkiye sınır kutusuna düşen ve orta meridyenine dilim yarı genişliğinden yakın
+ * kalanlar aday sayılır. Sağa değerin büyüklüğü (500.000 mi, 10.500.000 mi) yanlış CRS'yi
+ * kendiliğinden eler: yanlış sabitle nokta ülkenin dışına düşer. DATUM tahmin EDİLEMEZ —
+ * ED50 ile ITRF96 aynı dilimde birkaç yüz metre ayrılır, ikisi de sınır kutusuna düşer;
+ * bu yüzden dönen listede ikisi de bulunur ve seçim kullanıcıya bırakılır.
+ */
+export function crsTahmin(E, N) {
+  if (!isFinite(E) || !isFinite(N)) return { aday: [] };
+  const aday = [];
+  for (const c of CRS) {
+    if (!c.datum || c.merc) continue;
+    let p; try { p = fromCrs(E, N, c); } catch (_) { continue; }
+    if (!p || !isFinite(p[0]) || !isFinite(p[1]) || !inTR(p[0], p[1])) continue;
+    const yari = c.k0 === 1 ? 1.5 : 3;
+    const sapma = Math.abs(p[0] - c.lon0);
+    if (sapma > yari) continue;
+    aday.push({ crs: c, lon: p[0], lat: p[1], sapma });
+  }
+  aday.sort((a, b) => a.sapma - b.sapma);
+  return { aday, d3: aday.length ? dilim3(aday[0].lon) : null, d6: aday.length ? dilim6(aday[0].lon) : null };
 }
 
 // ---- karo matematiği (XYZ / OSM) -----------------------------------------------------------------
