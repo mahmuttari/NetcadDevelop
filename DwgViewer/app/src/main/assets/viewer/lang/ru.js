@@ -189,7 +189,7 @@ export default {
   tl_display: 'Параметры экрана', th_display: '',
   tl_pdf: 'PDF', th_pdf: 'Создать PDF в масштабе',
   tl_png: 'PNG', th_png: 'Сохранить вид как изображение',
-  tl_savedxf: 'Сохранить DXF', th_savedxf: 'Сохранить изменённый чертёж в DXF',
+  tl_savedxf: 'Сохранить DXF', th_savedxf: 'Сохранить изменённый чертёж в DXF', tl_save: 'Сохранить', th_save: 'Сохраняет чертёж в DXF под его собственным именем', tl_saveas: 'Сохранить как', th_saveas: 'Сохраняет в DXF с выбранным именем и объёмом',
   tl_savedelta: 'Изменения', th_savedelta: 'Сохранить только изменённые объекты',
   tl_undo: 'Отменить', th_undo: '',
   tl_redo: 'Вернуть', th_redo: '',

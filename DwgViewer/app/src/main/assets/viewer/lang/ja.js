@@ -189,7 +189,7 @@ export default {
   tl_display: '表示設定', th_display: '',
   tl_pdf: 'PDF', th_pdf: '尺度を指定して PDF を作成',
   tl_png: 'PNG', th_png: 'ビューを画像として保存',
-  tl_savedxf: 'DXF 保存', th_savedxf: '編集した図面を DXF で保存',
+  tl_savedxf: 'DXF 保存', th_savedxf: '編集した図面を DXF で保存', tl_save: '保存', th_save: '図面を元の名前で DXF として保存します', tl_saveas: '名前を付けて保存', th_saveas: '名前と範囲を選んで DXF を保存します',
   tl_savedelta: '変更', th_savedelta: '変更したオブジェクトのみ保存',
   tl_undo: '元に戻す', th_undo: '',
   tl_redo: 'やり直し', th_redo: '',

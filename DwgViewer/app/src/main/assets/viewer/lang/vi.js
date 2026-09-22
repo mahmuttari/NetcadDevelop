@@ -189,7 +189,7 @@ export default {
   tl_display: 'Tuỳ chọn hiển thị', th_display: '',
   tl_pdf: 'PDF', th_pdf: 'Tạo PDF theo tỷ lệ',
   tl_png: 'PNG', th_png: 'Lưu khung nhìn thành ảnh',
-  tl_savedxf: 'Lưu DXF', th_savedxf: 'Lưu bản vẽ đã sửa thành DXF',
+  tl_savedxf: 'Lưu DXF', th_savedxf: 'Lưu bản vẽ đã sửa thành DXF', tl_save: 'Lưu', th_save: 'Lưu bản vẽ thành DXF với tên của chính nó', tl_saveas: 'Lưu thành', th_saveas: 'Lưu thành DXF với tên và phạm vi đã chọn',
   tl_savedelta: 'Thay đổi', th_savedelta: 'Chỉ lưu các đối tượng đã đổi',
   tl_undo: 'Hoàn tác', th_undo: '',
   tl_redo: 'Làm lại', th_redo: '',

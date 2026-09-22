@@ -189,7 +189,7 @@ export default {
   tl_display: 'प्रदर्शन विकल्प', th_display: '',
   tl_pdf: 'PDF', th_pdf: 'मापनी सहित PDF बनाएँ',
   tl_png: 'PNG', th_png: 'दृश्य को छवि के रूप में सहेजें',
-  tl_savedxf: 'DXF सहेजें', th_savedxf: 'संपादित रेखांकन को DXF में सहेजें',
+  tl_savedxf: 'DXF सहेजें', th_savedxf: 'संपादित रेखांकन को DXF में सहेजें', tl_save: 'सहेजें', th_save: 'ड्रॉइंग को उसके अपने नाम से DXF के रूप में सहेजता है', tl_saveas: 'इस रूप में सहेजें', th_saveas: 'चुने गए नाम और दायरे के साथ DXF सहेजता है',
   tl_savedelta: 'बदलाव', th_savedelta: 'केवल बदली गई वस्तुएँ सहेजें',
   tl_undo: 'पूर्ववत', th_undo: '',
   tl_redo: 'पुनः', th_redo: '',

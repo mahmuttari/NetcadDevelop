@@ -189,7 +189,7 @@ export default {
   tl_display: '显示选项', th_display: '',
   tl_pdf: 'PDF', th_pdf: '生成按比例的 PDF',
   tl_png: 'PNG', th_png: '把视图保存为图像',
-  tl_savedxf: '保存 DXF', th_savedxf: '把编辑后的图纸保存为 DXF',
+  tl_savedxf: '保存 DXF', th_savedxf: '把编辑后的图纸保存为 DXF', tl_save: '保存', th_save: '以图纸自身的名称保存为 DXF', tl_saveas: '另存为', th_saveas: '选择名称和范围后另存为 DXF',
   tl_savedelta: '更改', th_savedelta: '仅保存已更改的对象',
   tl_undo: '撤消', th_undo: '',
   tl_redo: '重做', th_redo: '',

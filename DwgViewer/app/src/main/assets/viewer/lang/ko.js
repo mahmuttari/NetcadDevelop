@@ -189,7 +189,7 @@ export default {
   tl_display: '화면 설정', th_display: '',
   tl_pdf: 'PDF', th_pdf: '축척을 지정해 PDF 만들기',
   tl_png: 'PNG', th_png: '화면을 이미지로 저장',
-  tl_savedxf: 'DXF 저장', th_savedxf: '편집한 도면을 DXF로 저장',
+  tl_savedxf: 'DXF 저장', th_savedxf: '편집한 도면을 DXF로 저장', tl_save: '저장', th_save: '도면을 원래 이름으로 DXF로 저장합니다', tl_saveas: '다른 이름으로 저장', th_saveas: '이름과 범위를 선택해 DXF로 저장합니다',
   tl_savedelta: '변경', th_savedelta: '바뀐 객체만 저장',
   tl_undo: '실행 취소', th_undo: '',
   tl_redo: '다시 실행', th_redo: '',

@@ -189,7 +189,7 @@ export default {
   tl_display: 'Opciones de pantalla', th_display: '',
   tl_pdf: 'PDF', th_pdf: 'Crear un PDF a escala',
   tl_png: 'PNG', th_png: 'Guardar la vista como imagen',
-  tl_savedxf: 'Guardar DXF', th_savedxf: 'Guardar el dibujo editado como DXF',
+  tl_savedxf: 'Guardar DXF', th_savedxf: 'Guardar el dibujo editado como DXF', tl_save: 'Guardar', th_save: 'Guarda el dibujo como DXF con su propio nombre', tl_saveas: 'Guardar como', th_saveas: 'Guarda como DXF con nombre y alcance elegidos',
   tl_savedelta: 'Cambios', th_savedelta: 'Guardar solo los objetos modificados',
   tl_undo: 'Deshacer', th_undo: '',
   tl_redo: 'Rehacer', th_redo: '',

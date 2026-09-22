@@ -189,7 +189,7 @@ export default {
   tl_display: 'Opzioni di visualizzazione', th_display: '',
   tl_pdf: 'PDF', th_pdf: 'Crea un PDF in scala',
   tl_png: 'PNG', th_png: 'Salva la vista come immagine',
-  tl_savedxf: 'Salva DXF', th_savedxf: 'Salva il disegno modificato in DXF',
+  tl_savedxf: 'Salva DXF', th_savedxf: 'Salva il disegno modificato in DXF', tl_save: 'Salva', th_save: 'Salva il disegno come DXF con il suo nome', tl_saveas: 'Salva con nome', th_saveas: 'Salva come DXF con nome e ambito scelti',
   tl_savedelta: 'Modifiche', th_savedelta: 'Salva solo gli oggetti modificati',
   tl_undo: 'Annulla', th_undo: '',
   tl_redo: 'Ripristina', th_redo: '',

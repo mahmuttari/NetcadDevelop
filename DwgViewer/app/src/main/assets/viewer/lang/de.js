@@ -189,7 +189,7 @@ export default {
   tl_display: 'Anzeigeoptionen', th_display: '',
   tl_pdf: 'PDF', th_pdf: 'Maßstäbliches PDF erstellen',
   tl_png: 'PNG', th_png: 'Ansicht als Bild speichern',
-  tl_savedxf: 'DXF speichern', th_savedxf: 'Die bearbeitete Zeichnung als DXF speichern',
+  tl_savedxf: 'DXF speichern', th_savedxf: 'Die bearbeitete Zeichnung als DXF speichern', tl_save: 'Speichern', th_save: 'Speichert die Zeichnung als DXF unter ihrem eigenen Namen', tl_saveas: 'Speichern unter', th_saveas: 'Speichert als DXF mit gewähltem Namen und Umfang',
   tl_savedelta: 'Änderungen', th_savedelta: 'Nur geänderte Objekte speichern',
   tl_undo: 'Rückgängig', th_undo: '',
   tl_redo: 'Wiederholen', th_redo: '',

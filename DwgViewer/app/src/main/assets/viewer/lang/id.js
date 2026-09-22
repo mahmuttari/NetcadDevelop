@@ -189,7 +189,7 @@ export default {
   tl_display: 'Opsi tampilan', th_display: '',
   tl_pdf: 'PDF', th_pdf: 'Buat PDF berskala',
   tl_png: 'PNG', th_png: 'Simpan tampilan sebagai gambar',
-  tl_savedxf: 'Simpan DXF', th_savedxf: 'Simpan gambar yang disunting sebagai DXF',
+  tl_savedxf: 'Simpan DXF', th_savedxf: 'Simpan gambar yang disunting sebagai DXF', tl_save: 'Simpan', th_save: 'Menyimpan gambar sebagai DXF dengan namanya sendiri', tl_saveas: 'Simpan sebagai', th_saveas: 'Menyimpan sebagai DXF dengan nama dan cakupan pilihan',
   tl_savedelta: 'Perubahan', th_savedelta: 'Simpan hanya objek yang berubah',
   tl_undo: 'Urungkan', th_undo: '',
   tl_redo: 'Ulangi', th_redo: '',

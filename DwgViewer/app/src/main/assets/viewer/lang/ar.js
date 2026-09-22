@@ -189,7 +189,7 @@ export default {
   tl_display: 'خيارات العرض', th_display: '',
   tl_pdf: 'PDF', th_pdf: 'إنشاء PDF بمقياس',
   tl_png: 'PNG', th_png: 'حفظ العرض كصورة',
-  tl_savedxf: 'حفظ DXF', th_savedxf: 'حفظ الرسم المحرّر بصيغة DXF',
+  tl_savedxf: 'حفظ DXF', th_savedxf: 'حفظ الرسم المحرّر بصيغة DXF', tl_save: 'حفظ', th_save: 'يحفظ الرسم بصيغة DXF باسمه الأصلي', tl_saveas: 'حفظ باسم', th_saveas: 'يحفظ بصيغة DXF باسم ونطاق مختارين',
   tl_savedelta: 'التغييرات', th_savedelta: 'حفظ الكائنات المتغيّرة فقط',
   tl_undo: 'تراجع', th_undo: '',
   tl_redo: 'إعادة', th_redo: '',
