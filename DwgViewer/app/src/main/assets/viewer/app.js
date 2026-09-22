@@ -521,7 +521,32 @@ function drawOverlay() {
   if (S.ui2d.north) drawNorth(c, fg);
   if (S.rulers) drawRulers(c, fg);
   const attr = basemapAttribution();
-  if (attr && S.geo.active && S.basemap.id !== 'none') { c.font = '10px sans-serif'; c.fillStyle = fg; c.globalAlpha = 0.7; c.textAlign = 'right'; c.textBaseline = 'bottom'; c.fillText(attr, S.W - 6, S.H - 4); c.globalAlpha = 1; c.textAlign = 'left'; }
+  if (attr && S.geo.active && S.basemap.id !== 'none') { c.font = '10px sans-serif'; c.fillStyle = fg; c.globalAlpha = 0.7; c.textAlign = 'right'; c.textBaseline = 'bottom'; c.fillText(attr, S.W - 6, S.H - 4 - kaplamaPayi().alt); c.globalAlpha = 1; c.textAlign = 'left'; }
+}
+/*
+ * KAPLAMANIN GÜVENLİ PAYI.
+ *
+ * Ölçek çubuğu, kuzey oku ve altlık künyesi #ov tuvalinin KENARINA çizilir. Komut çubuğu, komut
+ * önerisi şeridi ve "Komut satırı" düğmesi ise tuvali kısaltmaz, ÜSTÜNE biner (position: absolute,
+ * #viewport içinde). Bu yüzden S.H - 14'e çizilen ölçek çubuğu komut çubuğunun altında kalıyor,
+ * kullanıcıya yalnız "2 m" yazısının tepesi görünüyordu. Pay her karede DOM'dan okunur: hangi öğe
+ * açıksa o kadar yer bırakılır, kapanınca kendiliğinden sıfırlanır — sabit sayı yazılmaz, çünkü
+ * çubuğun yüksekliği yazı ölçeğine ve satır sayısına göre değişir.
+ */
+const KAPLAMA_ORTEN = ['cmdBar', 'cmdSug', 'cmdShow'];
+function kaplamaPayi() {
+  let ust = 0, alt = 0;
+  try {
+    const b = vp.getBoundingClientRect();
+    for (const id of KAPLAMA_ORTEN) {
+      const e = $(id); if (!e || e.hidden || !e.offsetParent) continue;
+      const q = e.getBoundingClientRect(); if (!(q.height > 0)) continue;
+      const y0 = q.top - b.top, y1 = q.bottom - b.top, orta = (y0 + y1) / 2;
+      if (orta > S.H * 0.6) alt = Math.max(alt, S.H - y0 + 6);
+      else if (orta < S.H * 0.4) ust = Math.max(ust, y1 + 6);
+    }
+  } catch (_) { /* ölçülemedi: pay yok */ }
+  return { ust, alt };
 }
 function drawScaleBar(c, fg) {
   const unitM = S.unitToM || 0;
@@ -529,7 +554,7 @@ function drawScaleBar(c, fg) {
   const nice = (v) => { const p = 10 ** Math.floor(Math.log10(v)); const m = v / p; return (m >= 5 ? 5 : m >= 2 ? 2 : 1) * p; };
   const len = nice(targetPx / S.view.scale);
   const px = len * S.view.scale;
-  const x0 = uiPrefs().leftHand ? S.W - 12 - px : 12, y0 = S.H - 14;
+  const x0 = uiPrefs().leftHand ? S.W - 12 - px : 12, y0 = S.H - 14 - kaplamaPayi().alt;   // komut çubuğunun altında kalmasın
   c.fillStyle = S.dark ? 'rgba(20,26,34,.7)' : 'rgba(255,255,255,.75)'; c.fillRect(x0 - 6, y0 - 18, px + 12, 24);
   c.strokeStyle = fg; c.lineWidth = 2; c.beginPath(); c.moveTo(x0, y0); c.lineTo(x0 + px, y0); c.moveTo(x0, y0 - 6); c.lineTo(x0, y0); c.moveTo(x0 + px, y0 - 6); c.lineTo(x0 + px, y0); c.stroke();
   let txt;
@@ -539,7 +564,7 @@ function drawScaleBar(c, fg) {
 }
 function drawNorth(c, fg) {
   const big = S.ui2d.northBig ? 44 / 28 : 1;
-  c.save(); c.translate(S.W - 26 * big, 30 * big + (S.rulers ? 18 : 0)); c.scale(big, big);
+  c.save(); c.translate(S.W - 26 * big, 30 * big + (S.rulers ? 18 : 0) + kaplamaPayi().ust); c.scale(big, big);
   if (S.geo.swap) c.rotate(-Math.PI / 2);
   c.fillStyle = S.dark ? 'rgba(20,26,34,.7)' : 'rgba(255,255,255,.75)'; c.beginPath(); c.arc(0, 0, 18, 0, TAU); c.fill();
   c.fillStyle = '#ff453a'; c.beginPath(); c.moveTo(0, -14); c.lineTo(5, 2); c.lineTo(0, -1); c.lineTo(-5, 2); c.closePath(); c.fill();
@@ -991,9 +1016,23 @@ function updateStatus(sx, sy) {
   if (sx != null && S.ui2d.coordInfo) {
     const w = toWorld(sx, sy);
     lastCoord = w;
-    let s = 'X: ' + fmt(w[0]) + '  Y: ' + fmt(w[1]);
-    if (S.geo.active) { const ll = S.geo.toLonLat(w[0], w[1]); if (ll) s += '  φ ' + ll[1].toFixed(6) + ' λ ' + ll[0].toFixed(6); }
-    $('stCoord').textContent = s;
+    /*
+     * Koordinat çipi AZALAN UZUNLUKTA dört nüsha taşır; hangisinin yazılacağına statusFit karar
+     * verir. Eskiden tek bir uzun metin yazılıyor, çip `overflow: hidden` ile "X: 15.257,27…"
+     * diye kesiliyor ve Y HİÇ GÖRÜNMÜYORDU — çubuğun "hiçbir şeyi yarım gösterme" ilkesinin tam
+     * tersi. Kısaltma sırası bilgiyi en az kaybedecek biçimdedir: önce coğrafi ek, sonra X/Y
+     * etiketleri (sayıların sırası zaten X;Y'dir), en son ondalıklar. Kopyalama bundan
+     * etkilenmez: stCoord tıklaması lastCoord'daki TAM değeri kopyalar.
+     */
+    const el = $('stCoord');
+    const xy = 'X: ' + fmt(w[0]) + '  Y: ' + fmt(w[1]);
+    let tam = xy;
+    if (S.geo.active) { const ll = S.geo.toLonLat(w[0], w[1]); if (ll) tam += '  φ ' + ll[1].toFixed(6) + ' λ ' + ll[0].toFixed(6); }
+    el.dataset.k0 = tam;
+    el.dataset.k1 = xy;
+    el.dataset.k2 = fmt(w[0]) + ' ; ' + fmt(w[1]);
+    el.dataset.k3 = fmt(w[0], 0) + ' ; ' + fmt(w[1], 0);
+    el.textContent = tam;
   }
   statusFit();
 }
@@ -1006,29 +1045,54 @@ function updateStatus(sx, sy) {
  * bilgi yazıları biçimsiz kalıyor" diye bildirdi: ekranda yarım bir "3B" rozeti ve kesik bir
  * "291" duruyordu.
  *
- * Çözüm kırpmayı değil YERLEŞİMİ düzeltmektir. Üç geçiş sırayla denenir ve hangisinde sığarsa
+ * Çözüm kırpmayı değil YERLEŞİMİ düzeltmektir. Geçişler sırayla denenir, hangisinde sığarsa
  * orada durulur:
  *   1) SIKIŞIK KİP — düğmeler 40 → 34 px, boşluklar ve çip iç boşluğu daralır.
- *   2) KAYAN DÜĞME ŞERİDİ — hızlı düğmeler çubuğun en çok %42'sini kaplar, gerisi yatay kayar
+ *   2) SAYAÇ KISA YAZIMI — "2917 varlık · 42 katman" → "2917".
+ *   3) BAŞKA YERDE KARŞILIĞI OLAN ÇİPLER DÜŞER — yakalama ve ızgara kendi hızlı düğmelerinde
+ *      zaten görünür, GPS'in kendi düğmesi vardır.
+ *   4) KOORDİNAT KISALIR — önce coğrafi ek, sonra X/Y etiketleri, en son ondalıklar
+ *      (bkz. updateStatus, dataset.k0..k3). Bu adım 3'ten SONRAdır: yinelenen bir çipi düşürmek,
+ *      koordinatın basamağını kaybetmekten ucuzdur.
+ *   5) KAYAN DÜĞME ŞERİDİ — hızlı düğmeler çubuğun en çok %42'sini kaplar, gerisi yatay kayar
  *      (sağ kenardaki solma bunu belli eder). Bilgi çipleri böylece yerini korur.
- *   3) BİLGİ DÜŞÜRME — hâlâ sığmıyorsa çipler ÖNEM SIRASININ TERSİNDEN bütünüyle kaldırılır.
- *      Sıra, başka yerde karşılığı olandan başlar: yakalama çipi ve ızgara çipi kendi hızlı
- *      düğmelerinde zaten görünür, GPS'in kendi düğmesi vardır. Ölçek en sonda kalır — haritacı
- *      için çubuktaki en değerli sayı odur.
+ *   6) KALAN BİLGİLER DÜŞER — sayaç, koordinat, kip, ölçek. Ölçek en sonda kalır: haritacı için
+ *      çubuktaki en değerli sayı odur.
  * Kendi sebebiyle gizlenmiş bir çip (ızgara kapalıysa #stGrid) zaten `hidden`'dır; bu geçiş
  * yalnız `st-squeeze` sınıfını ekler, `hidden`a dokunmaz — iki karar birbirine karışmaz.
+ *
+ * "SIĞDI" ÖLÇÜTÜ ÇUBUĞUN GENİŞLİĞİ DEĞİLDİR. Koordinat çipi `flex: 1 1 auto` olduğundan taşmayı
+ * kendi içine çeker: çubuk sığıyor görünür, koordinat ise üç noktayla kesilir ve Y hiç görünmez.
+ * Bu yüzden ölçüt "çubuk taşmıyor VE koordinat kırpılmamış"tır.
  */
 const ST_DUSME = ['stSnap', 'stGrid', 'stGps', 'stCount', 'stCoord', 'stMode', 'stScale'];
 let stFitRaf = 0;
+const ST_KOORD = ['k1', 'k2', 'k3'];       // koordinatın azalan uzunlukta nüshaları (k0 = tam)
+const ST_ONCE_DUSEN = ['stSnap', 'stGrid', 'stGps'];   // başka yerde karşılığı olanlar
+const ST_SONRA_DUSEN = ['stCount', 'stCoord', 'stMode', 'stScale'];
 function statusFit() {
   if (stFitRaf) return;
   stFitRaf = requestAnimationFrame(() => {
     stFitRaf = 0;
     const bar = $('statusbar'); if (!bar || bar.hidden || !bar.clientWidth) return;
-    const q = $('stQuick');
-    const sigar = () => bar.scrollWidth <= bar.clientWidth + 1;
+    const q = $('stQuick'), co = $('stCoord');
+    /*
+     * Koordinat çipi `flex: 1 1 auto` olduğu için taşmayı KENDİ İÇİNE ÇEKER: çubuk sığıyor
+     * görünür ama çipin metni üç noktayla kesilir. Bu yüzden "sığdı" ölçütü yalnız çubuğun
+     * genişliği değildir — koordinat kırpılmışsa da sığmamış sayılır.
+     */
+    const koordVar = !!(co && !co.hidden && co.dataset.k0 && getComputedStyle(co).display !== 'none');
+    const koordKirpik = () => koordVar && !co.classList.contains('st-squeeze') && co.scrollWidth > co.clientWidth + 1;
+    const sigar = () => bar.scrollWidth <= bar.clientWidth + 1 && !koordKirpik();
+    const dusur = (id) => {
+      const e = $(id);
+      if (!e || e.hidden || getComputedStyle(e).display === 'none') return false;
+      e.classList.add('st-squeeze');
+      return true;
+    };
     for (const id of ST_DUSME) { const e = $(id); if (e) e.classList.remove('st-squeeze'); }
     { const c = $('stCount'); if (c && c.dataset.uzun) c.textContent = c.dataset.uzun; }
+    if (koordVar) co.textContent = co.dataset.k0;
     document.body.classList.remove('st-tight');
     if (q) q.classList.remove('st-scroll');
     if (sigar()) return;
@@ -1036,13 +1100,10 @@ function statusFit() {
     if (sigar()) return;
     { const c = $('stCount'); if (c && c.dataset.kisa) c.textContent = c.dataset.kisa; }   // sayaç kısa yazıma iner
     if (sigar()) return;
+    for (const id of ST_ONCE_DUSEN) { if (dusur(id) && sigar()) return; }                  // yakalama, ızgara, GPS
+    if (koordVar) for (const k of ST_KOORD) { if (!co.dataset[k]) continue; co.textContent = co.dataset[k]; if (sigar()) return; }
     if (q) { q.classList.add('st-scroll'); if (sigar()) return; }
-    for (const id of ST_DUSME) {
-      const e = $(id);
-      if (!e || e.hidden || getComputedStyle(e).display === 'none') continue;
-      e.classList.add('st-squeeze');
-      if (sigar()) return;
-    }
+    for (const id of ST_SONRA_DUSEN) { if (dusur(id) && sigar()) return; }
   });
 }
 function ensureStatusChips() {
@@ -5386,6 +5447,7 @@ window.dwgApp = { osnap: Osnap, paylasGorunum, gorunumPng, loadCurrent, onFilePi
   // iki nokta kipi, konmuş birinci köşe ve lastik dikdörtgen sınanabilsin
   __zw: () => (zoomWin ? { iki: !!zoomWin.iki, pending: !!zoomWin.pending, x0: zoomWin.x0, y0: zoomWin.y0, x1: zoomWin.x1, y1: zoomWin.y1 } : null),
   __pdfWin: () => (pdfWin ? pdfWin.slice() : null),
+  __kaplamaPayi: () => kaplamaPayi(),   // kaplamanın alt/üst güvenli payı (ölçek çubuğu, kuzey oku, künye)
   // Çıktı rengi eşlemesi (bkz. tools/test_pdf_plot.mjs): kullanılan renkler, tablo ve eşlemenin kendisi
   __pdfCtb: (t) => { if (t) Object.assign(pdfAyar.ctb, t); return { tablo: { ...pdfAyar.ctb }, renkler: pdfKullanilanRenkler().map(r => ({ k: r.key, col: r.col, n: r.n })) }; },
   __plotRgb: (col, plan) => plotRgb(col, plan),

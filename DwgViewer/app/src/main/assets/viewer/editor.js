@@ -17,7 +17,7 @@ import { View3D } from './view3d.js';
 import { openView3DOptions, buildViewCube, openCameraBookmarks, renderZScale, renderClip } from './view3d_panel.js';
 import { FG, ACI, BYLAYER, normCi, resolveColor } from './scene.js';
 import { toScreen, toWorld, fmt, store } from './state.js';
-import { bgColor, fgColor, monoTone } from './render.js';
+import { bgColor, fgColor, monoTone, entityCss, layerPalette } from './render.js';
 import { t, applyI18n, addStrings } from './i18n.js';
 import { TAU, meshMetrics, mul, flatten, HATCH_PATTERNS } from './geom.js';
 import * as D from './display.js';
@@ -2688,7 +2688,7 @@ function refresh3D() {
    */
   // Süzgeç yoksa (eski kabuk) hiçbir şey elenmez: boş bir 3B sahnesi, süzülmemiş sahneden kötüdür
   const gorunur = typeof api.primVisible === 'function' ? model.prims.filter(p => (p && p.tri) || api.primVisible(p)) : model.prims;
-  v3.setScene(gorunur, S.layers, { dark: S.dark, mono: S.mono, colorMode: S.colorMode, bg: bgColor(), fg: fgColor(), monoColor: monoTone(fgColor()), fade: S.fade.on && fadeLayers.size ? { pct: S.fade.pct, layers: fadeLayers } : null, selColor: S.selColor });
+  v3.setScene(gorunur, S.layers, { dark: S.dark, mono: S.mono, colorMode: S.colorMode, bg: bgColor(), fg: fgColor(), monoColor: monoTone(fgColor()), renk: (p) => entityCss(p.col, fgColor()), katmanRenk: layerPalette, fade: S.fade.on && fadeLayers.size ? { pct: S.fade.pct, layers: fadeLayers } : null, selColor: S.selColor });
   v3.setSelection(ed.sel);
   if (!v3.counts.tris && typeof api.noFaces === 'function' && ed._noFaceKey !== S.fileKey) { ed._noFaceKey = S.fileKey; try { api.noFaces(); } catch (_) { /* geç */ } }
 }

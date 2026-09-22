@@ -83,7 +83,14 @@ export function plotRgb(col, plan) {
   return v;
 }
 const plotCss = (col, plan) => '#' + (plotRgb(col, plan) >>> 0).toString(16).padStart(6, '0');
-function entityCss(c, fg) {
+/*
+ * NESNE RENGİ → CSS. Tema kıstırmaları burada uygulanır ve bu yüzden dışa aktarılır: 3B görünüm
+ * de aynı işlevi kullanır (editor.refresh3D → view3d.setScene opts.renk). Eskiden 3B ham tam
+ * sayıyı doğrudan RGB'ye çeviriyordu; koyu temanın parlaklık tabanı uygulanmadığı için 2B'de
+ * açılmış koyu renkler 3B'de kapkara, yüksek kontrast temasında da 2B'de kısılmış parlak renkler
+ * 3B'de göz alıcı çıkıyordu — aynı çizim iki görünüşte iki ayrı palet oluyordu.
+ */
+export function entityCss(c, fg) {
   if (c === FG) return fg;
   let s = colCache.get(c);
   if (s !== undefined) return s;

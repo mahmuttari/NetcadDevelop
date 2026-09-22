@@ -122,6 +122,15 @@ export function parseColor(c) {
   let m = /^#([0-9a-f]{3})$/i.exec(s); if (m) return [parseInt(m[1][0] + m[1][0], 16) / 255, parseInt(m[1][1] + m[1][1], 16) / 255, parseInt(m[1][2] + m[1][2], 16) / 255];
   m = /^#([0-9a-f]{6})([0-9a-f]{2})?$/i.exec(s); if (m) { const v = parseInt(m[1], 16); return [((v >> 16) & 255) / 255, ((v >> 8) & 255) / 255, (v & 255) / 255]; }
   m = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i.exec(s); if (m) return [+m[1] / 255, +m[2] / 255, +m[3] / 255];
+  // hsl(): katman paleti (render.layerPalette) bu biçimi üretir — "hsl(214.5 70% 62%)"
+  m = /^hsla?\(\s*([\d.+-]+)(?:deg)?\s*[, ]\s*([\d.]+)%\s*[, ]\s*([\d.]+)%/i.exec(s);
+  if (m) {
+    const h = ((+m[1] % 360) + 360) % 360 / 360, sa = +m[2] / 100, l = +m[3] / 100;
+    if (sa <= 0) return [l, l, l];
+    const q = l < 0.5 ? l * (1 + sa) : l + sa - l * sa, pp = 2 * l - q;
+    const kanal = (t) => { t = t < 0 ? t + 1 : t > 1 ? t - 1 : t; return t < 1 / 6 ? pp + (q - pp) * 6 * t : t < 1 / 2 ? q : t < 2 / 3 ? pp + (q - pp) * (2 / 3 - t) * 6 : pp; };
+    return [kanal(h + 1 / 3), kanal(h), kanal(h - 1 / 3)];
+  }
   return null;
 }
 const toCss = (c) => '#' + [0, 1, 2].map(i => Math.round(Math.max(0, Math.min(1, c[i])) * 255).toString(16).padStart(2, '0')).join('');
@@ -407,7 +416,19 @@ export class View3D {
     const names = []; const idx = new Map();
     for (const [name, l] of layers) { idx.set(name, names.length); names.push([name, l]); }
     const lrgb = new Float32Array(Math.max(1, names.length + 1) * 3);
-    for (let i = 0; i < names.length; i++) { const c = names[i][1].color; const rgb = (c == null || c === FG) ? this.fg : parseColor(c); lrgb[i * 3] = rgb[0]; lrgb[i * 3 + 1] = rgb[1]; lrgb[i * 3 + 2] = rgb[2]; }
+    /*
+     * "KATMAN PALETİ" RENK KİPİ 2B İLE AYNI PALETİ KULLANIR (v8.6). 2B bu kipte katmanın DXF
+     * rengini değil, ada göre üretilen altın-açı HSL paletini çizer (render.layerPalette):
+     * amaç katmanları BİRBİRİNDEN AYIRMAKtır, dosyanın kendi renklerini göstermek değil.
+     * 3B ise katmanın kendi rengini kullanıyordu; aynı kipte iki görünüş iki ayrı palet
+     * veriyordu. Palet işlevi dışarıdan gelir (editor.refresh3D); gelmezse eski davranış sürer.
+     */
+    const katmanFn = typeof opts.katmanRenk === 'function' ? opts.katmanRenk : null;
+    for (let i = 0; i < names.length; i++) {
+      let rgb = katmanFn ? parseColor(katmanFn(names[i][0])) : null;
+      if (!rgb) { const c = names[i][1].color; rgb = (c == null || c === FG) ? this.fg : parseColor(c) || this.fg; }
+      lrgb[i * 3] = rgb[0]; lrgb[i * 3 + 1] = rgb[1]; lrgb[i * 3 + 2] = rgb[2];
+    }
     lrgb[names.length * 3] = this.fg[0]; lrgb[names.length * 3 + 1] = this.fg[1]; lrgb[names.length * 3 + 2] = this.fg[2];
     this.layerNames = names.map(n => n[0]); this.layerIdx = idx; this.layerRGB = lrgb;
     const unk = names.length;
@@ -478,7 +499,17 @@ export class View3D {
     const vert = (x, y, z, p) => { if (vn + 3 > vxyz.length) { const b = new Float64Array(vxyz.length * 2); b.set(vxyz); vxyz = b; } vxyz[vn] = x; vxyz[vn + 1] = y; vxyz[vn + 2] = z; vn += 3; vprim.push(p); };
     let bb = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
     const fg = this.fg;
-    const col = (c) => c === FG || c == null ? fg : [((c >> 16) & 255) / 255, ((c >> 8) & 255) / 255, (c & 255) / 255];
+    /*
+     * NESNE RENGİ 2B İLE AYNI İŞLEVDEN GELİR (v8.6): tema kıstırmaları (koyu temanın parlaklık
+     * tabanı, yüksek kontrastın tavanı) 2B'de render.entityCss içinde uygulanıyor, 3B ham tam
+     * sayıyı çeviriyordu. Çözücü dışarıdan verilir; verilmezse eski ham çevrim sürer.
+     */
+    const renkFn = typeof opts.renk === 'function' ? opts.renk : null;
+    const col = (p) => {
+      if (renkFn) { let css = null; try { css = renkFn(p); } catch (_) { /* geç */ } const r = css ? parseColor(css) : null; if (r) return r; }
+      const c = p.col;
+      return c === FG || c == null ? fg : [((c >> 16) & 255) / 255, ((c >> 8) & 255) / 255, (c & 255) / 255];
+    };
     /*
      * Sınır kutusuna AYKIRI DEĞER TAVANI (scene.js'teki 1e15 ile aynı). Bozuk bir DWG'de tek bir
      * saçma koordinat kutuyu şişirir; 2B bu tavanı uyguladığı için etkilenmez, 3B uygulamadığı
@@ -516,7 +547,7 @@ export class View3D {
       if (p.hpFill != null) continue;
       const lay = layers.get(p.lay); if (lay && !lay.visible) continue;
       li = idx.has(p.lay) ? idx.get(p.lay) : unk;
-      c = col(p.col);
+      c = col(p);
       // Maske (WIPEOUT) nesnenin kendi rengiyle değil ARKA PLAN rengiyle basılır: işi örtmektir
       if (p.bg) c = this.bgTheme;
       // Saydamlık ilkelin kendi değeridir: %18'lik tarama dolgusu 3B'de de %18 kalır
@@ -1511,29 +1542,61 @@ export class View3D {
     // pusula (2B'deki kuzey oku; cam.yaw ile döner)
     if (o.compass) {
       let left = false; try { left = document.body.classList.contains('left-hand'); } catch (_) { /* geç */ }
-      const ce = document.getElementById('cube3d'); const cubeOn = o.cube && !!(ce && !ce.hidden);
       const r = 16;
       /*
-       * PUSULA KÜPÜN YANINDA (v7.91), altında değil. Küp sağ üst KÖŞEYE döndü (app.css);
-       * köşede küpün hemen altı zoom sütununun ilk düğmesidir, oraya konan pusula onun
-       * üstüne binerdi. Yan boşluk ise her iki yerleşimde de boştur. Küp hangi yarıdaysa
-       * pusula ÖBÜR yanına geçer: sağdaki küpün soluna, sol el düzenindeki küpün sağına.
-       * 24 px boşluk keyfi değil: 'K' harfi merkezin 34 px ötesine yazılır, 16 + 24 = 40 > 34
-       * olduğu için harf küpün kutusuna değmez.
+       * PUSULA HER ZAMAN KÜPÜN KÖŞESİNDE KALIR (v8.6).
+       *
+       * Eski kural "küpün yanına koy" idi ve küpün yerini offsetLeft/offsetTop ile okuyordu.
+       * İki şeyi birden kaçırıyordu:
+       *   (1) offsetLeft, tuvale değil KONUMLANDIRILMIŞ ATAYA göredir; #cube3d başka bir
+       *       konumlandırılmış kapsayıcıya girerse sayı sessizce kayar.
+       *   (2) Komut çubuğu açıkken zoom sütunu köşeye dayanır ve küp `right: 72px`e çekilir
+       *       (app.css). Pusula bir 40 px daha sola gidince 412 px'lik telefonda merkezi
+       *       x ≈ 204'e, yani EKRANIN TAM ORTASINA düşüyor ve çizimin üstünde duruyordu.
+       *
+       * Artık konum çakışmaya göre seçilir: kutular tuvalin kendi kutusuna göre
+       * getBoundingClientRect ile okunur, adaylar sırayla denenir ve küp / zoom sütunu /
+       * yön tuşları / HUD kutusuyla çakışmayan İLK aday alınır. Aday sırası küpün ALTIyla
+       * başlar (küp içeri çekildiğinde orası boştur), sonra yanı, sonra üstü gelir. Her
+       * adayda merkezin ekranın dış üçte birinde kalması aranır — böylece pusula hiçbir
+       * yerleşimde ortaya kaçamaz. Son çare kenar boşluğudur.
        */
-      let cx, cy;
-      if (cubeOn) {
-        const kupSolda = ce.offsetLeft + ce.offsetWidth / 2 < W / 2;
-        cx = kupSolda ? ce.offsetLeft + ce.offsetWidth + 24 + r : ce.offsetLeft - 24 - r;
-        cy = ce.offsetTop + ce.offsetHeight / 2;
-      } else {
-        cx = left ? 8 + 42 : W - 8 - 42;
-        cy = 8 + r + 6;
+      const kutu = (id) => {
+        try {
+          const e = document.getElementById(id);
+          if (!e || e.hidden || !e.offsetParent) return null;
+          const q = e.getBoundingClientRect(), b = this.cv.getBoundingClientRect();
+          if (!q.width || !q.height) return null;
+          return { x: q.left - b.left, y: q.top - b.top, w: q.width, h: q.height };
+        } catch (_) { return null; }
+      };
+      const kup = o.cube ? kutu('cube3d') : null;
+      const engeller = [kup, kutu('navFabs'), kutu('dpad')].filter(Boolean);
+      { const hb = o.hud && o.hudPos === 'tl' ? this._hudBox : null; if (hb) engeller.push(hb); }
+      // pusulanın kapladığı kutu: daire + üstüne yazılan 'K' harfi (merkezin 34 px ötesine kadar)
+      const pay = 6, R = r + 8;
+      const carpisir = (cx, cy) => {
+        if (cx - R < pay || cx + R > W - pay || cy - 34 < pay || cy + R > H - pay) return true;
+        for (const g of engeller) if (cx + R > g.x - pay && cx - R < g.x + g.w + pay && cy + R > g.y - pay && cy - 34 < g.y + g.h + pay) return true;
+        return false;
+      };
+      const disUcte = (cx) => (left ? cx < W / 3 : cx > W * 2 / 3);
+      const adaylar = [];
+      if (kup) {
+        const km = kup.x + kup.w / 2, ky = kup.y + kup.h / 2;
+        adaylar.push([km, kup.y + kup.h + 24 + r]);                               // küpün altı
+        adaylar.push([left ? kup.x + kup.w + 24 + r : kup.x - 24 - r, ky]);        // küpün yanı (dışa doğru)
+        adaylar.push([km, kup.y - 24 - r]);                                        // küpün üstü
+        adaylar.push([left ? kup.x - 24 - r : kup.x + kup.w + 24 + r, ky]);        // küpün öbür yanı
       }
+      adaylar.push([left ? 8 + 42 : W - 8 - 42, 8 + r + 6]);                       // küp yokken: köşe
+      let cx = null, cy = null;
+      for (const [ax, ay] of adaylar) { if (!carpisir(ax, ay) && disUcte(ax)) { cx = ax; cy = ay; break; } }
+      if (cx == null) for (const [ax, ay] of adaylar) { if (!carpisir(ax, ay)) { cx = ax; cy = ay; break; } }
+      if (cx == null) { cx = left ? 8 + 42 : W - 8 - 42; cy = 8 + r + 6; }
       cx = Math.max(r + 6, Math.min(W - r - 6, cx));
       cy = Math.max(r + 34, Math.min(H - r - 6, cy));   // 34: kuzey yukarıyı gösterdiğinde 'K' harfi ekranın dışına taşmasın
-      const hb = o.hud && o.hudPos === 'tl' ? this._hudBox : null;
-      if (hb && !cubeOn && hb.x + hb.w > cx - r - 6 && hb.y + hb.h > cy - r - 6) cy = Math.max(cy, hb.y + hb.h + r + 10);
+      this._pusula = { cx, cy, r };                     // sınama ve yerleşim denetimi için
       let swap = false; try { swap = !!(window.dwgApp && window.dwgApp.state && window.dwgApp.state.geo && window.dwgApp.state.geo.swap); } catch (_) { /* geç */ }
       // ekranda kuzey (+Y) yönü: kamera yaw'ına göre
       const ang = this.cam.yaw + Math.PI / 2 + (swap ? Math.PI / 2 : 0);
