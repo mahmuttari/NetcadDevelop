@@ -33,6 +33,13 @@ export function luminance(css) {
 }
 export const bgColor = () => S.bgOverride || theme().bg;
 export const fgColor = () => S.bgOverride ? (luminance(S.bgOverride) > 0.5 ? '#111111' : '#f2f4f7') : theme().fg;
+/*
+ * TEK RENK KİPİNİN TONU (Ayarlar › Tek renk tonu). 2B ile 3B aynı ifadeyi kullanır: eskiden bu
+ * seçim yalnız 2B çiziminde geçerliydi, 3B her zaman ön plan rengine boyuyordu — turuncu tek renk
+ * seçen kullanıcı 3B'ye geçince beyaz buluyordu. `fg` çağıranın ön plan rengidir; PDF çıktısında
+ * tema renginden farklı olabilir, o yüzden dışarıdan verilir.
+ */
+export const monoTone = (fg) => { const th = theme(); return th.forceMono || S.monoColor === 'fg' ? fg : S.monoColor === 'accent' ? '#f5b342' : (S.monoColor || fg); };
 export const gridColor = () => theme().grid;
 export const rgbCss = (c, fg) => c === FG ? fg : '#' + (c & 0xffffff).toString(16).padStart(6, '0');
 
@@ -219,7 +226,7 @@ export function drawPrims(c, prims, scale, rect, opt) {
   const lwOn = S.lw, lwK = S.lwScale / 100 / scale; // 1/100 mm → dünya birimi (px cinsinden kalınlık / scale)
   const sh = S.show, ltOn = sh.ltype;
   const mode = th.forceMono ? 'mono' : S.colorMode;
-  const monoCol = mode === 'mono' ? (th.forceMono || S.monoColor === 'fg' ? fg : S.monoColor === 'accent' ? '#f5b342' : (S.monoColor || fg)) : null;
+  const monoCol = mode === 'mono' ? monoTone(fg) : null;
   const fadeOn = S.fade.on, fadeA = 1 - (S.fade.pct || 70) / 100, curLayer = S.curLayerName;
   const hatchA = S.hatchAlpha;
   const pStyle = S.pointStyle, pPx = (S.glove && S.pointPx === 3 ? 6 : S.pointPx) || 3;

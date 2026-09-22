@@ -180,6 +180,60 @@ ok('6 Z×8 düşey abartıda bile kule üstten dolu çiziliyor', px.dolu > 50 &&
     Math.abs(z.d2 - z.d1) / z.d1 < 0.02, JSON.stringify({ d1: Math.round(z.d1), d2: Math.round(z.d2) }));
 }
 
+/*
+ * ÖN AYAR GÖRÜNÜŞ KADRAJI DA KURAR (v8.5).
+ *
+ * preset() eskiden yalnız AÇIYI yazıyordu; uzaklık ve hedef kullanıcının bıraktığı yerde kalıyordu.
+ * Sığdırma v8.4'te bakış doğrultusuna bağlandığı için bu tutarsız hâle geldi: izometrikte
+ * yakınlaşmış bir kullanıcı "Üst"e bastığında plan, izometrik için hesaplanmış uzaklıkla açılıyor
+ * ve model ekranın ortasında küçük kalıyordu. AutoCAD'in ViewCube yüzü de öntanımlı olarak sığdırır.
+ * Kural: DİK görünüşler (üst/alt/ön/arka/sol/sağ) kadrajı kurar, İZOMETRİK kurmaz (orada
+ * yakınlaşma kullanıcının kararıdır), `{ fit:false }` her zaman kapatır.
+ */
+{
+  const r = await page.evaluate(() => {
+    const v = window.dwgApp.editor.view3d();
+    v.set('persp', false); v.set('zScale', 1);
+    v.preset('top', { animate: false }); v.render();
+    const kadraj = { dist: v.cam.dist, tgt: v.cam.target.slice() };
+    // kullanıcı yakınlaşıp kaydırmış olsun
+    v.cam.dist = kadraj.dist / 12; v.cam.target[0] += 900; v.cam.target[1] -= 400; v.render();
+    const bozuk = v.cam.dist;
+    v.preset('top', { animate: false }); v.render();
+    const sonra = { dist: v.cam.dist, tgt: v.cam.target.slice() };
+    // izometrik: kadraj KURULMAZ
+    v.cam.dist = bozuk; const izoOnce = v.cam.dist;
+    v.preset('iso', { animate: false });
+    const izo = v.cam.dist;
+    // dik görünüşte de çağıran kapatabilir
+    v.cam.dist = bozuk;
+    v.preset('front', { animate: false, fit: false });
+    const kapali = v.cam.dist;
+    return { kadraj, bozuk, sonra, izoOnce, izo, kapali, uzaklikYardimci: v._kadrajUzakligi() };
+  });
+  ok('8a yakınlaşmış kullanıcı "Üst"e basınca kadraj yeniden kuruluyor',
+    Math.abs(r.sonra.dist - r.kadraj.dist) / r.kadraj.dist < 0.02, JSON.stringify({ kadraj: Math.round(r.kadraj.dist), bozuk: Math.round(r.bozuk), sonra: Math.round(r.sonra.dist) }));
+  ok('8b kaydırılan hedef de sığdırma merkezine dönüyor',
+    Math.hypot(r.sonra.tgt[0] - r.kadraj.tgt[0], r.sonra.tgt[1] - r.kadraj.tgt[1]) < Math.max(1, r.kadraj.dist * 1e-3),
+    JSON.stringify({ once: r.kadraj.tgt.map(Math.round), sonra: r.sonra.tgt.map(Math.round) }));
+  ok('8c izometriğe geçiş yakınlaşmayı BOZMUYOR', Math.abs(r.izo - r.izoOnce) < 1e-6, JSON.stringify({ once: r.izoOnce, sonra: r.izo }));
+  ok('8d { fit:false } dik görünüşte de kadrajı kapatıyor', Math.abs(r.kapali - r.bozuk) < 1e-6, JSON.stringify({ once: r.bozuk, sonra: r.kapali }));
+}
+/*
+ * TUVAL YENİDEN BOYUTLANDIĞINDA TAŞINAN ÇARPAN, SIĞDIRMANIN KENDİ FORMÜLÜ OLMALI (v8.5).
+ * Eski `_fitK` sınır küresine bakıyordu, v8.4 sığdırması ise bakış doğrultusuna: ekran
+ * döndürülünce üst görünüş yanlış ölçekte kalıyordu. İkisi artık tek işlevdir.
+ */
+{
+  const r = await page.evaluate(() => {
+    const v = window.dwgApp.editor.view3d();
+    v.preset('top', { animate: false });
+    return { yardimci: v._kadrajUzakligi(), kadraj: v._kadraj(null).dist, dist: v.cam.dist };
+  });
+  ok('9a _kadrajUzakligi ile _kadraj aynı uzaklığı veriyor', Math.abs(r.yardimci - r.kadraj) < 1e-6, JSON.stringify(r));
+  ok('9b ön ayar bu uzaklığa oturmuş', Math.abs(r.dist - r.kadraj) / r.kadraj < 0.02, JSON.stringify(r));
+}
+
 C.summary(errors);
 await browser.close(); try { srv.kill && srv.kill(); } catch (_) { /* geç */ }
 C.exit();

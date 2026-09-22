@@ -17,7 +17,7 @@ import { View3D } from './view3d.js';
 import { openView3DOptions, buildViewCube, openCameraBookmarks, renderZScale, renderClip } from './view3d_panel.js';
 import { FG, ACI, BYLAYER, normCi, resolveColor } from './scene.js';
 import { toScreen, toWorld, fmt, store } from './state.js';
-import { bgColor, fgColor } from './render.js';
+import { bgColor, fgColor, monoTone } from './render.js';
 import { t, applyI18n, addStrings } from './i18n.js';
 import { TAU, meshMetrics, mul, flatten, HATCH_PATTERNS } from './geom.js';
 import * as D from './display.js';
@@ -2688,7 +2688,7 @@ function refresh3D() {
    */
   // Süzgeç yoksa (eski kabuk) hiçbir şey elenmez: boş bir 3B sahnesi, süzülmemiş sahneden kötüdür
   const gorunur = typeof api.primVisible === 'function' ? model.prims.filter(p => (p && p.tri) || api.primVisible(p)) : model.prims;
-  v3.setScene(gorunur, S.layers, { dark: S.dark, mono: S.mono, bg: bgColor(), fg: fgColor(), fade: S.fade.on && fadeLayers.size ? { pct: S.fade.pct, layers: fadeLayers } : null, selColor: S.selColor });
+  v3.setScene(gorunur, S.layers, { dark: S.dark, mono: S.mono, colorMode: S.colorMode, bg: bgColor(), fg: fgColor(), monoColor: monoTone(fgColor()), fade: S.fade.on && fadeLayers.size ? { pct: S.fade.pct, layers: fadeLayers } : null, selColor: S.selColor });
   v3.setSelection(ed.sel);
   if (!v3.counts.tris && typeof api.noFaces === 'function' && ed._noFaceKey !== S.fileKey) { ed._noFaceKey = S.fileKey; try { api.noFaces(); } catch (_) { /* geç */ } }
 }
@@ -2697,8 +2697,8 @@ function render3D() { if (v3 && ed.is3D()) { v3.render(); overlay3D(); statusMod
 ed.yenile3B = () => { if (!v3 || !ed.is3D()) return false; refresh3D(); render3D(); return true; };
 export function onResize() {
   if (!ed.is3D()) return;
-  const k0 = v3._fitK(); resize3D(); const k1 = v3._fitK();
-  if (k0 > 0 && isFinite(k1 / k0)) v3.cam.dist *= k1 / k0;   // dar kenar değişince sığdırma çarpanını taşı (döndürme)
+  const k0 = v3._kadrajUzakligi(); resize3D(); const k1 = v3._kadrajUzakligi();
+  if (k0 > 0 && isFinite(k1 / k0)) v3.cam.dist *= k1 / k0;   // en-boy oranı değişince yakınlaşmayı taşı (yön duyarlı kadrajla aynı formül)
   v3.render(); overlay3D();
 }
 export function onTheme() { if (ed.is3D()) { refresh3D(); v3.render(); overlay3D(); } }

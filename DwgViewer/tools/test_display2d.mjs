@@ -278,6 +278,28 @@ await ev(() => { for (const l of window.dwgApp.state.layers.values()) l.visible 
 await page.click('#btnMore'); await page.click('#moreMenu [data-act="settings"]');
 ok('44 ayarlar alanları', await ev(() => ['sCrs', 'sUnit', 'sDx', 'sDy', 'sSave', 'sLw'].every(id => !!document.getElementById(id))));
 await page.selectOption('#sUnit', '1'); await page.click('#sSave'); await page.waitForTimeout(300);
+/*
+ * AYARLAR › ÇİZİM BİRİMİ ÇİZİME DE UYGULANIR (v8.5). Bu seçim eskiden yalnız GeoRef'e gidiyordu;
+ * ölçek çipi, ızgara etiketi ve ölçüm sonuçları S.unitToM'dan beslendiği için hiç değişmiyordu.
+ * INSUNITS yazmayan bir dosyada uygulama "ölçek için çizim birimi gerekli" diyor, kullanıcı
+ * birimi seçiyor ve hiçbir şey olmuyordu.
+ */
+{
+  // Kaydet kutuyu kapatır; her seçim için ayarlar yeniden açılır
+  const birimSec = async (deger) => {
+    await page.click('#btnMore'); await page.click('#moreMenu [data-act="settings"]'); await page.waitForTimeout(150);
+    await page.selectOption('#sUnit', deger); await page.click('#sSave'); await page.waitForTimeout(250);
+  };
+  const m = await ev(() => ({ toM: window.dwgApp.state.unitToM, ad: window.dwgApp.state.units, dosya: window.dwgApp.state.unitToMDosya }));
+  ok('44b çizim birimi metre seçilince S.unitToM da metre oluyor', m.toM === 1 && m.ad === 'm', JSON.stringify(m));
+  await birimSec('0.01');
+  const cm = await ev(() => ({ toM: window.dwgApp.state.unitToM, ad: window.dwgApp.state.units }));
+  ok('44c santimetre seçilince birim ve kısaltma birlikte değişiyor', Math.abs(cm.toM - 0.01) < 1e-12 && cm.ad === 'cm', JSON.stringify(cm));
+  await birimSec('auto');
+  const oto = await ev(() => ({ toM: window.dwgApp.state.unitToM, ad: window.dwgApp.state.units, dosya: window.dwgApp.state.unitToMDosya, adDosya: window.dwgApp.state.unitsDosya }));
+  ok('44d "Çizimden" seçeneği dosyanın KENDİ birimine dönüyor', oto.toM === oto.dosya && oto.ad === (oto.adDosya || ''), JSON.stringify(oto));
+  await birimSec('1');
+}
 {
   const txt = await page.locator('#stScale').innerText();
   ok('19a #stScale 1:N', /^1:\d/.test(txt), txt);

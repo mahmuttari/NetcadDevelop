@@ -58,7 +58,10 @@ void main() {
   gl_Position = p; gl_PointSize = uPointSize;
   vNrm = nS; vPos = p3;
   vClip = (aPos - uClipMin) * uClipInv;
-  vFade = clamp((distance(p3, uEye) - uFadeRange.x) / max(uFadeRange.y - uFadeRange.x, 1e-6), 0.0, 1.0);
+  // Paralel izdüşümde göz bir NOKTA değildir: uzaklık, bakış doğrultusuna izdüşümdür.
+  // Öklit uzaklığı kullanılırsa düz bir planda dairesel bir vinyet doğar (ekrana çakılı leke).
+  float uzak = uPersp == 1 ? distance(p3, uEye) : dot(p3 - uEye, uViewDir);
+  vFade = clamp((uzak - uFadeRange.x) / max(uFadeRange.y - uFadeRange.x, 1e-6), 0.0, 1.0);
   vec3 rgb = aCol.rgb;
   if (uColorMode == 1) rgb = ramp(clamp((aPos.z - uZmin) / max(uZmax - uZmin, 1e-9), 0.0, 1.0));
   else if (uColorMode == 2) rgb = uFg;
@@ -69,7 +72,10 @@ precision mediump float;
 varying vec4 vCol; varying vec3 vNrm; varying vec3 vClip; varying float vFade; varying vec3 vPos;
 uniform float uAlpha; uniform vec4 uOverride; uniform bool uClip;
 uniform bool uLit; uniform vec3 uLightDir; uniform float uAmbient; uniform float uIntensity;
-uniform float uFade; uniform vec3 uBg; uniform int uShade; uniform float uGray; uniform highp vec3 uEye;
+// İKİ AŞAMADA DA bulunan uniform'ların DUYARLILIĞI aynı olmak zorundadır (GLSL ES 1.00, 4.5.3): köşe aşamasında
+// öntanımlı duyarlılık float/int için highp'tir, parça aşamasında float için bildirilen (burada mediump), int için
+// mediump'tir. uEye/uViewDir/uPersp burada highp yazılmazsa program BAĞLANMAZ ve 3B görünüm hiç açılmaz.
+uniform float uFade; uniform vec3 uBg; uniform int uShade; uniform float uGray; uniform highp vec3 uEye; uniform highp vec3 uViewDir; uniform highp int uPersp;
 void main() {
   if (uClip && (vClip.x < 0.0 || vClip.y < 0.0 || vClip.z < 0.0 || vClip.x > 1.0 || vClip.y > 1.0 || vClip.z > 1.0)) discard;
   vec3 rgb = uOverride.a > 0.0 ? uOverride.rgb : vCol.rgb;
@@ -81,7 +87,7 @@ void main() {
       rgb = mix(cool, warm, t) * (uAmbient + (1.0 - uAmbient) * uIntensity);
     } else {
       rgb *= uAmbient + (1.0 - uAmbient) * d * uIntensity;
-      if (uShade == 2) { vec3 v = normalize(uEye - vPos); vec3 h = normalize(uLightDir + v); float sp = pow(max(abs(dot(n, h)), 0.0), 36.0); rgb += vec3(0.28) * sp * uIntensity; }   // gerçekçi: parlama
+      if (uShade == 2) { vec3 v = uPersp == 1 ? normalize(uEye - vPos) : -uViewDir; vec3 h = normalize(uLightDir + v); float sp = pow(max(abs(dot(n, h)), 0.0), 36.0); rgb += vec3(0.28) * sp * uIntensity; }   // gerçekçi: parlama (paralelde bakış doğrultusu sabittir; nokta göz ekrana çakılı leke doğururdu)
     }
   }
   if (uGray > 0.0) { float l = dot(rgb, vec3(0.299, 0.587, 0.114)); rgb = mix(rgb, vec3(l), uGray); }
@@ -317,6 +323,7 @@ export class View3D {
       if (PERSIST_SKIP.has(k) || !(k in st)) continue;
       const v = st[k], def = View3D.DEFAULTS[k];
       if (k === 'touch') { if (v && typeof v === 'object') { for (const tk of Object.keys(TOUCH_ENUM)) if (TOUCH_ENUM[tk].includes(v[tk])) this.opts.touch[tk] = v[tk]; if (typeof v.invertY === 'boolean') this.opts.touch.invertY = v.invertY; if (isFinite(v.sensitivity) && v.sensitivity > 0) this.opts.touch.sensitivity = clamp(+v.sensitivity, 0.25, 4); } continue; }
+      if (k === 'colorMode' && ENUMS[k].includes(v)) { this.opts[k] = v; this._renkKayitli = true; continue; }   // kullanıcının önceki 3B seçimi
       if (ENUMS[k]) { if (k === 'edges' && v === 'facet' && st.edgesChosen !== true) { this.opts[k] = 'auto'; continue; } if (ENUMS[k].includes(v)) this.opts[k] = v; continue; }   // eski varsayılan 'facet' → stile göre
       if (k === 'gridStep') { if (v === 'auto' || (isFinite(v) && v > 0)) this.opts[k] = v; continue; }
       if (typeof def === 'boolean') { if (typeof v === 'boolean') this.opts[k] = v; continue; }
@@ -355,7 +362,7 @@ export class View3D {
     switch (key) {
       case 'grid': case 'gridStep': case 'gridZ': case 'gridZValue': if (this.bb) this.buildGrid(); break;
       case 'clip': case 'clipBox': this.buildClipBox(); break;
-      case 'colorMode': if (value === 'layer' || prev === 'layer') this.recolor(); break;
+      case 'colorMode': this._renkKullanici = true; if (value === 'layer' || prev === 'layer') this.recolor(); break;   // elle seçim: 2B'nin kipi bunu ezmez
       case 'turntable': this.setTurntable(value, true); value = o.turntable; break;
       case 'overhang': case 'style': this._applyOverhang(); break;
       default: break;
@@ -382,7 +389,16 @@ export class View3D {
     this.fg = parseColor(opts.fg) || (dark ? [0.95, 0.96, 0.97] : [0.07, 0.07, 0.07]);
     this.bgTheme = parseColor(opts.bg) || (dark ? [0.11, 0.13, 0.16] : [1, 1, 1]);
     this.selColor = parseColor(opts.selColor) || [1, 0.62, 0.04];
-    if (opts.colorMode && ENUMS.colorMode.includes(opts.colorMode)) this.opts.colorMode = opts.colorMode;
+    this.monoFg = parseColor(opts.monoColor) || null;   // tek renk kipinin tonu (2B ile ortak); yoksa ön plan rengi
+    /*
+     * 2B'NİN RENK KİPİ 3B'NİN ÖNTANIMIDIR (v8.5). Eskiden 3B kendi kipini localStorage'da
+     * saklıyor ve her dosyada geri yüklüyordu: bir kez 'katman' ya da 'kot' seçen kullanıcı
+     * aylar sonra başka bir çizimi açtığında 2B'de gri olan nesneleri 3B'de yeşil buluyor,
+     * nedenini de hiçbir yerde göremiyordu. Artık 2B'nin kipi öntanım olur; kullanıcı 3B
+     * kipini AÇIKÇA seçmişse (bu oturumda ya da daha önce kaydedilmişse) o seçim korunur
+     * ve etkin kip HUD'da yazar — böylece renk farkı hiçbir zaman açıklamasız kalmaz.
+     */
+    if (opts.colorMode && !this._renkKullanici && !this._renkKayitli && ENUMS.colorMode.includes(opts.colorMode)) this.opts.colorMode = opts.colorMode;
     if (opts.mono) { this.opts.colorMode = 'mono'; this._monoScene = true; }
     else if (this._monoScene && this.opts.colorMode === 'mono') { this.opts.colorMode = 'entity'; this._monoScene = false; }
     this.fadeSet = opts.fade && opts.fade.layers && opts.fade.pct > 0 ? opts.fade.layers : null;
@@ -799,6 +815,8 @@ export class View3D {
     const dist = hh / Math.tan(clamp(this.opts.fov, 10, 120) * Math.PI / 360);
     return { target: merkez, dist: isFinite(dist) && dist > 0 ? dist : varsayilan.dist };
   }
+  /** geçerli bakış ve tuval oranı için sığdırma uzaklığı (yeniden boyutlandırmada taşıma çarpanı) */
+  _kadrajUzakligi() { const k = this._kadraj(null); return k && k.dist > 0 && isFinite(k.dist) ? k.dist : this.radius * 2.2; }
   /** sahneyi sığdırır (hedef = merkez, uzaklık bakış doğrultusuna göre) */
   fit({ animate = true } = {}) {
     this.pushHistory();
@@ -835,9 +853,21 @@ export class View3D {
     this.pushHistory();
     return true;
   }
-  /** ön ayar açısı; eski adların açıları aynen korunur */
-  preset(name, { animate = true } = {}) {
+  /*
+   * ÖN AYAR GÖRÜNÜŞ, KADRAJI DA KURAR (v8.5).
+   *
+   * preset() eskiden yalnız AÇIYI yazıyordu; uzaklık ve hedef kullanıcının bıraktığı yerde
+   * kalıyordu. v8.4'te sığdırma bakış doğrultusuna bağlandığı için bu artık tutarsız: "Üst"e
+   * basan kullanıcı, izometrik bakış için hesaplanmış bir uzaklıkla plana geçiyor ve model
+   * ekranın ortasında küçük kalıyordu. AutoCAD'in ViewCube yüzü de öntanımlı olarak sığdırır.
+   * Dik görünüşlerde (üst/alt/ön/arka/sol/sağ) kadraj yeniden kurulur; İZOMETRİK geçişlerde
+   * kurulmaz, çünkü izometrik çoğu zaman bir ayrıntıyı döndürerek incelemek için seçilir ve
+   * oradaki yakınlaşma kullanıcının kararıdır. Çağıran `{ fit: false }` ile her zaman kapatabilir.
+   */
+  preset(name, { animate = true, fit } = {}) {
     const a = PRESET_ANGLES[name] || PRESET_ANGLES.iso;
+    const dik = name === 'top' || name === 'bottom' || name === 'front' || name === 'back' || name === 'left' || name === 'right';
+    const kadrajla = fit == null ? dik : !!fit;
     this.pushHistory();
     /*
      * PLAN GÖRÜNÜŞÜ SONSUZ YÜKSEKLİKTENDİR (v8.3). Paralel izdüşümde göz yüksekliğinin
@@ -852,7 +882,18 @@ export class View3D {
       this.cam.persp = false; this._persist();
       this._emit('persp', false); this._emit('planOrtho', name);
     }
-    this._goto({ yaw: a.yaw, pitch: a.pitch }, animate);
+    /*
+     * Açı ile kadraj TEK _goto içinde verilir: iki ayrı çağrı 250 ms'lik canlandırmayı ortasından
+     * yeniden temellendirir ve görüntü zıplar. _kadraj hedeflenen açıyla hesaplanmalı, o yüzden
+     * açılar önce cam'e yazılır, kadraj ondan sonra okunur ve ikisi birlikte gönderilir.
+     */
+    if (kadrajla) {
+      const eski = { yaw: this.cam.yaw, pitch: this.cam.pitch };
+      this.cam.yaw = a.yaw; this.cam.pitch = a.pitch;
+      const k = this._kadraj(null);
+      this.cam.yaw = eski.yaw; this.cam.pitch = eski.pitch;
+      this._goto({ yaw: a.yaw, pitch: a.pitch, dist: k.dist, target: k.target }, animate);
+    } else this._goto({ yaw: a.yaw, pitch: a.pitch }, animate);
     this.pushHistory();
   }
   getCamera() { const c = this.cam; return { yaw: c.yaw, pitch: c.pitch, dist: c.dist, target: c.target.slice(), persp: c.persp, fov: this.opts.fov }; }
@@ -1015,7 +1056,13 @@ export class View3D {
       this._frameT0 = nowMs;
     }
     // tuval boyutu CSS boyutuyla uyuşmuyorsa (döndürme, panel, klavye) düzelt — en-boy oranı bozulmasın
-    { const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1)); const w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr); if (w > 0 && h > 0 && (cv.width !== w || cv.height !== h)) { const k0 = this._fitK(); cv.width = w; cv.height = h; const k1 = this._fitK(); if (k0 > 0 && isFinite(k1 / k0)) this.cam.dist *= k1 / k0; } }   // sığdırma çarpanı yeni en-boy oranına taşınır
+    /*
+     * Tuval ölçüsü CSS ölçüsüyle uyuşmuyorsa (döndürme, panel, klavye) düzeltilir ve kullanıcının
+     * yakınlaşması yeni en-boy oranına TAŞINIR. Taşıma çarpanı artık eski `_fitK` değil, yön
+     * duyarlı kadrajın kendi uzaklığıdır (v8.5): ikisi ayrı formüllerdi ve v8.4'ten sonra
+     * uyuşmuyorlardı — ekran döndürülünce üst görünüş yanlış ölçekte kalıyordu.
+     */
+    { const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1)); const w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr); if (w > 0 && h > 0 && (cv.width !== w || cv.height !== h)) { const k0 = this._kadrajUzakligi(); cv.width = w; cv.height = h; const k1 = this._kadrajUzakligi(); if (k0 > 0 && isFinite(k1 / k0)) this.cam.dist *= k1 / k0; } }
     if (!cv.width || !cv.height) return;
     gl.viewport(0, 0, cv.width, cv.height);
     const bg = this._bgColor();
@@ -1023,7 +1070,8 @@ export class View3D {
     gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     gl.useProgram(this.prog);
     const u = this.u;
-    const fgEff = (o.bg === 'theme') ? this.fg : this._fgFor(bg);
+    // uFg YALNIZ tek renk kipinde kullanılır; o kipte 2B'nin ton seçimi geçerlidir, başka kipte ön plan rengi
+    const fgEff = (o.colorMode === 'mono' && this.monoFg) ? this.monoFg : ((o.bg === 'theme') ? this.fg : this._fgFor(bg));
     // gradyan arka plan: tam ekran dörtgen, derinlik yazmadan
     if (o.bg === 'gradient') {
       const top = this.dark ? [0.05, 0.07, 0.11] : [0.98, 0.99, 1], bot = this.dark ? [0.2, 0.25, 0.32] : [0.78, 0.82, 0.88];
@@ -1066,7 +1114,9 @@ export class View3D {
     const dpr = window.devicePixelRatio || 1, dprS = Math.max(1, Math.min(3, Math.round(dpr)));   // çizgi ofsetleri cihaz pikselidir; kalınlık CSS px'e göre seçilir
     // ızgara ve eksenler: renk özniteliğinden, kesitsiz
     gl.uniform1i(u.uColorMode, 0); gl.uniform1i(u.uClip, 0);
-    if (o.grid) this._draw('grid', gl.LINES, 0.6);
+    // Izgara bir ALTLIKTIR: derinlik yazmaz. Düz bir paftada çizimle aynı kotta durduğu için
+    // yazsaydı üstten bakışta altındaki çizgileri ve dolguları siler (z-savaşı).
+    if (o.grid) { gl.depthMask(false); this._draw('grid', gl.LINES, 0.6); gl.depthMask(true); }
     if (o.axes) this._draw('axes', gl.LINES, 1);
     if (cl) gl.uniform1i(u.uClip, 1);
     // nesneler
@@ -1377,6 +1427,8 @@ export class View3D {
     let s = `${t('hudYaw')} ${fmtNum(c.yaw * 180 / Math.PI, 0)}°  ${t('hudPitch')} ${fmtNum(c.pitch * 180 / Math.PI, 0)}°  Z×${fmtNum(this.zScale, 2)}  ${t('hudGrid')} ${fmtNum(this.gridStep)}${u}`;
     if (!dense) s += `  ${c.persp ? t('hudPersp') : t('hudOrtho')}`;
     if (!this._hasFaces()) s += ' · ' + t('hudNoFaces');
+    // Renk kipi nesne renginden başkaysa HUD söyler: 2B ile 3B arasındaki renk farkı açıklamasız kalmasın
+    if (this.opts.colorMode && this.opts.colorMode !== 'entity') s += ' · ' + t({ layer: 'v3ColorLayer', elevation: 'v3Elev', mono: 'colorMono' }[this.opts.colorMode] || 'colorMode');
     return s;
   }
   /**

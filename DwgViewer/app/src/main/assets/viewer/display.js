@@ -44,6 +44,15 @@ const PATH = {
 /** Yalnız kaplamayı etkileyen anahtarlar (tuval önbelleği geçerli kalır) */
 const OVERLAY_ONLY = new Set(['rulers', 'crosshair', 'selColor', 'selWidth', 'scaleBar', 'north', 'northBig', 'navFabs', 'dpad', 'coordInfo', 'preset', 'fabSend', 'fabZoom', 'fabPlot', 'fabFit', 'fabPrev', 'fabGps']);
 
+/*
+ * 3B SAHNESİNİ YENİDEN KURAN AYARLAR. 3B sahnesi 2B'nin görünürlük ve renk kurallarından geçer
+ * (bkz. editor.refresh3D); dolayısıyla bu anahtarlardan biri değiştiğinde 3B açıksa sahne
+ * YENİDEN KURULMALIDIR. Eskiden kurulmuyordu: kullanıcı 3B açıkken taramayı kapatıyor, ekranda
+ * hiçbir şey değişmiyordu. Liste dardır — setScene pahalıdır ve yalnız SAHNENİN İÇERİĞİNİ ya da
+ * RENGİNİ değiştiren anahtarlar buraya girer; kalınlık, ızgara, cetvel gibi 2B çizim ayarları girmez.
+ */
+const D3_YENILE = new Set(['showText', 'showHatch', 'showDim', 'showPoint', 'showImage', 'showAttrib', 'showBlock',
+  'colorMode', 'monoColor', 'fade', 'fadePct']);   // tema ve arka plan burada YOK: applyThemeDom zaten editorTheme'i çağırır
 let ctx = null;
 const noop = () => {};
 const call = (fn, ...a) => { try { return typeof fn === 'function' ? fn(...a) : undefined; } catch (e) { console.warn(e); return undefined; } };
@@ -125,6 +134,7 @@ export function setDisplay(key, value, o = {}) {
   if (key === 'navFabs' || key === 'dpad' || /^fab[A-Z]/.test(key)) refreshNav();
   if (key === 'grid' || key === 'gridStep') syncGridChip();
   if (o.persist !== false) saveDisplay();
+  if (D3_YENILE.has(key) && ctx.editor && typeof ctx.editor.yenile3B === 'function') call(() => ctx.editor.yenile3B());
   if (!o.silent) emit(key, value);
   return prev;
 }
@@ -228,6 +238,8 @@ function afterLayerChange() {
   const b = $('btnLayersUniso'); if (b) b.hidden = !S.isoBackup;
   call(ctx.buildLayerList);
   S.cacheValid = false; call(ctx.requestRender);
+  // 3B sahnesi katman durumundan türer: açık/kapalı, donuk, izole değişince yeniden kurulur
+  if (ctx.editor && typeof ctx.editor.yenile3B === 'function') call(() => ctx.editor.yenile3B());
   emit('layers', null);
 }
 

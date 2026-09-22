@@ -106,10 +106,24 @@ function applySettings() {
   S.snapModes = new Set((settings.snap || []).filter(m => Osnap.MODES.some(x => x.id === m)));
   Osnap.renderBar($('snapBar'));
 }
+/** birim çarpanı → kısa ad (ayarlardaki seçeneklerle aynı küme) */
+const BIRIM_ADI = { 0.001: 'mm', 0.01: 'cm', 0.1: 'dm', 1: 'm', 1000: 'km' };
+/*
+ * ÇİZİM BİRİMİ AYARI ÇİZİMİN KENDİSİNE DE UYGULANIR.
+ *
+ * Eskiden bu seçim yalnız GeoRef'e gidiyordu: ölçek çipi (1:N), ızgara etiketi, ölçüm sonuçlarının
+ * metre karşılığı ve PDF ölçeği S.unitToM'dan beslendiği için OLDUĞU GİBİ KALIYORDU. Yani INSUNITS
+ * yazmayan bir DWG'de uygulama "Ölçek için çizim birimi gerekli (Ayarlar › Çizim birimi)" diyor,
+ * kullanıcı oradan birimi seçiyor ve hiçbir şey değişmiyordu. Artık seçim S.unitToM'u da kurar;
+ * "Çizimden" seçeneği dosyanın kendi INSUNITS değerine döner.
+ */
 function applyGeo() {
   const g = S.fileKey ? store.json('geo:' + S.fileKey, null) : null;
   const src = g || settings;
-  const unitToM = src.unit && src.unit !== 'auto' ? Number(src.unit) : (S.unitToM || 1);
+  const secilen = src.unit && src.unit !== 'auto' ? Number(src.unit) : 0;
+  if (secilen > 0) { S.unitToM = secilen; S.units = BIRIM_ADI[secilen] || S.units; }
+  else if (S.unitToMDosya != null) { S.unitToM = S.unitToMDosya; S.units = S.unitsDosya || ''; }
+  const unitToM = secilen > 0 ? secilen : (S.unitToM || 1);
   S.geo = new GeoRef({ crs: src.crs || 'NONE', unitToM, swap: !!src.swap, dx: Number(src.dx) || 0, dy: Number(src.dy) || 0 });
 }
 
@@ -1720,9 +1734,9 @@ function longPressMenu(sx, sy) {
 function hideObjects(keys, isolate) {
   if (isolate) S.isoObj = new Set(keys); else for (const k of keys) S.hideObj.add(k);
   S.selected = null; hide('infoPanel');
-  S.cacheValid = false; requestRender(); drawOverlay();
+  S.cacheValid = false; requestRender(); drawOverlay(); edCall('yenile3B');   // 3B sahnesi de aynı gizleme kümesinden türer
 }
-function showAllObjects() { S.hideObj = new Set(); S.isoObj = null; S.cacheValid = false; requestRender(); drawOverlay(); }
+function showAllObjects() { S.hideObj = new Set(); S.isoObj = null; S.cacheValid = false; requestRender(); drawOverlay(); edCall('yenile3B'); }
 
 function candidates(w, tol) {
   const out = [];
@@ -3698,6 +3712,7 @@ function showSettings(ek) {
     const geo = { crs: $('sCrs').value, unit: $('sUnit').value, swap: $('sSwap').checked, dx: Number($('sDx').value) || 0, dy: Number($('sDy').value) || 0 };
     if (S.fileKey) store.set('geo:' + S.fileKey, JSON.stringify(geo));
     Object.assign(settings, geo); saveSettings(); applySettings(); applyGeo();
+    D.syncGridChip && D.syncGridChip(); edCall("yenile3B");   // birim değişince ızgara etiketi, ölçek ve 3B sahnesi yeniden kurulur
     S.cacheValid = false; requestRender(); drawOverlay();
     if (!$('measurePanel').hidden) updateMeasure();
     hide('docPanel'); toast(t('save') + ' ✓');
@@ -5157,7 +5172,9 @@ async function setScene(scene, name, size, rep) {
   if (/\.dxf$/i.test(name)) S.version = 'DXF ' + S.version;
   if (/\.dgn$/i.test(name) && !/^DGN/.test(S.version)) S.version = 'DGN ' + S.version;
   const iu = scene.header.INSUNITS;
+  // Dosyanın KENDİ birimi ayrıca saklanır: kullanıcı ayarı "Çizimden"e döndürdüğünde buraya dönülür
   S.units = UNITS[iu] || ''; S.unitToM = UNIT_TO_M[iu] || 0;
+  S.unitsDosya = S.units; S.unitToMDosya = S.unitToM;
   S.images = new Map(); S.compare = null; S.selected = null; S.cacheValid = false;
   S.hideObj = new Set(); S.isoObj = null;   // nesne gizleme / izolasyon dosyaya özeldir
   pdfWin = null; pdfAyar.title = ''; pdfAyar.area = pdfAyar.area === 'win' ? 'view' : pdfAyar.area;   // PDF alanı ve başlığı dosyaya özeldir
