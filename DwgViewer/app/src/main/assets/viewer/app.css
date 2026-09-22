@@ -629,6 +629,24 @@ body.glove .tb-tabs button, body.glove .tb-pin { min-width: 52px; height: 60px; 
 #toolbar .tb-tabs .tb-collapse { flex: 0 0 auto; min-width: 40px; color: var(--muted); }
 #toolbar .tb-tabs .tb-collapse svg.ic { transition: transform .18s; }
 #toolbar.collapsed .tb-tabs .tb-collapse svg.ic { transform: rotate(180deg); }
+/*
+ * DOKUNMA PARILTISI (v8.6).
+ *
+ * Kullanıcı bildirimi: "Ekrandaki Seç komutunu tıkladığım anlaşılmıyor; tıkladığımda seçim
+ * parıltısı gelsin." Haklı: şerit düğmelerinin, sekmelerin ve kalıcı Seç düğmesinin HİÇBİR
+ * :active durumu yoktu; dokunuş ile komutun çalışması arasında geçen sürede ekran sessiz
+ * kalıyordu, kullanıcı ikinci kez basıyordu. İki katman eklendi:
+ *   (1) BASILI TUTARKEN — anlık parlaklık artışı (:active), gecikmesiz.
+ *   (2) DOKUNUŞ ANINDA — 340 ms'lik vurgu halkası (.tap-flash, app.js her düğmeye takar).
+ * Halka `outline` ile çizilir: düzeni bozmaz, komşu düğmeye taşmaz (offset -1px) ve mevcut
+ * box-shadow'lu "açık" durumlarının (şerit karosu, seçili çip) üstünü örtmez.
+ */
+@keyframes tapFlash { 0% { outline-color: var(--accent); } 100% { outline-color: transparent; } }
+.tap-flash { outline: 3px solid var(--accent); outline-offset: -1px; animation: tapFlash .34s ease-out forwards; }
+.tb-row button:active, .tb-tabs button:active, .tb-pin:active, .st-quick button:active,
+.btn:active, .fab:active, .chip:active, .ask-cell:active { filter: brightness(1.35); }
+body.reduce-motion .tap-flash { animation-duration: 1ms; }
+@media (prefers-reduced-motion: reduce) { .tap-flash { animation-duration: 1ms; } }
 body.sun .tb-row button { border: 2px solid var(--line); }
 body.glove { --tile: 64px; --tb-h: 64px; }
 body.glove .tb-row button .lb { font-size: calc(11px * var(--fs)); }

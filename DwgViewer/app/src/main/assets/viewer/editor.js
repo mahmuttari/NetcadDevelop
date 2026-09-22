@@ -100,7 +100,7 @@ const TABS = [
   { id: 'view', i18n: 'tabView', icon: 'i-eye', groups: [
     { cap: 'grpNav', items: [T('extents', 'i-fit', 'Sığdır', 'Fit', 'Çizimin tamamını ekrana sığdırır', 'Zoom to the drawing extents'), T('zoomwin', 'i-zoom-window', 'Pencere', 'Window', 'Sürüklenen dikdörtgene yakınlaştırır', 'Zoom into a dragged rectangle'), T('pan', 'i-hand', 'Kaydır', 'Pan', 'Açıkken sürükleme yalnız görünümü kaydırır: araç, tutamak ve seçim dokunuşu almaz. Kapatmak için yeniden dokunun (Esc). 3B görünümde tek parmağı döndür ↔ kaydır arasında çevirir', 'While on, dragging only pans the view: tools, grips and selection ignore the pointer. Tap again (or Esc) to turn it off. In 3D it switches one finger between orbit and pan'), T('prevview', 'i-prev', 'Önceki', 'Previous', 'Önceki görünüme döner', 'Previous view'), T('nextview', 'i-next', 'Sonraki', 'Next', 'Sonraki görünüme geçer', 'Next view'), T('goto', 'i-goto', 'Koordinat', 'Go to', 'X,Y ya da enlem/boylam girerek gider', 'Go to X,Y or lat/lon'), T('home', 'i-home', 'Ana görünüm', 'Home', 'Kaydedilmiş ana görünüme döner', 'Saved home view')] },
     { cap: 'grpPanels', items: [T('layers', 'i-layers', 'Katmanlar', 'Layers', 'Katman görünürlüğü, izolasyon, soldurma', 'Layer visibility, isolate, fade'), T('search', 'i-search', 'Ara', 'Search', 'Yazı, katman, blok, öznitelik ara', 'Find text, layers, blocks'), T('info', 'i-info', 'Bilgi', 'Info', 'Çizim bilgisi', 'Drawing info'), T('count', 'i-count', 'Sayım', 'Count', 'Blok ve varlık sayımı, oransal dağılım', 'Block and entity counts with a bar chart'), T('views', 'i-bookmark', 'Görünümler', 'Views', 'Kayıtlı görünümler ve yer imleri', 'Saved views'), T('layouts', 'i-layout', 'Sayfalar', 'Layouts', 'Model / kâğıt sayfa düzenleri', 'Model / paper layouts'), T('notes', 'i-pen', 'Notlar', 'Notes', 'Kırmızı kalem notları', 'Redline notes'), T('gps', 'i-gps', 'GPS', 'GPS', 'Konumu çizimde gösterir', 'Show position on the drawing'), T('basemap', 'i-map', 'Altlık', 'Basemap', 'Harita altlığı', 'Map basemap'), T('compare', 'i-compare', 'Karşılaştır', 'Compare', 'İki revizyonu karşılaştırır', 'Compare two revisions'), T('drive', 'i-drive', 'Drive', 'Drive', 'Google Drive: dosya aç, yükle', 'Google Drive: open and upload files'), T('display', 'i-sliders', 'Ekran ayarları', 'Display options', 'Tema, ön ayarlar, süzgeçler, çizgiler, ızgara…', 'Theme, presets, filters, lines, grid…')] },
-    { cap: 'grpOut', items: [T('pdf', 'i-pdf', 'PDF', 'PDF', 'Ölçekli PDF oluşturur', 'Create a scaled PDF'), T('png', 'i-image', 'PNG', 'PNG', 'Görünümü resim olarak kaydeder', 'Save the view as an image'), T('savedxf', 'i-save', 'DXF kaydet', 'Save DXF', 'Düzenlenmiş çizimi DXF olarak kaydeder', 'Save the edited drawing as DXF'), T('savedelta', 'i-export', 'Değişiklikler', 'Changes', 'Yalnız değişen nesneleri DXF olarak kaydeder', 'Save only changed objects'), T('textout', 'i-textout', 'Metin çıkar', 'Extract text', 'Çizimdeki bütün yazıları CSV olarak dışa aktarır', 'Export every text in the drawing as CSV'), T('mesh3d', 'i-cube', '3B dışa aktar', 'Export 3D', 'Katı ve ağ gövdelerini OBJ ya da STL olarak yazar', 'Write solids and meshes as OBJ or STL'), T('tableout', 'i-table', 'Tablo çıkar', 'Extract table', 'Çizimdeki tabloyu ızgaradan okuyup CSV yapar', 'Read a drawn table grid and export it as CSV'), T('batch', 'i-batch', 'Toplu işlem', 'Batch', 'Birden çok dosyaya aynı işlemi uygular', 'Apply the same operation to many files'), T('pdfcad', 'i-pdfcad', 'PDF→CAD', 'PDF→CAD', 'PDF sayfasının vektör içeriğini çizime çevirir', 'Convert a PDF page vector content into drawing objects')] },
+    { cap: 'grpOut', items: [T('save', 'i-save', 'Kaydet', 'Save', 'Çizimi kendi adıyla DXF olarak kaydeder', 'Save the drawing as DXF under its own name'), T('saveas', 'i-export', 'Farklı kaydet', 'Save as', 'Ad ve kapsam seçerek DXF kaydeder', 'Save as DXF with a chosen name and scope'), T('pdf', 'i-pdf', 'PDF', 'PDF', 'Ölçekli PDF oluşturur', 'Create a scaled PDF'), T('png', 'i-image', 'PNG', 'PNG', 'Görünümü resim olarak kaydeder', 'Save the view as an image'), T('savedxf', 'i-save', 'DXF kaydet', 'Save DXF', 'Düzenlenmiş çizimi DXF olarak kaydeder', 'Save the edited drawing as DXF'), T('savedelta', 'i-export', 'Değişiklikler', 'Changes', 'Yalnız değişen nesneleri DXF olarak kaydeder', 'Save only changed objects'), T('textout', 'i-textout', 'Metin çıkar', 'Extract text', 'Çizimdeki bütün yazıları CSV olarak dışa aktarır', 'Export every text in the drawing as CSV'), T('mesh3d', 'i-cube', '3B dışa aktar', 'Export 3D', 'Katı ve ağ gövdelerini OBJ ya da STL olarak yazar', 'Write solids and meshes as OBJ or STL'), T('tableout', 'i-table', 'Tablo çıkar', 'Extract table', 'Çizimdeki tabloyu ızgaradan okuyup CSV yapar', 'Read a drawn table grid and export it as CSV'), T('batch', 'i-batch', 'Toplu işlem', 'Batch', 'Birden çok dosyaya aynı işlemi uygular', 'Apply the same operation to many files'), T('pdfcad', 'i-pdfcad', 'PDF→CAD', 'PDF→CAD', 'PDF sayfasının vektör içeriğini çizime çevirir', 'Convert a PDF page vector content into drawing objects')] },
     { cap: 'grpHist', items: [T('undo', 'i-undo', 'Geri al', 'Undo'), T('redo', 'i-redo', 'Yinele', 'Redo'), T('more', 'i-more', 'Diğer', 'More', 'Diğer işlevler menüsü', 'More functions')] } ] },
   { id: 'display', i18n: 'tabDisplay', icon: 'i-sliders', groups: [] },   // satır içeriği 2B/3B'ye göre üretilir
   { id: 'measure', i18n: 'tabMeasure', icon: 'i-dist', groups: [
@@ -357,7 +357,7 @@ function refreshUndo() {
   // süse döner ve uzun basış kutusu da açılmaz. (Ücretsizde yığın hep boştur → undo/redo hep ölürdü.)
   document.querySelectorAll('#toolbar [data-act="undo"]').forEach(b => { b.disabled = has('undo') && cu; });
   document.querySelectorAll('#toolbar [data-act="redo"]').forEach(b => { b.disabled = has('redo') && cr; });
-  document.querySelectorAll('#toolbar [data-act="savedxf"], #toolbar [data-act="savedelta"]').forEach(b => b.classList.toggle('dirty', !!(doc && doc.dirty)));
+  document.querySelectorAll('#toolbar [data-act="save"], #toolbar [data-act="saveas"], #toolbar [data-act="savedxf"], #toolbar [data-act="savedelta"]').forEach(b => b.classList.toggle('dirty', !!(doc && doc.dirty)));
   syncQuick();   // durum çubuğundaki geri al / yinele rozetleri
 }
 
@@ -825,6 +825,8 @@ function act(name, btn) {
     case 'display': call(api.openDisplayOptions, { seg: ed.is3D() ? '3d' : '2d' }); break;
     case 'undo': if (doc && doc.undo()) { refreshUndo(); api.requestRender(); if (ed.is3D()) { refresh3D(); v3.render(); } api.toast(t('undone')); } break;
     case 'redo': if (doc && doc.redo()) { refreshUndo(); api.requestRender(); if (ed.is3D()) { refresh3D(); v3.render(); } api.toast(t('redone')); } break;
+    case 'save': saveHizli(); break;
+    case 'saveas': saveFarkli(); break;
     case 'savedxf': saveDxf(false); break;
     case 'savedelta': saveDxf(true); break;
     case 'layer': pickLayer(); break;
@@ -2229,6 +2231,39 @@ ed.showBlocks = () => showBlocks();
 // DXF kaydetme
 // ---------------------------------------------------------------------------------
 const UNIT_CODE = { mm: 4, cm: 5, m: 6, km: 7, dm: 14, 'inç': 1, ft: 2 };
+/*
+ * KAYDET ve FARKLI KAYDET (v8.6).
+ *
+ * Kullanıcı isteği: "Kaydet ve farklı kaydet ekle." Şeritte yalnız "DXF kaydet" vardı ve o da
+ * dosyayı HER ZAMAN "<ad>_duzenlenmis.dxf" diye yazıyordu: ne ad seçilebiliyordu ne de çizimin
+ * kendi adıyla kaydedilebiliyordu. DWG YAZILAMAZ (okuyucu tek yönlüdür), bu yüzden iki komut da
+ * DXF üretir: "Kaydet" çizimin kendi adını kullanır, "Farklı kaydet" adı ve kapsamı sorar.
+ */
+function saveHizli() {
+  if (!needDoc()) return;
+  if (bses) { api.toast(t('beditCloseFirst')); return; }
+  const text = writeDxf(S.scene.layouts[0].prims, S.layers, { onlyEdited: false, ltypes: S.ltypes, units: UNIT_CODE[S.units] || 0, blocks: S.blocks, vars: S.vars });
+  saveDxfText(text, api.baseName() + '.dxf');
+}
+/** Dosya adından yol ayıracı ve dosya sisteminin kabul etmediği imleri atar */
+const dosyaAdi = (ad, varsayilan) => {
+  let a = String(ad == null ? '' : ad).trim().replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '_').replace(/^\.+/, '').slice(0, 120).trim();
+  if (!a) a = varsayilan;
+  return /\.dxf$/i.test(a) ? a : a + '.dxf';
+};
+ed.dosyaAdiSuz = dosyaAdi;   // sınama kancası
+async function saveFarkli() {
+  if (!needDoc()) return;
+  if (bses) { api.toast(t('beditCloseFirst')); return; }
+  const r = await askForm(tt('saveAs', 'Farklı kaydet'), [
+    { id: 'ad', label: tt('saveFileName', 'Dosya adı'), value: api.baseName() },
+    { id: 'delta', type: 'check', label: tt('saveOnlyChanges', 'Yalnız değişiklikler'), value: false },
+  ]);
+  if (!r) return;
+  if (r.delta && !(doc && doc.dirty)) { api.toast(t('noChanges')); return; }
+  const text = writeDxf(S.scene.layouts[0].prims, S.layers, { onlyEdited: !!r.delta, ltypes: S.ltypes, units: UNIT_CODE[S.units] || 0, blocks: S.blocks, vars: S.vars });
+  saveDxfText(text, dosyaAdi(r.ad, api.baseName()));
+}
 function saveDxf(onlyEdited) {
   if (!needDoc()) return;
   const model = S.scene.layouts[0];

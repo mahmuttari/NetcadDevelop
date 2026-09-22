@@ -76,8 +76,14 @@ if (step === 'all' || step === 'dxf') {
   const g = await page.evaluate(() => window.dwgApp.state.geo.toDrawing(29.9408, 40.7654));
   ok('4d GPS → çizim koordinatı ≈ (201,578; 122,262)', near(g[0], 201.578, 0.01) && near(g[1], 122.262, 0.01), JSON.stringify(g));
   await tapWorld(200, 120);
-  const st = await page.locator('#stCoord').innerText();
-  ok('4e durum çubuğu: X/Y ve φ/λ', /X: 200 Y: 120/.test(st) && /φ 40\.7653\d* λ 29\.9407\d*/.test(st), st);
+  /*
+   * Koordinat çipi artık AZALAN UZUNLUKTA dört nüsha taşır (v8.6): dar çubukta önce coğrafi ek,
+   * sonra X/Y etiketleri, en son ondalıklar düşer. Tam metin dataset.k0'da durur ve kopyalama
+   * onu kullanır; ekranda görünen ise sığan ilk nüshadır. İkisi de sınanır.
+   */
+  const kd = await page.evaluate(() => { const co = document.getElementById('stCoord'); return { tam: co.dataset.k0, ekran: co.textContent, kirpik: co.scrollWidth > co.clientWidth + 1 }; });
+  ok('4e durum çubuğu: X/Y ve φ/λ (tam nüsha)', /X: 200 {2}Y: 120/.test(kd.tam) && /φ 40\.7653\d* λ 29\.9407\d*/.test(kd.tam), kd.tam);
+  ok('4e2 ekranda görünen nüsha yarım değil', !kd.kirpik && /200/.test(kd.ekran) && /120/.test(kd.ekran), JSON.stringify(kd));
   await shot('n_gps');
 }
 ok('5 sayfa hatası yok', errors.length === 0, errors.join(' | ').slice(0, 200));

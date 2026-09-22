@@ -89,7 +89,7 @@ export const FEATURE_TIER = new Map([
   ['props', 'premium'], ['layer', 'premium'], ['color', 'premium'], ['undo', 'premium'], ['redo', 'premium'],
   ['layeredit', 'premium'],              // katmanın kendisini düzenleme ve silme
   // --- notlar, çıktı, kaydetme
-  ['notes', 'premium'], ['pdf', 'premium'], ['savedxf', 'premium'],
+  ['notes', 'premium'], ['pdf', 'premium'], ['save', 'premium'], ['saveas', 'premium'], ['savedxf', 'premium'],
   // --- belge tarafı
   ['docEdit', 'premium'], ['new', 'premium'],
   // --- 3B çizim ve düzenleme (yalnız Super)

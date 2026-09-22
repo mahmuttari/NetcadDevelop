@@ -182,6 +182,23 @@ function resize() {
   editorResize();
   statusFit();
 }
+/*
+ * Her düğme dokunulduğunda kısa bir vurgu halkası alır (bkz. app.css .tap-flash). Tek bir
+ * yakalama aşaması dinleyicisi bütün düğmeleri kapsar: şerit karoları, sekmeler, kalıcı Seç
+ * düğmesi, durum çubuğu düğmeleri, yüzen düğmeler ve çipler. Dinleyici edilgendir ve hiçbir
+ * olayı yutmaz; yalnız sınıf ekler. Sınıf, canlandırma bitince — canlandırma hiç çalışmazsa
+ * (durgun kip, düşük güç) zaman aşımıyla — kaldırılır, yoksa halka takılı kalırdı.
+ */
+const TAP_SEC = 'button, .fab, .chip, [role="button"]';
+document.addEventListener('pointerdown', (ev) => {
+  const b = ev.target && ev.target.closest ? ev.target.closest(TAP_SEC) : null;
+  if (!b || b.disabled || b.classList.contains('tap-flash')) return;
+  b.classList.add('tap-flash');
+  let zaman = 0;
+  const bit = () => { clearTimeout(zaman); b.classList.remove('tap-flash'); b.removeEventListener('animationend', bit); };
+  b.addEventListener('animationend', bit);
+  zaman = setTimeout(bit, 700);
+}, { capture: true, passive: true });
 new ResizeObserver(resize).observe(vp);
 window.addEventListener('resize', resize);
 setTileCallback(() => requestRender());
