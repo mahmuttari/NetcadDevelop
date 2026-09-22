@@ -17,7 +17,7 @@ import { View3D } from './view3d.js';
 import { openView3DOptions, buildViewCube, openCameraBookmarks, renderZScale, renderClip } from './view3d_panel.js';
 import { FG, ACI, BYLAYER, normCi, resolveColor } from './scene.js';
 import { toScreen, toWorld, fmt, store } from './state.js';
-import { bgColor, fgColor, monoTone, entityCss, layerPalette } from './render.js';
+import { bgColor, fgColor, monoTone, entityCss, layerPalette, setSolidPlan } from './render.js';
 import { t, applyI18n, addStrings } from './i18n.js';
 import { TAU, meshMetrics, mul, flatten, HATCH_PATTERNS } from './geom.js';
 import * as D from './display.js';
@@ -2628,10 +2628,13 @@ function enter3D() {
   if (!v3) {
     try { v3 = new View3D(cv); } catch (e) { api.toast(t('v3Fail') + ': ' + e.message, { type: 'error' }); return; }
     bind3D(cv);
-    v3.onChange = () => { overlay3D(); statusMode3D(); };
   }
+  // onChange KOŞULSUZ kurulur: görünüm 2B plan altlığı için önceden yaratılmış olabilir (planAltlik),
+  // o durumda geri çağrı boş bırakılmıştır ve 3B'ye geçince kaplama güncellenmezdi.
+  v3.onChange = () => { overlay3D(); statusMode3D(); };
   tools.cancel(); markActive(null);
   cv.hidden = false; document.body.classList.add('mode3d');
+  planKirli = true;   // 3B tam sahneyi kurar; 2B'ye dönünce altlık yalnız gövdelerle yeniden kurulmalı
   resize3D();
   refresh3D();
   // ÖNCE açı, SONRA kadraj: sığdırma artık bakış doğrultusuna bağlı (bkz. view3d._kadraj),
@@ -2644,6 +2647,7 @@ function enter3D() {
   D.refreshNav();
 }
 export function exit3D() {
+  planKirli = true;
   $('cv3d').hidden = true; document.body.classList.remove('mode3d'); ed.m3 = null; showPrompt(null);
   if (v3) v3.stopTurntable();
   const c3 = $('cube3d'); if (c3) c3.hidden = true;
@@ -2670,7 +2674,7 @@ function resize3D() {
  * gövde geometrisi Model'de durur. Kullanıcı bir pafta sekmesindeyken 3B'ye geçerse ekrandaki
  * çizim değişir; bu sessiz kalmamalı, bir kez söylenir.
  */
-function refresh3D() {
+function refresh3D(sec = {}) {
   if (!v3) return;
   const model = S.scene.layouts[0];
   if (S.scene.layouts[S.layoutIndex] !== model && ed._3dLayoutWarned !== S.fileKey + ':' + S.layoutIndex) {
@@ -2687,14 +2691,83 @@ function refresh3D() {
    * onlar kurar, o yüzden süzgeçten ayrık tutulurlar.
    */
   // Süzgeç yoksa (eski kabuk) hiçbir şey elenmez: boş bir 3B sahnesi, süzülmemiş sahneden kötüdür
-  const gorunur = typeof api.primVisible === 'function' ? model.prims.filter(p => (p && p.tri) || api.primVisible(p)) : model.prims;
+  let gorunur = typeof api.primVisible === 'function' ? model.prims.filter(p => (p && p.tri) || api.primVisible(p)) : model.prims;
+  // 2B plan altlığı YALNIZ gövdeleri ister: çizgi, yazı ve nokta ilkellerini 2B kendi kurallarıyla
+  // (çizgi tipi, kalınlık, en küçük piksel) zaten çiziyor; ikinci kez basılmaları hem yanlış hem bulanık olur.
+  if (sec.yalnizAg) gorunur = gorunur.filter(p => p && (p.k === 5 || p.tri));
   v3.setScene(gorunur, S.layers, { dark: S.dark, mono: S.mono, colorMode: S.colorMode, bg: bgColor(), fg: fgColor(), monoColor: monoTone(fgColor()), renk: (p) => entityCss(p.col, fgColor()), katmanRenk: layerPalette, fade: S.fade.on && fadeLayers.size ? { pct: S.fade.pct, layers: fadeLayers } : null, selColor: S.selColor });
   v3.setSelection(ed.sel);
   if (!v3.counts.tris && typeof api.noFaces === 'function' && ed._noFaceKey !== S.fileKey) { ed._noFaceKey = S.fileKey; try { api.noFaces(); } catch (_) { /* geç */ } }
 }
 function render3D() { if (v3 && ed.is3D()) { v3.render(); overlay3D(); statusMode3D(); if (cube) cube.update(); } }
 /** Sahneyi kaynaktan yeniden kurar (2B görünürlük anahtarları değişince; sınamalar da bunu çağırır) */
-ed.yenile3B = () => { if (!v3 || !ed.is3D()) return false; refresh3D(); render3D(); return true; };
+ed.yenile3B = () => { planKirli = true; if (!v3 || !ed.is3D()) return false; refresh3D(); render3D(); return true; };
+
+/*
+ * KATI MODEL PLAN ALTLIĞI (v8.6).
+ *
+ * Kullanıcının bildirimi: "2B üstten bakışta kesitten bakıyormuş gibi." Haklı. Çokyüzlü ağ
+ * ilkelleri (POLYLINE_PFACE, 3DSOLID ağları) 2B'de yalnız KENARLARIYLA çizilir; bir köprü
+ * modelinde bu, tabliyenin altındaki bütün kirişlerin, ayakların ve korkulukların üst üste
+ * görünmesi demektir — plan değil, röntgen. Gizli yüzey giderme canvas2d'de yapılamaz: örnek
+ * dosyada 2.917 gövde ve 3.399.552 üçgen var, derinlik sıralı boyama dakikalar sürer.
+ *
+ * Uygulamanın ZATEN bir gizli-yüzey çizicisi var: 3B görünümün WebGL çizicisi. Burada o çizici
+ * PLAN kipinde (üstten, paralel, gölgeli + kenarlı) 2B kamerasıyla BİREBİR aynı kadraja kurulur,
+ * kare SAYDAM temizlenir ve 2B tuvalinin üstüne basılır. Altlık haritası ve ızgara altta kalır,
+ * vektör çizim (çizgi, yazı, ölçü, tarama) üstüne gelir. Ağ gövdeleri artık vektör olarak
+ * çizilmez (render.drawPrims → opt.meshDone).
+ *
+ * Kadraj eşitliği: paralel izdüşümde görünen dünya yarı yüksekliği hh = uzaklık x tan(fov/2)'dir;
+ * 2B'de aynı değer (S.H / 2) / ölçek olduğundan uzaklık buradan çözülür. Hedef, 2B görünümünün
+ * dünya merkezidir (S.view.cx, cy). Düşey abartı 1'e sabitlenir — plan kotu göstermez.
+ *
+ * Sahne pahalı kurulur, o yüzden yalnız DEĞİŞİNCE kurulur: dosya, düzen, görünürlük anahtarları,
+ * katman durumu ve renk kipi değiştiğinde (ed.yenile3B bayrağı) ya da damga değişince.
+ */
+let planKirli = true, planDamga = '', planAg = false;
+ed.planBayat = () => { planKirli = true; };
+ed.planAltlik = (c, cv, olcek) => {
+  if (!S.hasDoc || ed.is3D() || S.ui2d.solidPlan === false) return false;
+  if (!(olcek > 0) || !cv.width || !cv.height) return false;
+  const model = S.scene && S.scene.layouts && S.scene.layouts[0];
+  if (!model) return false;
+  const damga = S.fileKey + '|' + S.prims.length + '|' + S.layoutIndex;
+  if (damga !== planDamga) { planDamga = damga; planKirli = true; planAg = model.prims.some(p => p && p.k === 5 && p.idx && p.idx.length >= 3); }
+  if (!planAg) return false;
+  const c3 = $('cv3d');
+  if (!v3) {
+    try { v3 = new View3D(c3); v3.onChange = () => {}; } catch (e) { console.warn(e); planAg = false; return false; }
+    bind3D(c3);
+  }
+  if (planKirli) { refresh3D({ yalnizAg: true }); planKirli = false; }
+  if (!v3.counts.tris) return false;
+  // 3B tuvali gizliyken clientWidth 0'dır; ölçü elle kurulur (view3d'nin kendi düzeltmesi 0'da durur)
+  if (c3.width !== cv.width || c3.height !== cv.height) { c3.width = cv.width; c3.height = cv.height; }
+  const o = v3.opts, cam = v3.cam;
+  const eski = { style: o.style, grid: o.grid, axes: o.axes, hud: o.hud, cube: o.cube, bg: o.bg, edges: o.edges,
+    persp: cam.persp, yaw: cam.yaw, pitch: cam.pitch, dist: cam.dist, target: cam.target.slice(), zs: v3.zScale, anim: v3._anim };
+  let ok = false;
+  try {
+    o.style = 'shadedEdges'; o.edges = 'auto'; o.grid = false; o.axes = false; o.hud = false; o.cube = false; o.bg = 'theme';
+    const A = View3D.PRESET_ANGLES.top;
+    v3._anim = null; v3.zScale = 1;
+    cam.persp = false; cam.yaw = A.yaw; cam.pitch = A.pitch;
+    cam.target = [S.view.cx, S.view.cy, (v3.bb[2] + v3.bb[5]) / 2];
+    const fov = Math.max(10, Math.min(120, o.fov)) * Math.PI / 180;
+    cam.dist = (S.H / 2 / olcek) / Math.tan(fov / 2);
+    v3._lastFrameMs = 0; v3._lastRenderAt = 0;       // altlık her zaman tam kalitede basılır
+    v3.render({ saydam: true });
+    ok = true;
+  } catch (e) { console.warn(e); }
+  o.style = eski.style; o.edges = eski.edges; o.grid = eski.grid; o.axes = eski.axes; o.hud = eski.hud; o.cube = eski.cube; o.bg = eski.bg;
+  cam.persp = eski.persp; cam.yaw = eski.yaw; cam.pitch = eski.pitch; cam.dist = eski.dist; cam.target = eski.target;
+  v3.zScale = eski.zs; v3._anim = eski.anim;
+  if (!ok) return false;
+  try { c.drawImage(c3, 0, 0); } catch (e) { console.warn(e); return false; }
+  return true;
+};
+setSolidPlan(ed.planAltlik);   // render.drawFrame her karede buradan geçer
 export function onResize() {
   if (!ed.is3D()) return;
   const k0 = v3._kadrajUzakligi(); resize3D(); const k1 = v3._kadrajUzakligi();

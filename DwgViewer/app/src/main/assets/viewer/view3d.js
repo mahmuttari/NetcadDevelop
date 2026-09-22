@@ -229,7 +229,9 @@ export class View3D {
 
   constructor(canvas) {
     this.cv = canvas;
-    const gl = canvas.getContext('webgl', { antialias: true, alpha: false, preserveDrawingBuffer: true });
+    // alpha: true — 2B PLAN ALTLIĞI için gerekir: kare saydam temizlenip 2B tuvalinin üstüne basılır
+    // (altlık haritası ve ızgara altta kalsın). Normal 3B görünümde temizleme alfası 1'dir, görüntü değişmez.
+    const gl = canvas.getContext('webgl', { antialias: true, alpha: true, preserveDrawingBuffer: true });
     if (!gl) throw new Error('WebGL yok');
     this.gl = gl;
     this._lost = false;
@@ -1061,7 +1063,7 @@ export class View3D {
   bgCss() { return toCss(this._bgColor()); }
   /** arka plana göre okunur ön plan (FG(-1) nesneleri için) */
   _fgFor(bg) { return lum(bg) > 0.5 ? [0.07, 0.07, 0.07] : [0.95, 0.96, 0.97]; }
-  render() {
+  render(kare = {}) {
     const gl = this.gl, cv = this.cv, o = this.opts;
     if (this._lost || gl.isContextLost()) return;   // bağlam kayıp: geri gelince webglcontextrestored yeniden kurar
     /*
@@ -1097,7 +1099,14 @@ export class View3D {
     if (!cv.width || !cv.height) return;
     gl.viewport(0, 0, cv.width, cv.height);
     const bg = this._bgColor();
-    gl.clearColor(bg[0], bg[1], bg[2], 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    /*
+     * Saydam kare: 2B plan altlığı olarak basılacaksa arka plan YAZILMAZ (bkz. editor.planAltlik).
+     * Temizleme rengi (0,0,0,0) olmalı: bağlam premultipliedAlpha ile kurulduğundan RGB değerleri
+     * alfayla ÇARPILMIŞ sayılır; (bg, 0) yazmak geçersiz bir ön-çarpım verir ve tarayıcı kareyi
+     * toplamalı harmanlayıp 2B'nin arka planını açar.
+     */
+    if (kare.saydam) gl.clearColor(0, 0, 0, 0); else gl.clearColor(bg[0], bg[1], bg[2], 1);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     gl.useProgram(this.prog);
     const u = this.u;

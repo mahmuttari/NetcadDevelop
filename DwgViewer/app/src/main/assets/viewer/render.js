@@ -40,6 +40,13 @@ export const fgColor = () => S.bgOverride ? (luminance(S.bgOverride) > 0.5 ? '#1
  * tema renginden farklı olabilir, o yüzden dışarıdan verilir.
  */
 export const monoTone = (fg) => { const th = theme(); return th.forceMono || S.monoColor === 'fg' ? fg : S.monoColor === 'accent' ? '#f5b342' : (S.monoColor || fg); };
+/*
+ * Renk önbelleğini boşaltır. drawFrame her karede temayı karşılaştırıp kendisi boşaltıyordu; ama
+ * entityCss artık 3B görünümün de renk kaynağı (bkz. editor.refresh3D). Kullanıcı 3B'de kalıp
+ * temayı değiştirirse arada hiç 2B karesi çizilmez ve önbellek bayat kalırdı: 3B eski temanın
+ * kıstırmasıyla boyanırdı. Tema değişimi bunu doğrudan çağırır (display.applyThemeDom).
+ */
+export function colorCacheReset() { colCache.clear(); colCacheKey = ''; }
 export const gridColor = () => theme().grid;
 export const rgbCss = (c, fg) => c === FG ? fg : '#' + (c & 0xffffff).toString(16).padStart(6, '0');
 
@@ -302,6 +309,7 @@ export function drawPrims(c, prims, scale, rect, opt) {
       tracePath(c, p.ops);
       if (p.closed) c.closePath();
     } else if (p.k === 5) {
+      if (opt.meshDone) continue;   // plan altlığı bu gövdeyi yüzeyleriyle bastı: kenarları ikinci kez çizilmez
       // ağ ilkeli: 2B görünümde yalnız kenarları çizilir (yüzeyler 3B görünümün işi)
       if ((bb[2] - bb[0]) < minPx && (bb[3] - bb[1]) < minPx) continue;
       const seg = p.seg;
@@ -424,6 +432,18 @@ export function drawGrid(c, cv) {
   gridState.step = step;
 }
 
+/*
+ * KATI MODEL PLAN ALTLIĞI.
+ *
+ * Çokyüzlü ağ ilkelleri (k=5) 2B'de yalnız KENARLARIYLA çizilir; bir köprü ya da yapı modelinde
+ * bu, üstten bakışta tabliyenin altındaki bütün elemanların görünmesi demektir — kullanıcı bunu
+ * "üstten bakışta kesitten bakıyormuş gibi" diye bildirdi. Gizli yüzey giderme canvas2d'de
+ * yapılamaz (bu modelde 3,4 milyon üçgen var). Çözüm, uygulamanın kendi WebGL çizicisini plan
+ * (üstten, paralel) kipinde çalıştırıp saydam kareyi 2B tuvalinin üstüne basmaktır. Geri çağrıyı
+ * editor kurar (setSolidPlan); true dönerse ağ ilkelleri vektör olarak İKİNCİ KEZ çizilmez.
+ */
+let solidPlanFn = null;
+export function setSolidPlan(fn) { solidPlanFn = typeof fn === 'function' ? fn : null; }
 let exporting = false;
 /** Bir kareyi baştan sona çizer (arka plan + altlık + ızgara + ilkeller + görünüm pencereleri) */
 export function drawFrame(c, cv) {
@@ -446,6 +466,10 @@ export function drawFrame(c, cv) {
   if (layout.isModel) {
     drawBasemap(c);
     if (!exporting) { drawGrid(c, cv); world(); }
+    // katı model planı: yüzeyler gizli-yüzey giderilmiş olarak basılır, ağ ilkelleri vektöre girmez
+    let meshDone = false;
+    if (solidPlanFn) { c.save(); c.setTransform(1, 0, 0, 1, 0, 0); try { meshDone = !!solidPlanFn(c, cv, scale); } catch (e) { console.warn(e); } c.restore(); world(); }
+    opt.meshDone = meshDone;
     const colorOf = compareColorOf(fg);
     if (S.backdrop && S.backdrop.prims) drawPrims(c, S.backdrop.prims, scale, rect, { ...opt, tree: S.backdrop.tree || null, alpha: 0.3 });   // REFEDIT: çalışma kümesi dışı solgun
     drawPrims(c, S.prims, scale, rect, { ...opt, tree: S.tree, colorOf });

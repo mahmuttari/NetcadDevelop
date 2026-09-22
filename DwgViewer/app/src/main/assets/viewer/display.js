@@ -9,7 +9,7 @@
  *  - editor.js buradan içe aktarılMAZ; düzenleyiciye erişim initDisplay(ctx).editor üzerinden, guard'lıdır.
  */
 import { S, store, fmt } from './state.js';
-import { THEMES, theme as activeTheme, layerPalette as _layerPalette, passFilters, bgColor, fgColor } from './render.js';
+import { THEMES, theme as activeTheme, layerPalette as _layerPalette, passFilters, bgColor, fgColor, colorCacheReset } from './render.js';
 import { t } from './i18n.js';
 
 const $ = (id) => document.getElementById(id);
@@ -28,17 +28,21 @@ export const DISPLAY_DEFAULTS = Object.freeze({
   // fabPlot ÖNTANIMLI KAPALI: PDF düğmesi durum çubuğundadır; kümeye eklenince sütun yedi
   // düğmeye çıkar ve çizimin sağ şeridinden yer alır (v7.98'de sınamalar bunu yakaladı).
   fabSend: true, fabZoom: true, fabPlot: false, fabFit: true, fabPrev: true, fabGps: true,
+  // Katı model planı: çokyüzlü gövdeler 2B planda gizli yüzey giderilmiş basılır (bkz. editor.planAltlik).
+  // Kapatılınca eski davranışa (yalnız tel kafes) dönülür.
+  solidPlan: true,
   basemapOpacity: 0.8,
 });
 export const THEME_IDS = ['dark', 'light', 'blueprint', 'sepia', 'hicontrast', 'system'];
 const PRESET_IDS = ['field', 'office', 'print', 'custom'];
-const BOOL_KEYS = new Set(['sun', 'hatchBack', 'showText', 'showHatch', 'showDim', 'showPoint', 'showImage', 'showAttrib', 'showBlock', 'showLtype', 'lw', 'grid', 'rulers', 'fade', 'smooth', 'scaleBar', 'north', 'northBig', 'navFabs', 'dpad', 'coordInfo', 'vpFrames', 'compareOnlyDiff', 'fabSend', 'fabZoom', 'fabPlot', 'fabFit', 'fabPrev', 'fabGps']);
+const BOOL_KEYS = new Set(['sun', 'hatchBack', 'showText', 'showHatch', 'showDim', 'showPoint', 'showImage', 'showAttrib', 'showBlock', 'showLtype', 'lw', 'grid', 'rulers', 'fade', 'smooth', 'scaleBar', 'north', 'northBig', 'navFabs', 'dpad', 'coordInfo', 'vpFrames', 'compareOnlyDiff', 'fabSend', 'fabZoom', 'fabPlot', 'fabFit', 'fabPrev', 'fabGps', 'solidPlan']);
 /** Düz anahtar → S yolu ([nesne, alan]); listede olmayan anahtar doğrudan S[key] */
 const PATH = {
   showText: ['show', 'text'], showHatch: ['show', 'hatch'], showDim: ['show', 'dim'], showPoint: ['show', 'point'], showImage: ['show', 'image'], showAttrib: ['show', 'attrib'], showBlock: ['show', 'block'], showLtype: ['show', 'ltype'],
   grid: ['grid', 'on'], gridStep: ['grid', 'step'], gridStyle: ['grid', 'style'], fade: ['fade', 'on'], fadePct: ['fade', 'pct'],
   scaleBar: ['ui2d', 'scaleBar'], north: ['ui2d', 'north'], northBig: ['ui2d', 'northBig'], navFabs: ['ui2d', 'navFabs'], dpad: ['ui2d', 'dpad'], coordInfo: ['ui2d', 'coordInfo'], vpFrames: ['ui2d', 'vpFrames'], compareOnlyDiff: ['ui2d', 'compareOnlyDiff'],
   fabSend: ['ui2d', 'fabSend'], fabZoom: ['ui2d', 'fabZoom'], fabPlot: ['ui2d', 'fabPlot'], fabFit: ['ui2d', 'fabFit'], fabPrev: ['ui2d', 'fabPrev'], fabGps: ['ui2d', 'fabGps'],
+  solidPlan: ['ui2d', 'solidPlan'],
   basemapOpacity: ['basemap', 'opacity'],
 };
 /** Yalnız kaplamayı etkileyen anahtarlar (tuval önbelleği geçerli kalır) */
@@ -113,6 +117,7 @@ function applyThemeDom(rerender) {
   document.body.classList.toggle('light', !S.dark);
   document.body.classList.toggle('sun', !!S.sun);
   S.layerPalette.clear();
+  colorCacheReset();   // entityCss önbelleği: 3B'de kalıp tema değiştirilirse bayat kalmasın
   if (rerender) { S.cacheValid = false; call(ctx.requestRender); }
   call(ctx.editorTheme);
   const lp = $('layerPanel'); if (lp && !lp.hidden) call(ctx.buildLayerList);
@@ -295,6 +300,7 @@ function sectionHtml(id) {
         W.row(tt('gridStyle', 'Biçim'), W.seg('gridStyle', ['line', 'point'], S.grid.style, [tt('gridLine', 'Çizgi'), tt('gridPoint', 'Nokta')])) +
         W.sw('rulers', S.rulers, tt('rulers', 'Cetveller')) +
         W.row(tt('crosshair', 'Artı imleç'), W.seg('crosshair', ['off', 'small', 'full'], S.crosshair, [tt('crossOff', 'Kapalı'), tt('crossSmall', 'Küçük'), tt('crossFull', 'Tam ekran')])) +
+        W.sw('solidPlan', S.ui2d.solidPlan !== false, tt('solidPlan', 'Katı modeli planda dolu göster')) +
         W.sw('scaleBar', S.ui2d.scaleBar, tt('scaleBar', 'Ölçek çubuğu')) +
         W.sw('north', S.ui2d.north, tt('northArrow', 'Kuzey oku')) +
         W.sw('northBig', S.ui2d.northBig, tt('northBig', 'Büyük kuzey oku')) +
