@@ -2732,7 +2732,13 @@ function refresh3D(sec = {}) {
   if (sec.yalnizAg) gorunur = gorunur.filter(p => p && (p.k === 5 || p.tri));
   v3.setScene(gorunur, S.layers, { dark: S.dark, mono: S.mono, colorMode: S.colorMode, bg: bgColor(), fg: fgColor(), monoColor: monoTone(fgColor()), renk: (p) => entityCss(p.col, fgColor()), katmanRenk: layerPalette, fade: S.fade.on && fadeLayers.size ? { pct: S.fade.pct, layers: fadeLayers } : null, selColor: S.selColor });
   v3.setSelection(ed.sel);
-  if (!v3.counts.tris && typeof api.noFaces === 'function' && ed._noFaceKey !== S.fileKey) { ed._noFaceKey = S.fileKey; try { api.noFaces(); } catch (_) { /* geç */ } }
+  /*
+   * "3B yüzey bulunamadı" uyarısı 3B GÖRÜNÜME aittir: kullanıcı 3B'ye geçtiğinde neden boş bir
+   * sahne gördüğünü söyler. 2B plan altlığı da bu işlevi çağırır (yalnizAg) ve orada uyarı
+   * anlamsızdır — üstelik paneli 2B çiziminin üstüne açıp komut çubuğunu örter, bir daha da
+   * göstermemek üzere _noFaceKey'i işaretleyip GERÇEK 3B geçişinde uyarıyı susturur.
+   */
+  if (!sec.yalnizAg && !v3.counts.tris && typeof api.noFaces === 'function' && ed._noFaceKey !== S.fileKey) { ed._noFaceKey = S.fileKey; try { api.noFaces(); } catch (_) { /* geç */ } }
 }
 function render3D() { if (v3 && ed.is3D()) { v3.render(); overlay3D(); statusMode3D(); if (cube) cube.update(); } }
 /** Sahneyi kaynaktan yeniden kurar (2B görünürlük anahtarları değişince; sınamalar da bunu çağırır) */
