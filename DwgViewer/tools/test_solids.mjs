@@ -126,6 +126,8 @@ for (const f of ['pface.dxf', 'pface_2000.dwg', 'pface_2018.dwg']) {
   ok(`4 ${f}: küp yüzleri ve ağ dörtgenleri sahnede`, faceCount >= 8, JSON.stringify(by));
   ok(`4 ${f}: 3B yüzeyler var, HUD "Yüzey yok" demiyor`, i && i.tris >= 12 && !/Yüzey yok/.test(i.hud), i && `tris=${i.tris} ${i.hud}`);
   if (f.endsWith('.dxf')) ok(`4 ${f}: sınır kutusu küp + ağ (0..30, 0..10, 0..10)`, i && Math.abs(i.bb[0]) < 1e-6 && Math.abs(i.bb[3] - 30) < 1e-6 && Math.abs(i.bb[5] - 10) < 1e-6, i && i.bb.join(','));
+  // v8.9: küpün 4-8 kenarı yüz 6'da gizli, yüz 5'te görünür bayraklı — AutoCAD gibi ÇİZİLİR (VEYA kuralı); eski VE kuralı 11 veriyordu
+  if (f.endsWith('.dxf')) ok(`4 ${f}: gizli bayrağı VEYA kuralıyla — küpün 12 kenarı da çiziliyor`, by['POLYFACE:seg'] === 12, String(by['POLYFACE:seg']));
   else ok(`4 ${f}: DWG çok yüzlü ağ üçgenleri (küp 12 + örnek 2), kenarlar kırışıklık süzgeciyle (küp 12, ağ sınırı 6)`, by['POLYLINE_PFACE:tri'] === 14 && by['POLYLINE_PFACE:seg'] >= 15 && by['POLYLINE_MESH:tri'] === 4 && by['POLYLINE_MESH:seg'] >= 6, JSON.stringify(by));
 }
 

@@ -158,19 +158,28 @@ export function meshEdges(faces, hidden = null, creaseDeg = 20) {
     if (!f || f.length < 2) return;
     const n = newell(f); const L = Math.hypot(n[0], n[1], n[2]) || 1; const nn = [n[0] / L, n[1] / L, n[2] / L];
     let per = 0; for (let k = 0; k < f.length; k++) { const a = f[k], b = f[(k + 1) % f.length]; per += Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]); }
-    const reliable = f.length >= 3 && (L / 2) / (per * per || 1) > 0.0015;   // kıymık yüz: normali gürültülü, kırışıklık kararına girmez
+    /*
+     * Kıymık yüz (neredeyse doğrusal köşeler): normali gürültülü, kırışıklık kararına girmez. Eşik
+     * alan/çevre² cinsindendir; eski 0,0015 değeri GERÇEK uzun fasetleri de eliyordu — 6 m'lik bir
+     * borunun 32 dilimli cidar faseti 0,0008, 3 mm'lik levhanın yan yüzü 0,0015 eder. Normalsiz
+     * kalan cidar ile kapak arasındaki 90°'lik halka kenarı bile düşüyor, gövdenin kenar listesi
+     * tümden boşalıyordu (v8.9). Gerçek kıymık 1e-7'nin altındadır; 2e-5 ikisini ayırır.
+     */
+    const reliable = f.length >= 3 && (L / 2) / (per * per || 1) > 2e-5;
     const m = f.length === 2 ? 1 : f.length;
     for (let k = 0; k < m; k++) {
       const a = f[k], b = f[(k + 1) % f.length]; const ka = key(a), kb = key(b); if (ka === kb) continue;
       const ek = ka < kb ? ka + '|' + kb : kb + '|' + ka;
-      let e = map.get(ek); if (!e) { e = { a, b, n: [], hid: false }; map.set(ek, e); }
+      let e = map.get(ek); if (!e) { e = { a, b, n: [], gor: false, gizli: false }; map.set(ek, e); }
       e.n.push(f.length >= 3 ? (reliable ? nn : null) : null); e.faces = (e.faces || 0) + (f.length >= 3 ? 1 : 0);
-      if (hidden && hidden[fi] && hidden[fi][k]) e.hid = true;
+      // Görünmezlik bayrağı yüz başınadır; AutoCAD kenarı komşu yüzlerden BİRİ görünür diyorsa çizer
+      // (VEYA). Eski kural biri gizli diyince atıyordu ve küpün 12 kenarından biri kayboluyordu (v8.9).
+      if (hidden && hidden[fi] && hidden[fi][k]) e.gizli = true; else e.gor = true;
     }
   });
   const out = [];
   for (const e of map.values()) {
-    if (e.hid) continue;
+    if (e.gizli && !e.gor) continue;   // yalnız BÜTÜN komşu yüzler gizli diyorsa çizilmez
     const ns = e.n.filter(Boolean);
     if (ns.length >= 2) {                                   // komşu yüzler: hepsi eş düzlemliyse kenar iç kenardır
       let crease = false;
