@@ -137,6 +137,72 @@ ok('5 bozuk bir koordinat 3B sınır kutusunu şişirmiyor (2B\'deki 1e15 tavan�
   }
 }
 
+/*
+ * 7) TEL KAFESTE KAVİSLİ GÖVDE (BORU) GÖRÜNÜR (v8.9).
+ *
+ * Kullanıcının bildirimi: "Gerçekçi kipte görünen boru profiller tel kafes kipte görünmüyor."
+ * Okuyucu (scene.meshEdges) ve v8.7'nin yedek üreticisi 20°'lik kırışıklık kuralıyla çalışır:
+ * 32 dilimli borunun yan yüzleri 11,25° yaptığından yalnız uç HALKALARI kenar sayılır, gövde tel
+ * kafeste yok olur. Artık yüzey çizilmeyen stillerde eş düzlemli olmayan HER yüz kenarı çizilir
+ * (32 boyuna çizgi + 64 halka parçası = 96 kenar); gölgeli stiller 20°'lik kümede kalır — boru
+ * orada pürüzsüz görünmeye devam eder. Küp sözleşmesi korunur: yüz kenarı kümesinde de çapraz yok.
+ */
+{
+  const r = await page.evaluate(async () => {
+    const V3 = await import('./view3d.js');
+    const cv = document.createElement('canvas'); cv.width = 260; cv.height = 260;
+    cv.style.width = '260px'; cv.style.height = '260px'; document.body.appendChild(cv);
+    let v; try { v = new V3.View3D(cv); } catch (e) { return { yok: String(e.message || e) }; }
+    // 32 dilimli, yelpaze kapaklı, uzun (40 birim) düşey boru; seg = okuyucunun 20° kuralıyla vereceği uç halkaları
+    const n = 32, R = 5, H = 40, V = [], F = [], S = [];
+    for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; V.push(R * Math.cos(a), R * Math.sin(a), 0); }
+    for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; V.push(R * Math.cos(a), R * Math.sin(a), H); }
+    V.push(0, 0, 0, 0, 0, H);   // 64: alt merkez, 65: üst merkez
+    for (let i = 0; i < n; i++) {
+      const a = i, b = (i + 1) % n, c = n + i, d = n + b;
+      F.push(a, b, d, a, d, c);                // yan yüz (iki eş düzlemli üçgen)
+      F.push(64, b, a); F.push(65, c, d);      // kapaklar
+      S.push(V[a * 3], V[a * 3 + 1], V[a * 3 + 2], V[b * 3], V[b * 3 + 1], V[b * 3 + 2]);
+      S.push(V[c * 3], V[c * 3 + 1], V[c * 3 + 2], V[d * 3], V[d * 3 + 1], V[d * 3 + 2]);
+    }
+    const boru = () => ({ k: 5, vtx: new Float32Array(V), idx: new Uint32Array(F), seg: new Float32Array(S), bb: [-R, -R, R, R], zmin: 0, zmax: H,
+      face: true, alpha: 1, w: 0, col: 0xff55ff, lay: '0', lt: null, lts: 1, lw: 0, info: { h: 'B1', t: 'MESH' }, et: 'MESH' });
+    const KV = new Float32Array([0, 0, 0, 10, 0, 0, 10, 10, 0, 0, 10, 0, 0, 0, 10, 10, 0, 10, 10, 10, 10, 0, 10, 10]);
+    const KF = [0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 1, 5, 0, 5, 4, 1, 2, 6, 1, 6, 5, 2, 3, 7, 2, 7, 6, 3, 0, 4, 3, 4, 7];
+    const kup = () => ({ k: 5, vtx: KV, idx: new Uint32Array(KF), seg: new Float32Array(0), bb: [0, 0, 10, 10], zmin: 0, zmax: 10,
+      face: true, alpha: 1, w: 0, col: 0xffffff, lay: '0', lt: null, lts: 1, lw: 0, info: { h: 'M1', t: 'MESH' }, et: 'MESH' });
+    const layers = new Map([['0', { name: '0', color: null, visible: true, lw: -1, lt: 'Continuous', count: 1 }]]);
+    // boyalı piksel sayısı: tüm tuval ve yalnız ORTA bant (satır %38-%62 — uç halkaları bandın dışında kalır)
+    const boya = () => { const g = cv.getContext('webgl'); const W = cv.width, Hh = cv.height, px = new Uint8Array(W * Hh * 4);
+      g.readPixels(0, 0, W, Hh, g.RGBA, g.UNSIGNED_BYTE, px);
+      const bg = [px[0], px[1], px[2]]; let tum = 0, orta = 0;
+      for (let y = 0; y < Hh; y++) for (let x = 0; x < W; x++) { const i = (y * W + x) * 4;
+        if (Math.abs(px[i] - bg[0]) + Math.abs(px[i + 1] - bg[1]) + Math.abs(px[i + 2] - bg[2]) > 24) { tum++; if (y > Hh * 0.38 && y < Hh * 0.62) orta++; } }
+      return { tum, orta }; };
+    const dene = (stil, prim) => { v.setScene([prim], layers, { dark: true, fg: '#eef', bg: '#1a1f27' });
+      v.set('grid', false); v.set('axes', false); v.set('hud', false); v.set('cube', false); v.set('style', stil);
+      v.preset('front', { animate: false });   // önden bakış: boru ekseni düşey, orta bant gövdeyi keser
+      v.fit({ animate: false }); v.render();
+      const b = boya(); return { ...b, kenar: v._nMeshEdge, wedges: v._wire ? v._wire.n : null, medges: v._n.medges | 0, kume: v._agKenarSon }; };
+    const out = { tel: dene('wireframe', boru()), tel2b: dene('wireframe2d', boru()), gizli: dene('hidden', boru()), golgeli: dene('shaded', boru()), kenarli: dene('shadedEdges', boru()), gercekci: dene('realistic', boru()) };
+    out.kupSik = v._telKafesSik(kup()).length / 6;
+    out.boruSik = v._telKafesSik(boru()).length / 6;
+    return out;
+  });
+  if (r.yok) C.skip('7 tel kafes borusu — WebGL yok', r.yok);
+  else {
+    ok('7a boru yüz kenarı kümesi: 32 boyuna + 64 halka = 96 kenar (20° kuralı yalnız 64 halka veriyordu)', r.boruSik === 96 && r.tel.kenar === 128, JSON.stringify({ sik: r.boruSik, kirisiklik: r.tel.kenar }));
+    ok('7b küp sözleşmesi yüz kenarı kümesinde de korunuyor: 12 kenar, çapraz yok', r.kupSik === 12, String(r.kupSik));
+    ok('7c TEL KAFESTE boru gövdesi (orta bant) çiziliyor', r.tel.orta > 0 && r.tel.wedges === 192, JSON.stringify(r.tel));
+    ok('7d 2B tel kafeste de gövde çiziliyor', r.tel2b.orta > 0 && r.tel2b.wedges === 192, JSON.stringify(r.tel2b));
+    ok('7e gizli çizgi stilinde de yüz kenarları kullanılıyor', r.gizli.orta > 0 && r.gizli.wedges === 192, JSON.stringify(r.gizli));
+    ok('7c2 tel kafes stilleri yüz kenarı kümesini (wedges) çiziyor', r.tel.kume === 'wedges' && r.tel2b.kume === 'wedges' && r.gizli.kume === 'wedges', JSON.stringify([r.tel.kume, r.tel2b.kume, r.gizli.kume]));
+    ok('7f gölgeli, kenarlı gölgeli ve gerçekçi stiller 20° kümesinde (medges) kalıyor — boru orada pürüzsüz',
+      r.golgeli.kume === 'medges' && r.kenarli.kume === 'medges' && r.gercekci.kume === 'medges' && r.golgeli.medges === 128 && r.golgeli.tum > r.tel.tum,
+      JSON.stringify({ golgeli: r.golgeli.kume, kenarli: r.kenarli.kume, gercekci: r.gercekci.kume, medges: r.golgeli.medges }));
+  }
+}
+
 C.summary(errors);
 await browser.close(); try { srv.kill && srv.kill(); } catch (_) { /* geç */ }
 C.exit();

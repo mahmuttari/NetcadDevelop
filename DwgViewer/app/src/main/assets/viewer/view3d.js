@@ -176,6 +176,17 @@ const MESH_WIRE_MAX_TRI = 250000;
 /** Üretilen tel kafeste kırışıklık eşiği: scene.meshEdges ile AYNI 20° (COS_CREASE 30°'dir ve
     yumuşak NORMAL gruplaması içindir; kenar kararı onunla karıştırılmaz). */
 const COS_WIRE = Math.cos(20 * Math.PI / 180);
+/*
+ * TEL KAFESTE KAVİSLİ YÜZEYİN YÜZ KENARLARI (v8.9). 20°'lik kırışıklık kuralı düz bir borunun yan
+ * yüzlerini elemekteydi: 32 dilimli boruda komşu yüzler 11,25° yapar, kenar sayılmaz, tel kafeste
+ * yalnız uç halkaları kalır ve gövde yok olur (kullanıcı: "gerçekçi kipte görünen boru profiller
+ * tel kafeste görünmüyor"). Yüzey çizilmeyen stillerde EŞ DÜZLEMLİ olmayan her yüz kenarı çizilir —
+ * AutoCAD'in çok yüzlü ağ (PFACE) için 2B tel kafeste yaptığı budur. Eşik 1°: üçgenleme çaprazları
+ * (0°) yine elenir, 128 dilimli boru (2,8°) bile çizilir.
+ */
+const COS_FACET = Math.cos(1 * Math.PI / 180);
+/** Tel kafes kenar tamponu için üst sınır (float sayısı): aşan gövdeler 20°'lik kümesiyle kalır */
+const WIRE_MAX_FLOATS = 36000000;
 const BOS_F32 = new Float32Array(0);
 
 const PRESET_ANGLES = {
@@ -322,11 +333,12 @@ export class View3D {
   }
   /** sahne tamponlarını `src`ten, yardımcı tamponları (ızgara, eksen, kesit kutusu, seçim) üreticilerinden yeniden yükler */
   _reupload() {
-    for (const n of ['lines', 'edges', 'tris', 'pts', 'txt', 'mesh']) {
+    for (const n of ['lines', 'edges', 'medges', 'tris', 'pts', 'txt', 'mesh']) {
       const s = this.src[n]; if (!s || !s.pos) continue;
       this.uploadPos(n, s.pos); if (s.nrm) this.uploadNrm(n, s.nrm);
       if (s.idx) this.uploadIdx(n, s.idx);
     }
+    if (this._wire && this._wire.pos) this.uploadPos('wedges', this._wire.pos);
     this._applyOverhang();
     this.recolor();
     this.buildGrid(); this.buildAxes(); this.buildClipBox();
@@ -448,7 +460,7 @@ export class View3D {
     // ön geçiş: kaba boyut tahmini (kapasite)
     const est = Math.min(1 << 18, Math.max(4096, prims.length * 8));
     const B = {};
-    for (const n of ['lines', 'edges', 'tris', 'pts', 'txt']) B[n] = { pos: new Grow(n === 'lines' ? est * 3 : 4096), rgb: new Grow(n === 'lines' ? est * 3 : 4096), lay: new Grow(n === 'lines' ? est : 1024), alp: new Grow(n === 'lines' ? est : 1024), nrm: n === 'tris' ? new Grow(4096) : null };
+    for (const n of ['lines', 'edges', 'medges', 'tris', 'pts', 'txt']) B[n] = { pos: new Grow(n === 'lines' ? est * 3 : 4096), rgb: new Grow(n === 'lines' ? est * 3 : 4096), lay: new Grow(n === 'lines' ? est : 1024), alp: new Grow(n === 'lines' ? est : 1024), nrm: n === 'tris' ? new Grow(4096) : null };
     // ağ ilkelleri (k=5) indeksli çizilir: köşeler paylaşılır, üçgen başına köşe kopyalanmaz
     let mv = 0, mi = 0;
     for (const p of prims) if (p.k === 5 && p.vtx) { mv += p.vtx.length; mi += p.idx.length; }
@@ -540,6 +552,7 @@ export class View3D {
       t.nrm.push3(nx, ny, nz); t.nrm.push3(nx, ny, nz); t.nrm.push3(nx, ny, nz);
     };
     this.meshPrims = [];
+    this._meshMeta = []; this._wire = null;   // tel kafes kenar kümesi (wedges) sahneyle birlikte düşer; ilkel önbellekleri kalır
     /*
      * Ağ ilkellerinin KENDİ kenar köşesi sayısı. Etkileşim sadeleştirmesi (bkz. render) ağ
      * yüzeylerini atlar; geriye o ağın tel kafesi kalmıyorsa model ekrandan tümden silinir.
@@ -571,13 +584,15 @@ export class View3D {
         // Kenar listesi boş gelen gövde tel kafeste hiç çizilmezdi: üçgenlerden kenar üretilir
         const S2 = (p.seg && p.seg.length) ? p.seg : this._telKafesKenar(p);
         if (V && I && I.length >= 3) this.meshPrims.push(p);   // yüzey seçimi kaynağı
+        this._meshMeta.push({ p, r: c[0], g: c[1], b: c[2], li, alp });   // tel kafes kenar kümesi (_ensureWireEdges) buradan kurulur
         if (useIdx) addMesh(p);                               // paylaşılan köşe + indeks tamponu
         else for (let i = 0; i + 2 < I.length; i += 3) {       // 32 bit indeks yoksa: eski genişletilmiş yol
           const a = I[i] * 3, b2 = I[i + 1] * 3, c2 = I[i + 2] * 3;
           if (a + 2 >= V.length || b2 + 2 >= V.length || c2 + 2 >= V.length) continue;
           tri([V[a], V[a + 1], V[a + 2]], [V[b2], V[b2 + 1], V[b2 + 2]], [V[c2], V[c2 + 1], V[c2 + 2]]);
         }
-        for (let i = 0; i + 5 < S2.length; i += 6) { push(B.edges, S2[i], S2[i + 1], S2[i + 2]); push(B.edges, S2[i + 3], S2[i + 4], S2[i + 5]); meshEdgeN += 2; }
+        // ağ kenarları kendi tamponuna (medges): tel kafes stillerinde yerine yüz kenarları (wedges) çizilir
+        for (let i = 0; i + 5 < S2.length; i += 6) { push(B.medges, S2[i], S2[i + 1], S2[i + 2]); push(B.medges, S2[i + 3], S2[i + 4], S2[i + 5]); meshEdgeN += 2; }
         if (!S2.length && !useIdx) for (let i = 0; i + 2 < V.length; i += 3) bbx(V[i], V[i + 1], V[i + 2]);
         // yakalama/seçim köşeleri: bütün köşeler listeye sığmaz (milyonlarca), gövde başına en çok
         // MESH_PICK_V tanesi eşit aralıkla örneklenir — 3B'de gövde seçilebilir kalsın diye
@@ -625,7 +640,7 @@ export class View3D {
     this.zrange = [bb[2], bb[5]];
     this.vertXYZ = vxyz.length === vn ? vxyz : vxyz.slice(0, vn); this.vertPrim = vprim; this._vertsView = null;
     // tamponlar: konumlar merkeze göre
-    for (const n of ['lines', 'edges', 'tris', 'pts', 'txt', 'mesh']) {
+    for (const n of ['lines', 'edges', 'medges', 'tris', 'pts', 'txt', 'mesh']) {
       const b = B[n], pos = b.pos.out(), o = this.origin;
       for (let i = 0; i < pos.length; i += 3) { pos[i] -= o[0]; pos[i + 1] -= o[1]; pos[i + 2] -= o[2]; }
       this.src[n] = { rgb: b.rgb.out(), lay: b.lay.out(), alp: b.alp.out(), alpha: n === 'txt' ? 0.6 : 1, pos, nrm: b.nrm ? b.nrm.out() : null, smooth: null };   // pos: bağlam kaybında yeniden yükleme
@@ -640,7 +655,7 @@ export class View3D {
     this._smoothReady = false;
     this._applyOverhang();
     this.recolor();
-    this.counts.lines = this._n.lines + this._n.edges; this.counts.tris = this._n.tris + this._nIdx.mesh; this.counts.pts = this._n.pts + this._n.txt;
+    this.counts.lines = this._n.lines + this._n.edges + this._n.medges; this.counts.tris = this._n.tris + this._nIdx.mesh; this.counts.pts = this._n.pts + this._n.txt;
     this.buildGrid(); this.buildAxes(); this.buildClipBox();
     if (bbChanged || !this._sceneOnce) { this._sceneOnce = true; this.fit({ animate: false }); }
     this.setSelection(this._lastSel || []);
@@ -653,7 +668,7 @@ export class View3D {
   /** renk tamponlarını geçerli renk moduna (nesne/katman) ve solgunluğa göre yeniden kurar */
   recolor() {
     const byLayer = this.opts.colorMode === 'layer', fade = this.fadeSet, fa = 1 - this.fadePct / 100, lr = this.layerRGB, names = this.layerNames;
-    for (const n of ['lines', 'edges', 'tris', 'pts', 'txt', 'mesh']) {
+    for (const n of ['lines', 'edges', 'medges', 'tris', 'pts', 'txt', 'mesh']) {
       const s = this.src[n]; if (!s) continue;
       const cnt = s.lay.length, out = new Float32Array(cnt * 4);
       for (let i = 0; i < cnt; i++) {
@@ -691,10 +706,21 @@ export class View3D {
    */
   _telKafesKenar(p) {
     if (p._telSeg) return p._telSeg;
+    p._telSeg = this._kenarUret(p, COS_WIRE);
+    return p._telSeg;
+  }
+  /** Tel kafes stilleri için yüz kenarları: eş düzlemli olmayan HER kenar (COS_FACET) + sınır kenarları */
+  _telKafesSik(p) {
+    if (p._telSegSik) return p._telSegSik;
+    p._telSegSik = this._kenarUret(p, COS_FACET);
+    return p._telSegSik;
+  }
+  /** Üçgen indeksinden kenar dizisi: sınır kenarları + komşu yüz açısı cosT eşiğini aşan kenarlar */
+  _kenarUret(p, cosT) {
     const V = p.vtx, I = p.idx;
     if (!V || !I || I.length < 3) return BOS_F32;
     const nt = (I.length / 3) | 0, nv = (V.length / 3) | 0;
-    if (nv < 3 || nt > MESH_WIRE_MAX_TRI) { p._telSeg = BOS_F32; return BOS_F32; }
+    if (nv < 3 || nt > MESH_WIRE_MAX_TRI) return BOS_F32;
     // üçgen normalleri (birim); dejenere üçgen sıfır normal alır ve kırışıklık kararına girmez
     const NX = new Float32Array(nt), NY = new Float32Array(nt), NZ = new Float32Array(nt);
     for (let t = 0; t < nt; t++) {
@@ -720,7 +746,7 @@ export class View3D {
       if (j === undefined) { j = n++; yuva.set(k, j); EA[j] = lo; EB[j] = hi; EN[j * 3] = NX[t]; EN[j * 3 + 1] = NY[t]; EN[j * 3 + 2] = NZ[t]; ECNT[j] = 1; return; }
       if (ECNT[j] < 0xffff) ECNT[j]++;
       // sarım yönü ters olabilir: mutlak değere bakılır (scene.meshEdges ile aynı kural)
-      if (!ECRE[j] && Math.abs(EN[j * 3] * NX[t] + EN[j * 3 + 1] * NY[t] + EN[j * 3 + 2] * NZ[t]) < COS_WIRE) ECRE[j] = 1;
+      if (!ECRE[j] && Math.abs(EN[j * 3] * NX[t] + EN[j * 3 + 1] * NY[t] + EN[j * 3 + 2] * NZ[t]) < cosT) ECRE[j] = 1;
     };
     for (let t = 0; t < nt; t++) {
       const A = I[t * 3], B = I[t * 3 + 1], C = I[t * 3 + 2];
@@ -738,8 +764,56 @@ export class View3D {
       out[q + 3] = V[b]; out[q + 4] = V[b + 1]; out[q + 5] = V[b + 2];
       q += 6;
     }
-    p._telSeg = out;
     return out;
+  }
+  /*
+   * TEL KAFES KENAR KÜMESİ (wedges): her ağ ilkelinin yüz kenarları (_telKafesSik) tek konum
+   * tamponunda toplanır. Köşe başına renk tamponu YOKTUR — aynı renk/katman/saydamlıktaki gövdeler
+   * gruplanır ve grup rengi çizimde sabit köşe özniteliğiyle verilir (_drawWire). Böylece 3,4 milyon
+   * üçgenli bir köprü modelinde kenar başına 24 bayt yeter; köşe başına renk 4 katına çıkarırdı.
+   * Kümenin toplamı WIRE_MAX_FLOATS'u aşarsa kalan gövdeler 20°'lik kümesiyle (seg) yazılır.
+   * İlkel başına sonuç önbelleklidir (p._telSegSik); sahne yeniden kurulunca yalnız birleştirme yapılır.
+   */
+  _ensureWireEdges() {
+    if (this._wire) return;
+    const meta = this._meshMeta || [], o = this.origin || [0, 0, 0];
+    const grup = new Map(); let toplam = 0, kirpildi = false;
+    for (const m of meta) {
+      const p = m.p;
+      let S = (p.idx && p.idx.length >= 3) ? this._telKafesSik(p) : BOS_F32;
+      if (!S.length) S = p.seg || BOS_F32;
+      else if (toplam + S.length > WIRE_MAX_FLOATS) { S = p.seg || BOS_F32; kirpildi = true; }
+      if (!S.length) continue;
+      const k = m.r + ',' + m.g + ',' + m.b + ',' + m.li + ',' + m.alp;
+      let g = grup.get(k); if (!g) { g = { r: m.r, g: m.g, b: m.b, li: m.li, alp: m.alp, parca: [], n: 0 }; grup.set(k, g); }
+      g.parca.push(S); g.n += S.length; toplam += S.length;
+    }
+    const pos = new Float32Array(toplam), gruplar = [];
+    let q = 0;
+    for (const g of grup.values()) {
+      const start = q / 3;
+      for (const S of g.parca) for (let i = 0; i + 2 < S.length; i += 3) { pos[q] = S[i] - o[0]; pos[q + 1] = S[i + 1] - o[1]; pos[q + 2] = S[i + 2] - o[2]; q += 3; }
+      gruplar.push({ start, count: q / 3 - start, r: g.r, g: g.g, b: g.b, li: g.li, alp: g.alp });
+    }
+    this._wire = { pos, gruplar, n: toplam / 3, kirpildi };
+    if (toplam) this.uploadPos('wedges', pos);
+    if (kirpildi) console.warn('3B tel kafes: yüz kenarı kümesi sınırı aştı, bazı gövdeler kırışıklık kenarlarıyla çizildi');
+  }
+  /** wedges tamponunu grup grup, sabit renk özniteliğiyle çizer (renk kipi ve katman solgunluğu çizim anında) */
+  _drawWire(alpha) {
+    const w = this._wire; if (!w || !w.n) return;
+    const gl = this.gl, byLayer = this.opts.colorMode === 'layer', fade = this.fadeSet, fa = 1 - this.fadePct / 100, lr = this.layerRGB, names = this.layerNames;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.bufs['wedges:pos']);
+    gl.enableVertexAttribArray(this.aPos); gl.vertexAttribPointer(this.aPos, 3, gl.FLOAT, false, 0, 0);
+    gl.disableVertexAttribArray(this.aCol);
+    if (this.aNrm >= 0) { gl.disableVertexAttribArray(this.aNrm); gl.vertexAttrib3f(this.aNrm, 0, 0, 1); }
+    gl.uniform1f(this.u.uAlpha, alpha);
+    for (const g of w.gruplar) {
+      const a = g.alp * (fade && names && fade.has(names[g.li]) ? fa : 1);
+      if (byLayer && lr) gl.vertexAttrib4f(this.aCol, lr[g.li * 3], lr[g.li * 3 + 1], lr[g.li * 3 + 2], a);
+      else gl.vertexAttrib4f(this.aCol, g.r, g.g, g.b, a);
+      gl.drawArrays(gl.LINES, g.start, g.count);
+    }
   }
   /** etkin stil bayrakları (stil ön ayarı + kullanıcı geçersiz kılmaları) */
   _styleFx() {
@@ -752,15 +826,17 @@ export class View3D {
   }
   /** kenar uzatma (overhang): kenar çizgileri iki uçtan da uzatılarak yeniden yüklenir */
   _applyOverhang() {
-    const s = this.src.edges; if (!s || !s.pos) return;
     const k = this._styleFx().overhang;
-    if (!k) { this.uploadPos('edges', s.pos); return; }
-    const e = this.radius * 0.004 * k, src = s.pos, out = new Float32Array(src.length);
-    for (let i = 0; i + 5 < src.length; i += 6) {
-      const dx = src[i + 3] - src[i], dy = src[i + 4] - src[i + 1], dz = src[i + 5] - src[i + 2], L = Math.hypot(dx, dy, dz) || 1, ex = dx / L * e, ey = dy / L * e, ez = dz / L * e;
-      out[i] = src[i] - ex; out[i + 1] = src[i + 1] - ey; out[i + 2] = src[i + 2] - ez; out[i + 3] = src[i + 3] + ex; out[i + 4] = src[i + 4] + ey; out[i + 5] = src[i + 5] + ez;
+    for (const ad of ['edges', 'medges']) {
+      const s = this.src[ad]; if (!s || !s.pos) continue;
+      if (!k) { this.uploadPos(ad, s.pos); continue; }
+      const e = this.radius * 0.004 * k, src = s.pos, out = new Float32Array(src.length);
+      for (let i = 0; i + 5 < src.length; i += 6) {
+        const dx = src[i + 3] - src[i], dy = src[i + 4] - src[i + 1], dz = src[i + 5] - src[i + 2], L = Math.hypot(dx, dy, dz) || 1, ex = dx / L * e, ey = dy / L * e, ez = dz / L * e;
+        out[i] = src[i] - ex; out[i + 1] = src[i + 1] - ey; out[i + 2] = src[i + 2] - ez; out[i + 3] = src[i + 3] + ex; out[i + 4] = src[i + 4] + ey; out[i + 5] = src[i + 5] + ez;
+      }
+      this.uploadPos(ad, out);
     }
-    this.uploadPos('edges', out);
   }
   /**
    * Yumuşak normaller (gerçekçi stil / yumuşak aydınlatma): aynı konumu paylaşan üçgen normallerinin ortalaması,
@@ -1291,23 +1367,39 @@ export class View3D {
     if (!fx.depth) gl.disable(gl.DEPTH_TEST);
     if (fx.gray) gl.uniform1f(u.uGray, fx.gray);
     // çizgiler (kalınlık: NDC ofsetli tekrar); kenarlar: renk geçersiz kılma, eskiz titremesi
-    const segs = (this._n.lines + this._n.edges) / 2;
+    /*
+     * AĞ KENARLARININ İKİ KÜMESİ (v8.9). `medges`: okuyucunun / _telKafesKenar'ın 20° kırışıklık
+     * kenarları — gölgeli stillerde yüzeyin üstüne binen çizgidir, boru gibi kavisli gövde pürüzsüz
+     * kalır. Yüzey çizilmeyen stillerde (tel kafes, 2B tel kafes, gizli çizgi) bu küme boruyu yalnız
+     * uç halkalarıyla bırakıyordu; o stillerde `wedges` çizilir: kavisli yüzeyin BÜTÜN yüz kenarları
+     * (bkz. _ensureWireEdges). Sadeleştirilmiş karede de wedges hazırsa o kullanılır — döndürürken
+     * de boru görünür kalsın.
+     */
+    const telKafes = fx.faces === 'none' || fx.faces === 'bg';
+    if (telKafes) this._ensureWireEdges();
+    const agKenar = (telKafes || this._fastFrame) && this._wire ? 'wedges' : 'medges';
+    this._agKenarSon = agKenar;   // sınama kancası: bu karede hangi ağ kenar kümesi çizildi
+    const segs = (this._n.lines + this._n.edges + (agKenar === 'wedges' ? this._wire.n : (this._n.medges | 0))) / 2;
     const lw = segs > 300000 ? 'thin' : o.lineWidth;
     // ince: 1 cihaz px; normal: ~1 CSS px (dpr cihaz px); kalın: bir kademe daha (dpr 1'de eski 2 px görünüm)
     const offs = lw === 'thick' ? LINE_OFFS[Math.min(4, dprS + 1)] : lw === 'normal' ? LINE_OFFS[dprS] : LINE_OFFS[1];
     const edgeCol = o.edgeColor === 'black' ? [0, 0, 0] : o.edgeColor === 'white' ? [1, 1, 1] : o.edgeColor === 'fg' ? fgEff : (fx.shade || fx.gray || fx.faces === 'lit' && o.style !== 'shadedEdges' ? darkEdge : null);
     const jitterAmt = fx.jitter ? fx.jitter * 1.6 * px : 0;
     // Sadeleştirilmiş karede yüzeyler atlandı: kenar çizmeyen stillerde bile tel kafes görünsün (bkz. render başı)
-    const hizliKenar = this._fastFrame && !fx.edges && (this._n.edges | 0) > 0;
+    const hizliKenar = this._fastFrame && !fx.edges && ((this._n.edges | 0) + (this._n.medges | 0)) > 0;
     const kenarCiz = fx.edges || hizliKenar;
     const edgeColEff = hizliKenar ? null : edgeCol;   // yalnız sadeleştirme için çizilen kenar KENDİ rengiyle çizilir
+    const kenarCizim = (ad) => {
+      if (ad === 'wedges') { this._drawWire(dim); return; }
+      if (jitterAmt) { for (let j = 0; j < 3; j++) { gl.uniform1f(u.uJitter, jitterAmt); gl.uniform1f(u.uSeed, j * 7.13); this._draw(ad, gl.LINES, dim * 0.8); } gl.uniform1f(u.uJitter, 0); }
+      else this._draw(ad, gl.LINES, dim);
+    };
     for (let i = 0; i < offs.length; i++) {
       gl.uniform2f(u.uOff, offs[i][0] * px, offs[i][1] * py);
       this._draw('lines', gl.LINES, dim);
       if (kenarCiz) {
         if (edgeColEff) gl.uniform4f(u.uOverride, edgeColEff[0], edgeColEff[1], edgeColEff[2], 1);
-        if (jitterAmt) { for (let j = 0; j < 3; j++) { gl.uniform1f(u.uJitter, jitterAmt); gl.uniform1f(u.uSeed, j * 7.13); this._draw('edges', gl.LINES, dim * 0.8); } gl.uniform1f(u.uJitter, 0); }
-        else this._draw('edges', gl.LINES, dim);
+        kenarCizim('edges'); kenarCizim(agKenar);
         if (edgeColEff) gl.uniform4f(u.uOverride, 0, 0, 0, 0);
       }
     }
