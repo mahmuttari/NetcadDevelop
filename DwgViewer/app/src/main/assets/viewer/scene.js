@@ -150,8 +150,10 @@ function zOps(ops, zs, zo) {
  * yalnız sınır kenarları ve kırışıklık açısı `creaseDeg`'i aşan kenarlar kalır. `hidden[f][k]` (dosyadaki
  * görünmez kenar bayrağı) her zaman gizler. Dönen: [[a,b], …]
  */
-export function meshEdges(faces, hidden = null, creaseDeg = 20) {
-  const cosT = Math.cos(creaseDeg * Math.PI / 180);
+/** Tel kafes yüz kenarı eşiği (derece): eş düzlemli olmayan her yüz kenarı (view3d COS_FACET ile aynı) */
+export const KAFES_DERECE = 1;
+/** Kenar haritası: her kenar için komşu yüz normalleri, yüz sayısı ve görünmezlik bayrakları (tek geçiş) */
+function kenarHaritasi(faces, hidden) {
   const key = (q) => q[0] + ',' + q[1] + ',' + q[2];
   const map = new Map();
   faces.forEach((f, fi) => {
@@ -173,13 +175,17 @@ export function meshEdges(faces, hidden = null, creaseDeg = 20) {
       let e = map.get(ek); if (!e) { e = { a, b, n: [], gor: false, gizli: false }; map.set(ek, e); }
       e.n.push(f.length >= 3 ? (reliable ? nn : null) : null); e.faces = (e.faces || 0) + (f.length >= 3 ? 1 : 0);
       // Görünmezlik bayrağı yüz başınadır; AutoCAD kenarı komşu yüzlerden BİRİ görünür diyorsa çizer
-      // (VEYA). Eski kural biri gizli diyince atıyordu ve küpün 12 kenarından biri kayboluyordu (v8.9).
+      // (VEYA). Eski kural biri gizli deyince atıyordu ve küpün 12 kenarından biri kayboluyordu (v8.9).
       if (hidden && hidden[fi] && hidden[fi][k]) e.gizli = true; else e.gor = true;
     }
   });
+  return map;
+}
+/** Haritadan kenar seçimi: sınır kenarları + cosT eşiğini aşan kırışıklıklar; bayrak=true ise dosyanın gizlediği kenarlar atılır */
+function kenarSec(map, cosT, bayrak) {
   const out = [];
   for (const e of map.values()) {
-    if (e.gizli && !e.gor) continue;   // yalnız BÜTÜN komşu yüzler gizli diyorsa çizilmez
+    if (bayrak && e.gizli && !e.gor) continue;   // yalnız BÜTÜN komşu yüzler gizli diyorsa çizilmez
     const ns = e.n.filter(Boolean);
     if (ns.length >= 2) {                                   // komşu yüzler: hepsi eş düzlemliyse kenar iç kenardır
       let crease = false;
@@ -189,6 +195,32 @@ export function meshEdges(faces, hidden = null, creaseDeg = 20) {
     out.push([e.a, e.b]);
   }
   return out;
+}
+export function meshEdges(faces, hidden = null, creaseDeg = 20) {
+  return kenarSec(kenarHaritasi(faces, hidden), Math.cos(creaseDeg * Math.PI / 180), true);
+}
+/*
+ * TEK GEÇİŞTE İKİ KENAR KÜMESİ (v8.9). `seg`: 20° kırışıklık + sınır, görünmezlik bayrakları
+ * sayılır — gölgeli stillerde yüzeyin üstüne binen kenar. `sik`: eş düzlemli olmayan HER yüz kenarı
+ * (1°) — yüzey çizilmeyen tel kafes stilleri; yüz POLİGONUNDAN kurulduğu için burulmuş dörtgenlerin
+ * üçgenleme köşegeni çizilmez. Bayrak İLKESİ: dosyanın gizli dediği kenarlar ancak görünür bırakılan
+ * kenarların UZUNLUĞU bütün kenar uzunluğunun dörtte birini geçiyorsa saklanır, yoksa yok sayılır.
+ * Tekla / Advance Steel boruları bütün cidar kenarlarını gizli işaretler (yalnız uç halkaları
+ * görünür): yüzey çizilmeyen tel kafeste bayraklara uymak gövdeyi tümden siler (kullanıcı
+ * bildirimi); kutu gibi düz gövdelerde tek tük gizli kenar ise tasarımcının niyetidir ve korunur.
+ */
+export function meshEdgesCok(faces, hidden = null, creaseDeg = 20, facetDeg = KAFES_DERECE) {
+  const map = kenarHaritasi(faces, hidden);
+  const seg = kenarSec(map, Math.cos(creaseDeg * Math.PI / 180), true);
+  const cosF = Math.cos(facetDeg * Math.PI / 180);
+  const tum = kenarSec(map, cosF, false);
+  let sik = tum;
+  if (hidden && hidden.some(h => h && h.some(Boolean))) {
+    const bayrakli = kenarSec(map, cosF, true);
+    const uz = (L) => { let t = 0; for (const [a, b] of L) t += Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]); return t; };
+    if (uz(bayrakli) >= 0.25 * uz(tum)) sik = bayrakli;
+  }
+  return { seg, sik };
 }
 
 function ocsOf(e) {
@@ -1172,14 +1204,14 @@ export class SceneBuilder {
      * paylaşılır (aynı köşe nesnesi ikinci kez yazılmaz).
      */
     const meshBuf = new Map();
-    const bufOf = () => { const c = colNow(); const kk = c == null ? 'x' : String(c); let b = meshBuf.get(kk); if (!b) { b = { col: c, vtx: [], idx: [], seg: [] }; meshBuf.set(kk, b); } return b; };
+    const bufOf = () => { const c = colNow(); const kk = c == null ? 'x' : String(c); let b = meshBuf.get(kk); if (!b) { b = { col: c, vtx: [], idx: [], seg: [], segSik: [] }; meshBuf.set(kk, b); } return b; };
     let shareV = false;                                       // kabuk kaydı içinde köşe paylaşımı
     const vidx = (B, q) => {
       if (shareV) { const mm = B.vm || (B.vm = new Map()); const j = mm.get(q); if (j != null) return j; const w = P(q); const k2 = B.vtx.length / 3; B.vtx.push(w[0], w[1], w[2]); mm.set(q, k2); return k2; }
       const w = P(q); const k2 = B.vtx.length / 3; B.vtx.push(w[0], w[1], w[2]); return k2;
     };
     const pushTri = (a, b, c) => { const B = bufOf(); const i0 = vidx(B, a), i1 = vidx(B, b), i2 = vidx(B, c); B.idx.push(i0, i1, i2); };
-    const pushSeg = (pts) => { if (!pts || pts.length < 2) return; const B = bufOf(); let prev = P(pts[0]); for (let i = 1; i < pts.length; i++) { const w = P(pts[i]); B.seg.push(prev[0], prev[1], prev[2], w[0], w[1], w[2]); prev = w; } };
+    const pushSeg = (pts, sik = false) => { if (!pts || pts.length < 2) return; const B = bufOf(); const hedef = sik ? B.segSik : B.seg; let prev = P(pts[0]); for (let i = 1; i < pts.length; i++) { const w = P(pts[i]); hedef.push(prev[0], prev[1], prev[2], w[0], w[1], w[2]); prev = w; } };
     /** 3B çokgen (delikli olabilir) → üçgenler: Newell düzlemine izdüşüm + kulak kesme */
     const faceTris = (loops) => {
       if (!loops.length) return;
@@ -1286,7 +1318,7 @@ export class SceneBuilder {
               for (const l of f) { const hid = []; for (let q = 0; q < l.length; q++) { const vis = edgeVis && edgeVis[ei] != null ? edgeVis[ei] : 1; ei++; hid.push(vis !== 1); } loops.push(l); loopHid.push(hid); }
             });
             col = saveCol;
-            for (const e2 of meshEdges(loops, loopHid)) pushSeg(e2);   // kabuk kenarları: sınır + kırışıklık, eş düzlemli çaprazlar gizli
+            { const kk = meshEdgesCok(loops, loopHid); for (const e2 of kk.seg) pushSeg(e2); for (const e2 of kk.sik) pushSeg(e2, true); }   // kabuk kenarları: sınır + kırışıklık; tel kafes için yüz kenarları
             shareV = false; for (const B of meshBuf.values()) B.vm = null;
             break;
           }
@@ -1309,7 +1341,7 @@ export class SceneBuilder {
         if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; if (z < z0) z0 = z; if (z > z1) z1 = z; } };
       grow(B.vtx); grow(B.seg);
       if (!isFinite(x0)) continue;
-      this.prims.push({ k: 5, vtx: new Float32Array(B.vtx), idx: new Uint32Array(B.idx), seg: new Float32Array(B.seg),
+      this.prims.push({ k: 5, vtx: new Float32Array(B.vtx), idx: new Uint32Array(B.idx), seg: new Float32Array(B.seg), segSik: new Float32Array(B.segSik),
         bb: [x0, y0, x1, y1], zmin: z0, zmax: z1, face: true, alpha: 1, w: 0,
         col: B.col != null ? B.col : st.col, lay, lt: null, lts: 1, lw: st.lw, info, et: 'ACAD_PROXY_ENTITY' });
       this.layerOf(lay).count++;
@@ -1335,6 +1367,7 @@ export class SceneBuilder {
     const st = this.style(e, ctx), info = ctx.info || this.info(e, st);
     const edges = [], tris = [];
     let vtxSrc = null, idxSrc = null;                          // ağ köşe listesi ve üçgen indeksleri (varsa)
+    let sikEdges = null;                                       // tel kafes yüz kenarları (yüz poligonu olan ağlarda)
     if (raw && raw.mesh) {
       const V = raw.mesh.verts, F = raw.mesh.faces, H = raw.mesh.hidden;
       const fl = [], hl = [];
@@ -1346,7 +1379,8 @@ export class SceneBuilder {
         if (pts.length === idx.length) for (let k = 1; k < idx.length - 1; k++) idxSrc.push(idx[0], idx[k], idx[k + 1]);
         else for (let k = 1; k < pts.length - 1; k++) tris.push(pts[0], pts[k], pts[k + 1]);   // eksik köşe: indeks eşleşmez, noktayla yazılır
       }
-      for (const e2 of meshEdges(fl, hl)) edges.push(e2);   // eş düzlemli komşu yüzler arasındaki üçgenleme kenarları çizilmez
+      const kk = meshEdgesCok(fl, hl);                       // eş düzlemli komşu yüzler arasındaki üçgenleme kenarları çizilmez
+      for (const e2 of kk.seg) edges.push(e2); sikEdges = kk.sik;
     } else if (raw && raw.acis) {
       try {
         const key = e.handle; let t = this._acisCache && this._acisCache.get(key);
@@ -1379,18 +1413,17 @@ export class SceneBuilder {
       idx.push(base, base + 1, base + 2);
     }
     const seg = [];
-    for (const pl of edges) {
-      if (pl.length < 2) continue;
-      let prev = P(pl[0]);
-      for (let i = 1; i < pl.length; i++) { const w = P(pl[i]); seg.push(prev[0], prev[1], prev[2], w[0], w[1], w[2]); prev = w; }
-    }
+    const parcala = (liste, hedef) => { for (const pl of liste) { if (pl.length < 2) continue; let prev = P(pl[0]); for (let i = 1; i < pl.length; i++) { const w = P(pl[i]); hedef.push(prev[0], prev[1], prev[2], w[0], w[1], w[2]); prev = w; } } };
+    parcala(edges, seg);
+    let segSik = null;
+    if (sikEdges) { segSik = []; parcala(sikEdges, segSik); }
     if (!idx.length && !seg.length) return;
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity;
     const grow = (a, i) => { for (let k = 0; k < a.length; k += 3) { const x = a[k], y = a[k + 1], z = a[k + 2];
       if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; if (z < z0) z0 = z; if (z > z1) z1 = z; } };
     grow(vtx); grow(seg);
     if (!isFinite(x0)) return;
-    this.prims.push({ k: 5, vtx: new Float32Array(vtx), idx: new Uint32Array(idx), seg: new Float32Array(seg),
+    this.prims.push({ k: 5, vtx: new Float32Array(vtx), idx: new Uint32Array(idx), seg: new Float32Array(seg), segSik: segSik ? new Float32Array(segSik) : null,
       bb: [x0, y0, x1, y1], zmin: z0, zmax: z1, face: true, alpha: 1, w: 0,
       col: st.col, lay: st.lay, lt: null, lts: 1, lw: st.lw, info, et: e.type });
     this.layerOf(st.lay).count++;

@@ -187,6 +187,30 @@ ok('5 bozuk bir koordinat 3B sınır kutusunu şişirmiyor (2B\'deki 1e15 tavan�
     const out = { tel: dene('wireframe', boru()), tel2b: dene('wireframe2d', boru()), gizli: dene('hidden', boru()), golgeli: dene('shaded', boru()), kenarli: dene('shadedEdges', boru()), gercekci: dene('realistic', boru()) };
     out.kupSik = v._telKafesSik(kup()).length / 6;
     out.boruSik = v._telKafesSik(boru()).length / 6;
+    // okuyucunun yüz poligonlarından ürettiği segSik varsa üçgen üretimi yerine O kullanılır
+    { const b = boru(); b.segSik = new Float32Array([0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3]); const r2 = dene('wireframe', b); out.segSikOncelik = r2.wedges; }
+    // yerinde dönüşümden sonra önbellek bayatlamaz: z iki katına çıkınca tel kafes kümesi de büyür
+    {
+      const E = await import('./edit.js'); const Gm = await import('./geom.js');
+      const b = boru(); dene('wireframe', b);
+      const zAralik = () => { const P = v._wire.pos; let lo = Infinity, hi = -Infinity; for (let i = 2; i < P.length; i += 3) { if (P[i] < lo) lo = P[i]; if (P[i] > hi) hi = P[i]; } return +(hi - lo).toFixed(3); };
+      out.zOnce = zAralik();
+      E.transformPrim(b, Gm.IDENT, 0, 2);   // z ölçeği 2: 0..40 → 0..80
+      v.setScene([b], layers, { dark: true, fg: '#eef', bg: '#1a1f27' }); v.set('style', 'wireframe'); v.render();
+      out.zSonra = zAralik();
+      const kopya = E.clonePrim(b);
+      out.klonOnbellek = kopya._telSegSik === undefined && kopya._telSeg === undefined;
+    }
+    // üçgen çorbası (ACIS gibi köşe paylaşmayan ağ): kaynaştırma olmadan bütün üçgenleme çizilirdi
+    {
+      const KV = [], KI = [];
+      const T = [[0,0,0],[10,0,0],[10,10,0], [0,0,0],[10,10,0],[0,10,0], [0,0,10],[10,10,10],[10,0,10], [0,0,10],[0,10,10],[10,10,10],
+        [0,0,0],[10,0,10],[10,0,0], [0,0,0],[0,0,10],[10,0,10], [10,0,0],[10,0,10],[10,10,10], [10,0,0],[10,10,10],[10,10,0],
+        [10,10,0],[10,10,10],[0,10,10], [10,10,0],[0,10,10],[0,10,0], [0,10,0],[0,10,10],[0,0,10], [0,10,0],[0,0,10],[0,0,0]];
+      T.forEach((q, i) => { KV.push(q[0], q[1], q[2]); KI.push(i); });
+      const corba = { k: 5, vtx: new Float32Array(KV), idx: new Uint32Array(KI), seg: new Float32Array(0), bb: [0, 0, 10, 10], zmin: 0, zmax: 10, face: true, alpha: 1, w: 0, col: 0xffffff, lay: '0', lt: null, lts: 1, lw: 0, info: { h: 'C1', t: 'MESH' }, et: 'MESH' };
+      out.corbaSik = v._telKafesSik(corba).length / 6;
+    }
     return out;
   });
   if (r.yok) C.skip('7 tel kafes borusu — WebGL yok', r.yok);
@@ -197,6 +221,10 @@ ok('5 bozuk bir koordinat 3B sınır kutusunu şişirmiyor (2B\'deki 1e15 tavan�
     ok('7d 2B tel kafeste de gövde çiziliyor', r.tel2b.orta > 0 && r.tel2b.wedges === 192, JSON.stringify(r.tel2b));
     ok('7e gizli çizgi stilinde de yüz kenarları kullanılıyor', r.gizli.orta > 0 && r.gizli.wedges === 192, JSON.stringify(r.gizli));
     ok('7c2 tel kafes stilleri yüz kenarı kümesini (wedges) çiziyor', r.tel.kume === 'wedges' && r.tel2b.kume === 'wedges' && r.gizli.kume === 'wedges', JSON.stringify([r.tel.kume, r.tel2b.kume, r.gizli.kume]));
+    ok('7g okuyucunun segSik kümesi varsa öncelikli (2 kenar → 4 köşe)', r.segSikOncelik === 4, String(r.segSikOncelik));
+    ok('7h yerinde dönüşümden (z×2) sonra tel kafes kümesi bayat kalmıyor', r.zOnce > 0 && Math.abs(r.zSonra - 2 * r.zOnce) < 1e-3, JSON.stringify({ once: r.zOnce, sonra: r.zSonra }));
+    ok('7i klon, kaynağın kenar önbelleğini taşımıyor', r.klonOnbellek === true);
+    ok('7j üçgen çorbası (köşe paylaşmayan küp) kaynaştırılıp 12 kenar veriyor (36 sınır kenarı değil)', r.corbaSik === 12, String(r.corbaSik));
     ok('7f gölgeli, kenarlı gölgeli ve gerçekçi stiller 20° kümesinde (medges) kalıyor — boru orada pürüzsüz',
       r.golgeli.kume === 'medges' && r.kenarli.kume === 'medges' && r.gercekci.kume === 'medges' && r.golgeli.medges === 128 && r.golgeli.tum > r.tel.tum,
       JSON.stringify({ golgeli: r.golgeli.kume, kenarli: r.kenarli.kume, gercekci: r.gercekci.kume, medges: r.golgeli.medges }));

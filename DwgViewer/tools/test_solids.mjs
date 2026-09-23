@@ -119,7 +119,7 @@ for (const f of ['pface.dxf', 'pface_2000.dwg', 'pface_2018.dwg']) {
   i = await info3d();
   const by = await page.evaluate(() => { const by = {}; const add = (k, n) => { if (n) by[k] = (by[k] || 0) + n; };
     for (const p of window.dwgApp.state.scene.layouts[0].prims) {
-      if (p.k === 5) { add(p.et + ':tri', p.idx.length / 3); add(p.et + ':seg', p.seg.length / 6); }
+      if (p.k === 5) { add(p.et + ':tri', p.idx.length / 3); add(p.et + ':seg', p.seg.length / 6); if (p.segSik) add(p.et + ':segSik', p.segSik.length / 6); }
       else add(p.et + (p.tri ? ':tri' : ':path'), 1);
     } return by; });
   const faceCount = (by['POLYFACE:tri'] || 0) + (by['POLYLINE_PFACE:tri'] || 0) + (by['POLYLINE_MESH:tri'] || 0);
@@ -128,6 +128,7 @@ for (const f of ['pface.dxf', 'pface_2000.dwg', 'pface_2018.dwg']) {
   if (f.endsWith('.dxf')) ok(`4 ${f}: sınır kutusu küp + ağ (0..30, 0..10, 0..10)`, i && Math.abs(i.bb[0]) < 1e-6 && Math.abs(i.bb[3] - 30) < 1e-6 && Math.abs(i.bb[5] - 10) < 1e-6, i && i.bb.join(','));
   // v8.9: küpün 4-8 kenarı yüz 6'da gizli, yüz 5'te görünür bayraklı — AutoCAD gibi ÇİZİLİR (VEYA kuralı); eski VE kuralı 11 veriyordu
   if (f.endsWith('.dxf')) ok(`4 ${f}: gizli bayrağı VEYA kuralıyla — küpün 12 kenarı da çiziliyor`, by['POLYFACE:seg'] === 12, String(by['POLYFACE:seg']));
+  if (f.endsWith('.dxf')) ok(`4 ${f}: tel kafes yüz kenarı kümesi (segSik) çalışanda üretildi: küp 12`, by['POLYFACE:segSik'] === 12, String(by['POLYFACE:segSik']));
   else ok(`4 ${f}: DWG çok yüzlü ağ üçgenleri (küp 12 + örnek 2), kenarlar kırışıklık süzgeciyle (küp 12, ağ sınırı 6)`, by['POLYLINE_PFACE:tri'] === 14 && by['POLYLINE_PFACE:seg'] >= 15 && by['POLYLINE_MESH:tri'] === 4 && by['POLYLINE_MESH:seg'] >= 6, JSON.stringify(by));
 }
 

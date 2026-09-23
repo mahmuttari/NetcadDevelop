@@ -186,11 +186,14 @@ export function entsToPrims(ent, layers, blocks) {
  */
 export function transformPrim(p, m, dz = 0, zs = 1) {
   if (p.k === 5) {                                    // ağ ilkeli: köşe ve kenar dizileri yerinde dönüştürülür
-    const V = p.vtx, G = p.seg;
+    const V = p.vtx, G = p.seg, G2 = p.segSik;
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     const put = (a, i, q, z) => { a[i] = q[0]; a[i + 1] = q[1]; a[i + 2] = z; if (q[0] < x0) x0 = q[0]; if (q[0] > x1) x1 = q[0]; if (q[1] < y0) y0 = q[1]; if (q[1] > y1) y1 = q[1]; };
     for (let i = 0; i + 2 < V.length; i += 3) put(V, i, apply(m, V[i], V[i + 1]), V[i + 2] * zs + dz);
     for (let i = 0; i + 2 < G.length; i += 3) put(G, i, apply(m, G[i], G[i + 1]), G[i + 2] * zs + dz);
+    if (G2) for (let i = 0; i + 2 < G2.length; i += 3) put(G2, i, apply(m, G2[i], G2[i + 1]), G2[i + 2] * zs + dz);
+    // view3d'nin üçgenden ürettiği kenar önbellekleri dünya koordinatındadır: yerinde dönüşümden sonra bayatlar
+    p._telSeg = undefined; p._telSegSik = undefined;
     if (isFinite(x0)) p.bb = [x0, y0, x1, y1];
     if (p.zmin != null) { p.zmin = p.zmin * zs + dz; p.zmax = p.zmax * zs + dz; }
     return;
@@ -259,9 +262,11 @@ export function setPrimZ(p, z) {
     // ağ gövdesi yassıltılamaz (k=0'daki gibi bütün z'leri eşitlemek gövdeyi dejenere ederdi): taban kotu z'ye taşınır
     const dz = z - (p.zmin != null ? p.zmin : 0);
     if (dz) {
-      const V = p.vtx, G = p.seg;
+      const V = p.vtx, G = p.seg, G2 = p.segSik;
       if (V) for (let i = 2; i < V.length; i += 3) V[i] += dz;
       if (G) for (let i = 2; i < G.length; i += 3) G[i] += dz;
+      if (G2) for (let i = 2; i < G2.length; i += 3) G2[i] += dz;
+      p._telSeg = undefined; p._telSegSik = undefined;   // üçgenden üretilen kenar önbellekleri bayatladı
       if (p.zmin != null) { p.zmin += dz; p.zmax += dz; }
     }
     return;                                        // p.bb yalnız x-y taşır, değişmez
@@ -279,7 +284,9 @@ export function setPrimZ(p, z) {
 /** DXF'e yazılacak en çok üçgen: üstü atlanır (üçgen başına ~14 satır) */
 const DXF_MAX_FACE = 200000;
 export const clonePrim = (p) => {
-  if (p.k === 5) return { ...p, vtx: p.vtx ? p.vtx.slice() : p.vtx, seg: p.seg ? p.seg.slice() : p.seg, idx: p.idx, bb: p.bb ? p.bb.slice() : p.bb, info: p.info };
+  // _telSeg / _telSegSik: view3d'nin ilkel üstünde tuttuğu kenar önbellekleri kopyaya TAŞINMAZ — kopya
+  // dönüştürülünce kaynağın koordinatlarını gösterirdi (tel kafeste kopya kaynağın üstünde çizilirdi)
+  if (p.k === 5) return { ...p, vtx: p.vtx ? p.vtx.slice() : p.vtx, seg: p.seg ? p.seg.slice() : p.seg, segSik: p.segSik ? p.segSik.slice() : p.segSik, idx: p.idx, bb: p.bb ? p.bb.slice() : p.bb, info: p.info, _telSeg: undefined, _telSegSik: undefined };
   const c = JSON.parse(JSON.stringify({ ...p, info: undefined })); c.info = p.info; return c;
 };
 

@@ -54,5 +54,28 @@ ok('1c kısa kalın boru (16 dilim, 20° üstü cidar açısı 22,5°): halkalar
   ok('3 eş düzlemli iki üçgen: çapraz çizilmez, 4 dış kenar', S.meshEdges([A, B]).length === 4, String(S.meshEdges([A, B]).length));
 }
 
+// ---- 4) meshEdgesCok: tek geçişte iki küme + görünmezlik bayrağı UZUNLUK ilkesi -------------------
+{
+  const F = boru(32, 0.1, 6);
+  // Tekla düzeni: bütün cidar kenarları gizli, yalnız uç halkaları görünür (cidar yüzü = her üçlünün ilki)
+  const H = F.map((f, i) => (i % 3 === 0 ? [true, false, true, false] : null));
+  const kk = S.meshEdgesCok(F, H);
+  ok('4a seg (20°, bayraklı): yalnız 64 halka kenarı', kk.seg.length === 64, String(kk.seg.length));
+  ok('4b sik (1°): cidar bayrakları YOK SAYILIR — görünür bırakılan uzunluk (halkalar 1,3 m) toplamın (~193 m) dörtte birinin altında → 96 kenar', kk.sik.length === 96, String(kk.sik.length));
+  const K = [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0], [0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]];
+  const KF = [[K[0], K[3], K[2], K[1]], [K[4], K[5], K[6], K[7]], [K[0], K[1], K[5], K[4]], [K[1], K[2], K[6], K[5]], [K[2], K[3], K[7], K[6]], [K[3], K[0], K[4], K[7]]];
+  const H2 = KF.map(() => [false, false, false, false]); H2[2][1] = true; H2[3][3] = true;   // 1-5 kenarı iki yüzde de gizli
+  const k2 = S.meshEdgesCok(KF, H2);
+  ok('4c kutuda tek tük gizli kenar KORUNUR (görünür uzunluk 11/12 ≥ %25): seg 11, sik 11', k2.seg.length === 11 && k2.sik.length === 11, JSON.stringify([k2.seg.length, k2.sik.length]));
+  const k3 = S.meshEdgesCok(KF);
+  ok('4d bayraksız kutu: seg 12, sik 12 (çapraz yok)', k3.seg.length === 12 && k3.sik.length === 12, JSON.stringify([k3.seg.length, k3.sik.length]));
+  // burulmuş dörtgen (çift eğrilikli yüzey): yüz POLİGONUNDAN kurulduğu için köşegen çizilmez
+  const B1 = [[0, 0, 0], [10, 0, 0.3], [10, 10, 0], [0, 10, 0.3]], B2 = [[10, 0, 0.3], [20, 0, 0], [20, 10, 0.3], [10, 10, 0]];
+  const k4 = S.meshEdgesCok([B1, B2]);
+  // iki dörtgenin Newell normalleri hemen hemen aynı (paylaşılan kenar 1°'nin altında → iç kenar): 6 dış kenar, yelpaze köşegeni YOK
+  ok('4e burulmuş iki dörtgen: sik 6 dış dörtgen kenarı (yelpaze köşegeni yok)', k4.sik.length === 6, String(k4.sik.length));
+  ok('4f meshEdges(f,h) eski sözleşme = meshEdgesCok(...).seg', JSON.stringify(S.meshEdges(F, H)) === JSON.stringify(kk.seg));
+}
+
 console.log(`\nSONUÇ: ${g} geçti, ${k} kaldı`);
 process.exit(k ? 1 : 0);
