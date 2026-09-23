@@ -51,8 +51,8 @@ android {
         applicationId "com.mahmuttari.dwgviewer"
         minSdk 26
         targetSdk 36
-        versionCode 135
-        versionName "8.9.3"
+        versionCode 136
+        versionName "8.9.4"
 
         // Uygulamanın taşıdığı diller. Listede olmayan bir dilde kurulan cihaz İngilizce'ye düşer;
         // bağımlılıkların (AndroidX, Play) 85 dilde etiketi APK'ye girmez. Yeni dil eklerken bu liste,
@@ -150,7 +150,7 @@ dependencies {
     // AdMob geçiş reklamı ve UMP rıza formu (yalnız Pro yetkisi olmayan kullanıcıya gösterilir)
     implementation "com.google.android.gms:play-services-ads:23.6.0"
     // Google Play Faturalandırma: Pro uygulama içi satın alma (tek seferlik, tüketilmeyen ürün)
-    implementation "com.android.billingclient:billing:7.1.1"
+    implementation "com.android.billingclient:billing:8.0.0"
     // Jetpack Compose — YALNIZ çizim açılış ekranı için. Başvuru sahibinin gönderdiği ekran
     // (app/src/main/java/com/example/dwgloader/MainActivity.kt) tek satırı değiştirilmeden
     // derlenir; uygulamanın geri kalanı WebView'dır. ComposeView bir ComponentActivity ister,

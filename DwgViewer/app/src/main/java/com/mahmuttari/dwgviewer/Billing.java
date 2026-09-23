@@ -133,7 +133,8 @@ public class Billing implements PurchasesUpdatedListener {
             list.add(QueryProductDetailsParams.Product.newBuilder().setProductId(sku).setProductType(BillingClient.ProductType.SUBS).build());
         }
         QueryProductDetailsParams q = QueryProductDetailsParams.newBuilder().setProductList(list).build();
-        client.queryProductDetailsAsync(q, (r, details) -> act.runOnUiThread(() -> {
+        client.queryProductDetailsAsync(q, (r, result) -> act.runOnUiThread(() -> {
+            List<ProductDetails> details = result != null ? result.getProductDetailsList() : null;
             if (r.getResponseCode() == BillingClient.BillingResponseCode.OK && details != null) {
                 for (ProductDetails d : details) {
                     String tier = Tier.ofSku(d.getProductId());
