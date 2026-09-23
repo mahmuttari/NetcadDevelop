@@ -98,6 +98,45 @@ const tavan = await page.evaluate(() => {
 ok('5 bozuk bir koordinat 3B sınır kutusunu şişirmiyor (2B\'deki 1e15 tavanı)',
   tavan.every(x => Math.abs(x) <= 1e15) && tavan[3] <= 1000, JSON.stringify(tavan));
 
+/*
+ * 6) TEL KAFESTE GÖVDE KAYBOLMAZ (v8.7).
+ *
+ * Kullanıcının bildirimi: "Tel kafes görünümde çizimin tamamını göstermiyor." Yüzeyi (üçgeni)
+ * olan ama KENAR DİZİSİ (p.seg) boş gelen bir gövde tel kafes stillerinde sıfır piksel çiziyordu:
+ * o stillerde yüzey hiç çizilmez, çizilecek kenar da yoktu. Ölçülen değerler düzeltmeden önce
+ * tel kafes 0 / gölgeli 51.854 idi. Artık kenarlar üçgen indeksinden üretilir; ÜÇGENLEME
+ * ÇAPRAZLARI üretilmez — küpün yalnız 12 gerçek kenarı çıkar, yüzey başına iki çapraz değil.
+ */
+{
+  const r = await page.evaluate(async () => {
+    const V3 = await import('./view3d.js');
+    const cv = document.createElement('canvas'); cv.width = 260; cv.height = 260;
+    cv.style.width = '260px'; cv.style.height = '260px'; document.body.appendChild(cv);
+    let v; try { v = new V3.View3D(cv); } catch (e) { return { yok: String(e.message || e) }; }
+    const V = new Float32Array([0, 0, 0, 10, 0, 0, 10, 10, 0, 0, 10, 0, 0, 0, 10, 10, 0, 10, 10, 10, 10, 0, 10, 10]);
+    const F = [0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 1, 5, 0, 5, 4, 1, 2, 6, 1, 6, 5, 2, 3, 7, 2, 7, 6, 3, 0, 4, 3, 4, 7];
+    const kup = () => ({ k: 5, vtx: V, idx: new Uint32Array(F), seg: new Float32Array(0), bb: [0, 0, 10, 10], zmin: 0, zmax: 10,
+      face: true, alpha: 1, w: 0, col: 0xffffff, lay: '0', lt: null, lts: 1, lw: 0, info: { h: 'M1', t: 'MESH' }, et: 'MESH' });
+    const layers = new Map([['0', { name: '0', color: null, visible: true, lw: -1, lt: 'Continuous', count: 1 }]]);
+    const boya = () => { const g = cv.getContext('webgl'); const px = new Uint8Array(cv.width * cv.height * 4);
+      g.readPixels(0, 0, cv.width, cv.height, g.RGBA, g.UNSIGNED_BYTE, px);
+      const bg = [px[0], px[1], px[2]]; let n = 0;
+      for (let i = 0; i < px.length; i += 4) if (Math.abs(px[i] - bg[0]) + Math.abs(px[i + 1] - bg[1]) + Math.abs(px[i + 2] - bg[2]) > 24) n++;
+      return n; };
+    const dene = (stil) => { v.setScene([kup()], layers, { dark: true, fg: '#eef', bg: '#1a1f27' });
+      v.set('grid', false); v.set('axes', false); v.set('hud', false); v.set('cube', false); v.set('style', stil);
+      v.fit({ animate: false }); v.render(); return { boya: boya(), kenar: v._nMeshEdge }; };
+    return { tel: dene('wireframe'), tel2b: dene('wireframe2d'), golgeli: dene('shaded') };
+  });
+  if (r.yok) C.skip('6 tel kafes gövdesi — WebGL yok', r.yok);
+  else {
+    ok('6a kenar dizisi boş gövde TEL KAFESTE çiziliyor', r.tel.boya > 0, JSON.stringify(r.tel));
+    ok('6b 2B tel kafeste de çiziliyor', r.tel2b.boya > 0, JSON.stringify(r.tel2b));
+    ok('6c üretilen kenar küpün 12 gerçek kenarı (üçgenleme çaprazı yok)', r.tel.kenar === 24, String(r.tel.kenar));
+    ok('6d gölgeli stil etkilenmedi (gövde zaten görünüyordu)', r.golgeli.boya > r.tel.boya, JSON.stringify({ tel: r.tel.boya, golgeli: r.golgeli.boya }));
+  }
+}
+
 C.summary(errors);
 await browser.close(); try { srv.kill && srv.kill(); } catch (_) { /* geç */ }
 C.exit();

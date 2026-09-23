@@ -7,9 +7,15 @@
  * tamamen boşalıyor, parmak kalkınca 220 ms sonra tam kalitede yeniden çiziliyordu.
  *
  * Burada sınanan sözleşme üç maddedir:
- *   1) Ağ ilkelinin kendi kenar dizisi (seg) yoksa sadeleştirme HİÇ açılmaz.
+ *   1) Geri düşülecek TEL KAFES YOKSA sadeleştirme HİÇ açılmaz.
  *   2) Açıldığında kenarlar zorla çizilir; ekranda boyalı piksel kalır (model kaybolmaz).
  *   3) Kaydedilen ekran görüntüsü hiçbir zaman sadeleştirilmiş kareden alınmaz.
+ *
+ * v8.7'DE (1)'İN KAPSAMI DARALDI. Kendi kenar dizisi (seg) boş gelen bir gövdeye artık
+ * view3d._telKafesKenar üçgen indeksinden kenar ÜRETİR (kullanıcı bildirimi: "tel kafes
+ * görünümde çizimin tamamını göstermiyor"). Dolayısıyla böyle bir gövde artık tel kafese
+ * geri düşebilir ve sadeleştirme onda da açılır. Kenar üretilemeyen tek durum, üretimin
+ * bellek sınırını (MESH_WIRE_MAX_TRI) aşan gövdedir; (1) yalnız orada geçerlidir.
  * Ayrıca 3B tuval ölçüsünün render()'ın kullandığı ölçüyle birebir olduğu doğrulanır: ayrışırsa
  * kamera uzaklığı her yeniden boyutlandırmada ikinci kez düzeltilir.
  *
@@ -84,7 +90,7 @@ const R = await page.evaluate(() => {
   v._lastFrameMs = 9999; v._lastRenderAt = performance.now();
   const png = v.screenshot();
   o.kenarli.shotFast = !!v._fastFrame; o.kenarli.shotPng = typeof png === 'string' && png.startsWith('data:image/png');
-  // (2) kenarsız ağ: sadeleştirme hiç açılmamalı
+  // (2) kenar dizisi BOŞ ağ: v8.7'den beri kenar üretilir, sadeleştirme güvenle açılır
   kur([kup([]), yuk()], 'shaded');
   o.kenarsiz = { meshIdx: v._nIdx.mesh, meshEdge: v._nMeshEdge, tam: boya() };
   surukle();
@@ -93,17 +99,39 @@ const R = await page.evaluate(() => {
   kur([kup(seg), yuk()], 'wireframe');
   surukle();
   o.telkafes = { fast: !!v._fastFrame, hizli: boya() };
+  /*
+   * (4) kenar ÜRETİLEMEYEN ağ (üretim sınırını aşan gövde): sadeleştirme hiç açılmamalı.
+   * Sahne TEL KAFES stilinde ve PİKSEL OKUNMADAN kurulur: 700 bin üçgenin gölgeli basımı ve
+   * yazılımsal geri okuması (ReadPixels) dördüncü sahnede oluşturucuyu düşürüyor. Tel kafeste
+   * yüzey hiç çizilmez, sınanan sayaçlar (kenar üretildi mi, sadeleştirme açıldı mı) ise
+   * stilden bağımsızdır; boyanın doluluğu (2) ve (3)'te ölçülüyor.
+   */
+  v.setScene([yuk()], layers, { dark: true });
+  v.set('style', 'wireframe');
+  o.uretilemez = { meshIdx: v._nIdx.mesh, meshEdge: v._nMeshEdge };
+  surukle();
+  o.uretilemez.fast = !!v._fastFrame;
+  /*
+   * Sahne HAFİF bırakılır (yalnız küp): bundan sonraki bölümler — tuval ölçüsü ve bağlam kaybı —
+   * her yeniden çizimde 700 bin üçgeni yeniden yüklemesin; yazılımsal WebGL'de oluşturucu düşüyor.
+   * Küpün 12 üçgeni (36 indeks) bağlam geri gelince ağ tamponunun yeniden kurulduğunu göstermeye
+   * yeter (bkz. 7d): sınanan şey tamponun BÜYÜKLÜĞÜ değil, geri yüklenmiş olmasıdır.
+   */
+  v.setScene([kup(seg)], layers, { dark: true });
+  v.set('style', 'wireframe'); v.render();
   return o;
 });
 
 ok('1a yük gerçekten ağır (indeks eşiği aşıldı)', R.kenarli.meshIdx > 2000000, String(R.kenarli.meshIdx));
 ok('1b ağ kenarları sayıldı (tel kafes var)', R.kenarli.meshEdge === 24, String(R.kenarli.meshEdge));
-ok('1c kenarsız sahnede ağ kenar sayacı sıfır', R.kenarsiz.meshEdge === 0, String(R.kenarsiz.meshEdge));
+ok('1c kenar dizisi boş gövdeye tel kafes ÜRETİLİYOR (küpün 12 kenarı)', R.kenarsiz.meshEdge === 24, String(R.kenarsiz.meshEdge));
+ok('1d üretim sınırını aşan gövdede kenar üretilmiyor (bellek koruması)', R.uretilemez.meshEdge === 0, String(R.uretilemez.meshEdge));
 ok('2a Gölgeli stilde sürüklemede sadeleştirme açılıyor', R.kenarli.fast === true, JSON.stringify(R.kenarli));
 ok('2b sadeleştirilmiş kare BOŞ DEĞİL: kenarlar zorla çiziliyor', R.kenarli.hizli > 0, JSON.stringify({ tam: R.kenarli.tam, hizli: R.kenarli.hizli }));
 ok('2c sadeleştirilmiş kare tam kareden daha seyrek (yüzeyler gerçekten atlandı)', R.kenarli.hizli < R.kenarli.tam, JSON.stringify({ tam: R.kenarli.tam, hizli: R.kenarli.hizli }));
-ok('3a geri düşecek tel kafes yoksa sadeleştirme AÇILMIYOR', R.kenarsiz.fast === false, JSON.stringify(R.kenarsiz));
-ok('3b o sahnede sürükleme karesi tam kare kadar dolu', R.kenarsiz.hizli > 0 && Math.abs(R.kenarsiz.hizli - R.kenarsiz.tam) <= Math.max(2, R.kenarsiz.tam * 0.02), JSON.stringify(R.kenarsiz));
+ok('3a geri düşecek tel kafes yoksa sadeleştirme AÇILMIYOR', R.uretilemez.fast === false, JSON.stringify(R.uretilemez));
+ok('3b kenarı ÜRETİLEN gövdede sadeleştirme açılır ve ekran BOŞALMAZ', R.kenarsiz.fast === true && R.kenarsiz.hizli > 0, JSON.stringify(R.kenarsiz));
+ok('3c o sahnede sürükleme karesi tam kareden seyrek (yüzeyler atlandı, kenar kaldı)', R.kenarsiz.hizli < R.kenarsiz.tam, JSON.stringify({ tam: R.kenarsiz.tam, hizli: R.kenarsiz.hizli }));
 ok('4 ekran görüntüsü sadeleştirilmiş kareden alınmıyor', R.kenarli.shotFast === false && R.kenarli.shotPng === true, JSON.stringify({ fast: R.kenarli.shotFast, png: R.kenarli.shotPng }));
 ok('5 tel kafes stilinde sürükleme karesi yine dolu', R.telkafes.hizli > 0, JSON.stringify(R.telkafes));
 
@@ -141,7 +169,7 @@ else {
   ok('7a bağlam kaybında durum bildiriliyor', baglam.kayip.lost === true && baglam.kayip.olay.includes('lost'), JSON.stringify(baglam.kayip));
   ok('7b bağlam geri gelince kayıp bayrağı kalkıyor', baglam.sonra.lost === false, JSON.stringify(baglam.sonra));
   ok('7c geri gelince "kuruldu" ya da "yeniden kur" bildiriliyor', baglam.sonra.olaylar.some(v2 => v2 === 'restored' || v2 === 'rebuild'), JSON.stringify(baglam.sonra.olaylar));
-  ok('7d ağ tamponu geri yüklendi', baglam.sonra.meshIdx > 2000000, String(baglam.sonra.meshIdx));
+  ok('7d ağ tamponu geri yüklendi (küpün 36 indeksi)', baglam.sonra.meshIdx === 36, String(baglam.sonra.meshIdx));
 }
 
 C.summary(errors);

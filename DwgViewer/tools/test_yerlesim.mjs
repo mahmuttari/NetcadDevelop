@@ -178,6 +178,75 @@ await page.click('#toolbar [data-act="3d"]'); await page.waitForTimeout(400);   
 }
 
 // =============================================================================================
+// 3B) KUZEY OKU SOL EL DÜZENİNİ İZLER: 2B ile 3B pusulası aynı tarafta
+// =============================================================================================
+/*
+ * Ölçek çubuğu ve 3B pusulası sol el düzeninde taraf değiştiriyor, 2B kuzey oku ise sağ üst
+ * köşede çakılı kalıyordu (drawNorth leftHand'e hiç bakmıyordu): 2B ile 3B arasında geçen
+ * kullanıcıda pusula bir sağda bir solda çıkıyordu. Burada ok her düzende ölçülür.
+ */
+{
+  const kur = (o) => ev(async (x) => {
+    const E = await import('./editor.js');
+    E.ui.leftHand = !!x.sol; E.applyUi();
+    const A = window.dwgApp;
+    A.display.setDisplay('north', true);
+    A.display.setDisplay('northBig', !!x.buyuk);
+    A.display.setDisplay('rulers', !!x.cetvel);
+    A.requestRender();
+    return { rulers: !!A.state.rulers, sol: !!E.ui.leftHand };
+  }, o);
+  const olc = () => ev(() => {
+    const A = window.dwgApp, S = A.state, k = A.__kuzey();
+    const vp = document.getElementById('viewport').getBoundingClientRect();
+    const kutu = (id) => { const e = document.getElementById(id); if (!e || e.hidden || !e.offsetParent) return null; const q = e.getBoundingClientRect(); return q.width && q.height ? { x: q.left - vp.left, y: q.top - vp.top, w: q.width, h: q.height } : null; };
+    return { W: S.W, H: S.H, k, cetvel: !!S.rulers, navFabs: kutu('navFabs'), dpad: kutu('dpad') };
+  });
+  const carpar = (k, g) => !!g && k.cx + k.r + 6 > g.x && k.cx - k.r - 6 < g.x + g.w && k.cy + k.r + 6 > g.y && k.cy - k.r - 6 < g.y + g.h;
+
+  const durumlar = [
+    ['3f dikey · sağ el', { sol: false }, (d) => d.k.cx > d.W * 2 / 3],
+    ['3g dikey · SOL EL', { sol: true }, (d) => d.k.cx < d.W / 3],
+    ['3h sol el · cetveller açık', { sol: true, cetvel: true }, (d) => d.k.cx - d.k.r >= 18],
+    ['3i sol el · büyük ok', { sol: true, buyuk: true }, (d) => d.k.cx < d.W / 3 && d.k.cx - d.k.r > 0],
+    ['3j sağ el · büyük ok', { sol: false, buyuk: true }, (d) => d.k.cx > d.W * 2 / 3 && d.k.cx + d.k.r < d.W],
+  ];
+  for (const [ad, ayar, kural] of durumlar) {
+    await kur(ayar); await page.waitForTimeout(150);
+    const d = await olc();
+    ok(`${ad}: ok beklenen tarafta`, kural(d), `cx=${Math.round(d.k.cx)} r=${Math.round(d.k.r)} W=${Math.round(d.W)} → %${Math.round(d.k.cx / d.W * 100)}`);
+    const carpma = ['navFabs', 'dpad'].filter(n => carpar(d.k, d[n]));
+    ok(`${ad}: ok hiçbir düğmeyle çakışmıyor`, carpma.length === 0, carpma.join(','));
+    ok(`${ad}: ok ekranın içinde`, d.k.cx - d.k.r > 0 && d.k.cx + d.k.r < d.W && d.k.cy - d.k.r > 0 && d.k.cy + d.k.r < d.H, JSON.stringify(d.k));
+  }
+
+  // GERÇEK PİKSEL: sol el düzeninde ok SOL üst köşeye çizilir, sağ üst köşe boş kalır
+  await kur({ sol: true }); await page.waitForTimeout(150);
+  {
+    const q = await ev(() => { const b = document.getElementById('viewport').getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height }; });
+    await page.mouse.move(q.x + q.w * 0.5, q.y + q.h * 0.45); await page.waitForTimeout(250);   // kaplamayı yeniden çizdirir
+  }
+  const piksel = await ev(() => {
+    const S = window.dwgApp.state, ov = document.getElementById('ov'), g = ov.getContext('2d');
+    const dpr = S.dpr, w = Math.round(90 * dpr), h = Math.round(90 * dpr);
+    const say = (x0) => { const d = g.getImageData(Math.round(x0 * dpr), 0, w, h).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i] > 8) n++; return n; };
+    return { solUst: say(0), sagUst: say(S.W - 90) };
+  });
+  ok('3k sol el: kuzey oku gerçekten SOL üst köşeye çizildi', piksel.solUst > 200, JSON.stringify(piksel));
+  ok('3l sol el: sağ üst köşe boş kaldı', piksel.sagUst < piksel.solUst / 10, JSON.stringify(piksel));
+
+  // 2B ile 3B aynı tarafta: kullanıcı kip değiştirince pusula yer değiştirmiyor
+  const iki = await olc();
+  await ev(() => window.dwgApp.editor.act('3d'));  await page.waitForTimeout(800);   // şerit sekmesine değil komuta git (kip sekmesi kapalı olabilir)
+  const uc = await pusulaDurum();
+  ok('3m 2B kuzey oku ile 3B pusulası aynı tarafta (sol el)',
+    !!uc.p && (iki.k.cx < iki.W / 2) === (uc.p.cx < uc.W / 2),
+    `2B cx=${Math.round(iki.k.cx)}/${Math.round(iki.W)} · 3B cx=${uc.p ? Math.round(uc.p.cx) : '?'}/${Math.round(uc.W)}`);
+  await ev(() => window.dwgApp.editor.act('3d')); await page.waitForTimeout(400);   // 2B'ye dön
+  await kur({ sol: false }); await page.waitForTimeout(150);
+}
+
+// =============================================================================================
 // 4) KOORDİNAT ÇİPİ: hiçbir zaman yarım kalmaz
 // =============================================================================================
 {

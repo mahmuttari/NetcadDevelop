@@ -580,9 +580,47 @@ function drawScaleBar(c, fg) {
   else txt = fmt(len) + (S.units ? ' ' + S.units : '');
   c.font = '11px sans-serif'; c.fillStyle = fg; c.textBaseline = 'bottom'; c.textAlign = 'left'; c.fillText(txt, x0 + 4, y0 - 3);
 }
-function drawNorth(c, fg) {
+/*
+ * KUZEY OKUNUN TARAFI SOL EL DÜZENİNİ İZLER (v8.6).
+ *
+ * Ölçek çubuğu (drawScaleBar) ve 3B pusulası (view3d.drawHud) sol el düzeninde taraf
+ * değiştiriyor, 2B kuzey oku ise sağ üst köşede çakılı kalıyordu: kullanıcı 2B ile 3B arasında
+ * gidip geldiğinde pusula bir sağda bir solda çıkıyordu. Artık ikisi de aynı kuralı kullanır —
+ * ok ekranın DIŞ ÜÇTE BİRİNDE, sol el düzeninde solda durur.
+ *
+ * İki pay eklenir: cetveller açıkken şerit 18 px yer kaplar (üstte y'ye, solda x'e de) ve
+ * komut çubuğu tuvalin üstüne bindiğinde kaplamaPayi().ust kadar aşağı inilir.
+ *
+ * Gezinti sütunu (#navFabs) alttan yukarı büyür; yatay ekranda yedi düğme köşeye dayanabilir.
+ * Seçilen tarafta çakışma varsa ve öbür taraf boşsa ok öbür tarafa geçer — 3B pusulasındaki
+ * aday sırasının 2B karşılığı. İki taraf da doluysa seçilen tarafta kalır (ok her hâlükârda
+ * çizilir; çizilmemesi kullanıcıya kuzeyi kaybettirirdi).
+ */
+function kuzeyYeri() {
   const big = S.ui2d.northBig ? 44 / 28 : 1;
-  c.save(); c.translate(S.W - 26 * big, 30 * big + (S.rulers ? 18 : 0) + kaplamaPayi().ust); c.scale(big, big);
+  const cetvel = S.rulers ? 18 : 0;
+  const r = 18 * big, cy = 30 * big + cetvel + kaplamaPayi().ust;
+  const sol = !!uiPrefs().leftHand;
+  const solX = 26 * big + cetvel, sagX = S.W - 26 * big;
+  const engeller = [];
+  try {
+    const b = vp.getBoundingClientRect();
+    for (const id of ['navFabs', 'dpad']) {
+      const e = $(id); if (!e || e.hidden || !e.offsetParent) continue;
+      const q = e.getBoundingClientRect(); if (!(q.width > 0 && q.height > 0)) continue;
+      engeller.push({ x: q.left - b.left, y: q.top - b.top, w: q.width, h: q.height });
+    }
+  } catch (_) { /* ölçülemedi: engel yok sayılır */ }
+  const pay = 6;
+  const carpisir = (cx) => engeller.some(g => cx + r + pay > g.x && cx - r - pay < g.x + g.w && cy + r + pay > g.y && cy - r - pay < g.y + g.h);
+  let cx = sol ? solX : sagX;
+  const oteki = sol ? sagX : solX;
+  if (carpisir(cx) && !carpisir(oteki)) cx = oteki;
+  return { cx, cy, r, big };
+}
+function drawNorth(c, fg) {
+  const { cx, cy, big } = kuzeyYeri();
+  c.save(); c.translate(cx, cy); c.scale(big, big);
   if (S.geo.swap) c.rotate(-Math.PI / 2);
   c.fillStyle = S.dark ? 'rgba(20,26,34,.7)' : 'rgba(255,255,255,.75)'; c.beginPath(); c.arc(0, 0, 18, 0, TAU); c.fill();
   c.fillStyle = '#ff453a'; c.beginPath(); c.moveTo(0, -14); c.lineTo(5, 2); c.lineTo(0, -1); c.lineTo(-5, 2); c.closePath(); c.fill();
@@ -5466,6 +5504,7 @@ window.dwgApp = { osnap: Osnap, paylasGorunum, gorunumPng, loadCurrent, onFilePi
   __zw: () => (zoomWin ? { iki: !!zoomWin.iki, pending: !!zoomWin.pending, x0: zoomWin.x0, y0: zoomWin.y0, x1: zoomWin.x1, y1: zoomWin.y1 } : null),
   __pdfWin: () => (pdfWin ? pdfWin.slice() : null),
   __kaplamaPayi: () => kaplamaPayi(),   // kaplamanın alt/üst güvenli payı (ölçek çubuğu, kuzey oku, künye)
+  __kuzey: () => kuzeyYeri(),           // 2B kuzey okunun merkezi ve yarıçapı (bkz. tools/test_yerlesim.mjs)
   // Çıktı rengi eşlemesi (bkz. tools/test_pdf_plot.mjs): kullanılan renkler, tablo ve eşlemenin kendisi
   __pdfCtb: (t) => { if (t) Object.assign(pdfAyar.ctb, t); return { tablo: { ...pdfAyar.ctb }, renkler: pdfKullanilanRenkler().map(r => ({ k: r.key, col: r.col, n: r.n })) }; },
   __plotRgb: (col, plan) => plotRgb(col, plan),

@@ -167,6 +167,16 @@ const COS_CREASE = Math.cos(30 * Math.PI / 180);
 /** etkileşim sadeleştirmesi eşikleri: ağ indeksi (üçgen×3), yavaş kare süresi, ardışıklık aralığı, durulma gecikmesi */
 const MESH_PICK_V = 8;   // ağ gövdesi başına yakalama/seçim için örneklenen köşe sayısı
 const FAST_MESH_IDX = 2000000, FAST_FRAME_MS = 45, FAST_GAP_MS = 350, FAST_SETTLE_MS = 220;
+/*
+ * Kenar dizisi boş bir gövdeye tel kafes kenarı ÜRETİLİR (bkz. _telKafesKenar); üçgen sayısı bunu
+ * aşan gövdede üretilmez. Sınır bellek içindir: kenar haritası üçgen başına üç girdi tutar ve
+ * 250 bin üçgende ~750 bin kenar eder. Bu ölçekteki gövdeler zaten kendi kenar listesiyle gelir.
+ */
+const MESH_WIRE_MAX_TRI = 250000;
+/** Üretilen tel kafeste kırışıklık eşiği: scene.meshEdges ile AYNI 20° (COS_CREASE 30°'dir ve
+    yumuşak NORMAL gruplaması içindir; kenar kararı onunla karıştırılmaz). */
+const COS_WIRE = Math.cos(20 * Math.PI / 180);
+const BOS_F32 = new Float32Array(0);
 
 const PRESET_ANGLES = {
   /*
@@ -557,7 +567,9 @@ export class View3D {
       if (p.k === 2) { push(B.pts, p.x, p.y, p.z || 0); vert(p.x, p.y, p.z || 0, p); continue; }
       if (p.k === 1) { push(B.txt, p.x, p.y, p.z || 0); continue; }
       if (p.k === 5) {                                        // ağ ilkeli
-        const V = p.vtx, I = p.idx, S2 = p.seg;
+        const V = p.vtx, I = p.idx;
+        // Kenar listesi boş gelen gövde tel kafeste hiç çizilmezdi: üçgenlerden kenar üretilir
+        const S2 = (p.seg && p.seg.length) ? p.seg : this._telKafesKenar(p);
         if (V && I && I.length >= 3) this.meshPrims.push(p);   // yüzey seçimi kaynağı
         if (useIdx) addMesh(p);                               // paylaşılan köşe + indeks tamponu
         else for (let i = 0; i + 2 < I.length; i += 3) {       // 32 bit indeks yoksa: eski genişletilmiş yol
@@ -660,6 +672,75 @@ export class View3D {
    * yanlışlıkla kapanır ve tek üçgen çizilmez.
    */
   _hasFaces() { return ((this._n.tris | 0) + (this._nIdx.mesh | 0)) > 0; }
+  /*
+   * KENAR LİSTESİ OLMAYAN GÖVDEYE TEL KAFES KENARI ÜRETİR (v8.7).
+   *
+   * Kullanıcının bildirimi: "Tel kafes görünümde çizimin tamamını göstermiyor." Ölçüldü: yüzeyi
+   * (üçgeni) olan ama KENAR DİZİSİ (p.seg) boş bir gövde tel kafes ve 2B tel kafes stillerinde
+   * SIFIR piksel çiziyor, gölgeli stilde tamamen görünüyordu. Sebep yapısal: tel kafes stillerinde
+   * yüzeyler hiç çizilmez (STYLES.wireframe.faces === 'none'), çizilecek kenar da yoksa gövde
+   * ekrandan yok olur. Okuyucu yollarının çoğu kenarı kendisi üretir (scene.meshEdges), ama kenarı
+   * boş gelen ACIS katıları, kenar görünürlüğü tümden sıfır gelen proxy grafikleri ve köşe indeksi
+   * eşleşmeyen ağlar bu listeyi boş bırakabiliyor.
+   *
+   * Kenarlar ÜÇGEN İNDEKSİNDEN kurulur ve scene.meshEdges ile AYNI kural uygulanır: yalnız SINIR
+   * kenarları (tek komşusu olan) ve KIRIŞIKLIK kenarları (komşu yüz normalleri arasındaki açı
+   * 20°'yi aşan) çizilir. Eş düzlemli üçgenleme çaprazları çizilmez; yazılsalardı bir kutu örümcek
+   * ağına dönerdi. Sonuç ilkelde önbelleklenir: sahne her kurulduğunda (katman açıp kapatmada da)
+   * yeniden hesaplanmaz.
+   */
+  _telKafesKenar(p) {
+    if (p._telSeg) return p._telSeg;
+    const V = p.vtx, I = p.idx;
+    if (!V || !I || I.length < 3) return BOS_F32;
+    const nt = (I.length / 3) | 0, nv = (V.length / 3) | 0;
+    if (nv < 3 || nt > MESH_WIRE_MAX_TRI) { p._telSeg = BOS_F32; return BOS_F32; }
+    // üçgen normalleri (birim); dejenere üçgen sıfır normal alır ve kırışıklık kararına girmez
+    const NX = new Float32Array(nt), NY = new Float32Array(nt), NZ = new Float32Array(nt);
+    for (let t = 0; t < nt; t++) {
+      const a = I[t * 3] * 3, b = I[t * 3 + 1] * 3, c = I[t * 3 + 2] * 3;
+      if (a + 2 >= V.length || b + 2 >= V.length || c + 2 >= V.length) continue;
+      const ux = V[b] - V[a], uy = V[b + 1] - V[a + 1], uz = V[b + 2] - V[a + 2];
+      const vx = V[c] - V[a], vy = V[c + 1] - V[a + 1], vz = V[c + 2] - V[a + 2];
+      const x = uy * vz - uz * vy, y = uz * vx - ux * vz, z = ux * vy - uy * vx;
+      const L = Math.hypot(x, y, z);
+      if (L > 0) { NX[t] = x / L; NY[t] = y / L; NZ[t] = z / L; }
+    }
+    // kenar tablosu: anahtar → yuva; yuva verileri yazılı dizilerde (kenar başına nesne bellek yer)
+    const cap = nt * 3;
+    const EA = new Uint32Array(cap), EB = new Uint32Array(cap);
+    const EN = new Float32Array(cap * 3), ECNT = new Uint16Array(cap), ECRE = new Uint8Array(cap);
+    const yuva = new Map();
+    let n = 0;
+    const ekle = (u, v, t) => {
+      if (u === v) return;
+      const lo = u < v ? u : v, hi = u < v ? v : u;
+      const k = lo * nv + hi;
+      let j = yuva.get(k);
+      if (j === undefined) { j = n++; yuva.set(k, j); EA[j] = lo; EB[j] = hi; EN[j * 3] = NX[t]; EN[j * 3 + 1] = NY[t]; EN[j * 3 + 2] = NZ[t]; ECNT[j] = 1; return; }
+      if (ECNT[j] < 0xffff) ECNT[j]++;
+      // sarım yönü ters olabilir: mutlak değere bakılır (scene.meshEdges ile aynı kural)
+      if (!ECRE[j] && Math.abs(EN[j * 3] * NX[t] + EN[j * 3 + 1] * NY[t] + EN[j * 3 + 2] * NZ[t]) < COS_WIRE) ECRE[j] = 1;
+    };
+    for (let t = 0; t < nt; t++) {
+      const A = I[t * 3], B = I[t * 3 + 1], C = I[t * 3 + 2];
+      if (A >= nv || B >= nv || C >= nv) continue;
+      ekle(A, B, t); ekle(B, C, t); ekle(C, A, t);
+    }
+    let m = 0;
+    for (let j = 0; j < n; j++) if (ECNT[j] === 1 || ECRE[j]) m++;
+    const out = new Float32Array(m * 6);
+    let q = 0;
+    for (let j = 0; j < n; j++) {
+      if (!(ECNT[j] === 1 || ECRE[j])) continue;
+      const a = EA[j] * 3, b = EB[j] * 3;
+      out[q] = V[a]; out[q + 1] = V[a + 1]; out[q + 2] = V[a + 2];
+      out[q + 3] = V[b]; out[q + 4] = V[b + 1]; out[q + 5] = V[b + 2];
+      q += 6;
+    }
+    p._telSeg = out;
+    return out;
+  }
   /** etkin stil bayrakları (stil ön ayarı + kullanıcı geçersiz kılmaları) */
   _styleFx() {
     const o = this.opts, st = View3D.STYLES[o.style] || View3D.STYLES.wireframe;
