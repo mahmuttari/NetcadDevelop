@@ -74,6 +74,16 @@ try { await page.click('#tourSkip', { timeout: 2000 }); } catch (_) { /* tur yok
 // --- C) Çizim açıkken ana ekrana geçiş: dosya KAPANMIYOR -------------------------------------
 {
   await openFile(page, path.join(SM, 'example_2000.dwg'), { settle: 200 });
+  /*
+   * KARŞILAMA TURU BURADA KAPATILIR, BAŞTA DEĞİL. Tur ilk BELGE açıldıktan 600 ms sonra çıkar
+   * (editor.js: `if (!ui.hints.tour) setTimeout(showTour, 600)`), yani dosyadan önceki
+   * #tourSkip denemesi hiçbir zaman tutmaz ve "atlandı" işareti de kaydedilmez. Tur o yüzden
+   * bölümün ortasında açılıyor; açılışı ekrandaki bir dokunuşa denk gelirse kendiliğinden
+   * kapanıyor, gelmezse D bölümündeki onBack sözleşmesini yanıltıyordu. Beklenip açıkça
+   * kapatılır: kapanış `ui.hints.tour`u kalıcı olarak işaretler ve tur bir daha çıkmaz.
+   */
+  await page.waitForTimeout(800);
+  try { await page.click('#tourSkip', { timeout: 2000 }); } catch (_) { /* tur çıkmadıysa sorun yok */ }
   const once = await page.evaluate(() => ({
     hasDoc: window.dwgApp.state.hasDoc, ad: window.dwgApp.state.fileName,
     prim: window.dwgApp.state.prims.length, katman: window.dwgApp.state.layers.size,

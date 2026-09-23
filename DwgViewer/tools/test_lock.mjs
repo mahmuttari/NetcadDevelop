@@ -327,11 +327,13 @@ await setEd('free');
   // v7.81: üç boyutlu düzenleme ve yakalama — 3B çizgi, kopyala, döndür, ölçekle, aynala ile
   //        Super 16 → 21; 3B nesne yakalama anahtarı ve kip kutusu (snap3, snap3set) ile 21 → 23;
   //        3B serbest nokta (free3, v7.85) ile 23 → 24 → toplam 108.
+  // v8.6: Kaydet ve Farklı kaydet karoları (DXF yazma yetkisi DXF kaydet ile aynı katmandadır)
+  //        Premium 84 → 86 → toplam 110.
   // Kalem TANIMA ve AVUÇ REDDİ ücretsizdir, bu yüzden sayaca girmez.)
   const cum = (x) => ['adfree', 'premium', 'super'].slice(0, ['adfree', 'premium', 'super'].indexOf(x) + 1).reduce((a, y) => a + (r.lists[y] || 0), 0);
   const same = ['premium', 'super'].every(x => r.counts[x] === cum(x));
-  ok('14 kart sayacı dökümdeki grupların toplamıyla birebir aynı (Premium 84, Super 84+24=108); Ad-Free\'de sayaç yok',
-    r.title && same && r.total === r.cap && r.counts.adfree === 0 && r.total === 108, JSON.stringify({ ...r, cumPremium: cum('premium'), cumSuper: cum('super') }));
+  ok('14 kart sayacı dökümdeki grupların toplamıyla birebir aynı (Premium 86, Super 86+24=110); Ad-Free\'de sayaç yok',
+    r.title && same && r.total === r.cap && r.counts.adfree === 0 && r.total === 110, JSON.stringify({ ...r, cumPremium: cum('premium'), cumSuper: cum('super') }));
   await page.screenshot({ path: `${out}/lock_panel.png` });
 
   /*
