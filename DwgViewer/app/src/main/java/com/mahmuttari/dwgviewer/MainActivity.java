@@ -206,15 +206,27 @@ public class MainActivity extends androidx.activity.ComponentActivity {
         setContentView(webView);
         /*
          * Kenardan kenara (edge-to-edge): targetSdk 35+ ile Android 15 ve üstü içeriği durum ve gezinti
-         * çubuklarının ALTINA uzatır ve statusBarColor/navigationBarColor yok sayılır. WebView'e sistem
-         * çubukları, ekran çentiği ve klavye kadar iç kenar boşluğu verilir; boşlukta pencere arka planı
-         * (status_bar rengi) görünür, HTML araç çubuğu çubukların altında kalmaz. Klavye açılınca alt boşluk
-         * klavye kadar büyür (adjustResize kenardan kenara kipte etkisizdir).
+         * çubuklarının ALTINA uzatır ve statusBarColor/navigationBarColor yok sayılır. app.css zaten
+         * viewport-fit=cover + env(safe-area-inset-*) ile #topbar/#statusbar/panel/menü kenar boşluklarını
+         * bu değişkenlerden okuyor (--safe-top/--safe-bottom/--safe-left/--safe-right, bkz. app.css:8).
+         * WebView'in KENDİ env() hesabı cihaza göre güvenilmez olabildiğinden, burada native'den okunan
+         * gerçek değerler aynı CSS değişkenlerinin üstüne satır içi stille YAZILIR (satır içi > sayfa stili,
+         * env() hiç çalışmasa da doğru değer kazanır). v.setPadding KULLANILMAZ: WebView'e ayrıca native
+         * padding vermek #topbar'ın kendi --safe-top dolgusunun üstüne BİNER ve araç çubuğu ile altındaki
+         * içerik (ör. 3B HUD satırı) çakışır — bu değişiklikten önceki sürümde görülen hata buydu.
+         * Klavye açılınca --safe-bottom klavye yüksekliği kadar büyür (adjustResize kenardan kenara kipte
+         * etkisizdir); #statusbar ve panel.bottom zaten bu değişkeni okuduğundan grid kendiliğinden daralır.
          */
         androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(webView, (v, insets) -> {
             androidx.core.graphics.Insets sb = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars() | androidx.core.view.WindowInsetsCompat.Type.displayCutout());
             androidx.core.graphics.Insets ime = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.ime());
-            v.setPadding(sb.left, sb.top, sb.right, Math.max(sb.bottom, ime.bottom));
+            float d = getResources().getDisplayMetrics().density;
+            if (d <= 0) d = 1f;
+            String js = String.format(Locale.US,
+                "(function(s){s.setProperty('--safe-top','%.2fpx');s.setProperty('--safe-bottom','%.2fpx');" +
+                "s.setProperty('--safe-left','%.2fpx');s.setProperty('--safe-right','%.2fpx');})(document.documentElement.style)",
+                sb.top / d, Math.max(sb.bottom, ime.bottom) / d, sb.left / d, sb.right / d);
+            jsWhenReady(js);
             return androidx.core.view.WindowInsetsCompat.CONSUMED;
         });
 
