@@ -129,7 +129,7 @@ body.compact-status #stCount { display: none; }
 .home { position: absolute; inset: 0; z-index: 9; display: flex; flex-direction: column; background: var(--bg); color: var(--fg); }
 /* Ana ekranın üst şeridi: her ekranda geri ve ana sayfa düğmesi bulunsun diye eklendi.
    Boşken (iki düğme de gizliyken) yer kaplamaz — Ev sekmesinde marka bloğu yukarıda kalır. */
-.home-top { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; padding: calc(4px + var(--safe-top)) calc(10px + var(--safe-right)) 0 calc(10px + var(--safe-left)); min-height: 0; }
+.home-top { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; padding: calc(4px + var(--safe-top)) calc(10px + var(--safe-right)) 0 calc(10px + var(--safe-left)); min-height: 0; touch-action: none; }
 .home-top:not(:has(.btn:not([hidden]))) { padding-top: var(--safe-top); }
 .home-top-title { color: var(--muted); font-size: calc(13px * var(--fs)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .home-top + .home-pages { padding-top: 6px; }
@@ -148,7 +148,12 @@ body.compact-status #stCount { display: none; }
 .home-resume .hr-tx { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
 .home-resume .hr-tx strong { font-size: calc(13px * var(--fs)); }
 .home-resume .hr-tx small { color: var(--muted); font-size: calc(12px * var(--fs)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.home-pages { flex: 1 1 auto; min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch; padding: calc(8px + var(--safe-top)) calc(12px + var(--safe-right)) 16px calc(12px + var(--safe-left)); }
+/* Yalnız düşey kaydırma: overflow:auto her iki eksende de sürüklemeye izin veriyordu, dosya
+   açılmadan önce ana ekranda sağa/sola çekiştirmede yatay lastik-bant (rubber-band) sıçraması
+   oluyordu — touch-action:pan-y jestin kendisini düşeye kilitler, overscroll-behavior:contain
+   sınıra dayanınca zıplamayı keser. İçindeki .samples/.recent ızgara (grid) olduğu için (bkz.
+   satır 137, 245) yatay kaydırılacak bir alt öğe yok; kısıtlama hiçbir işlevi kesmez. */
+.home-pages { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; touch-action: pan-y; -webkit-overflow-scrolling: touch; padding: calc(8px + var(--safe-top)) calc(12px + var(--safe-right)) 16px calc(12px + var(--safe-left)); }
 .home-page { max-width: 640px; margin: 0 auto; }
 .home-brand { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 0 4px; }
 .home-brand h1 { font-size: calc(20px * var(--fs)); margin: 0; }
@@ -249,7 +254,7 @@ body[data-theme="light"] .tier-buy .btn.primary .save, body[data-theme="sepia"] 
 .recent .nm { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(12.5px * var(--fs)); }
 .recent .meta { font-size: calc(10.5px * var(--fs)); color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
 /* alt gezinme */
-.home-nav { flex: 0 0 auto; display: flex; border-top: 1px solid var(--line); background: var(--bar); padding: 2px 0 var(--safe-bottom); }
+.home-nav { flex: 0 0 auto; display: flex; border-top: 1px solid var(--line); background: var(--bar); padding: 2px 0 var(--safe-bottom); touch-action: none; }
 .home-nav button { flex: 1 1 0; min-height: 56px; border: 0; background: transparent; color: var(--muted); display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: calc(11px * var(--fs)); font-weight: 600; padding: 4px 2px; }
 .home-nav button svg.ic { width: 26px; height: 26px; }
 .home-nav button.on { color: var(--accent); }
