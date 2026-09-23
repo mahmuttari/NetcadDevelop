@@ -32,7 +32,7 @@ function lenPt(v) {
  * sık ürettiği birkaç ad. Ad çözülemeyince kaynak belgeden gelen vurgu kayıtta sessizce
  * düşüyordu; artık RRGGBB'ye çevrilip w:shd olarak geri yazılır.
  */
-const RENK_ADI = { yellow: 'FFFF00', green: '00FF00', cyan: '00FFFF', aqua: '00FFFF', magenta: 'FF00FF', fuchsia: 'FF00FF',
+const RENK_ADI = { yellow: 'FFFF00', green: '008000', cyan: '00FFFF', aqua: '00FFFF', magenta: 'FF00FF', fuchsia: 'FF00FF',
   blue: '0000FF', red: 'FF0000', darkblue: '00008B', navy: '000080', darkcyan: '008B8B', teal: '008080',
   darkgreen: '006400', darkmagenta: '8B008B', purple: '800080', darkred: '8B0000', maroon: '800000',
   darkyellow: '808000', olive: '808000', gray: '808080', grey: '808080', darkgray: 'A9A9A9', darkgrey: 'A9A9A9',
@@ -232,19 +232,22 @@ function paraXml(el, ctx, style, extra) {
  * numId 1 madde imi (•), 2 numaralı; iç içe listelerde düzey (ilvl) 0-2 arasında derinlikten gelir.
  * LI içindeki alt liste HTML'de iki biçimde gelir (li > ul ya da ul > ul); ikisi de gezilir.
  */
-function listXml(el, ctx, lvl) {
-  const numId = el.tagName === 'OL' ? 2 : 1;
+function listXml(el, ctx, lvl, ustNumId) {
+  // Her OL kendi numId'sini alır (numbering.xml'de startOverride ile): tek ortak numId
+  // kullanılsaydı belgedeki İKİNCİ numaralı liste 1'den değil ilkinin kaldığı yerden sayardı.
+  // Aynı listenin alt düzeyleri (li > ol) ise ÜSTÜN numId'sini sürdürür.
+  const numId = el.tagName === 'OL' ? (ustNumId || (ctx.yeniOl ? ctx.yeniOl() : 2)) : 1;
   let x = '';
   for (const ch of el.children) {
-    if (ch.tagName === 'UL' || ch.tagName === 'OL') { x += listXml(ch, ctx, Math.min(2, lvl + 1)); continue; }
+    if (ch.tagName === 'UL' || ch.tagName === 'OL') { x += listXml(ch, ctx, Math.min(2, lvl + 1), ch.tagName === el.tagName ? numId : 0); continue; }
     if (ch.tagName !== 'LI') continue;
-    const ic = [...ch.children].filter(c => c.tagName === 'UL' || c.tagName === 'OL');
+    const ic = [...ch.children].filter(c => c.tagName === 'UL' || c.tagName === 'OL' || c.tagName === 'TABLE');
     if (ic.length) {
-      // maddenin kendi metni (alt liste düğümleri sayılmadan) + altındaki listeler
+      // maddenin kendi metni (alt liste/tablo düğümleri sayılmadan) + altındaki bloklar sırayla
       const kopya = ch.cloneNode(true);
-      for (const k of [...kopya.children]) if (k.tagName === 'UL' || k.tagName === 'OL') kopya.removeChild(k);
+      for (const k of [...kopya.children]) if (k.tagName === 'UL' || k.tagName === 'OL' || k.tagName === 'TABLE') kopya.removeChild(k);
       x += paraXml(kopya, ctx, 'ListParagraph', `<w:numPr><w:ilvl w:val="${lvl}"/><w:numId w:val="${numId}"/></w:numPr>`);
-      for (const alt of ic) x += listXml(alt, ctx, Math.min(2, lvl + 1));
+      for (const alt of ic) x += alt.tagName === 'TABLE' ? tableXml(alt, ctx) : listXml(alt, ctx, Math.min(2, lvl + 1), alt.tagName === el.tagName ? numId : 0);
     } else {
       x += paraXml(ch, ctx, 'ListParagraph', `<w:numPr><w:ilvl w:val="${lvl}"/><w:numId w:val="${numId}"/></w:numPr>`);
     }
@@ -276,29 +279,43 @@ function tableXml(tbl, ctx) {
   }
   return x + '</w:tbl>';
 }
+/** Tek bir blok öğesini OOXML'e çevirir (blocksXml'in öğe başına gövdesi) */
+function blokXml(el, ctx) {
+  const tag = el.tagName;
+  if (tag === 'TABLE') return tableXml(el, ctx);
+  if (el.classList && el.classList.contains('pagebreak')) return '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
+  if (tag === 'UL' || tag === 'OL') return listXml(el, ctx, 0);
+  if ([...el.children].some(c => c.tagName === 'UL' || c.tagName === 'OL')) {
+    /*
+     * execCommand listeyi paragrafın İÇİNE koyabilir (<p>önce<ul>…</ul>sonra</p>). Çocuklar
+     * SIRAYLA gezilir: liste ve blok çocuklar kendi türlerinde, aralarda kalan satır içi
+     * içerik kendi paragrafında yazılır — sıra bozulmaz, iç bloklar (tablo, başlık, paragraf)
+     * tek paragrafa çökmez (inceleme bulgusu: eski hâli listeden sonraki metni öne alıyordu).
+     */
+    let x = '', bekleyen = null;
+    const stil = /^H[1-6]$/.test(tag) ? 'Heading' + tag[1] : null;
+    const bosalt = () => {
+      if (bekleyen && (bekleyen.textContent.trim() || bekleyen.querySelector('img'))) x += paraXml(bekleyen, ctx, stil);
+      bekleyen = null;
+    };
+    for (const n of [...el.childNodes]) {
+      if (n.nodeType === 1 && (n.tagName === 'UL' || n.tagName === 'OL')) { bosalt(); x += listXml(n, ctx, 0); continue; }
+      if (n.nodeType === 1 && BLOCK.has(n.tagName)) { bosalt(); x += blokXml(n, ctx); continue; }
+      if (!bekleyen) bekleyen = el.cloneNode(false);
+      bekleyen.appendChild(n.cloneNode(true));
+    }
+    bosalt();
+    return x;
+  }
+  if (/^H[1-6]$/.test(tag)) return paraXml(el, ctx, 'Heading' + tag[1]);
+  if (tag === 'DIV' && el.children.length && [...el.children].some(c => BLOCK.has(c.tagName))) return blocksXml(el, ctx);
+  if (tag === 'BR') return '<w:p/>';
+  return paraXml(el, ctx, null);
+}
 /** Bir kapsayıcının blok çocuklarını OOXML'e çevirir */
 function blocksXml(root, ctx) {
   let x = '';
-  for (const el of root.children) {
-    const tag = el.tagName;
-    if (tag === 'TABLE') { x += tableXml(el, ctx); continue; }
-    if (el.classList && el.classList.contains('pagebreak')) { x += '<w:p><w:r><w:br w:type="page"/></w:r></w:p>'; continue; }
-    if (tag === 'UL' || tag === 'OL') { x += listXml(el, ctx, 0); continue; }
-    if (el.querySelector && el.querySelector('ul, ol')) {
-      // execCommand listeyi paragrafın İÇİNE koyabilir (<p><ul>…</ul></p>). Liste dışı kalan satır içi
-      // içerik kendi paragrafı olarak, içteki listeler gerçek Word listesi (numPr) olarak yazılır.
-      const kopya = el.cloneNode(true);
-      for (const l of [...kopya.querySelectorAll('ul, ol')]) l.remove();
-      if (kopya.textContent.trim() || kopya.querySelector('img')) x += paraXml(kopya, ctx, /^H[1-6]$/.test(tag) ? 'Heading' + tag[1] : null);
-      const disKatman = (l) => { let a = l.parentElement; while (a && a !== el) { if (a.tagName === 'UL' || a.tagName === 'OL' || a.tagName === 'LI') return false; a = a.parentElement; } return true; };
-      for (const l of [...el.querySelectorAll('ul, ol')].filter(disKatman)) x += listXml(l, ctx, 0);
-      continue;
-    }
-    if (/^H[1-6]$/.test(tag)) { x += paraXml(el, ctx, 'Heading' + tag[1]); continue; }
-    if (tag === 'DIV' && el.children.length && [...el.children].some(c => BLOCK.has(c.tagName))) { x += blocksXml(el, ctx); continue; }
-    if (tag === 'BR') { x += '<w:p/>'; continue; }
-    x += paraXml(el, ctx, null);
-  }
+  for (const el of root.children) x += blokXml(el, ctx);
   // kapsayıcının doğrudan altındaki çıplak metin (contenteditable bazen üretir)
   const bare = [...root.childNodes].filter(n => n.nodeType === 3 && n.nodeValue.trim()).map(n => n.nodeValue.trim());
   for (const s of bare) x += `<w:p>${textRun({}, s)}</w:p>`;
@@ -322,11 +339,22 @@ const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
  * paket listesi böylece belgeden belgeye değişmez (sınamalar tam eşitlikle bakar).
  */
 const NUM_LVL = (i, fmt, txt, font) => `<w:lvl w:ilvl="${i}"><w:start w:val="1"/><w:numFmt w:val="${fmt}"/><w:lvlText w:val="${txt}"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="${720 * (i + 1)}" w:hanging="360"/></w:pPr>${font ? `<w:rPr><w:rFonts w:ascii="${font}" w:hAnsi="${font}" w:hint="default"/></w:rPr>` : ''}</w:lvl>`;
-const NUMBERING = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+const NUM_GOVDE = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">`
   + `<w:abstractNum w:abstractNumId="0">${NUM_LVL(0, 'bullet', '&#8226;')}${NUM_LVL(1, 'bullet', 'o', 'Courier New')}${NUM_LVL(2, 'bullet', '&#9642;')}</w:abstractNum>`
-  + `<w:abstractNum w:abstractNumId="1">${NUM_LVL(0, 'decimal', '%1.')}${NUM_LVL(1, 'lowerLetter', '%2.')}${NUM_LVL(2, 'lowerRoman', '%3.')}</w:abstractNum>`
-  + `<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num><w:num w:numId="2"><w:abstractNumId w:val="1"/></w:num></w:numbering>`;
+  + `<w:abstractNum w:abstractNumId="1">${NUM_LVL(0, 'decimal', '%1.')}${NUM_LVL(1, 'lowerLetter', '%2.')}${NUM_LVL(2, 'lowerRoman', '%3.')}</w:abstractNum>`;
+/*
+ * numbering.xml belgedeki OL sayısına göre kurulur: her numaralı liste kendi numId'sini ve
+ * startOverride'ını alır, böylece Word'de 1'den başlar. OL yoksa yine numId 2 yazılır —
+ * paket listesi ve en küçük içerik belgeden belgeye değişmesin (sınamalar tam eşitlikle bakar).
+ */
+function numberingXml(olIds) {
+  const liste = olIds && olIds.length ? olIds : [2];
+  return NUM_GOVDE
+    + `<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>`
+    + liste.map(id => `<w:num w:numId="${id}"><w:abstractNumId w:val="1"/>${[0, 1, 2].map(l => `<w:lvlOverride w:ilvl="${l}"><w:startOverride w:val="1"/></w:lvlOverride>`).join('')}</w:num>`).join('')
+    + `</w:numbering>`;
+}
 
 /**
  * Düzenlenmiş kapsayıcıyı DOCX paketine çevirir.
@@ -335,8 +363,10 @@ const NUMBERING = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 export async function htmlToDocx(root, page) {
   const media = [], links = new Map();
   let relN = 1, idN = 1;
+  const olIds = [];
   const ctx = {
     nextId: () => ++idN,
+    yeniOl: () => { const id = olIds.length + 2; olIds.push(id); return id; },
     rel: (url) => { if (links.has(url)) return links.get(url); const id = 'rId' + (++relN + 10); links.set(url, id); return id; },
     media: (bytes, ext) => { const n = media.length + 1, name = `image${n}.${ext}`, id = 'rId' + (++relN + 10); media.push({ name, bytes, id }); return { rid: id, name }; },
   };
@@ -359,7 +389,7 @@ export async function htmlToDocx(root, page) {
     { name: 'word/document.xml', data: enc.encode(doc) },
     { name: 'word/_rels/document.xml.rels', data: enc.encode(docRels) },
     { name: 'word/styles.xml', data: enc.encode(STYLES) },
-    { name: 'word/numbering.xml', data: enc.encode(NUMBERING) },
+    { name: 'word/numbering.xml', data: enc.encode(numberingXml(olIds)) },
     ...media.map(im => ({ name: 'word/media/' + im.name, data: im.bytes })),
   ];
   return zipWrite(entries);

@@ -119,6 +119,9 @@ const hucreYaz = (r, c, v) => ev(([r2, c2, v2]) => {
 const hucreOku = (r, c) => ev(([r2, c2]) => document.querySelector(`#docContent .grid-ed td[data-r="${r2}"][data-c="${c2}"]`).textContent, [r, c]);
 await hucreYaz(1, 2, '=A2*2');
 ok('e1 formül girildi ve hesaplandı (=A2*2 → 50010)', await hucreOku(1, 2) === '50010', await hucreOku(1, 2));
+// Türkçe Excel'in ';' argüman ayracı: normalize edilmezse ikinci argüman SESSİZCE düşerdi
+await hucreYaz(1, 3, '=SUM(A2;A2)');
+ok('e1b Türkçe ; ayracı , olarak işleniyor (=SUM(A2;A2) → 50010)', await hucreOku(1, 3) === '50010', await hucreOku(1, 3));
 // otomatik toplam: A3 boş, üstünde A2=25005 var → SUM(A2:A2)
 await ev(() => document.querySelector('#docContent .grid-ed td[data-r="2"][data-c="0"]').focus());
 await page.click('#docTools [data-pe="autosum"]');

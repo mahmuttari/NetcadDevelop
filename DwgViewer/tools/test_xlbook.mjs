@@ -286,5 +286,38 @@ function oleYaz(akisAdi, veri) {
 }
 
 // ---------------------------------------------------------------------------------
+// 8. yapisalKaydir (v8.8): satır/sütun ekleme-silmede formül başvurularının Excel kuralıyla kayması
+//    Aralıklar BİRİM olarak işlenir: sayfa önekli aralığın iki ucu da dokunulmaz, tamamı silinen
+//    aralık ters aralığa kırpılmak yerine #REF! olur; tam sütun (B:B) ve tam satır (1:1)
+//    başvuruları da kendi ekseninde kayar (inceleme bulguları).
+// ---------------------------------------------------------------------------------
+{
+  const T = [
+    ['A1+B2', 'satir', 0, 1, 'A2+B3'], ['SUM(A1:A5)', 'satir', 2, 1, 'SUM(A1:A6)'],
+    ['SUM(A2:A5)', 'satir', 0, 1, 'SUM(A3:A6)'], ['SUM(A1:A5)', 'satir', 2, -1, 'SUM(A1:A4)'],
+    ['A3*2', 'satir', 2, -1, '#REF!*2'], ['$B$3', 'satir', 1, 1, '$B$4'],
+    ['C1+D1', 'sutun', 2, 1, 'D1+E1'], ['SUM(B1:D1)', 'sutun', 2, -1, 'SUM(B1:C1)'],
+    ['Sayfa2!A1+B1', 'satir', 0, 1, 'Sayfa2!A1+B2'], ['"A1 sabit"&A1', 'satir', 0, 1, '"A1 sabit"&A2'],
+    ['LOG10(A1)', 'satir', 0, 1, 'LOG10(A2)'], ['#REF!+A2', 'satir', 0, 1, '#REF!+A3'],
+    ['SUM(B:B)', 'sutun', 1, 1, 'SUM(C:C)'], ['SUM(B:B)', 'sutun', 0, 1, 'SUM(C:C)'],
+    ['SUM(B:B)', 'sutun', 2, 1, 'SUM(B:B)'], ['SUM(B:B)', 'sutun', 1, -1, 'SUM(#REF!)'],
+    ['SUM(B:D)', 'sutun', 2, -1, 'SUM(B:C)'], ['SUM(B:B)', 'satir', 0, 1, 'SUM(B:B)'],
+    ['SUM(1:1)', 'satir', 0, 1, 'SUM(2:2)'], ['SUM(2:5)', 'satir', 2, -1, 'SUM(2:4)'],
+    ['SUM(3:3)', 'satir', 2, -1, 'SUM(#REF!)'], ['SUM(1:1)', 'sutun', 0, 1, 'SUM(1:1)'],
+    ['SUM(B2:B2)', 'satir', 1, -1, 'SUM(#REF!)'], ['SUM(B2:C2)', 'sutun', 1, -1, 'SUM(B2:B2)'],
+    ['SUM(Sayfa2!A1:B5)', 'satir', 0, 1, 'SUM(Sayfa2!A1:B5)'],
+    ["SUM('Veri 26'!A1:B5)", 'satir', 0, 1, "SUM('Veri 26'!A1:B5)"],
+  ];
+  let kalanlar = [];
+  for (const [f, e, i, d, want] of T) { const got = XB.yapisalKaydir(f, e, i, d); if (got !== want) kalanlar.push(f + '→' + got + '≠' + want); }
+  ok('8a yapisalKaydir ' + T.length + ' durum (hücre, aralık, tam sütun/satır, sayfa öneki, #REF!)', kalanlar.length === 0, kalanlar.join(' | '));
+  ok('8b tanımlı ad çözümü (adDegeri): aralık ve düz değer', (() => {
+    const adlar = new Map([['VERGI', '0,2'.replace(',', '.')], ['VERI', "'Veri 26'!$A$1:$B$4"]]);
+    const a = XB.adDegeri(adlar, 'vergi', 'Sayfa1'), b = XB.adDegeri(adlar, 'Veri', 'Sayfa1');
+    return a === 0.2 && b && b.sayfa === 'Veri 26' && b.r1 === 0 && b.c2 === 1 && b.r2 === 3 && XB.adDegeri(adlar, 'yok', 'S') === undefined;
+  })());
+}
+
+// ---------------------------------------------------------------------------------
 console.log(`\nSONUÇ: ${g} geçti, ${k} kaldı`);
 process.exit(k ? 1 : 0);

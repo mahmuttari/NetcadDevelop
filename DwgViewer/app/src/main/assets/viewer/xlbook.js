@@ -170,36 +170,99 @@ export function yapisalKaydir(src, eksen, indeks, delta) {
   if (!src || !delta) return src || '';
   const satirMi = eksen === 'satir';
   const s = String(src); let out = '';
+  const sinir = satirMi ? 1048575 : 16383;
+  const bant = (k) => delta < 0 && k >= indeks && k < indeks - delta;
+  // Tek koordinatı kaydırır. uc: null = tek başvuru, 'sol'/'sag' = aralık ucu. null dönerse #REF!.
+  // Silinen banda düşen aralık ucu bandın kenarına kırpılır (Excel kuralı); tek başvuru #REF! olur.
+  const kaydir = (k, uc) => {
+    if (bant(k)) {
+      if (!uc) return null;
+      const y = uc === 'sag' ? indeks - 1 : indeks;
+      return y < 0 ? null : y;
+    }
+    const y = k >= indeks ? k + delta : k;
+    return y > sinir ? null : y;
+  };
   for (let i = 0; i < s.length;) {
     const ch = s[i];
     if (ch === '"') { const j = s.indexOf('"', i + 1); const son = j < 0 ? s.length : j + 1; out += s.slice(i, son); i = son; continue; }
     if (ch === "'") { const j = s.indexOf("'", i + 1); const son = j < 0 ? s.length : j + 1; out += s.slice(i, son); i = son; continue; }
     if (ch === '#') { const m = /^#[A-Za-z0-9_/!?]+/.exec(s.slice(i)); if (m) { out += m[0]; i += m[0].length; continue; } }
-    const m = /^(\$?)([A-Za-z]{1,3})(\$?)(\d{1,7})(?![\w.(])/.exec(s.slice(i));
-    if (m) {
-      const onceki = i ? s[i - 1] : '';
-      // '!' öncesi: başka sayfanın adresi — dokunulmaz (tırnaklı sayfa adları yukarıda atlandı)
-      if (!/[A-Za-z0-9_.]/.test(onceki) && onceki !== '!') {
-        const c = sutunNo(m[2]), r = +m[4] - 1;
-        let k = satirMi ? r : c;                       // kaydırılacak eksen koordinatı
-        const aralikUcu = onceki === ':' || s[i + m[0].length] === ':';
-        if (delta < 0 && k >= indeks && k < indeks - delta) {
-          if (!aralikUcu) { out += '#REF!'; i += m[0].length; continue; }
-          k = onceki === ':' ? indeks - 1 : indeks;    // aralığın ucu: kırp (sol uç ileri, sağ uç geri değil — silinenin kenarına)
-          if (k < 0) { out += '#REF!'; i += m[0].length; continue; }
-        } else if (k >= indeks) k += delta;
-        const yr = satirMi ? k : r, yc = satirMi ? c : k;
-        out += (yc < 0 || yr < 0 || yc > 16383 || yr > 1048575)
-          ? '#REF!'
-          : m[1] + sutunAd(yc) + m[3] + (yr + 1);
+    const onceki = i ? s[i - 1] : '';
+    if (!/[A-Za-z0-9_.]/.test(onceki)) {
+      const kalan = s.slice(i);
+      const gec = (m) => { out += m[0]; i += m[0].length; };
+      const ref = (m) => { out += '#REF!'; i += m[0].length; };
+      // 1) hücre aralığı A1:B2 — BİRİM olarak: sayfa önekliyse tamamı atlanır,
+      //    tamamı silinen banttaysa #REF! (uçları ayrı kırpmak ters aralık üretirdi)
+      let m = /^(\$?)([A-Za-z]{1,3})(\$?)(\d{1,7}):(\$?)([A-Za-z]{1,3})(\$?)(\d{1,7})(?![\w.(])/.exec(kalan);
+      if (m) {
+        if (onceki === '!') { gec(m); continue; }
+        const c1 = sutunNo(m[2]), r1 = +m[4] - 1, c2 = sutunNo(m[6]), r2 = +m[8] - 1;
+        const a = satirMi ? r1 : c1, b = satirMi ? r2 : c2;
+        if (bant(a) && bant(b)) { ref(m); continue; }
+        const k1 = kaydir(a, 'sol'), k2 = kaydir(b, 'sag');
+        if (k1 == null || k2 == null) { ref(m); continue; }
+        const yaz = (k, c, r, pc, pr) => pc + sutunAd(satirMi ? c : k) + pr + ((satirMi ? k : r) + 1);
+        out += yaz(k1, c1, r1, m[1], m[3]) + ':' + yaz(k2, c2, r2, m[5], m[7]);
         i += m[0].length; continue;
       }
-      // sayfa adresi (Sayfa2!A1): olduğu gibi geç
-      out += m[0]; i += m[0].length; continue;
+      // 2) tam sütun aralığı B:B / $A:C — yalnız sütun işlemlerinde kayar
+      m = /^(\$?)([A-Za-z]{1,3}):(\$?)([A-Za-z]{1,3})(?![\w.(:])/.exec(kalan);
+      if (m) {
+        if (onceki === '!' || satirMi) { gec(m); continue; }
+        const a = sutunNo(m[2]), b = sutunNo(m[4]);
+        if (bant(a) && bant(b)) { ref(m); continue; }
+        const k1 = kaydir(a, 'sol'), k2 = kaydir(b, 'sag');
+        if (k1 == null || k2 == null) { ref(m); continue; }
+        out += m[1] + sutunAd(k1) + ':' + m[3] + sutunAd(k2);
+        i += m[0].length; continue;
+      }
+      // 3) tam satır aralığı 1:1 / $2:5 — yalnız satır işlemlerinde kayar
+      //    (tırnak dışında iki nokta yalnız aralıkta geçer; sayı sabitiyle karışmaz)
+      m = /^(\$?)(\d{1,7}):(\$?)(\d{1,7})(?![\w.(:])/.exec(kalan);
+      if (m) {
+        if (onceki === '!' || !satirMi) { gec(m); continue; }
+        const a = +m[2] - 1, b = +m[4] - 1;
+        if (bant(a) && bant(b)) { ref(m); continue; }
+        const k1 = kaydir(a, 'sol'), k2 = kaydir(b, 'sag');
+        if (k1 == null || k2 == null) { ref(m); continue; }
+        out += m[1] + (k1 + 1) + ':' + m[3] + (k2 + 1);
+        i += m[0].length; continue;
+      }
+      // 4) tek hücre A1
+      m = /^(\$?)([A-Za-z]{1,3})(\$?)(\d{1,7})(?![\w.(])/.exec(kalan);
+      if (m) {
+        if (onceki === '!') { gec(m); continue; }
+        const c = sutunNo(m[2]), r = +m[4] - 1;
+        const k = kaydir(satirMi ? r : c, null);
+        if (k == null) { ref(m); continue; }
+        out += m[1] + sutunAd(satirMi ? c : k) + m[3] + ((satirMi ? k : r) + 1);
+        i += m[0].length; continue;
+      }
     }
     out += ch; i++;
   }
   return out;
+}
+
+
+/**
+ * Tanımlı ad → başvuru nesnesi (xlfn'in beklediği {sayfa,r1,c1,r2,c2}) ya da düz değer.
+ * Hem hazirla() içindeki hesap hem ızgara düzenleyicinin ctx.ad'ı buradan geçer — tek çözümleyici.
+ */
+export function adDegeri(adlar, isim, varsayilanSayfa) {
+  const ham = adlar ? adlar.get(String(isim).toUpperCase()) : null;
+  if (ham == null) return undefined;
+  const m = /^(?:'([^']+)'|([A-Za-z0-9_ ]+))?!?\$?([A-Za-z]{1,3})\$?(\d+)(?::\$?([A-Za-z]{1,3})\$?(\d+))?$/.exec(String(ham).replace(/^=/, ''));
+  if (m && (m[3] || m[5])) {
+    const sh = m[1] || m[2] || varsayilanSayfa;
+    const r1 = +m[4] - 1, c1 = sutunNo(m[3]);
+    const r2 = m[6] ? +m[6] - 1 : r1, c2 = m[5] ? sutunNo(m[5]) : c1;
+    return { sayfa: sh, r1: Math.min(r1, r2), c1: Math.min(c1, c2), r2: Math.max(r1, r2), c2: Math.max(c1, c2) };
+  }
+  const n = Number(ham);
+  return isFinite(n) && String(ham).trim() !== '' ? n : String(ham);
 }
 
 // ---------------------------------------------------------------------------------
@@ -662,20 +725,7 @@ export function hazirla(kitap, opts = {}) {
       simdi, rastgele,
     };
   }
-  /** Tanımlı ad → başvuru nesnesi (xlfn'in beklediği şekil) ya da değer */
-  function adCoz(isim, varsayilanSayfa) {
-    const ham = kitap.adlar.get(String(isim).toUpperCase());
-    if (ham == null) return undefined;
-    const m = /^(?:'([^']+)'|([A-Za-z0-9_ ]+))?!?\$?([A-Za-z]{1,3})\$?(\d+)(?::\$?([A-Za-z]{1,3})\$?(\d+))?$/.exec(String(ham).replace(/^=/, ''));
-    if (m && (m[3] || m[5])) {
-      const sh = m[1] || m[2] || varsayilanSayfa;
-      const r1 = +m[4] - 1, c1 = sutunNo(m[3]);
-      const r2 = m[6] ? +m[6] - 1 : r1, c2 = m[5] ? sutunNo(m[5]) : c1;
-      return { sayfa: sh, r1: Math.min(r1, r2), c1: Math.min(c1, c2), r2: Math.max(r1, r2), c2: Math.max(c1, c2) };
-    }
-    const n = Number(ham);
-    return isFinite(n) && String(ham).trim() !== '' ? n : String(ham);
-  }
+  const adCoz = (isim, varsayilanSayfa) => adDegeri(kitap.adlar, isim, varsayilanSayfa);
 
   /*
    * Sayfa GEREKTİĞİNDE hesaplanır. Bir çalışma kitabında yirmi sayfa olabilir; kullanıcı
@@ -724,9 +774,18 @@ export function hazirla(kitap, opts = {}) {
         }
         return out;
       },
+      /** Sayı biçimi katmanı (v8.8): hücrenin biçim kodu ("dd.mm.yyyy" gibi) — kayıtta korunur */
+      get bicimler() {
+        const out = [];
+        for (let r = 0; r < s.satir; r++) {
+          const sat = s.h[r] || []; let row = null;
+          for (let c = 0; c < s.sutun; c++) { const h = sat[c]; if (h && h.b) { if (!row) { row = []; out[r] = row; } row[c] = h.b; } }
+        }
+        return out;
+      },
     };
   });
-  return { bicim: kitap.bicim, sayfalar, uyarilar: uyari, tarih1904: kitap.tarih1904 };
+  return { bicim: kitap.bicim, sayfalar, uyarilar: uyari, tarih1904: kitap.tarih1904, adlar: kitap.adlar };
 }
 /** Şimdiki zamanın Excel seri sayısı (yerel saat; NOW / TODAY buradan besleniyor) */
 export function anlikSeri(tarih1904 = false) {

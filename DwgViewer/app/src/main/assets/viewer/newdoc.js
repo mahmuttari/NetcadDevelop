@@ -60,10 +60,14 @@ export function xlsxXml(rows, o = {}) {
    */
   const stil = typeof o.stil === 'function' ? o.stil : null;
   const sayiYaz = (n) => String(n);   // JS'in üstel yazımını (1e-7) Excel de okur
-  const body = rows.map((cells, ri) => {
+  // Veri alanının dışına (boş hücreye) verilmiş biçim de yazılsın: satır/sütun sınırı
+  // stil anahtarlarından gelen enAzSatir/enAzSutun ile genişletilir (xlsxBook hesaplar).
+  const nSatir = Math.max(rows.length, o.enAzSatir || 0);
+  const satirlar = rows.length === nSatir ? rows : [...rows, ...Array.from({ length: nSatir - rows.length }, () => [])];
+  const body = satirlar.map((cells, ri) => {
     const hamSat = o.ham ? (o.ham[ri] || []) : null;
     const fSat = o.formuller ? o.formuller[ri] : null;
-    const enCok = Math.max((cells || []).length, hamSat ? hamSat.length : 0, fSat ? fSat.length : 0);
+    const enCok = Math.max((cells || []).length, hamSat ? hamSat.length : 0, fSat ? fSat.length : 0, o.enAzSutun || 0);
     let cs = '';
     for (let ci = 0; ci < enCok; ci++) {
       const ref = colName(ci) + (ri + 1);
@@ -105,9 +109,20 @@ export function stilTablosu() {
   const fontlar = ['<font><sz val="11"/><color theme="1"/><name val="Calibri"/></font>'];
   const dolgular = ['<fill><patternFill patternType="none"/></fill>', '<fill><patternFill patternType="gray125"/></fill>'];
   const xfs = ['<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'];
-  const fontIdx = new Map([['|', 0]]), dolguIdx = new Map([['', 0]]), xfIdx = new Map([['0:0', 0]]);
+  const fontIdx = new Map([['|', 0]]), dolguIdx = new Map([['', 0]]), xfIdx = new Map([['0:0:0', 0]]);
+  // Sayı biçimleri (v8.8): hücrenin kaynak dosyadan gelen biçim kodu ("dd.mm.yyyy" gibi) aynen
+  // taşınır — tarih hücresi kayıtta çıplak seri sayısına dönmesin. Özel kodlar 164'ten başlar;
+  // 0-49 arası yerleşik kodlar Excel'de kayıtlı olduğundan numFmts'e yazılmaz, kimliği yeter.
+  const numFmts = []; const nfIdx = new Map();
+  const nfId = (st) => {
+    if (st.nfId != null && st.nfId >= 0 && st.nfId < 164) return +st.nfId;
+    const kod = st.nf; if (!kod) return 0;
+    let id = nfIdx.get(kod);
+    if (id == null) { id = 164 + numFmts.length; numFmts.push(`<numFmt numFmtId="${id}" formatCode="${xEsc(String(kod))}"/>`); nfIdx.set(kod, id); }
+    return id;
+  };
   const indexOf = (st) => {
-    if (!st || (!st.b && !st.i && !hex(st.renk) && !hex(st.dolgu))) return 0;
+    if (!st || (!st.b && !st.i && !hex(st.renk) && !hex(st.dolgu) && !st.nf && st.nfId == null)) return 0;
     const fKey = (st.b ? 'b' : '') + (st.i ? 'i' : '') + '|' + hex(st.renk);
     let fi = fontIdx.get(fKey);
     if (fi == null) {
@@ -122,36 +137,52 @@ export function stilTablosu() {
       dolgular.push(`<fill><patternFill patternType="solid"><fgColor rgb="FF${dKey}"/><bgColor indexed="64"/></patternFill></fill>`);
       dolguIdx.set(dKey, di);
     }
-    const xKey = fi + ':' + di;
+    const ni = nfId(st);
+    const xKey = ni + ':' + fi + ':' + di;
     let xi = xfIdx.get(xKey);
     if (xi == null) {
       xi = xfs.length;
-      xfs.push(`<xf numFmtId="0" fontId="${fi}" fillId="${di}" borderId="0" xfId="0"${fi ? ' applyFont="1"' : ''}${di ? ' applyFill="1"' : ''}/>`);
+      xfs.push(`<xf numFmtId="${ni}" fontId="${fi}" fillId="${di}" borderId="0" xfId="0"${ni ? ' applyNumberFormat="1"' : ''}${fi ? ' applyFont="1"' : ''}${di ? ' applyFill="1"' : ''}/>`);
       xfIdx.set(xKey, xi);
     }
     return xi;
   };
   const xml = () => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="${fontlar.length}">${fontlar.join('')}</fonts><fills count="${dolgular.length}">${dolgular.join('')}</fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="${xfs.length}">${xfs.join('')}</cellXfs></styleSheet>`;
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${numFmts.length ? `<numFmts count="${numFmts.length}">${numFmts.join('')}</numFmts>` : ''}<fonts count="${fontlar.length}">${fontlar.join('')}</fonts><fills count="${dolgular.length}">${dolgular.join('')}</fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="${xfs.length}">${xfs.join('')}</cellXfs></styleSheet>`;
   return { indexOf, xml };
 }
 /**
  * Çok sayfalı XLSX: sheets = [{ name, rows }]. Sayfa sırası ve adları korunur; her sayfa kendi
  * worksheet parçasına yazılır ve workbook.xml.rels ile bağlanır.
  */
-export function xlsxBook(sheets) {
+export function xlsxBook(sheets, opts = {}) {
   const list = (sheets && sheets.length ? sheets : [{ name: 'Sayfa1', rows: [] }]).slice(0, 200);
   const stiller = stilTablosu();
-  const parts = list.map((s, i) => ({ i: i + 1, name: String(s.name || ('Sayfa' + (i + 1))), rows: s.rows || [], ham: s.ham || null, formuller: s.formuller || null, stil: s.stiller ? ((r, c) => stiller.indexOf(s.stiller[r + ',' + c])) : null }));
+  const parts = list.map((s, i) => {
+    // stiller ("r,c" → {b,i,renk,dolgu}) ile bicimler (seyrek [r][c] → biçim kodu) tek xf'te birleşir
+    const st2 = s.stiller || null, bic = s.bicimler || null;
+    const stil = (st2 || bic) ? ((r, c) => {
+      const a = st2 ? st2[r + ',' + c] : null;
+      const nf = bic && bic[r] ? bic[r][c] : null;
+      return (a || nf) ? stiller.indexOf({ ...(a || {}), nf: nf || undefined }) : 0;
+    }) : null;
+    let enAzSatir = 0, enAzSutun = 0;
+    if (st2) for (const k of Object.keys(st2)) { const [r, c] = k.split(',').map(Number); if (r + 1 > enAzSatir) enAzSatir = r + 1; if (c + 1 > enAzSutun) enAzSutun = c + 1; }
+    return { i: i + 1, name: String(s.name || ('Sayfa' + (i + 1))), rows: s.rows || [], ham: s.ham || null, formuller: s.formuller || null, stil, enAzSatir, enAzSutun };
+  });
   // Sayfa XML'leri styles.xml'den ÖNCE kurulur: indexOf kullanılan birleşimleri o sırada toplar
-  const sayfaXml = parts.map(p => xlsxXml(p.rows, { ham: p.ham, formuller: p.formuller, stil: p.stil }));
+  const sayfaXml = parts.map(p => xlsxXml(p.rows, { ham: p.ham, formuller: p.formuller, stil: p.stil, enAzSatir: p.enAzSatir, enAzSutun: p.enAzSutun }));
   const ct = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${parts.map(p => `<Override PartName="/xl/worksheets/sheet${p.i}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>`;
   const rels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
   // calcPr fullCalcOnLoad: formül önbelleği bizim hesabımızdır; Excel açılışta kendisi doğrulasın
+  // Tanımlı adlar taşınır: formüller korunup adlar atılırsa Excel açılışta kalıcı #NAME? üretirdi
+  const adlar = opts.adlar && opts.adlar.size
+    ? `<definedNames>${[...opts.adlar].map(([ad, deger]) => `<definedName name="${xEsc(String(ad))}">${xEsc(String(deger).replace(/^=/, ''))}</definedName>`).join('')}</definedNames>`
+    : '';
   const wb = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${parts.map(p => `<sheet name="${xEsc(p.name).slice(0, 31)}" sheetId="${p.i}" r:id="rId${p.i}"/>`).join('')}</sheets><calcPr fullCalcOnLoad="1"/></workbook>`;
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${parts.map(p => `<sheet name="${xEsc(p.name).slice(0, 31)}" sheetId="${p.i}" r:id="rId${p.i}"/>`).join('')}</sheets>${adlar}<calcPr fullCalcOnLoad="1"/></workbook>`;
   const nStil = parts.length + 1;
   const wbRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${parts.map(p => `<Relationship Id="rId${p.i}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${p.i}.xml"/>`).join('')}<Relationship Id="rId${nStil}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
