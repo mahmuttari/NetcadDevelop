@@ -204,6 +204,19 @@ public class MainActivity extends androidx.activity.ComponentActivity {
         pageReady = false;
         webView.setBackgroundColor(0xFF161C25);
         setContentView(webView);
+        /*
+         * Kenardan kenara (edge-to-edge): targetSdk 35+ ile Android 15 ve üstü içeriği durum ve gezinti
+         * çubuklarının ALTINA uzatır ve statusBarColor/navigationBarColor yok sayılır. WebView'e sistem
+         * çubukları, ekran çentiği ve klavye kadar iç kenar boşluğu verilir; boşlukta pencere arka planı
+         * (status_bar rengi) görünür, HTML araç çubuğu çubukların altında kalmaz. Klavye açılınca alt boşluk
+         * klavye kadar büyür (adjustResize kenardan kenara kipte etkisizdir).
+         */
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(webView, (v, insets) -> {
+            androidx.core.graphics.Insets sb = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars() | androidx.core.view.WindowInsetsCompat.Type.displayCutout());
+            androidx.core.graphics.Insets ime = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.ime());
+            v.setPadding(sb.left, sb.top, sb.right, Math.max(sb.bottom, ime.bottom));
+            return androidx.core.view.WindowInsetsCompat.CONSUMED;
+        });
 
         WebSettings s = webView.getSettings();
         s.setJavaScriptEnabled(true);

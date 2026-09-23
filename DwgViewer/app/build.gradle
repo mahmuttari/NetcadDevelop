@@ -45,14 +45,14 @@ if (!canSign) logger.lifecycle("UYARI: imza bilgisi yok, release İMZASIZ derlen
 
 android {
     namespace "com.mahmuttari.dwgviewer"
-    compileSdk 34
+    compileSdk 36
 
     defaultConfig {
         applicationId "com.mahmuttari.dwgviewer"
         minSdk 26
-        targetSdk 34
-        versionCode 132
-        versionName "8.9"
+        targetSdk 36
+        versionCode 133
+        versionName "8.9.1"
 
         // Uygulamanın taşıdığı diller. Listede olmayan bir dilde kurulan cihaz İngilizce'ye düşer;
         // bağımlılıkların (AndroidX, Play) 85 dilde etiketi APK'ye girmez. Yeni dil eklerken bu liste,
