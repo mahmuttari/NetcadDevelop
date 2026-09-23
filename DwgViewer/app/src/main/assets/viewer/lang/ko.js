@@ -64,6 +64,7 @@ export default {
   docFail: '문서를 열지 못했습니다', docOffice: 'Office 문서', docImage: '이미지', docText: '텍스트', docOpenWith: '다른 앱으로 열기', share: '공유', docKeep: '오프라인 보관', docKept: '오프라인 사본을 저장했습니다(파일 열기 › 오프라인)', docKeepFail: '복사하지 못했습니다', docEmpty: '빈 문서', docUnknown: '알 수 없는 파일 형식입니다.',
   xlUnknown: 'Excel 파일을 인식할 수 없습니다', xlEncrypted: '이 Excel 파일은 암호로 보호되어 있어 내용을 열 수 없습니다', xlNoSheet: '워크시트를 찾을 수 없습니다', xlNotExcel: '이 파일은 Excel 통합 문서가 아닙니다', xlNoData: 'Excel 데이터 없음',
   docOfficeMsg: '이 형식은 바로 표시할 수 없습니다. Google 드라이브에 로그인했다면 PDF로 변환해 열 수 있고, 아니면 다른 앱으로 보내세요.', prevPage: '이전 페이지', nextPage: '다음 페이지', fitWidth: '맞추기', docLayoutPage: '페이지 보기', docLayoutFlow: '연속 보기', docPage: '페이지', docFlow: '연속', files: '개 파일', extracting: '압축 푸는 중', wrap: '줄 바꿈', lines: '줄', backToArchive: '압축 파일로 돌아가기',
+  arcExtract: '추출', arcExtractAll: '모두 추출', arcExtractDir: '이 폴더 추출', arcExtracting: '추출 중', arcExtracted: '파일 %n개 추출됨', arcExtractFail: '추출할 수 없음', arcNoEntry: '추출할 파일이 없습니다', arcConfirm: '파일 %n개를 추출합니다.', arcFailed: '실패', arcTooBig: '선택이 너무 큽니다. 최대 200 MB까지 압축할 수 있습니다.', arcZip: 'ZIP 만들기', arcZipName: '압축 파일 이름', arcZipping: '압축 중', arcZipped: '파일 %n개 압축됨', arcZipFail: '압축 파일을 만들 수 없음', arcZipDefault: 'seontaek', openSelect: '선택', openSelected: '%n개 선택됨', openSelectAll: '모두 선택',
   resumeTitle: '이어서 계속하기', resumeOpen: '도면으로 돌아가기', resumeKeep: '시작할 때 마지막 파일 다시 열기',
   resumeReopen: '다시 열기', resumeAuto: '시작할 때 마지막 파일 자동으로 열기',
   samplesTitle: '예제 도면', sample2d: '2D 배치도', sample3d: '3D 설비 모델',

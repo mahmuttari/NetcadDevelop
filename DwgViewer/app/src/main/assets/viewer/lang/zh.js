@@ -64,6 +64,7 @@ export default {
   docFail: '无法打开文档', docOffice: 'Office 文档', docImage: '图像', docText: '文本', docOpenWith: '用其他应用打开', share: '分享', docKeep: '离线保存', docKept: '已保存离线副本（打开文件 › 离线）', docKeepFail: '复制失败', docEmpty: '空文档', docUnknown: '无法识别的文件类型。',
   xlUnknown: '无法识别的 Excel 文件', xlEncrypted: '此 Excel 文件受密码保护，无法打开其内容', xlNoSheet: '未找到工作表', xlNotExcel: '此文件不是 Excel 工作簿', xlNoData: '没有 Excel 数据',
   docOfficeMsg: '此格式无法直接显示。如果已登录 Google 云端硬盘，可转换为 PDF；否则请发送到其他应用。', prevPage: '上一页', nextPage: '下一页', fitWidth: '适应', docLayoutPage: '页面视图', docLayoutFlow: '流式视图', docPage: '页', docFlow: '流式', files: '个文件', extracting: '正在解压', wrap: '自动换行', lines: '行', backToArchive: '返回压缩包',
+  arcExtract: '解压', arcExtractAll: '全部解压', arcExtractDir: '解压此文件夹', arcExtracting: '正在解压', arcExtracted: '已解压 %n 个文件', arcExtractFail: '解压失败', arcNoEntry: '没有可解压的文件', arcConfirm: '将解压 %n 个文件。', arcFailed: '失败', arcTooBig: '所选内容过大；最多可压缩 200 MB。', arcZip: '生成 ZIP', arcZipName: '压缩包名称', arcZipping: '正在压缩', arcZipped: '%n 个文件已压缩', arcZipFail: '无法创建压缩包', arcZipDefault: 'xuanze', openSelect: '选择', openSelected: '已选 %n 个', openSelectAll: '全选',
   resumeTitle: '从上次中断处继续', resumeOpen: '返回图纸', resumeKeep: '启动时重新打开上次的文件',
   resumeReopen: '重新打开', resumeAuto: '启动时自动打开上次的文件',
   samplesTitle: '示例图纸', sample2d: '二维总平面图', sample3d: '三维设备模型',

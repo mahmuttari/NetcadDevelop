@@ -64,6 +64,7 @@ export default {
   docFail: 'ドキュメントを開けませんでした', docOffice: 'Office ドキュメント', docImage: '画像', docText: 'テキスト', docOpenWith: '別のアプリで開く', share: '共有', docKeep: 'オフラインで保存', docKept: 'オフラインコピーを保存しました（ファイルを開く › オフライン）', docKeepFail: 'コピーできませんでした', docEmpty: '空のドキュメント', docUnknown: '認識できないファイル形式です。',
   xlUnknown: 'Excel ファイルとして認識できません', xlEncrypted: 'この Excel ファイルはパスワードで保護されており、内容を開けません', xlNoSheet: 'ワークシートが見つかりません', xlNotExcel: 'このファイルは Excel ブックではありません', xlNoData: 'Excel データがありません',
   docOfficeMsg: 'この形式は直接表示できません。Google ドライブにログインしていれば PDF に変換して開けます。そうでなければ別のアプリに送ってください。', prevPage: '前のページ', nextPage: '次のページ', fitWidth: '合わせる', docLayoutPage: 'ページ表示', docLayoutFlow: '連続表示', docPage: 'ページ', docFlow: '連続', files: '個のファイル', extracting: '展開中', wrap: '折り返し', lines: '行', backToArchive: '書庫に戻る',
+  arcExtract: '展開', arcExtractAll: 'すべて展開', arcExtractDir: 'このフォルダーを展開', arcExtracting: '展開中', arcExtracted: '%n 個のファイルを展開しました', arcExtractFail: '展開できませんでした', arcNoEntry: '展開するファイルがありません', arcConfirm: '%n 個のファイルを展開します。', arcFailed: '失敗', arcTooBig: '選択が大きすぎます。圧縮できるのは最大 200 MB です。', arcZip: 'ZIP を作成', arcZipName: 'アーカイブ名', arcZipping: '圧縮中', arcZipped: '%n 個のファイルを圧縮しました', arcZipFail: 'アーカイブを作成できませんでした', arcZipDefault: 'sentaku', openSelect: '選択', openSelected: '%n 件選択', openSelectAll: 'すべて選択',
   resumeTitle: '前回の続きから', resumeOpen: '図面に戻る', resumeKeep: '起動時に最後のファイルを再度開く',
   resumeReopen: '開き直す', resumeAuto: '起動時に最後のファイルを自動で開く',
   samplesTitle: 'サンプル図面', sample2d: '2D 配置図', sample3d: '3D 設備モデル',

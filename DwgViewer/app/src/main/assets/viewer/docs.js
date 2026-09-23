@@ -5,6 +5,9 @@
  *    tarayıcıda yerleşik PDF görüntüleyici (embed) kullanılır.
  *  - ZIP: tarayıcıda DecompressionStream'li yerleşik okuyucu, Android'de arcList/arcExtract
  *    (RAR 2/3/4 junrar ile, RAR5 kendi saf Java çözücümüzle — Rar5.java).
+ *  - Arşiv ÇIKARMA arsiv.js'tedir: araç çubuğunda "Tümünü çıkar" / "Bu klasörü çıkar", her satırda
+ *    kendi çıkarma düğmesi (klasörde bütün alt ağaç). Hedef İndirilenler/DWGViewer/<arşiv adı>/…;
+ *    Android'de baytlar JS'e uğramadan Java'dan MediaStore'a akar (köprü arcSave).
  *  - DOCX: OOXML → HTML (paragraf, başlık, liste, tablo, resim, köprü).
  *  - Excel: xlbook.js okur ve hesaplar — xlsx / xlsm, xlsb (ikili), xls (BIFF8/5, cfb.js), ods,
  *    Excel 2003 XML, ".xls" adıyla kaydedilmiş HTML tablosu ve CSV. Biçim uzantıdan değil baytlardan
@@ -23,6 +26,7 @@ import { docToHtml } from './doc.js';
 import { sniffDoc, sniffHint, rtfToHtml, htmlToParts, mhtmlParts, decodeHtmlBytes } from './docalt.js';
 import * as PdfEdit from './pdfedit.js';
 import * as DocEdit from './docedit.js';
+import * as Arsiv from './arsiv.js';
 import { askText, askConfirm } from './dialog.js';
 import { xlsxBook, csvText } from './newdoc.js';
 import * as XB from './xlbook.js';
@@ -108,7 +112,7 @@ async function openArchive(src) {
     const r = JSON.parse(A().arcList(src.androidId) || '[]');
     if (r.error) throw new Error(r.error);
     return {
-      entries: r, native: true,
+      entries: r, native: true, id: src.androidId,
       async extract(name) { const x = JSON.parse(A().arcExtract(src.androidId, name) || '{}'); if (x.error) throw new Error(x.error); return x; },   // {id,name,size,ext}
       async read(name) { const x = await this.extract(name); const res = await fetch('/file/' + x.id, { cache: 'no-store' }); return res.arrayBuffer(); },
       async url(name) { const x = await this.extract(name); return '/file/' + x.id; },
@@ -677,16 +681,58 @@ async function showXlsx(d) {
 async function showArchive(d) {
   const arc = await arcFor(d);
   d.path = d.path || '';
-  els.tools.innerHTML = `<input type="search" id="arcFilter" class="doc-search" placeholder="${esc(t('search'))}…"><span class="muted" id="arcCount"></span>`;
+  els.tools.innerHTML = `<input type="search" id="arcFilter" class="doc-search" placeholder="${esc(t('search'))}…"><span class="muted" id="arcCount"></span><span class="sp"></span>`
+    + `<button type="button" class="btn small" id="arcAll">${ICON('i-download')} <span class="lbl">${esc(tt('arcExtractAll', 'Tümünü çıkar'))}</span></button>`;
   $('arcFilter').addEventListener('input', () => renderArchive(d));
-  renderArchive(d);
+  renderArchive(d);   // #arcAll'ın etiketi ve tıklaması burada kurulur (bulunulan klasöre bakar)
   els.body.onclick = async (ev) => {
+    // Satırdaki çıkarma düğmesi girdiyi AÇMAZ: önce o denetlenir
+    const out = ev.target.closest('[data-arc-out]');
+    if (out) {
+      const row = out.closest('[data-entry]'); if (!row) return;
+      const yol = row.dataset.entry;
+      await arsivCikar(d, row.dataset.dir === '1' ? Arsiv.klasorAltindakiler(arc.entries, yol) : [yol]);
+      return;
+    }
     const crumb = ev.target.closest('[data-crumb]'); if (crumb) { d.path = crumb.dataset.crumb; renderArchive(d); return; }
     const it = ev.target.closest('[data-entry]'); if (!it) return;
     const name = it.dataset.entry;
     if (it.dataset.dir === '1') { d.path = name; renderArchive(d); return; }
     await openEntry(d, name);
   };
+}
+/*
+ * Çıkarma. Hedef klasör arşivin kendi adıdır (İndirilenler/DWGViewer/<arşiv>/…) ve arşivin iç klasör
+ * yapısı olduğu gibi korunur — bir alt klasör çıkarılsa bile yol arşivin kökünden yazılır, böylece
+ * aynı arşiv iki kez çıkarıldığında dosyalar aynı yere düşer.
+ * İlerleme araç çubuğundaki sayaçta gösterilir: telefonun ekranını kaplayan ayrı bir kutu gerekmez.
+ */
+let arcBusy = false;
+async function arsivCikar(d, girdiler) {
+  if (arcBusy || !d || !d.arc) return;
+  const hedef = (girdiler || []).filter(Boolean);
+  if (!hedef.length) { call(api.toast, tt('arcNoEntry', 'Çıkarılacak dosya yok'), { type: 'warn' }); return; }
+  const klasor = Arsiv.klasorAdi(d.name);
+  if (hedef.length > 1 && !await askConfirm(tt('arcConfirm', '%n dosya çıkarılacak.').replace('%n', String(hedef.length)) + ' → ' + klasor)) return;
+  const say = $('arcCount'), btn = $('arcAll');
+  const yaz = (m) => { if (say) say.textContent = m; };
+  arcBusy = true; if (btn) btn.disabled = true;
+  try {
+    const r = await Arsiv.cikar(d.arc, hedef, {
+      klasor,
+      ilerle: (done, total) => yaz(tt('arcExtracting', 'Çıkarılıyor') + '… ' + done + '/' + total),
+    });
+    const iyi = r.n > 0;
+    const ileti = iyi
+      ? tt('arcExtracted', '%n dosya çıkarıldı').replace('%n', String(r.n)) + (r.nere ? ' · ' + r.nere : '')
+      : tt('arcExtractFail', 'Çıkarılamadı') + (r.hata.length ? ': ' + r.hata[0].mesaj : '');
+    call(api.toast, ileti + (r.hata.length && iyi ? ' · ' + r.hata.length + ' ' + tt('arcFailed', 'başarısız') : ''), { type: iyi ? 'ok' : 'error', ms: 6000 });
+  } catch (e) {
+    call(api.toast, tt('arcExtractFail', 'Çıkarılamadı') + ': ' + (e.message || e), { type: 'error' });
+  } finally {
+    arcBusy = false; if (btn) btn.disabled = false;
+    renderArchive(d);
+  }
 }
 function renderArchive(d) {
   const arc = d.arc, q = ($('arcFilter') && $('arcFilter').value.trim().toLowerCase()) || '';
@@ -703,12 +749,20 @@ function renderArchive(d) {
   files.sort((a, b) => a.label.localeCompare(b.label, 'tr'));
   const crumbs = d.path.split('/').filter(Boolean);
   let html = `<div class="doc-crumbs"><button type="button" class="chip" data-crumb="">${ICON('i-layers')} ${esc(d.name)}</button>` + crumbs.map((c, i) => `<span>›</span><button type="button" class="chip" data-crumb="${esc(crumbs.slice(0, i + 1).join('/') + '/')}">${esc(c)}</button>`).join('') + '</div><div class="list arc-list">';
-  for (const [dn, info] of [...dirs.entries()].sort((a, b) => a[0].localeCompare(b[0], 'tr'))) html += `<div class="item arc-item" data-entry="${esc(d.path + dn + '/')}" data-dir="1">${ICON('i-open')}<span class="nm">${esc(dn)}</span><small>${info.n} ${esc(tt('files', 'dosya'))} · ${fmtSize(info.size)}</small></div>`;
-  for (const f of files) html += `<div class="item arc-item" data-entry="${esc(f.name)}">${iconFor(f.name)}<span class="nm">${esc(f.label)}</span><small>${fmtSize(f.size)}${f.time ? ' · ' + new Date(f.time).toLocaleDateString('tr-TR') : ''}</small></div>`;
+  const cikarBtn = `<button type="button" class="lbtn" data-arc-out="1" title="${esc(tt('arcExtract', 'Çıkar'))}" aria-label="${esc(tt('arcExtract', 'Çıkar'))}">${ICON('i-download')}</button>`;
+  for (const [dn, info] of [...dirs.entries()].sort((a, b) => a[0].localeCompare(b[0], 'tr'))) html += `<div class="item arc-item" data-entry="${esc(d.path + dn + '/')}" data-dir="1">${ICON('i-open')}<span class="nm">${esc(dn)}</span><small>${info.n} ${esc(tt('files', 'dosya'))} · ${fmtSize(info.size)}</small>${cikarBtn}</div>`;
+  for (const f of files) html += `<div class="item arc-item" data-entry="${esc(f.name)}">${iconFor(f.name)}<span class="nm">${esc(f.label)}</span><small>${fmtSize(f.size)}${f.time ? ' · ' + new Date(f.time).toLocaleDateString('tr-TR') : ''}</small>${cikarBtn}</div>`;
   if (!dirs.size && !files.length) html += `<div class="muted">${esc(t('noResult'))}</div>`;
   els.body.innerHTML = html + '</div>';
   const total = arc.entries.filter(e => !e.dir).length;
   const c = $('arcCount'); if (c) c.textContent = total + ' ' + tt('files', 'dosya');
+  // Araç çubuğundaki düğme bulunulan yere bakar: kökte bütün arşiv, klasörde o klasör
+  const b = $('arcAll');
+  if (b) {
+    const lbl = b.querySelector('.lbl');
+    if (lbl) lbl.textContent = d.path ? tt('arcExtractDir', 'Bu klasörü çıkar') : tt('arcExtractAll', 'Tümünü çıkar');
+    b.onclick = () => arsivCikar(d, Arsiv.klasorAltindakiler(arc.entries, d.path));
+  }
 }
 async function openEntry(d, name) {
   const arc = d.arc, base = name.split('/').pop(), kind = kindOf(base);

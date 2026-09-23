@@ -1084,6 +1084,17 @@ body.dpad-on.left-hand .cmdshow { left: 76px; right: auto; }
 .open-warn { color: var(--accent); font-size: calc(12px * var(--fs)); padding: 2px 0 6px; }
 body.glove .open-item { min-height: 56px; }
 
+/* çoklu seçim (ZIP yapma): satır başındaki onay kutusu ve seçim şeridi */
+.selbox { flex: 0 0 auto; width: 20px; height: 20px; border: 2px solid var(--line); border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; }
+.selbox.on { background: var(--accent); border-color: var(--accent); }
+.selbox svg.ic { width: 14px; height: 14px; color: #fff; }
+.open-item.sel-on, .open-tile.sel-on { background: color-mix(in srgb, var(--accent) 14%, transparent); border-radius: 10px; }
+.open-tile .selbox { position: absolute; left: 6px; bottom: 6px; }
+.open-sel { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.open-sel .sel-msg { flex: 1 1 auto; min-width: 0; }
+#openSel.on { color: var(--accent); }
+body.glove .selbox { width: 24px; height: 24px; }
+
 /* görsel stil ızgarası (açılır kutu) */
 .vs-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 4px 0 8px; }
 .vs-grid button { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 56px; min-height: 56px; border: 1px solid var(--line); border-radius: 10px; background: var(--btn); color: var(--fg); padding: 6px 2px; }

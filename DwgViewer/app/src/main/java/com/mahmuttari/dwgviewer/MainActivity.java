@@ -134,6 +134,8 @@ public class MainActivity extends androidx.activity.ComponentActivity {
     private final java.util.concurrent.ExecutorService fsExec = java.util.concurrent.Executors.newSingleThreadExecutor();
     /** Son gönderilen fsSearch isteği; eskimiş bir arama her klasörden sonra buna bakıp vazgeçer (JS eski yanıtı zaten seq ile atar) */
     private volatile String fsSearchLatest;
+    /** Arşiv çıkarma kendi yürütücüsünde: yüz dosyalık bir arşiv klasör listelemesini bekletmesin */
+    private final java.util.concurrent.ExecutorService arcExec = java.util.concurrent.Executors.newSingleThreadExecutor();
 
     // ---------------------------------------------------------------------------------------
     @Override
@@ -962,10 +964,18 @@ public class MainActivity extends androidx.activity.ComponentActivity {
     }
 
     // ---- kaydetme / paylaşma ---------------------------------------------------------------
-    /** Görüntü ya da belgeyi ortak depoya yazar; share=true ise paylaşım menüsünü açar. */
-    private String saveShared(byte[] bytes, String fileName, String mime, String subDir, boolean share) throws IOException {
-        Uri shareUri;
-        String where;
+    /** Ortak depoda açılmış bir hedef: yazılacak akış, paylaşım URI'si ve kullanıcıya gösterilen yol */
+    private static final class Shared {
+        OutputStream out; Uri uri; String where;
+    }
+
+    /*
+     * Ortak depoda (Android 10+ MediaStore, öncesinde uygulamanın dış dosya klasörü) yazmaya hazır bir
+     * hedef açar. Baytları toplamadan akış verir: arşiv çıkarmada girdi doğrudan buraya akar, belleğe
+     * alınmaz. subDir "DWGViewer" ya da "DWGViewer/<arşiv>/<klasör>" gibi iç içe olabilir.
+     */
+    private Shared openShared(String fileName, String mime, String subDir) throws IOException {
+        Shared s = new Shared();
         boolean image = mime.startsWith("image/");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ContentValues v = new ContentValues();
@@ -975,28 +985,63 @@ public class MainActivity extends androidx.activity.ComponentActivity {
             Uri coll = image ? MediaStore.Images.Media.EXTERNAL_CONTENT_URI : MediaStore.Downloads.EXTERNAL_CONTENT_URI;
             Uri uri = getContentResolver().insert(coll, v);
             if (uri == null) throw new IOException("MediaStore kaydı açılamadı");
-            try (OutputStream out = getContentResolver().openOutputStream(uri)) {
-                if (out == null) throw new IOException("çıkış akışı yok");
-                out.write(bytes);
-            }
-            shareUri = uri;
-            where = (image ? "Resimler/" : "İndirilenler/") + subDir + "/" + fileName;
+            OutputStream out = getContentResolver().openOutputStream(uri);
+            if (out == null) throw new IOException("çıkış akışı yok");
+            s.out = out; s.uri = uri;
+            s.where = (image ? "Resimler/" : "İndirilenler/") + subDir + "/" + fileName;
         } else {
             File d = new File(getExternalFilesDir(image ? Environment.DIRECTORY_PICTURES : Environment.DIRECTORY_DOCUMENTS), subDir);
             if (!d.exists() && !d.mkdirs()) throw new IOException("klasör açılamadı");
             File f = new File(d, fileName);
-            try (FileOutputStream out = new FileOutputStream(f)) { out.write(bytes); }
-            shareUri = FileProvider.getUriForFile(this, getPackageName() + ".files", f);
-            where = f.getAbsolutePath();
+            s.out = new FileOutputStream(f);
+            // URI yalnız PAYLAŞIMDA gerekir; sağlanamazsa (sağlayıcı yolu kapsamıyorsa) yazma yine de sürer
+            try { s.uri = FileProvider.getUriForFile(this, getPackageName() + ".files", f); } catch (Exception e) { Log.w(TAG, "fileprovider", e); }
+            s.where = f.getAbsolutePath();
         }
-        if (share) {
+        return s;
+    }
+
+    /** Görüntü ya da belgeyi ortak depoya yazar; share=true ise paylaşım menüsünü açar. */
+    private String saveShared(byte[] bytes, String fileName, String mime, String subDir, boolean share) throws IOException {
+        Shared s = openShared(fileName, mime, subDir);
+        try (OutputStream out = s.out) { out.write(bytes); }
+        if (share && s.uri != null) {
             Intent i = new Intent(Intent.ACTION_SEND);
             i.setType(mime);
-            i.putExtra(Intent.EXTRA_STREAM, shareUri);
+            i.putExtra(Intent.EXTRA_STREAM, s.uri);
             i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             try { startActivity(Intent.createChooser(i, fileName)); } catch (Exception ignored) { }
         }
-        return where;
+        return s.where;
+    }
+
+    /*
+     * "DWGViewer/<temizlenmiş alt yol>" üretir. Arşiv girdisinin kendi klasör yolu buraya gelir; ".." ve
+     * "." parçaları ELENİR (Zip-Slip: bozuk bir arşiv uygulamanın dışına yazamaz), geri kalan parçalar
+     * safe() ile dosya sistemi için güvenli hâle getirilir ve baştaki noktalar atılır (gizli klasör olmasın).
+     */
+    private static String altKlasor(String sub) {
+        StringBuilder sb = new StringBuilder("DWGViewer");
+        if (sub != null) for (String raw : sub.replace('\\', '/').split("/")) {
+            String p = raw.trim();
+            if (p.isEmpty() || p.equals(".") || p.equals("..")) continue;
+            String q = dosyaAdi(p, "");
+            if (q.isEmpty()) continue;
+            if (q.length() > 64) q = q.substring(0, 64);
+            sb.append('/').append(q);
+        }
+        return sb.toString();
+    }
+
+    /*
+     * Ortak depoya yazılacak dosya / klasör adı. safe() ile karıştırılmamalı: safe() iç önbellek dosyaları
+     * içindir ve Türkçe harfleri de "_" yapar — kullanıcının göreceği bir adda "Çizim" → "_izim" olurdu.
+     * Burada yalnız yol ayracı, dosya sisteminde yasak karakterler ve baştaki noktalar temizlenir.
+     */
+    private static String dosyaAdi(String ad, String varsayilan) {
+        String a = ad == null ? "" : ad.replaceAll("[\\\\/:*?\"<>|\\x00-\\x1f]+", "_").replaceAll("^\\.+", "").trim();
+        if (a.length() > 120) a = a.substring(0, 120);
+        return a.isEmpty() ? varsayilan : a;
     }
 
     private void appendLog(String line) { appendLog(this, line); }
@@ -1476,6 +1521,14 @@ public class MainActivity extends androidx.activity.ComponentActivity {
             Uri u = DocumentsContract.buildDocumentUriUsingTree(Uri.parse(rootUri), docId);
             synchronized (slots) { String id = "slot_" + (++slotSeq); slots.put(id, u); return id; }
         }
+        /** Son dosyalar listesindeki bir URI'yi yuvaya koyar (ZIP yapmada baytları /file/<yuva> ile okunur) */
+        @JavascriptInterface
+        public String recentSlot(String uri) {
+            try {
+                Uri u = Uri.parse(uri);
+                synchronized (slots) { String id = "slot_" + (++slotSeq); slots.put(id, u); return id; }
+            } catch (Exception e) { Log.w(TAG, "recentSlot", e); return ""; }
+        }
 
         // indirme deposu
         @JavascriptInterface
@@ -1540,6 +1593,55 @@ public class MainActivity extends androidx.activity.ComponentActivity {
                 Log.w(TAG, "saveFile", e);
                 return "";
             }
+        }
+        /** saveFile gibi; dosya İndirilenler/DWGViewer altında bir ALT KLASÖRE yazılır (arşiv çıkarma) */
+        @JavascriptInterface
+        public String saveFileIn(String base64, String fileName, String mime, String subDir, boolean share) {
+            try {
+                return saveShared(Base64.decode(base64, Base64.DEFAULT), fileName, mime, altKlasor(subDir), share);
+            } catch (Exception e) {
+                Log.w(TAG, "saveFileIn", e);
+                return "";
+            }
+        }
+
+        /*
+         * Arşiv girdilerini İndirilenler/DWGViewer/<subDir> altına çıkarır; arşivin kendi klasör yapısı korunur.
+         * entriesJson boş dizi ("[]") ise arşivdeki BÜTÜN dosyalar çıkarılır. Baytlar JS'e uğramaz: arşiv
+         * Java'da açılır, çıktı doğrudan MediaStore'a akar — 200 MB'lık bir arşiv base64'e çevrilmez.
+         * Sonuç: dwgApp.onArc(reqId, ok, {n,atlanan,hata,where}) · ilerleme: dwgApp.onArcProgress(reqId, done, total, ad)
+         */
+        @JavascriptInterface
+        public void arcSave(String reqId, String id, String entriesJson, String subDir) {
+            arcExec.execute(() -> {
+                String out; boolean ok = true;
+                final String kok = altKlasor(subDir);
+                final String[] nere = { "" };
+                try {
+                    JSONArray names = new JSONArray(entriesJson == null || entriesJson.isEmpty() ? "[]" : entriesJson);
+                    String r = docs.arcSaveTo(id, names, new Docs.Sink() {
+                        @Override public OutputStream open(String dizin, String ad, long size, long time) throws IOException {
+                            Shared sh = openShared(dosyaAdi(ad, "dosya"), mimeOf(ad), dizin.isEmpty() ? kok : kok + "/" + dizin);
+                            if (nere[0].isEmpty()) {   // kullanıcıya gösterilecek yer: ilk yazılan dosyanın klasörü
+                                int i = sh.where.lastIndexOf('/');
+                                nere[0] = i > 0 ? sh.where.substring(0, i) : sh.where;
+                            }
+                            return sh.out;
+                        }
+                        @Override public void at(int done, int total, String ad) {
+                            js("window.dwgApp && window.dwgApp.onArcProgress && window.dwgApp.onArcProgress("
+                                + JSONObject.quote(reqId) + "," + done + "," + total + "," + JSONObject.quote(ad == null ? "" : ad) + ")");
+                        }
+                    });
+                    JSONObject o = new JSONObject(r);
+                    if (o.has("error")) { ok = false; out = JSONObject.quote(o.getString("error")); }
+                    else { o.put("where", nere[0].isEmpty() ? kok : nere[0]); out = o.toString(); }
+                } catch (Throwable e) {
+                    Log.w(TAG, "arcSave", e);
+                    ok = false; out = JSONObject.quote(e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+                }
+                js("window.dwgApp && window.dwgApp.onArc && window.dwgApp.onArc(" + JSONObject.quote(reqId) + "," + ok + "," + out + ")");
+            });
         }
 
         // ---- belgeler: PDF / Word / ZIP / RAR ---------------------------------------------
@@ -1806,6 +1908,7 @@ public class MainActivity extends androidx.activity.ComponentActivity {
         if (docs != null) docs.closePdf();
         bg.shutdown();
         fsExec.shutdownNow();
+        arcExec.shutdownNow();
         if (Build.VERSION.SDK_INT >= 33 && backCallback != null) {
             getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback((android.window.OnBackInvokedCallback) backCallback);
             backCallback = null;

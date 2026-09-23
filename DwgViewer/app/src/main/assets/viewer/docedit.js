@@ -50,7 +50,17 @@ async function deflateRaw(bytes) {
     return new Uint8Array(await new Response(cs.readable).arrayBuffer());
   } catch (_) { return null; }
 }
-/** entries: [{name, data:Uint8Array}] → DOCX paketi (Uint8Array). Sıkıştırma yoksa saklanmış girdi yazılır. */
+/*
+ * MS-DOS tarih / saat çifti (ZIP başlığının kendi biçimi): saniye iki birimlidir, yıl 1980'den sayılır.
+ * Aralık dışındaki bir zaman 0 bırakılır — DOCX paketinde zaten zaman yoktur.
+ */
+export function dosTarih(ms) {
+  if (!(ms > 0)) return [0, 0];
+  const d = new Date(ms), y = d.getFullYear();
+  if (y < 1980 || y > 2107) return [0, 0];
+  return [(d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1), ((y - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate()];
+}
+/** entries: [{name, data:Uint8Array, time?}] → ZIP paketi (Uint8Array). Sıkıştırma yoksa saklanmış girdi yazılır. */
 export async function zipWrite(entries) {
   const parts = [], cds = []; let off = 0;
   for (const e of entries) {
@@ -58,14 +68,15 @@ export async function zipWrite(entries) {
     const comp = raw.length > 200 ? await deflateRaw(raw) : null;
     const useDef = !!comp && comp.length < raw.length;
     const body = useDef ? comp : raw, crc = crc32(raw);
+    const [dt, dd] = dosTarih(e.time);
     const lh = new DataView(new ArrayBuffer(30));
     lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x800, true);
-    lh.setUint16(8, useDef ? 8 : 0, true); lh.setUint32(14, crc, true);
+    lh.setUint16(8, useDef ? 8 : 0, true); lh.setUint16(10, dt, true); lh.setUint16(12, dd, true); lh.setUint32(14, crc, true);
     lh.setUint32(18, body.length, true); lh.setUint32(22, raw.length, true); lh.setUint16(26, nb.length, true);
     parts.push(new Uint8Array(lh.buffer), nb, body);
     const cd = new DataView(new ArrayBuffer(46));
     cd.setUint32(0, 0x02014b50, true); cd.setUint16(4, 20, true); cd.setUint16(6, 20, true); cd.setUint16(8, 0x800, true);
-    cd.setUint16(10, useDef ? 8 : 0, true); cd.setUint32(16, crc, true); cd.setUint32(20, body.length, true);
+    cd.setUint16(10, useDef ? 8 : 0, true); cd.setUint16(12, dt, true); cd.setUint16(14, dd, true); cd.setUint32(16, crc, true); cd.setUint32(20, body.length, true);
     cd.setUint32(24, raw.length, true); cd.setUint16(28, nb.length, true); cd.setUint32(42, off, true);
     cds.push(new Uint8Array(cd.buffer), nb);
     off += 30 + nb.length + body.length;

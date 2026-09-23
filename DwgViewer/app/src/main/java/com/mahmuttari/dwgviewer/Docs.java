@@ -234,6 +234,126 @@ public class Docs {
             return "{\"error\":" + JSONObject.quote(msgOf(e)) + "}";
         }
     }
+    /**
+     * Toplu çıkarmada her girdinin yazılacağı yeri açan geri çağrı. Baytlar JS'e uğramaz:
+     * arşiv Java'da açılır, çıktı doğrudan ortak depoya (MediaStore) akar.
+     */
+    public interface Sink {
+        /** dizin: arşiv içindeki klasör yolu ("" kök) · ad: dosya adı. null dönerse girdi atlanır. */
+        OutputStream open(String dizin, String ad, long size, long time) throws IOException;
+        /** ilerleme: kaçıncı girdi / kaç girdi (ad "" ise bitti) */
+        void at(int done, int total, String ad);
+    }
+
+    private static OutputStream sinkOpen(Sink sink, String rel, long size, long time) throws IOException {
+        int i = rel.lastIndexOf('/');
+        return sink.open(i < 0 ? "" : rel.substring(0, i), i < 0 ? rel : rel.substring(i + 1), size, time);
+    }
+
+    private static JSONObject err(String ad, Exception e) {
+        JSONObject o = new JSONObject();
+        try { o.put("ad", ad); o.put("mesaj", msgOf(e)); } catch (Exception ignored) { }
+        return o;
+    }
+
+    /**
+     * Verilen girdileri arşivden çıkarır ve Sink'in açtığı akışlara yazar; klasör yapısı korunur.
+     * names boş / null ise arşivdeki BÜTÜN dosyalar çıkarılır (klasör girdileri atlanır).
+     * Dönüş: JSON {n, atlanan, hata:[{ad,mesaj}]} ya da {error}.
+     *
+     * KATI (SOLID) ARŞİV: RAR'da her girdi kendi zincirini baştan yürütür (Rar4.extract / Rar5.extract).
+     * Katı olmayan arşivde bu bir kereliktir; katı bir arşivde çok girdi çıkarmak yavaştır. Çözücülere
+     * dokunulmadı: onlar tek girdi yolunda sınanmış durumda.
+     */
+    public String arcSaveTo(String id, JSONArray names, Sink sink) {
+        File f = file(id);
+        if (f == null) return "{\"error\":\"dosya yok\"}";
+        java.util.LinkedHashSet<String> want = new java.util.LinkedHashSet<>();
+        if (names != null) for (int i = 0; i < names.length(); i++) {
+            String s = names.optString(i, "").replace('\\', '/');
+            if (!s.isEmpty()) want.add(s);
+        }
+        JSONArray hata = new JSONArray();
+        int n = 0, atlanan = 0;
+        try {
+            if (isRar5(f)) {
+                Rar5.Info info = Rar5.read(f);
+                if (info.headerEncrypted) return "{\"error\":\"" + ENC_MSG + "\"}";
+                java.util.List<Rar5.Entry> hedef = new java.util.ArrayList<>();
+                for (Rar5.Entry e : info.entries) {
+                    String nm = e.name.replace('\\', '/');
+                    if (!e.dir && (want.isEmpty() || want.contains(nm))) hedef.add(e);
+                }
+                int tot = hedef.size(), k = 0;
+                for (Rar5.Entry e : hedef) {
+                    String nm = e.name.replace('\\', '/');
+                    sink.at(k++, tot, nm);
+                    try {
+                        OutputStream os = sinkOpen(sink, nm, e.size, e.time);
+                        if (os == null) { atlanan++; continue; }
+                        try { Rar5.extract(f, info, e, os); } finally { os.close(); }
+                        n++;
+                    } catch (Exception ex) { hata.put(err(nm, ex)); }
+                }
+                sink.at(tot, tot, "");
+            } else if (isRar(f)) {
+                java.util.List<String[]> hedef = new java.util.ArrayList<>();   // {ad, boy, zaman}
+                try (Archive a = new Archive(f)) {
+                    if (a.isEncrypted()) return "{\"error\":\"" + ENC_MSG + "\"}";
+                    for (FileHeader h : a.getFileHeaders()) {
+                        String nm = h.getFileName().replace('\\', '/');
+                        if (h.isDirectory() || !(want.isEmpty() || want.contains(nm))) continue;
+                        hedef.add(new String[]{nm, String.valueOf(h.getFullUnpackSize()), String.valueOf(h.getMTime() == null ? 0 : h.getMTime().getTime())});
+                    }
+                }
+                int tot = hedef.size(), k = 0;
+                for (String[] e : hedef) {
+                    sink.at(k++, tot, e[0]);
+                    try {
+                        OutputStream os = sinkOpen(sink, e[0], Long.parseLong(e[1]), Long.parseLong(e[2]));
+                        if (os == null) { atlanan++; continue; }
+                        boolean got;
+                        try { got = Rar4.extract(f, e[0], os); } finally { os.close(); }
+                        if (got) n++; else hata.put(err(e[0], new IOException("girdi bulunamadı")));
+                    } catch (Exception ex) { hata.put(err(e[0], ex)); }
+                }
+                sink.at(tot, tot, "");
+            } else {
+                try (ZipFile z = new ZipFile(f)) {
+                    java.util.List<ZipEntry> hedef = new java.util.ArrayList<>();
+                    Enumeration<? extends ZipEntry> en = z.entries();
+                    while (en.hasMoreElements()) {
+                        ZipEntry e = en.nextElement();
+                        String nm = e.getName().replace('\\', '/');
+                        if (!e.isDirectory() && (want.isEmpty() || want.contains(nm))) hedef.add(e);
+                    }
+                    int tot = hedef.size(), k = 0;
+                    for (ZipEntry e : hedef) {
+                        String nm = e.getName().replace('\\', '/');
+                        sink.at(k++, tot, nm);
+                        try {
+                            OutputStream os = sinkOpen(sink, nm, e.getSize(), e.getTime());
+                            if (os == null) { atlanan++; continue; }
+                            try (InputStream in = z.getInputStream(e)) { copy(in, os); } finally { os.close(); }
+                            n++;
+                        } catch (Exception ex) { hata.put(err(nm, ex)); }
+                    }
+                    sink.at(tot, tot, "");
+                }
+            }
+            JSONObject o = new JSONObject();
+            o.put("n", n); o.put("atlanan", atlanan); o.put("hata", hata);
+            return o.toString();
+        } catch (UnsupportedRarV5Exception e) {
+            return "{\"error\":\"Arşiv RAR5 imzası taşımıyor ama RAR5 verisi içeriyor (bozuk arşiv)\"}";
+        } catch (UnsupportedRarEncryptedException e) {
+            return "{\"error\":\"" + ENC_MSG + "\"}";
+        } catch (Exception e) {
+            Log.w(TAG, "arcSaveTo", e);
+            return "{\"error\":" + JSONObject.quote(msgOf(e)) + "}";
+        }
+    }
+
     private static final String ENC_MSG = "Şifreli RAR desteklenmiyor";
     /** İletisi olmayan istisnalar (junrar'ın UnsupportedRarV5Exception'ı gibi) 'null' yerine sınıf adıyla döner */
     private static String msgOf(Exception e) { return e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage(); }

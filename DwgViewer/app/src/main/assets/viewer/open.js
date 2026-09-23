@@ -11,13 +11,17 @@
  *    Son listesi oturum belleğindedir (File nesneleri aynı oturumda yeniden açılır).
  *  - Seçim kipi: open('device', { pick: { purpose, mime } }) — dosyaya dokununca fsSlot → api.onFilePicked(purpose, slotId, name, size);
  *    tarayıcıda api.fileForPurpose(purpose, File).
+ *  - Çoklu seçim: araç çubuğundaki Seç düğmesi satırlara onay kutusu koyar; seçilen dosyalardan ZIP kurulur
+ *    (arsiv.js zipYap → İndirilenler/DWGViewer). Seçim sekmeler ve klasörler arasında korunur, kaynağıyla
+ *    birlikte saklanır (cihaz kökü / çevrimdışı kimlik / son dosya URI'si), böylece baytları sonradan okunur.
  *  - Gömme: mount(hostEl, tab) aynı görünümü (Cihaz gezgini: kökler, kırıntı, liste, arama) ana ekranın Dosya › Yerel bölümüne
  *    çizer; #openPanel alt sayfası çizim açıkken kullanılmaya devam eder. unmount() gömmeyi kaldırır. Kök / klasör durumu ortaktır.
  */
 import { store, fmt } from './state.js';
 import { t } from './i18n.js';
 import { kindOf, iconFor, isCad } from './docs.js';
-import { askConfirm } from './dialog.js';
+import { askConfirm, askText } from './dialog.js';
+import * as Arsiv from './arsiv.js';
 import { skelList, skelGrid, emptyBox } from './skel.js';
 
 const $ = (id) => document.getElementById(id);
@@ -35,8 +39,8 @@ const TABS = ['recent', 'device', 'offline'];
 const KIND_OF = { cad: ['cad'], pdf: ['pdf'], office: ['docx', 'doc', 'xlsx', 'office', 'text'], archive: ['zip', 'rar'], image: ['image'] };
 
 let api = null;
-/** arayüz durumu: sekme, arama, tür süzgeci, sekme başına sıralama, ızgara, seçim kipi, açık satır menüsü */
-const ui = { tab: '', q: '', kind: 'all', sort: { recent: 'time', device: 'name', offline: 'time' }, grid: false, pick: null, menu: null };
+/** arayüz durumu: sekme, arama, tür süzgeci, sekme başına sıralama, ızgara, seçim kipi, açık satır menüsü, çoklu seçim */
+const ui = { tab: '', q: '', kind: 'all', sort: { recent: 'time', device: 'name', offline: 'time' }, grid: false, pick: null, menu: null, sel: null, selMsg: '' };
 /** Cihaz sekmesi: kökler, seçili kök, klasör yolu [{id,name}], liste, arama sonucu */
 const dev = { roots: [], root: null, path: [], items: [], search: null, loading: false, error: '', seq: 0 };
 const pending = new Map(); let reqSeq = 0;
@@ -45,6 +49,8 @@ const session = { recent: [], vfs: new Map() };   // vfs: rootUri → { name, no
 let mounted = null;   // { el, body, tab, q, qv } — ana ekrana gömülü görünüm (mount); qv gömülü aramanın sorgusu (panelin ui.q'sundan ayrı)
 let rtab = '';        // çizilmekte olan sekme (render sırasında; panel ui.tab, gömme mounted.tab)
 let rq = '';          // çizilmekte olan yüzeyin sorgusu (panel ui.q, gömme mounted.qv)
+let rpanel = false;   // çizilen yüzey PANEL mi (gömme değil): onay kutuları yalnız panelde çıkar
+let zipBusy = false;  // ZIP kuruluyor: ikinci dokunuş yeni bir iş başlatmasın
 let searchTimer = 0, pressTimer = 0, pressFired = false, suppressClick = false;   // uzun basış menüyü açtıysa parmak kalkınca gelen click (hedefi ne olursa olsun) yutulur
 
 export function initOpen(a) {
@@ -65,6 +71,7 @@ const active = () => isOpen() || !!mounted;
 export function open(tab, opts = {}) {
   const p = $('openPanel'); if (!p) return;
   ui.pick = opts.pick || null; ui.menu = null;
+  if (ui.pick) ui.sel = null;   // dosya SEÇTİRME kipiyle çoklu seçim bir arada olmaz
   if (ui.pick) ui.tab = 'device';
   else if (tab && TABS.includes(tab)) ui.tab = tab;
   else if (!ui.tab) ui.tab = recentList().length ? 'recent' : 'device';
@@ -72,7 +79,7 @@ export function open(tab, opts = {}) {
   call(api.onOpen);
   refresh();
 }
-export function close() { const p = $('openPanel'); if (!p || p.hidden) return false; p.hidden = true; ui.pick = null; ui.menu = null; return true; }
+export function close() { const p = $('openPanel'); if (!p || p.hidden) return false; p.hidden = true; ui.pick = null; ui.menu = null; ui.sel = null; ui.selMsg = ''; return true; }
 /** geçerli sekmeyi yeniden çizer (Android son dosya listesi değişince de çağrılır) */
 export function refresh() { if (!active()) return; if ((ui.tab === 'device' || (mounted && mounted.tab === 'device')) && !dev.root) restoreLast(); renderChips(); renderTools(); render(); }
 /** Gömme: hostEl içine (arama kutusu + gövde) verilen sekmeyi çizer; tıklama ve uzun basış işleyicileri host'a bağlanır (bir kez) */
@@ -247,23 +254,117 @@ function renderTools() {
   const s = $('openSort'); if (s) s.value = ui.sort[ui.tab] || 'name';
   const k = $('openKind'); if (k) k.value = ui.kind;
   const q = $('openSearch'); if (q && q.value.trim() !== ui.q) q.value = ui.q;
+  const sl = $('openSel');
+  if (sl) { sl.hidden = !!ui.pick; sl.classList.toggle('on', !!ui.sel); sl.setAttribute('aria-pressed', ui.sel ? 'true' : 'false'); }
 }
 function render() {
   const body = $('openBody');
   if (body && isOpen()) {
-    rtab = ui.tab; rq = ui.q;
+    rtab = ui.tab; rq = ui.q; rpanel = true;
     let h = '';
     if (ui.pick) h += `<div class="doc-card pick open-pick"><span>${esc(tt('openPickHint', 'Dosyaya dokunarak seçin'))}: <b>${esc(pickLabel(ui.pick.purpose))}</b></span><button type="button" class="btn small" data-open="close">${esc(t('cancel'))}</button></div>`;
+    h += selBar();
     h += ui.tab === 'device' ? renderDevice() : ui.tab === 'offline' ? renderOffline() : renderRecent();
     body.innerHTML = h;
   }
   if (mounted) {
-    rtab = mounted.tab; rq = mounted.qv;
+    rtab = mounted.tab; rq = mounted.qv; rpanel = false;
     if (mounted.q.value.trim() !== mounted.qv) mounted.q.value = mounted.qv;
     mounted.q.placeholder = tt('openSearchPh', 'Dosya ara…');   // dil değişince de yenilenir
     mounted.body.innerHTML = mounted.tab === 'device' ? renderDevice() : mounted.tab === 'offline' ? renderOffline() : renderRecent();
   }
-  rtab = ''; rq = '';
+  rtab = ''; rq = ''; rpanel = false;
+}
+
+// ---- çoklu seçim ---------------------------------------------------------------------------
+/* Onay kutuları yalnız PANELDE çıkar: ana ekrana gömülü gezgin (mount) dosya açmak içindir. */
+const secKipi = () => !!ui.sel && rpanel;
+/** Tıklama sırasında (çizim dışında) seçim kipi açık mı */
+const secKipiAcik = () => !!ui.sel;
+const selKey = (tur, a, b) => tur === 'recent' ? 'r:' + a : tur === 'dl' ? 'o:' + a : 'd:' + a + '|' + b;
+/** Satırın başındaki onay kutusu (seçim kipi kapalıyken hiç basılmaz) */
+function selBox(key) {
+  if (!secKipi()) return '';
+  const on = ui.sel.has(key);
+  return `<span class="selbox${on ? ' on' : ''}" aria-hidden="true">${on ? ICON('i-check') : ''}</span>`;
+}
+/** Seçim şeridi: kaç dosya, ne kadar yer tutuyor, ZIP yap / Tümünü seç / Vazgeç */
+function selBar() {
+  if (!secKipi()) return '';
+  const n = ui.sel.size;
+  const boy = [...ui.sel.values()].reduce((a, r) => a + (Number(r.size) || 0), 0);
+  const bilgi = ui.selMsg || (tt('openSelected', '%n seçili').replace('%n', String(n)) + (boy > 0 ? ' · ' + fmtSize(boy) : ''));
+  return `<div class="doc-card pick open-pick open-sel"><span class="sel-msg">${esc(bilgi)}</span>`
+    + `<button type="button" class="btn primary small" data-open="zip"${n && !zipBusy ? '' : ' disabled'}>${ICON('i-layers')} ${esc(tt('arcZip', 'ZIP yap'))}</button>`
+    + `<button type="button" class="btn small" data-open="selall">${esc(tt('openSelectAll', 'Tümünü seç'))}</button>`
+    + `<button type="button" class="btn small" data-open="selnone">${esc(t('cancel'))}</button></div>`;
+}
+/** Şeridin yazısını yerinde tazeler (ilerleme her dosyada bütün listeyi yeniden çizmesin) */
+function selYaz(m) {
+  ui.selMsg = m || '';
+  const el = $('openBody') && $('openBody').querySelector('.open-sel .sel-msg');
+  if (el) el.textContent = m || '';
+  else render();
+}
+/** Satırın veri özniteliklerinden kaynak tanımı (baytları sonradan buradan okunur) */
+function secTanim(row) {
+  const d = row.dataset;
+  const ortak = { name: d.name || '', size: Number(d.size) || 0, time: Number(d.time) || 0 };
+  if (d.openRecent) return { tur: 'recent', uri: d.uri, ...ortak };
+  if (d.openDl != null) return { tur: 'dl', id: d.openDl, ...ortak };
+  return { tur: 'dev', root: dev.root ? dev.root.uri : '', id: d.id, ...ortak };
+}
+function secTogg(row) {
+  const k = row.dataset.selKey; if (!k || !ui.sel) return;
+  if (ui.sel.has(k)) ui.sel.delete(k); else ui.sel.set(k, secTanim(row));
+  render();
+}
+/**
+ * Seçilen dosyanın baytları. Android'de kaynak bir yuvaya konur ve sahte kökten (/file/<yuva>)
+ * okunur — köprüden base64 taşımaya gerek kalmaz; tarayıcıda File nesnesi okunur.
+ */
+async function baytlar(sec) {
+  const oku = async (url) => { const r = await fetch(url, { cache: 'no-store' }); if (!r.ok) throw new Error('HTTP ' + r.status); return new Uint8Array(await r.arrayBuffer()); };
+  if (sec.tur === 'dl') return oku('/file/' + sec.id);
+  if (sec.tur === 'dev') {
+    if (hasFs()) { const slot = A().fsSlot(sec.root, sec.id); if (!slot) throw new Error(tt('openRootGone', 'Erişim izni kaybolmuş')); return oku('/file/' + slot); }
+    const f = vfsFile(sec.root, sec.id); if (!f) throw new Error(tt('openRootGone', 'Erişim izni kaybolmuş'));
+    return new Uint8Array(await f.arrayBuffer());
+  }
+  if (A() && A().recentSlot) { const slot = A().recentSlot(sec.uri); if (slot) return oku('/file/' + slot); }
+  const r = session.recent.find(x => x.uri === sec.uri);
+  if (r && r.file) return new Uint8Array(await r.file.arrayBuffer());
+  throw new Error(tt('openRecentGone', 'Bu dosya bu oturumda artık yok.'));
+}
+/** Seçili dosyalardan ZIP kurar ve kaydeder */
+async function zipYapUI() {
+  if (zipBusy || !ui.sel || !ui.sel.size) return;
+  const secili = [...ui.sel.values()];
+  const boy = secili.reduce((a, r) => a + (Number(r.size) || 0), 0);
+  if (boy > Arsiv.ZIP_SINIRI) { call(api.toast, tt('arcTooBig', 'Seçim çok büyük; en çok 200 MB sıkıştırılabilir.'), { type: 'warn' }); return; }
+  const taban = ui.tab === 'device' && dev.root ? (dev.path.length ? dev.path[dev.path.length - 1].name : dev.root.name) : tt('arcZipDefault', 'secim');
+  const yanit = await askText(tt('arcZipName', 'Arşiv adı'), Arsiv.guvenliAd(taban, 'secim') + '.zip');
+  if (yanit == null) return;
+  const ham = String(yanit).trim();
+  const dosya = Arsiv.guvenliAd(/\.zip$/i.test(ham) ? ham : ham + '.zip', 'arsiv.zip');
+  zipBusy = true; render();
+  const girdiler = [], hata = [];
+  try {
+    for (let i = 0; i < secili.length; i++) {
+      selYaz(tt('arcZipping', 'Sıkıştırılıyor') + '… ' + (i + 1) + '/' + secili.length);
+      try { girdiler.push({ name: secili[i].name, data: await baytlar(secili[i]), time: secili[i].time }); }
+      catch (e) { console.warn(e); hata.push(secili[i].name); }
+    }
+    if (!girdiler.length) throw new Error(hata.length ? hata[0] : tt('arcNoEntry', 'Çıkarılacak dosya yok'));
+    selYaz(tt('arcZipping', 'Sıkıştırılıyor') + '…');
+    const zip = await Arsiv.zipYap(girdiler);
+    const nere = Arsiv.diskeYaz(zip, dosya, { mime: 'application/zip' });
+    call(api.toast, tt('arcZipped', '%n dosya sıkıştırıldı').replace('%n', String(girdiler.length)) + (nere ? ' · ' + nere : '')
+      + (hata.length ? ' · ' + hata.length + ' ' + tt('arcFailed', 'başarısız') : ''), { type: 'ok', ms: 6000 });
+    ui.sel = null;
+  } catch (e) {
+    call(api.toast, tt('arcZipFail', 'Arşiv yapılamadı') + ': ' + (e && e.message ? e.message : e), { type: 'error' });
+  } finally { zipBusy = false; ui.selMsg = ''; renderTools(); render(); }
 }
 function pickLabel(p) { return p === 'compare' ? t('compare') : p.startsWith('xref:') ? t('xrefs') : p.startsWith('img:') ? t('imgMissing') : p.startsWith('upload:') ? t('driveUpload') : t('open'); }
 function metaOf(r) { return [fmtSize(r.size), fmtDate(r.time)].filter(Boolean).join(' · '); }
@@ -286,8 +387,10 @@ function renderRecent() {
         + `<button type="button" class="btn small" data-open="system">${ICON('i-open')} ${esc(tt('openSystem', 'Sistem dosya seçici'))}</button>`);
   }
   const thumb = (r) => r.thumb && r.key ? `<img class="open-thumb" src="/file/thumb_${esc(r.key)}?${Number(r.time) || 0}" alt="">` : `<span class="open-thumb noimg">${iconFor(r.name)}</span>`;
-  const row = (r, fav) => `<div class="item arc-item open-item${fav ? ' fav' : ''}${r.gone ? ' dim' : ''}" data-open-recent="1" data-uri="${esc(r.uri)}" data-name="${esc(r.name)}">${thumb(r)}<span class="nm">${esc(r.name)}${fav ? ICON('i-star') : ''}<small class="open-meta">${esc(metaOf(r))}</small></span><button type="button" class="lbtn" data-open="menu" aria-label="${esc(t('more'))}">${ICON('i-more')}</button></div>` + (ui.menu === r.uri ? actsHtml(r) : '');
-  const tile = (r, fav) => `<div class="open-tile${fav ? ' fav' : ''}${r.gone ? ' dim' : ''}" data-open-recent="1" data-uri="${esc(r.uri)}" data-name="${esc(r.name)}">${thumb(r)}<span class="nm">${esc(r.name)}</span><small class="open-meta">${esc(metaOf(r))}</small>${fav ? ICON('i-star') : ''}<button type="button" class="lbtn" data-open="menu" aria-label="${esc(t('more'))}">${ICON('i-more')}</button></div>`;
+  const veri = (r) => `data-open-recent="1" data-uri="${esc(r.uri)}" data-name="${esc(r.name)}" data-size="${Number(r.size) || 0}" data-time="${Number(r.time) || 0}"${secKipi() ? ` data-sel-key="${esc(selKey('recent', r.uri))}"` : ''}`;
+  const secili = (r) => secKipi() && ui.sel.has(selKey('recent', r.uri)) ? ' sel-on' : '';
+  const row = (r, fav) => `<div class="item arc-item open-item${fav ? ' fav' : ''}${r.gone ? ' dim' : ''}${secili(r)}" ${veri(r)}>${selBox(selKey('recent', r.uri))}${thumb(r)}<span class="nm">${esc(r.name)}${fav ? ICON('i-star') : ''}<small class="open-meta">${esc(metaOf(r))}</small></span><button type="button" class="lbtn" data-open="menu" aria-label="${esc(t('more'))}">${ICON('i-more')}</button></div>` + (ui.menu === r.uri ? actsHtml(r) : '');
+  const tile = (r, fav) => `<div class="open-tile${fav ? ' fav' : ''}${r.gone ? ' dim' : ''}${secili(r)}" ${veri(r)}>${selBox(selKey('recent', r.uri))}${thumb(r)}<span class="nm">${esc(r.name)}</span><small class="open-meta">${esc(metaOf(r))}</small>${fav ? ICON('i-star') : ''}<button type="button" class="lbtn" data-open="menu" aria-label="${esc(t('more'))}">${ICON('i-more')}</button></div>`;
   let h = '';
   if (ui.grid) {
     if (favRows.length) h += `<div class="open-sec">${esc(tt('openFavs', 'Sık kullanılanlar'))}</div><div class="open-grid">${favRows.map(r => tile(r, true)).join('')}</div>`;
@@ -319,9 +422,11 @@ function renderDevice() {
     ? emptyBox('search', t('noResult'), tt('openNoResultText', 'Aradığınız ada uyan dosya yok; daha kısa bir parça yazmayı ya da süzgeci temizlemeyi deneyin.'))
     : emptyBox('folder', tt('openEmptyDir', 'Klasör boş'), tt('openEmptyDirText', 'Bu klasörde gösterilecek dosya yok.')));
   h += '<div class="list arc-list">';
+  const kok = dev.root ? dev.root.uri : '';
   for (const it of list) {
     const meta = it.dir ? '' : metaOf(it);
-    h += `<div class="item arc-item open-item" data-open-entry="1" data-id="${esc(it.id)}" data-name="${esc(it.name)}" data-dir="${it.dir ? 1 : 0}" data-size="${Number(it.size) || 0}">${it.dir ? ICON('i-open') : iconFor(it.name)}<span class="nm">${esc(it.name)}${it.parent ? `<small class="open-meta">${esc(it.parent)}</small>` : ''}</span>${meta ? `<small>${esc(meta)}</small>` : ''}${it.dir ? '<svg class="ic open-chev" aria-hidden="true"><use href="#i-chevron"/></svg>' : ''}</div>`;
+    const key = it.dir ? '' : selKey('dev', kok, it.id);   // klasör seçilmez: dokunuş içine girer
+    h += `<div class="item arc-item open-item${key && secKipi() && ui.sel.has(key) ? ' sel-on' : ''}" data-open-entry="1" data-id="${esc(it.id)}" data-name="${esc(it.name)}" data-dir="${it.dir ? 1 : 0}" data-size="${Number(it.size) || 0}" data-time="${Number(it.time) || 0}"${key && secKipi() ? ` data-sel-key="${esc(key)}"` : ''}>${key ? selBox(key) : ''}${it.dir ? ICON('i-open') : iconFor(it.name)}<span class="nm">${esc(it.name)}${it.parent ? `<small class="open-meta">${esc(it.parent)}</small>` : ''}</span>${meta ? `<small>${esc(meta)}</small>` : ''}${it.dir ? '<svg class="ic open-chev" aria-hidden="true"><use href="#i-chevron"/></svg>' : ''}</div>`;
   }
   return h + '</div>';
 }
@@ -332,7 +437,7 @@ function renderOffline() {
   if (!list.length) return dl.length
     ? emptyBox('search', t('noResult'), tt('openNoResultText', 'Aradığınız ada uyan dosya yok; daha kısa bir parça yazmayı ya da süzgeci temizlemeyi deneyin.'))
     : emptyBox('cloud', t('cached'), tt('openNoOffline', 'Çevrimdışı kopya yok.'));
-  return `<div class="list arc-list">${list.map(d => `<div class="item arc-item open-item" data-open-dl="${esc(d.id)}" data-name="${esc(d.name)}">${iconFor(d.name)}<span class="nm">${esc(d.name)}<small class="open-meta">${esc(metaOf(d))}</small></span><button type="button" class="lbtn" data-open="deldl" aria-label="${esc(t('delete'))}">${ICON('i-trash')}</button></div>`).join('')}</div>`;
+  return `<div class="list arc-list">${list.map(d => { const key = selKey('dl', d.id); return `<div class="item arc-item open-item${secKipi() && ui.sel.has(key) ? ' sel-on' : ''}" data-open-dl="${esc(d.id)}" data-name="${esc(d.name)}" data-size="${Number(d.size) || 0}" data-time="${Number(d.time) || 0}"${secKipi() ? ` data-sel-key="${esc(key)}"` : ''}>${selBox(key)}${iconFor(d.name)}<span class="nm">${esc(d.name)}<small class="open-meta">${esc(metaOf(d))}</small></span><button type="button" class="lbtn" data-open="deldl" aria-label="${esc(t('delete'))}">${ICON('i-trash')}</button></div>`; }).join('')}</div>`;
 }
 
 // ---- etkileşim ---------------------------------------------------------------------------
@@ -356,6 +461,10 @@ async function onClick(ev) {
     else if (k === 'home') { close(); call(api.goHome); }   // her ekranda ana sayfa düğmesi
     else if (k === 'system') { const p = ui.pick; close(); call(api.systemPick, p ? p.purpose : 'open', p ? p.mime : '*/*'); }
     else if (k === 'grid') { ui.grid = !ui.grid; renderTools(); render(); }
+    else if (k === 'sel') { ui.sel = ui.sel ? null : new Map(); ui.menu = null; ui.selMsg = ''; renderTools(); render(); }
+    else if (k === 'selnone') { ui.sel = null; ui.selMsg = ''; renderTools(); render(); }
+    else if (k === 'selall') { const bd = $('openBody'); if (bd && ui.sel) { bd.querySelectorAll('[data-sel-key]').forEach(r => ui.sel.set(r.dataset.selKey, secTanim(r))); render(); } }
+    else if (k === 'zip') { await zipYapUI(); }
     else if (k === 'menu') { const it = b.closest('[data-open-recent]'); if (it) toggleMenu(it.dataset.uri); }
     else if (k === 'rootmenu') { toggleMenu(dev.root ? 'root:' + dev.root.uri : null); }
     else if (k === 'addroot' || k === 'adddl') { if (hasFs()) A().fsAddRoot(k === 'adddl' ? 'download' : ''); else { const f = $('folderInput'); if (f) f.click(); } }
@@ -364,6 +473,9 @@ async function onClick(ev) {
     else if (k === 'deldl') { const it = b.closest('[data-open-dl]'); if (it && await askConfirm(tt('confirmDelete', 'Silinsin mi?') + ' ' + it.dataset.name)) { if (A() && A().deleteDownload) A().deleteDownload(it.dataset.openDl); render(); } }
     return;
   }
+  // Çoklu seçim kipinde satır dosyayı AÇMAZ, seçer (klasör satırı seçilemez; içine girer)
+  const sec = ev.target.closest('[data-sel-key]');
+  if (sec && secKipiAcik()) { secTogg(sec); return; }
   const rec = ev.target.closest('[data-open-recent]'); if (rec) { openRecent(rec.dataset.uri); return; }
   const dl = ev.target.closest('[data-open-dl]'); if (dl) { close(); if (A() && A().openDownload) A().openDownload(dl.dataset.openDl); return; }
   const it = ev.target.closest('[data-open-entry]'); if (it) { onEntry(it.dataset); }

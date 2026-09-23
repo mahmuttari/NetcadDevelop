@@ -19,6 +19,7 @@ import * as Docs from './docs.js';
 import * as New from './newdoc.js';
 import * as Drive from './drive.js';
 import * as Open from './open.js';
+import * as Arsiv from './arsiv.js';
 import * as Ed from './edition.js';
 import { pdfBelge, ilkelleriBas, kagit as PK, PT } from './pdfvec.js';
 import * as Home from './home.js';
@@ -5488,6 +5489,8 @@ window.dwgApp = { osnap: Osnap, paylasGorunum, gorunumPng, loadCurrent, onFilePi
   display: D, toast, zoomBy, zoomWindow, viewHistory, gotoCoord, fitPrims, savePng, getSettings: () => settings, requestRender, openDisplayOptions, showSettings, showNewDoc,
   docs: Docs, drive: Drive, onGoogle: (ok, json) => Drive.onGoogle(ok, json), onDrive: (id, ok, json) => Drive.onDrive(id, ok, json), onDriveProgress: (id, d, tot) => Drive.onProgress(id, d, tot), openDrive: () => Drive.open(),
   open: Open, openCenter: (tab) => Open.open(tab), onFsRoot: (obj) => Open.onFsRoot(obj), onFs: (id, ok, json) => Open.onFs(id, ok, json),
+  // Arşiv çıkarma köprüsünün yanıtı ve ilerlemesi (MainActivity.arcSave)
+  onArc: (id, ok, json) => Arsiv.onArc(id, ok, json), onArcProgress: (id, d, tot, ad) => Arsiv.onArcProgress(id, d, tot, ad),
   home: Home, cloud: Cloud, openSample, refreshResume: () => Home.renderResume(), onWebDav: (id, ok, json) => Cloud.onWebDav(id, ok, json), goHome, refreshMenu,
   onWebDavProgress: (id, d, tot) => Cloud.onProgress(id, d, tot),
   edition: () => Ed.tier(), tier: () => Ed.tier(), has: (id) => Ed.has(id), isPro: () => Ed.isPro(), openProPanel: (x) => Ed.openProPanel(x), proInfo: () => Ed.proInfo(), onEdition: (ed, reason) => Ed.onEdition(String(ed || ''), String(reason || '')), onAd: (reason, shown) => Ed.onAd(String(reason || ''), !!shown), __ads: Ed.__ads,
