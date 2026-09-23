@@ -27,9 +27,20 @@ function lenPt(v) {
   const n = +m[1], u = (m[2] || 'px').toLowerCase();
   return u === 'pt' ? n : u === 'px' ? n * 0.75 : u === 'cm' ? n * 28.3465 : u === 'mm' ? n * 2.83465 : u === 'in' ? n * 72 : u === 'em' ? n * 11 : n;
 }
+/*
+ * Adlı CSS renkleri: Word'ün 15 vurgu adı (okuyucu w:highlight'ı adla basar) + tarayıcının
+ * sık ürettiği birkaç ad. Ad çözülemeyince kaynak belgeden gelen vurgu kayıtta sessizce
+ * düşüyordu; artık RRGGBB'ye çevrilip w:shd olarak geri yazılır.
+ */
+const RENK_ADI = { yellow: 'FFFF00', green: '00FF00', cyan: '00FFFF', aqua: '00FFFF', magenta: 'FF00FF', fuchsia: 'FF00FF',
+  blue: '0000FF', red: 'FF0000', darkblue: '00008B', navy: '000080', darkcyan: '008B8B', teal: '008080',
+  darkgreen: '006400', darkmagenta: '8B008B', purple: '800080', darkred: '8B0000', maroon: '800000',
+  darkyellow: '808000', olive: '808000', gray: '808080', grey: '808080', darkgray: 'A9A9A9', darkgrey: 'A9A9A9',
+  lightgray: 'D3D3D3', lightgrey: 'D3D3D3', silver: 'C0C0C0', black: '000000', white: 'FFFFFF', orange: 'FFA500', lime: '00FF00' };
 /** CSS rengi → RRGGBB (büyük harf); çözülemezse boş */
 function hex6(v) {
   if (!v) return '';
+  const ad = RENK_ADI[v.trim().toLowerCase()]; if (ad) return ad;
   let m = /^#([0-9a-f]{6})$/i.exec(v.trim()); if (m) return m[1].toUpperCase();
   m = /^#([0-9a-f]{3})$/i.exec(v.trim()); if (m) return m[1].split('').map(c => c + c).join('').toUpperCase();
   m = /^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/i.exec(v);
@@ -106,7 +117,12 @@ function inlineOf(el, base) {
   if (tag === 'SUP') f.va = 'superscript';
   if (tag === 'SUB') f.va = 'subscript';
   if (tag === 'A') { f.link = el.getAttribute('href') || ''; f.u = 1; f.color = f.color || '0563C1'; }
-  if (tag === 'FONT') { const c = hex6(el.getAttribute('color')); if (c) f.color = c; }
+  if (tag === 'FONT') {
+    const c = hex6(el.getAttribute('color')); if (c) f.color = c;
+    // execCommand('fontSize') eski usül size=1..7 üretir; HTML'in geleneksel punto merdiveni
+    const sz = { 1: 8, 2: 10, 3: 12, 4: 14, 5: 18, 6: 24, 7: 36 }[+el.getAttribute('size')];
+    if (sz) f.size = sz;
+  }
   const st = el.style;
   if (st) {
     const w = st.fontWeight; if (w && (w === 'bold' || num(w) >= 600)) f.b = 1; else if (w === 'normal') f.b = 0;
@@ -185,9 +201,10 @@ function imgRun(im, ctx) {
 }
 const JC = { center: 'center', right: 'right', justify: 'both', left: 'left', start: 'left', end: 'right' };
 /** Paragraf özellikleri: stil, hizalama, girinti, aralık */
-function pPr(el, style) {
+function pPr(el, style, extra) {
   const p = [];
   if (style) p.push(`<w:pStyle w:val="${style}"/>`);
+  if (extra) p.push(extra);
   const st = el.style || {};
   const ml = lenPt(st.marginLeft), ti = lenPt(st.textIndent), mr = lenPt(st.marginRight);
   if (ml || ti || mr) {
@@ -203,11 +220,36 @@ function pPr(el, style) {
   if (jc && jc !== 'left') p.push(`<w:jc w:val="${jc}"/>`);
   return p.length ? `<w:pPr>${p.join('')}</w:pPr>` : '';
 }
-function paraXml(el, ctx, style) {
+function paraXml(el, ctx, style, extra) {
   const base = inlineOf(el, {});
   delete base.link;
   const runs = runsOf(el, base, ctx);
-  return `<w:p>${pPr(el, style)}${runs}</w:p>`;
+  return `<w:p>${pPr(el, style, extra)}${runs}</w:p>`;
+}
+/*
+ * GERÇEK WORD LİSTESİ (v8.8). Eskiden UL/OL yalnız ListParagraph stiline düşüyordu: madde imi /
+ * numara Word'de HİÇ görünmüyordu. Artık numbering.xml yazılır ve her madde w:numPr taşır —
+ * numId 1 madde imi (•), 2 numaralı; iç içe listelerde düzey (ilvl) 0-2 arasında derinlikten gelir.
+ * LI içindeki alt liste HTML'de iki biçimde gelir (li > ul ya da ul > ul); ikisi de gezilir.
+ */
+function listXml(el, ctx, lvl) {
+  const numId = el.tagName === 'OL' ? 2 : 1;
+  let x = '';
+  for (const ch of el.children) {
+    if (ch.tagName === 'UL' || ch.tagName === 'OL') { x += listXml(ch, ctx, Math.min(2, lvl + 1)); continue; }
+    if (ch.tagName !== 'LI') continue;
+    const ic = [...ch.children].filter(c => c.tagName === 'UL' || c.tagName === 'OL');
+    if (ic.length) {
+      // maddenin kendi metni (alt liste düğümleri sayılmadan) + altındaki listeler
+      const kopya = ch.cloneNode(true);
+      for (const k of [...kopya.children]) if (k.tagName === 'UL' || k.tagName === 'OL') kopya.removeChild(k);
+      x += paraXml(kopya, ctx, 'ListParagraph', `<w:numPr><w:ilvl w:val="${lvl}"/><w:numId w:val="${numId}"/></w:numPr>`);
+      for (const alt of ic) x += listXml(alt, ctx, Math.min(2, lvl + 1));
+    } else {
+      x += paraXml(ch, ctx, 'ListParagraph', `<w:numPr><w:ilvl w:val="${lvl}"/><w:numId w:val="${numId}"/></w:numPr>`);
+    }
+  }
+  return x;
 }
 function tableXml(tbl, ctx) {
   const rows = [...tbl.querySelectorAll(':scope > tbody > tr, :scope > tr, :scope > thead > tr')];
@@ -241,8 +283,18 @@ function blocksXml(root, ctx) {
     const tag = el.tagName;
     if (tag === 'TABLE') { x += tableXml(el, ctx); continue; }
     if (el.classList && el.classList.contains('pagebreak')) { x += '<w:p><w:r><w:br w:type="page"/></w:r></w:p>'; continue; }
+    if (tag === 'UL' || tag === 'OL') { x += listXml(el, ctx, 0); continue; }
+    if (el.querySelector && el.querySelector('ul, ol')) {
+      // execCommand listeyi paragrafın İÇİNE koyabilir (<p><ul>…</ul></p>). Liste dışı kalan satır içi
+      // içerik kendi paragrafı olarak, içteki listeler gerçek Word listesi (numPr) olarak yazılır.
+      const kopya = el.cloneNode(true);
+      for (const l of [...kopya.querySelectorAll('ul, ol')]) l.remove();
+      if (kopya.textContent.trim() || kopya.querySelector('img')) x += paraXml(kopya, ctx, /^H[1-6]$/.test(tag) ? 'Heading' + tag[1] : null);
+      const disKatman = (l) => { let a = l.parentElement; while (a && a !== el) { if (a.tagName === 'UL' || a.tagName === 'OL' || a.tagName === 'LI') return false; a = a.parentElement; } return true; };
+      for (const l of [...el.querySelectorAll('ul, ol')].filter(disKatman)) x += listXml(l, ctx, 0);
+      continue;
+    }
     if (/^H[1-6]$/.test(tag)) { x += paraXml(el, ctx, 'Heading' + tag[1]); continue; }
-    if (tag === 'UL' || tag === 'OL') { for (const li of el.children) if (li.tagName === 'LI') x += paraXml(li, ctx, 'ListParagraph'); continue; }
     if (tag === 'DIV' && el.children.length && [...el.children].some(c => BLOCK.has(c.tagName))) { x += blocksXml(el, ctx); continue; }
     if (tag === 'BR') { x += '<w:p/>'; continue; }
     x += paraXml(el, ctx, null);
@@ -254,7 +306,7 @@ function blocksXml(root, ctx) {
 }
 
 const CT = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpeg" ContentType="image/jpeg"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>`;
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpeg" ContentType="image/jpeg"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/></Types>`;
 const RELS = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`;
 const HEAD_SZ = [32, 26, 24, 22, 20, 18];
@@ -263,6 +315,18 @@ const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
   + HEAD_SZ.map((sz, i) => `<w:style w:type="paragraph" w:styleId="Heading${i + 1}"><w:name w:val="heading ${i + 1}"/><w:basedOn w:val="Normal"/><w:pPr><w:outlineLvl w:val="${i}"/><w:spacing w:before="240" w:after="120"/></w:pPr><w:rPr><w:rFonts w:ascii="Calibri Light" w:hAnsi="Calibri Light"/><w:b/><w:color w:val="1F3B6E"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr></w:style>`).join('')
   + `<w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="List Paragraph"/><w:basedOn w:val="Normal"/><w:pPr><w:ind w:left="720"/></w:pPr></w:style>`
   + `<w:style w:type="table" w:styleId="TableGrid"><w:name w:val="Table Grid"/></w:style></w:styles>`;
+/*
+ * Liste tanımları: abstractNum 0 = madde imi (üç düzey: • ◦ ▪), abstractNum 1 = numaralı
+ * (1. / a. / i.). Girintiler Word'ün kendi varsayılanıyla aynı merdivendedir (720 twip/düzey).
+ * Parça listede madde olmasa da pakete girer: Word kullanılmayan numbering'i sorun etmez ve
+ * paket listesi böylece belgeden belgeye değişmez (sınamalar tam eşitlikle bakar).
+ */
+const NUM_LVL = (i, fmt, txt, font) => `<w:lvl w:ilvl="${i}"><w:start w:val="1"/><w:numFmt w:val="${fmt}"/><w:lvlText w:val="${txt}"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="${720 * (i + 1)}" w:hanging="360"/></w:pPr>${font ? `<w:rPr><w:rFonts w:ascii="${font}" w:hAnsi="${font}" w:hint="default"/></w:rPr>` : ''}</w:lvl>`;
+const NUMBERING = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">`
+  + `<w:abstractNum w:abstractNumId="0">${NUM_LVL(0, 'bullet', '&#8226;')}${NUM_LVL(1, 'bullet', 'o', 'Courier New')}${NUM_LVL(2, 'bullet', '&#9642;')}</w:abstractNum>`
+  + `<w:abstractNum w:abstractNumId="1">${NUM_LVL(0, 'decimal', '%1.')}${NUM_LVL(1, 'lowerLetter', '%2.')}${NUM_LVL(2, 'lowerRoman', '%3.')}</w:abstractNum>`
+  + `<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num><w:num w:numId="2"><w:abstractNumId w:val="1"/></w:num></w:numbering>`;
 
 /**
  * Düzenlenmiş kapsayıcıyı DOCX paketine çevirir.
@@ -283,7 +347,8 @@ export async function htmlToDocx(root, page) {
     + `<w:pgMar w:top="${twip(m.top)}" w:right="${twip(m.right)}" w:bottom="${twip(m.bottom)}" w:left="${twip(m.left)}" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr>`;
   const doc = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body>${body}${sect}</w:body></w:document>`;
-  const relItems = [`<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`];
+  const relItems = [`<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`,
+    `<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>`];
   for (const [url, id] of links) relItems.push(`<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${xesc(url)}" TargetMode="External"/>`);
   for (const im of media) relItems.push(`<Relationship Id="${im.id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/${im.name}"/>`);
   const docRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -294,6 +359,7 @@ export async function htmlToDocx(root, page) {
     { name: 'word/document.xml', data: enc.encode(doc) },
     { name: 'word/_rels/document.xml.rels', data: enc.encode(docRels) },
     { name: 'word/styles.xml', data: enc.encode(STYLES) },
+    { name: 'word/numbering.xml', data: enc.encode(NUMBERING) },
     ...media.map(im => ({ name: 'word/media/' + im.name, data: im.bytes })),
   ];
   return zipWrite(entries);

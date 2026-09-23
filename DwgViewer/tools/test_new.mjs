@@ -3,6 +3,26 @@
 import { args, startServer, launchBrowser, onDialog, noUpdate, queueAnswers, checker, PHONE } from './harness.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
+
+/** ZIP'i Node'un zlib'iyle açar: {ad → Buffer} (bağımsız doğrulama, test_edit ile aynı) */
+function unzip(buf) {
+  let eo = -1;
+  for (let i = buf.length - 22; i >= 0; i--) if (buf.readUInt32LE(i) === 0x06054b50) { eo = i; break; }
+  if (eo < 0) throw new Error('EOCD yok');
+  const n = buf.readUInt16LE(eo + 10); let p = buf.readUInt32LE(eo + 16);
+  const files = {};
+  for (let i = 0; i < n; i++) {
+    if (buf.readUInt32LE(p) !== 0x02014b50) throw new Error('merkezi dizin bozuk');
+    const nl = buf.readUInt16LE(p + 28), el = buf.readUInt16LE(p + 30), cl = buf.readUInt16LE(p + 32), lo = buf.readUInt32LE(p + 42);
+    const name = buf.slice(p + 46, p + 46 + nl).toString('utf8'), method = buf.readUInt16LE(p + 10), csize = buf.readUInt32LE(p + 20);
+    const lnl = buf.readUInt16LE(lo + 26), lel = buf.readUInt16LE(lo + 28), st = lo + 30 + lnl + lel;
+    const raw = buf.slice(st, st + csize);
+    files[name] = method === 8 ? zlib.inflateRawSync(raw) : raw;
+    p += 46 + nl + el + cl;
+  }
+  return files;
+}
 
 const { out } = args(import.meta.url);
 const srv = await startServer();
@@ -83,7 +103,61 @@ await page.waitForTimeout(400);
 await reopen(xlsxPath);
 {
   const r = await ev(() => { const t = document.querySelector('#docContent .xlsx-tbl'); const cell = (r2, c) => t.rows[r2 + 1].cells[c + 1]?.textContent; return { name: document.getElementById('docName').textContent, a1: cell(0, 0), b1: cell(0, 1), a2: cell(1, 0), b2: cell(1, 1), rows: t.rows.length }; });
-  ok('n6 kaydedilen xlsx geri okundu', /metraj/.test(r.name) && r.a1 === 'Poz' && r.b1 === 'Ø300 boru' && r.a2 === '25.005' && r.b2 === '1250,50', JSON.stringify(r));
+  // v8.8: Türkçe yazımdaki sayılar artık gerçek sayı hücresi olarak yazılır (Excel kuralı):
+  // '25.005' → 25005, '1250,50' → 1250,5 — genel biçim son sıfırı ve binlik noktayı göstermez.
+  ok('n6 kaydedilen xlsx geri okundu, sayılar sayı hücresi oldu', /metraj/.test(r.name) && r.a1 === 'Poz' && r.b1 === 'Ø300 boru' && r.a2 === '25005' && r.b2 === '1250,5', JSON.stringify(r));
+}
+
+// ---- 2b. v8.8: formül motoru, otomatik toplam, hücre biçimi, satır ekleme kaydırması ----
+await page.click('#docTools [data-doc="edit"]');
+await page.waitForSelector('#docContent .grid-ed td[contenteditable]');
+// Gerçek kullanıcı yolu: hücreye odaklan, yaz, odaktan çık (focusout → hucreIsle → yeniden hesap)
+const hucreYaz = (r, c, v) => ev(([r2, c2, v2]) => {
+  const td = document.querySelector(`#docContent .grid-ed td[data-r="${r2}"][data-c="${c2}"]`);
+  td.focus(); td.textContent = v2; td.blur();
+}, [r, c, v]);
+const hucreOku = (r, c) => ev(([r2, c2]) => document.querySelector(`#docContent .grid-ed td[data-r="${r2}"][data-c="${c2}"]`).textContent, [r, c]);
+await hucreYaz(1, 2, '=A2*2');
+ok('e1 formül girildi ve hesaplandı (=A2*2 → 50010)', await hucreOku(1, 2) === '50010', await hucreOku(1, 2));
+// otomatik toplam: A3 boş, üstünde A2=25005 var → SUM(A2:A2)
+await ev(() => document.querySelector('#docContent .grid-ed td[data-r="2"][data-c="0"]').focus());
+await page.click('#docTools [data-pe="autosum"]');
+await page.waitForTimeout(150);
+ok('e2 otomatik toplam üstteki sayı bloğunu topladı', await hucreOku(2, 0) === '25005', await hucreOku(2, 0));
+// hücre biçimi: aynı hücre kalın + dolgu (seçim autosum sonrası duruyor)
+await page.click('#docTools [data-pe="cellbold"]');
+await page.click('#docTools [data-pe="cellfill"][data-color="#fff2a8"]');
+ok('e3 kalın ve dolgu hücreye canlı uygulandı', await ev(() => {
+  const td = document.querySelector('#docContent .grid-ed td[data-r="2"][data-c="0"]');
+  return td.style.fontWeight === '700' && td.style.background !== '';
+}));
+// satır ekleme: 2. satırın üstüne — formüller Excel kuralıyla kayar (=A2*2 → =A3*2, SUM(A2:A2) → SUM(A3:A3))
+await ev(() => document.querySelector('#docContent .grid-ed td[data-r="1"][data-c="0"]').focus());
+await page.click('#docTools [data-pe="insrow"]');
+await page.waitForTimeout(200);
+ok('e4 satır eklendi, formül metinleri kaydı', await ev(() => {
+  const td = document.querySelector('#docContent .grid-ed td[data-r="2"][data-c="2"]');
+  td.focus(); const f = td.textContent; td.blur();
+  return f === '=A3*2';
+}), 'odakta görülen formül');
+await shot('yeni_xlsx_formul');
+const xlsx88 = await saveAndGet('metraj_v88.xlsx');
+// --- bağımsız doğrulama: paket içinde <f> + önbellek <v>, styles.xml biçimi, calcPr ---
+{
+  const files = unzip(fs.readFileSync(xlsx88));
+  const sheet = files['xl/worksheets/sheet1.xml'].toString('utf8');
+  const styles = (files['xl/styles.xml'] || Buffer.alloc(0)).toString('utf8');
+  const wb = files['xl/workbook.xml'].toString('utf8');
+  ok('e5 xlsx: formül <f> ve önbellek değeri <v> yazıldı', sheet.includes('<f>A3*2</f>') && sheet.includes('<v>50010</v>')
+    && sheet.includes('<f>SUM(A3:A3)</f>'), sheet.slice(0, 0) || 'formül satırları');
+  ok('e6 xlsx: hücre biçimi styles.xml\'e, calcPr workbook\'a yazıldı', /<b\/>/.test(styles) && /FFF2A8/i.test(styles)
+    && wb.includes('<calcPr fullCalcOnLoad="1"/>'));
+}
+await page.waitForTimeout(300);
+await reopen(xlsx88);
+{
+  const r = await ev(() => { const t = document.querySelector('#docContent .xlsx-tbl'); const cell = (r2, c) => t.rows[r2 + 1].cells[c + 1]?.textContent; return { f: cell(2, 2), s: cell(3, 0) }; });
+  ok('e7 yeniden açılışta formüller hesaplanıyor', r.f === '50010' && r.s === '25005', JSON.stringify(r));
 }
 
 // ---- 3. CSV -----------------------------------------------------------------------------

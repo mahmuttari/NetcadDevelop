@@ -27,9 +27,10 @@ import { sniffDoc, sniffHint, rtfToHtml, htmlToParts, mhtmlParts, decodeHtmlByte
 import * as PdfEdit from './pdfedit.js';
 import * as DocEdit from './docedit.js';
 import * as Arsiv from './arsiv.js';
-import { askText, askConfirm } from './dialog.js';
+import { askText, askConfirm, askForm } from './dialog.js';
 import { xlsxBook, csvText } from './newdoc.js';
 import * as XB from './xlbook.js';
+import { hesapla as xlHesapla } from './xlfn.js';
 import { skelDoc, skelThumb } from './skel.js';
 
 const $ = (id) => document.getElementById(id);
@@ -322,7 +323,7 @@ function sayfaGorunum(s) {
     }
     return html + '</table>';
   };
-  return { name: s.ad, get html() { return tableHtml(); }, tableHtml, get cells() { return s.cells; }, get ham() { return s.ham; }, rows: s.satir, maxC };
+  return { name: s.ad, get html() { return tableHtml(); }, tableHtml, get cells() { return s.cells; }, get ham() { return s.ham; }, get formuller() { return s.formuller; }, rows: s.satir, maxC };
 }
 /** Belgeyi okuyup basılabilir sayfalara çevirir (eski xlsxToHtml'in yerini alır) */
 export async function xlsxSayfalar(d) {
@@ -363,6 +364,8 @@ export function initDocs(a) {
     else if (k === 'wrap') { els.body.classList.toggle('nowrap'); }
   });
   els.body.addEventListener('scroll', () => { if (cur && cur.kind === 'pdf') { pdfUpdatePage(); pdfLazy(); } });
+  // Araç çubuğundaki açılır seçiciler (Word: stil / yazı boyu): change tek yerden dağıtılır
+  els.tools.addEventListener('change', (ev) => { const sel = ev.target.closest('[data-pe-sel]'); if (sel) onEditSelect(sel); });
   bindPinch(els.body);
 }
 export const isOpen = () => !!(els && els.view && !els.view.hidden);
@@ -827,11 +830,16 @@ function otherActions(d) {
 /*
  * Düzenleme tek kapıdan geçer: kind 'pdf' ise pdfedit.js açıklama katmanı, Word türlerinde docedit.js
  * contenteditable akış düzenleyicisi, Excel ve CSV'de hücre ızgarası, düz metinde metin kutusu. Hepsinde
- * özgün dosya değişmez; "Kaydet" yeni bir dosya üretip paylaşır. Ücretsiz sürümde düğme hiç görünmez.
+ * özgün dosya değişmez; "Kaydet" yeni bir dosya üretip paylaşır. Düğme her basamakta görünür, ücretsizde
+ * kilit rozeti taşır (bkz. editBtn); tıklama yolu gate('docEdit') ile kapılıdır.
  *
- * Izgara düzenleyici yalnız HÜCRE DEĞERLERİNİ taşır: biçim, formül ve birleştirilmiş hücre kaydedilen
- * kopyada bulunmaz (kullanıcıya kaydetmeden önce söylenir). Etkin olmayan sayfalar kaynaktaki değerleriyle
- * olduğu gibi yazılır, GRID_MAX'tan sonraki satırlar da düzenlenmeden korunur.
+ * IZGARA DÜZENLEYİCİ (v8.8'den beri): hücre değerlerinin yanında FORMÜLLERİ (xlfn motoru canlı
+ * hesaplar, dosyaya <f> yazılır), yazılan SAYILARIN sayı tipini ve düzenleyicide verilen hücre
+ * biçimini (kalın/italik/renk/dolgu → styles.xml) da taşır. Satır/sütun ekleme-silme formül
+ * başvurularını Excel kuralıyla kaydırır (xlbook.yapisalKaydir); başka sayfadan bu sayfaya bakan
+ * formüller kaydırılMAZ (bilinen sınır). Birleşik hücreler ve sütun genişlikleri hâlâ aktarılmaz
+ * (kullanıcıya kaydetmeden önce söylenir). Etkin olmayan sayfalar kaynaktaki formül ve ham
+ * değerleriyle yazılır, GRID_MAX'tan sonraki satırlar da düzenlenmeden korunur.
  */
 /* Bir seferde basılan en çok satır. Ölçüm (masaüstü Chromium, 26 sütun): 1.000 satır = 26.000 hücre için
    122 ms basım + 35 ms geri okuma; 2.000 satır 234 + 68 ms, 5.000 satır 441 + 213 ms. Telefon üç-beş kat
@@ -877,7 +885,7 @@ async function startEdit(d) {
     } else if (d.kind === 'xlsx') {
       const sh = (d.sheets || [])[d.sheetIdx || 0];
       if (!sh || !sh.cells) throw new Error(tt('editNoBody', 'Düzenlenecek içerik bulunamadı'));
-      startGridEdit(d, sh.cells, Math.max(sh.maxC || 0, 1), 'xlsx');
+      startGridEdit(d, sh, Math.max(sh.maxC || 0, 1), 'xlsx');
     } else if (d.kind === 'text' && d.csv && !d.csv.cut) {
       startGridEdit(d, d.csv.rows, d.csv.rows.reduce((m, r) => Math.max(m, r.length), 1), 'csv');
     } else if (d.kind === 'text') {
@@ -901,16 +909,128 @@ async function startEdit(d) {
  * Kaynaktaki değerler kopyalanır, ilk GRID_MAX satır contenteditable hücre olarak basılır. Satır ve sütun
  * eklemek ızgarayı büyütür; kaydetme sırasında DOM'daki değerler kopyaya işlenir, kalan satırlar kaynaktan gelir.
  */
+/** Hücre biçimi → satır içi stil (ızgarada canlı önizleme; dosyaya styles.xml olarak yazılır) */
+const stilCss = (st) => !st ? '' : `${st.b ? 'font-weight:700;' : ''}${st.i ? 'font-style:italic;' : ''}${st.renk ? 'color:' + st.renk + ';' : ''}${st.dolgu ? 'background:' + st.dolgu + ';' : ''}`;
 function gridTableHtml(rows, maxC, upto) {
+  const e = editing, stiller = e && e.stiller;
   const n = Math.min(upto, rows.length);
   let h = '<table class="xlsx-tbl grid-ed"><tr><th></th>' + Array.from({ length: maxC }, (_, i) => `<th>${colName(i)}</th>`).join('') + '</tr>';
   for (let ri = 0; ri < n; ri++) {
     const cells = rows[ri] || [];
     h += `<tr><th>${ri + 1}</th>`;
-    for (let ci = 0; ci < maxC; ci++) { const v = cells[ci] == null ? '' : String(cells[ci]); h += `<td contenteditable="true" data-r="${ri}" data-c="${ci}">${esc(v)}</td>`; }
+    for (let ci = 0; ci < maxC; ci++) {
+      const v = cells[ci] == null ? '' : String(cells[ci]);
+      const css = stiller ? stilCss(stiller[ri + ',' + ci]) : '';
+      h += `<td contenteditable="true" data-r="${ri}" data-c="${ci}"${css ? ` style="${css}"` : ''}>${esc(v)}</td>`;
+    }
     h += '</tr>';
   }
   return h + '</table>';
+}
+// ---- ızgara formül motoru (v8.8) ------------------------------------------------------
+const hucreTd = (r, c) => els.body.querySelector(`.grid-ed td[data-r="${r}"][data-c="${c}"]`);
+const fAl = (e, r, c) => (e.formuller && e.formuller[r] ? e.formuller[r][c] : null);
+function fKoy(e, r, c, f) { if (!e.formuller) e.formuller = []; if (!e.formuller[r]) e.formuller[r] = []; e.formuller[r][c] = f || undefined; }
+/** Hesap sonucunun ekrandaki hâli: sayı Türkçe ondalıkla, hata kendi koduyla */
+function gosterim(v) {
+  if (v == null) return '';
+  if (typeof v === 'number') return Number.isInteger(v) ? String(v) : String(+v.toFixed(10)).replace('.', ',');
+  if (typeof v === 'boolean') return v ? 'DOĞRU' : 'YANLIŞ';
+  if (typeof v === 'object' && v.e) return String(v.e);
+  return String(v);
+}
+/*
+ * Bir hücrenin YENİ içeriğini modele işler. "=" ile başlayan metin formüldür (CSV kuralıyla aynı:
+ * xlbook.js okuyucusu da böyle tanır); gerisi xlbook.sayiMi ile Türkçe yazımda sayı denenir —
+ * "1.250,50" sayı olur, "15.140.1001" poz numarası METİN kalır. Sayı sayılan hücre dosyaya gerçek
+ * sayı tipiyle yazılır (eskiden her şey inlineStr metindi).
+ */
+function hucreIsle(r, c, metin) {
+  const e = editing; if (!e) return;
+  const txt = String(metin == null ? '' : metin).replace(/\u00a0/g, ' ');
+  if (!e.rows[r]) e.rows[r] = [];
+  e.rows[r][c] = txt;
+  if (e.from !== 'xlsx') return;
+  if (txt.startsWith('=') && txt.length > 1) fKoy(e, r, c, txt.slice(1));
+  else {
+    fKoy(e, r, c, null);
+    const n = txt === '' ? null : XB.sayiMi(txt);
+    if (!e.ham[r]) e.ham[r] = [];
+    e.ham[r][c] = txt === '' ? null : (n != null ? n : txt);
+  }
+  yenidenHesapla();
+}
+/*
+ * Etkin sayfanın bütün formüllerini xlfn motoruyla YENİDEN hesaplar. Sonuç iki yere işlenir:
+ * e.ham (dosyaya <v> önbelleği olarak yazılır) ve görünen hücre metni. Başka sayfaya başvurular
+ * kaynağın hazırlanmış ham katmanından okunur (salt okunur); tanımlı adlar düzenleyicide çözülmez
+ * (bilinen sınır — dosyada formül korunur, yalnız buradaki canlı değer boş kalır). Döngü xlbook'un
+ * kararıyla aynı: 0.
+ */
+function yenidenHesapla() {
+  const e = editing; if (!e || e.from !== 'xlsx' || !e.formuller || !e.formuller.length) return;
+  const bellek = new Map(), zincir = new Set();
+  const basvur = (sayfa, r, c) => {
+    if (sayfa && sayfa !== e.sayfaAd) {
+      const sh = (e.d.sheets || []).find(x => x.name === sayfa);
+      if (!sh) return { e: '#BAŞV!' };
+      const hv = ((sh.ham || [])[r] || [])[c];
+      return hv == null ? null : hv;
+    }
+    const k = r + ',' + c;
+    const f = fAl(e, r, c);
+    if (!f) { const hv = e.ham[r] ? e.ham[r][c] : null; return hv == null ? null : hv; }
+    if (bellek.has(k)) return bellek.get(k);
+    if (zincir.has(k)) return 0;
+    zincir.add(k);
+    let v;
+    try { v = xlHesapla(f, ctxFor(r, c)); } catch (_) { v = { e: '#DEĞER!' }; }
+    if (Array.isArray(v)) { const m = Array.isArray(v[0]) ? v[0] : v; v = m.length ? m[0] : null; }
+    zincir.delete(k);
+    bellek.set(k, v);
+    return v;
+  };
+  const ctxFor = (r, c) => ({
+    sayfa: e.sayfaAd, hucre: { r, c },
+    oku: (sh, rr, cc) => basvur(sh == null ? e.sayfaAd : sh, rr, cc),
+    boyut: (sh) => { if (sh != null && sh !== e.sayfaAd) { const x = (e.d.sheets || []).find(q => q.name === sh); return x ? { r: x.rows, c: x.maxC } : { r: 0, c: 0 }; } return { r: e.rows.length, c: e.maxC }; },
+    ad: () => undefined,
+    simdi: () => XB.anlikSeri(), rastgele: Math.random,
+  });
+  for (let r = 0; r < e.formuller.length; r++) {
+    const sat = e.formuller[r]; if (!sat) continue;
+    for (let c = 0; c < sat.length; c++) {
+      if (!sat[c]) continue;
+      const v = basvur(e.sayfaAd, r, c);
+      if (!e.ham[r]) e.ham[r] = [];
+      e.ham[r][c] = v;
+      const g = gosterim(v);
+      if (!e.rows[r]) e.rows[r] = [];
+      e.rows[r][c] = g;
+      const td = hucreTd(r, c);
+      if (td && document.activeElement !== td) td.textContent = g;
+    }
+  }
+}
+/* Hücreye girilince formül METNİ görünür (Excel gibi), çıkınca değere döner. Değişmeyen hücre
+   yeniden İŞLENMEZ: biçimli görüntü ("15.03.2024") ham değeri (tarih serisi) ezmesin. */
+function gridFocusIn(ev) {
+  const td = ev.target && ev.target.closest ? ev.target.closest('.grid-ed td[data-r]') : null;
+  const e = editing; if (!td || !e || e.kind !== 'grid') return;
+  e.cur = { r: +td.dataset.r, c: +td.dataset.c };
+  const f = fAl(e, e.cur.r, e.cur.c);
+  if (f) td.textContent = '=' + f;
+  e.curText = td.textContent;
+}
+function gridFocusOut(ev) {
+  const td = ev.target && ev.target.closest ? ev.target.closest('.grid-ed td[data-r]') : null;
+  const e = editing; if (!td || !e || e.kind !== 'grid') return;
+  const r = +td.dataset.r, c = +td.dataset.c, txt = td.textContent;
+  const geri = () => { const f = fAl(e, r, c); if (f) td.textContent = (e.rows[r] || [])[c] || ''; };
+  if (txt === e.curText) { geri(); return; }
+  e.touched = true;
+  hucreIsle(r, c, txt);
+  geri();
 }
 function gridRender() {
   const e = editing; if (!e || e.kind !== 'grid') return;
@@ -919,34 +1039,156 @@ function gridRender() {
   xlsxApplyZoom(e.d);
   const n = els.body.querySelector('.xlsx-wrap'); if (n) { n.scrollTop = top; n.scrollLeft = left; }
 }
-/** DOM'daki hücreleri e.rows kopyasına işler (kaydetmeden ve ızgarayı yeniden basmadan önce) */
+/*
+ * DOM'daki hücreleri kopyaya işler (kaydetmeden ve ızgarayı yeniden basmadan önce). Değişen hücre
+ * hucreIsle ile aynı kuraldan geçer: "=" formül, Türkçe yazımda sayı gerçek sayı olur. Odaktaki
+ * hücrede formül METNİ göründüğünden ("=SUM…"), o görüntü modele değer diye yazılmaz.
+ */
 function gridSync() {
   const e = editing; if (!e || e.kind !== 'grid') return;
+  let degisti = false;
   for (const td of els.body.querySelectorAll('.grid-ed td[data-r]')) {
     const r = +td.dataset.r, c = +td.dataset.c;
+    const txt = td.textContent.replace(/\u00a0/g, ' ');
+    const f = fAl(e, r, c);
+    if (f && txt === '=' + f) continue;
+    const eski = e.rows[r] ? e.rows[r][c] : null;
+    if (String(eski == null ? '' : eski) === txt) continue;
     if (!e.rows[r]) e.rows[r] = [];
-    e.rows[r][c] = td.textContent.replace(/\u00a0/g, ' ');
+    e.rows[r][c] = txt;
+    if (e.from === 'xlsx') {
+      if (txt.startsWith('=') && txt.length > 1) fKoy(e, r, c, txt.slice(1));
+      else {
+        fKoy(e, r, c, null);
+        const n = txt === '' ? null : XB.sayiMi(txt);
+        if (!e.ham[r]) e.ham[r] = [];
+        e.ham[r][c] = txt === '' ? null : (n != null ? n : txt);
+      }
+      degisti = true;
+    }
   }
+  if (degisti) yenidenHesapla();
 }
-function startGridEdit(d, srcRows, maxC, from) {
+function startGridEdit(d, kaynak, maxC, from) {
   els.body.classList.add('grid-edit');
+  const xl = from === 'xlsx';
+  const srcRows = xl ? kaynak.cells : kaynak;
   const rows = (srcRows || []).map(r => (r || []).slice());
   if (!rows.length) rows.push([]);
-  editing = { kind: 'grid', d, from, rows, maxC: Math.max(maxC, 1), shown: Math.min(rows.length, GRID_MAX), src: srcRows || [], touched: false };
+  editing = {
+    kind: 'grid', d, from, rows, maxC: Math.max(maxC, 1), shown: Math.min(rows.length, GRID_MAX), src: srcRows || [], touched: false,
+    // v8.8: formüller değere dondurulmaz, sayılar sayı kalır, hücre biçimi styles.xml'e yazılır
+    ham: xl ? (kaynak.ham || []).map(r2 => (r2 || []).slice()) : null,
+    formuller: xl ? (kaynak.formuller || []).map(r2 => (r2 ? r2.slice() : undefined)) : null,
+    stiller: xl ? {} : null,
+    sayfaAd: xl ? kaynak.name : '',
+    cur: null, curText: '',
+  };
   gridRender();
   els.body.addEventListener('input', gridDirty);
+  els.body.addEventListener('focusin', gridFocusIn);
+  els.body.addEventListener('focusout', gridFocusOut);
   els.tools.innerHTML = gridToolbarHtml();
-  if (from === 'xlsx') api.toast(tt('editSheetNote', 'Kaydedilen kopyada yalnız hücre değerleri korunur; biçim, formül ve birleştirilmiş hücreler aktarılmaz.'), { ms: 7000 });
+  if (xl) api.toast(tt('editSheetNote', 'Formüller, sayılar ve verilen hücre biçimi kaydedilen kopyada korunur; birleştirilmiş hücreler ve sütun genişlikleri aktarılmaz.'), { ms: 7000 });
 }
 const gridDirty = () => { if (editing) editing.touched = true; };
+const HUCRE_RENK = ['#c00000', '#1f4e79', '#2e7d32', '#e65100', '#000000'];
+const HUCRE_DOLGU = ['#fff2a8', '#d9ead3', '#cfe2f3', '#f4cccc', '#e0e0e0'];
 function gridToolbarHtml() {
-  const e = editing, more = e && e.rows.length > e.shown;
-  return `<button type="button" class="btn small" data-pe="addrow">${ICON('i-plus')} ${esc(tt('editAddRow', 'Satır'))}</button>`
+  const e = editing, more = e && e.rows.length > e.shown, xl = e && e.from === 'xlsx';
+  const ic = (pe, icon, label) => `<button type="button" class="btn small" data-pe="${pe}" title="${esc(label)}" aria-label="${esc(label)}">${ICON(icon)}</button>`;
+  const renkler = (pe, liste) => liste.map(c2 => `<button type="button" class="pdfe-color" data-pe="${pe}" data-color="${c2}" style="background:${c2}" aria-label="${esc(c2)}"></button>`).join('')
+    + `<button type="button" class="pdfe-color grid-nofill" data-pe="${pe}" data-color="" aria-label="${esc(tt('editClearFmt', 'Biçimi temizle'))}"></button>`;
+  return ic('insrow', 'i-plus', tt('editInsRow', 'Üstüne satır ekle')) + ic('delrow', 'i-minus', tt('editDelRow', 'Satırı sil'))
+    + ic('inscol', 'i-next', tt('editInsCol', 'Soluna sütun ekle')) + ic('delcol', 'i-prev', tt('editDelCol', 'Sütunu sil'))
+    + `<button type="button" class="btn small" data-pe="addrow">${ICON('i-plus')} ${esc(tt('editAddRow', 'Satır'))}</button>`
     + `<button type="button" class="btn small" data-pe="addcol">${ICON('i-plus')} ${esc(tt('editAddCol', 'Sütun'))}</button>`
+    + (xl ? `<span class="sp"></span>` + ic('autosum', 'i-sum', tt('editSum', 'Otomatik toplam'))
+      + ic('cellbold', 'i-bold', tt('editBold', 'Kalın')) + ic('cellitalic', 'i-italic', tt('editItalic', 'İtalik'))
+      + `<span class="pdfe-colors">${renkler('cellcolor', HUCRE_RENK)}</span><span class="pdfe-colors">${renkler('cellfill', HUCRE_DOLGU)}</span>` : '')
     + (more ? `<button type="button" class="btn small" data-pe="gridmore">${esc(tt('loadMore', 'Daha fazla'))}</button>` : '')
     + `<span class="sp"></span><button type="button" class="btn small" data-doc="zout" aria-label="−">${ICON('i-zoom-out')}</button><button type="button" class="btn small" data-doc="zfit">${esc(tt('zoom100', '%100'))}</button><button type="button" class="btn small" data-doc="zin" aria-label="+">${ICON('i-zoom-in')}</button>`
     + `<span class="sp"></span><button type="button" class="btn small primary" data-pe="save">${esc(tt('editSave', 'Kaydet'))}</button>`
     + `<button type="button" class="btn small" data-pe="cancel">${esc(t('cancel'))}</button>`;
+}
+/*
+ * Yapısal işlem (v8.8): satır/sütun ekleme-silme. Ekleme SEÇİLİ hücrenin üstüne/soluna yapılır
+ * (Excel kuralı); seçili hücre yoksa sona. Bütün katmanlar birlikte kayar: değerler, ham katman,
+ * formüller (metinleri xlbook.yapisalKaydir ile Excel kuralında düzeltilir) ve hücre biçimleri.
+ */
+function yapisalIslem(tur) {
+  const e = editing; if (!e || e.kind !== 'grid') return;
+  gridSync();
+  const satirMi = tur === 'insrow' || tur === 'delrow';
+  const delta = tur[0] === 'i' ? 1 : -1;
+  const cur = e.cur || { r: e.rows.length - 1, c: Math.max(0, e.maxC - 1) };
+  const idx = satirMi ? Math.max(0, Math.min(cur.r, e.rows.length - 1)) : Math.max(0, Math.min(cur.c, e.maxC - 1));
+  if (delta < 0 && satirMi && e.rows.length <= 1) return;
+  if (delta < 0 && !satirMi && e.maxC <= 1) return;
+  if (satirMi) {
+    if (delta > 0) { e.rows.splice(idx, 0, []); if (e.ham) e.ham.splice(idx, 0, []); if (e.formuller) e.formuller.splice(idx, 0, undefined); }
+    else { e.rows.splice(idx, 1); if (e.ham) e.ham.splice(idx, 1); if (e.formuller) e.formuller.splice(idx, 1); }
+    e.shown = Math.min(Math.max(e.shown + delta, 1), Math.max(e.rows.length, 1));
+  } else {
+    const kes = (dizi, bosluk) => { if (!dizi) return; for (const row of dizi) { if (!row || row.length <= idx) continue; if (delta > 0) row.splice(idx, 0, bosluk); else row.splice(idx, 1); } };
+    kes(e.rows, ''); kes(e.ham, null); kes(e.formuller, undefined);
+    e.maxC = Math.max(1, e.maxC + delta);
+  }
+  if (e.stiller) {
+    const yeni = {};
+    for (const k of Object.keys(e.stiller)) {
+      let [r, c] = k.split(',').map(Number);
+      const kk = satirMi ? r : c;
+      if (delta < 0 && kk === idx) continue;
+      if (kk >= idx) { if (satirMi) r += delta; else c += delta; }
+      yeni[r + ',' + c] = e.stiller[k];
+    }
+    e.stiller = yeni;
+  }
+  if (e.formuller) for (let r = 0; r < e.formuller.length; r++) {
+    const sat = e.formuller[r]; if (!sat) continue;
+    for (let c = 0; c < sat.length; c++) if (sat[c]) sat[c] = XB.yapisalKaydir(sat[c], satirMi ? 'satir' : 'sutun', idx, delta);
+  }
+  e.touched = true; e.cur = null; e.curText = '';
+  gridRender(); els.tools.innerHTML = gridToolbarHtml();
+  yenidenHesapla();
+}
+/** Σ: seçili hücrenin üstündeki (yoksa solundaki) bitişik sayı bloğuna SUM yazar */
+function otomatikToplam() {
+  const e = editing; if (!e || e.from !== 'xlsx') return;
+  gridSync();
+  const cur = e.cur;
+  if (!cur) { api.toast(tt('editPickCell', 'Önce bir hücreye dokunun'), { type: 'warn' }); return; }
+  const sayili = (r, c) => { if (r < 0 || c < 0) return false; if (fAl(e, r, c)) return true; const v = e.ham[r] ? e.ham[r][c] : null; return typeof v === 'number'; };
+  let f = null, r0 = cur.r;
+  while (r0 > 0 && sayili(r0 - 1, cur.c)) r0--;
+  if (r0 < cur.r) f = `SUM(${XB.sutunAd(cur.c)}${r0 + 1}:${XB.sutunAd(cur.c)}${cur.r})`;
+  else {
+    let c0 = cur.c;
+    while (c0 > 0 && sayili(cur.r, c0 - 1)) c0--;
+    if (c0 < cur.c) f = `SUM(${XB.sutunAd(c0)}${cur.r + 1}:${XB.sutunAd(cur.c - 1)}${cur.r + 1})`;
+  }
+  if (!f) { api.toast(tt('editSumNone', 'Üstte ya da solda toplanacak sayı yok'), { type: 'warn' }); return; }
+  fKoy(e, cur.r, cur.c, f);
+  e.touched = true;
+  yenidenHesapla();
+  const td = hucreTd(cur.r, cur.c);
+  if (td) td.textContent = (e.rows[cur.r] || [])[cur.c] || '';
+}
+/** Seçili hücrenin biçimini değiştirir (kalın / italik / yazı rengi / dolgu) ve canlı uygular */
+function hucreBicim(tur, deger) {
+  const e = editing; if (!e || e.from !== 'xlsx') return;
+  const cur = e.cur;
+  if (!cur) { api.toast(tt('editPickCell', 'Önce bir hücreye dokunun'), { type: 'warn' }); return; }
+  const k = cur.r + ',' + cur.c;
+  const st = { ...(e.stiller[k] || {}) };
+  if (tur === 'b' || tur === 'i') st[tur] = !st[tur];
+  else if (!deger) { delete st.renk; delete st.dolgu; }
+  else st[tur] = deger;
+  if (!st.b && !st.i && !st.renk && !st.dolgu) delete e.stiller[k]; else e.stiller[k] = st;
+  e.touched = true;
+  const td = hucreTd(cur.r, cur.c);
+  if (td) td.style.cssText = stilCss(e.stiller[k]);
 }
 /* ---- düz metin ---------------------------------------------------------------------- */
 function startTextEdit(d) {
@@ -962,14 +1204,34 @@ function startTextEdit(d) {
     + `<button type="button" class="btn small" data-pe="cancel">${esc(t('cancel'))}</button>`;
   setTimeout(() => { try { ta.focus(); } catch (_) { /* yok */ } }, 0);
 }
+/* Word yazı rengi ve vurgu paletleri: vurgu renkleri Word'ün fosforlu kalemine (RENK_ADI adları) denk düşer */
+const YAZI_RENK = ['#c00000', '#1f4e79', '#2e7d32', '#e65100', '#000000'];
+const YAZI_VURGU = ['#ffff00', '#00ff00', '#00ffff', '#ff00ff'];
 function wordToolbarHtml() {
   const b = (c, icon, label) => `<button type="button" class="btn small" data-pe="cmd" data-cmd="${c}" title="${esc(label)}" aria-label="${esc(label)}">${ICON(icon)}</button>`;
-  return b('bold', 'i-bold', tt('editBold', 'Kalın')) + b('italic', 'i-italic', tt('editItalic', 'İtalik')) + b('underline', 'i-underline', tt('editUnderline', 'Altı çizili'))
-    + `<span class="sp"></span>` + b('justifyLeft', 'i-align-left', tt('editAlignL', 'Sola hizala')) + b('justifyCenter', 'i-align-center', tt('editAlignC', 'Ortala')) + b('justifyRight', 'i-align-right', tt('editAlignR', 'Sağa hizala'))
+  const ic = (pe, icon, label) => `<button type="button" class="btn small" data-pe="${pe}" title="${esc(label)}" aria-label="${esc(label)}">${ICON(icon)}</button>`;
+  const renkler = (pe, liste, sil) => liste.map(c2 => `<button type="button" class="pdfe-color" data-pe="${pe}" data-color="${c2}" style="background:${c2}" aria-label="${esc(c2)}"></button>`).join('')
+    + (sil ? `<button type="button" class="pdfe-color grid-nofill" data-pe="${pe}" data-color="" aria-label="${esc(tt('editClearFmt', 'Biçimi temizle'))}"></button>` : '');
+  const sec = (pe, opts, label) => `<select class="doc-sel" data-pe-sel="${pe}" title="${esc(label)}" aria-label="${esc(label)}">${opts.map(([v, ad]) => `<option value="${v}">${esc(ad)}</option>`).join('')}</select>`;
+  const bas = tt('editHeading', 'Başlık');
+  return sec('block', [['P', tt('editNormal', 'Normal')], ['H1', bas + ' 1'], ['H2', bas + ' 2'], ['H3', bas + ' 3']], tt('editParaStyle', 'Paragraf biçemi'))
+    + sec('size', [['', tt('editFontSize', 'Punto')], ['1', '8'], ['2', '10'], ['3', '12'], ['4', '14'], ['5', '18'], ['6', '24'], ['7', '36']], tt('editFontSize', 'Punto'))
+    + `<span class="sp"></span>` + b('bold', 'i-bold', tt('editBold', 'Kalın')) + b('italic', 'i-italic', tt('editItalic', 'İtalik')) + b('underline', 'i-underline', tt('editUnderline', 'Altı çizili')) + b('strikeThrough', 'i-strike', tt('editStrike', 'Üstü çizili'))
+    + `<span class="pdfe-colors">${renkler('fore', YAZI_RENK, false)}</span><span class="pdfe-colors">${renkler('hilite', YAZI_VURGU, true)}</span>`
+    + `<span class="sp"></span>` + b('justifyLeft', 'i-align-left', tt('editAlignL', 'Sola hizala')) + b('justifyCenter', 'i-align-center', tt('editAlignC', 'Ortala')) + b('justifyRight', 'i-align-right', tt('editAlignR', 'Sağa hizala')) + b('justifyFull', 'i-align-just', tt('editAlignJ', 'İki yana yasla'))
+    + `<span class="sp"></span>` + b('insertUnorderedList', 'i-listul', tt('editListUl', 'Madde imli liste')) + b('insertOrderedList', 'i-listol', tt('editListOl', 'Numaralı liste')) + ic('table', 'i-table', tt('editTable', 'Tablo ekle'))
     + `<span class="sp"></span><button type="button" class="btn small" data-pe="find">${esc(tt('editFind', 'Bul ve değiştir'))}</button>`
     + `<button type="button" class="btn small" data-pe="undo" title="${esc(t('undo'))}" aria-label="${esc(t('undo'))}">${ICON('i-undo')}</button>`
+    + ic('redo', 'i-redo', tt('editRedo', 'Yinele')) + b('removeFormat', 'i-erase', tt('editClearFmt', 'Biçimi temizle'))
     + `<span class="sp"></span><button type="button" class="btn small primary" data-pe="save">${esc(tt('editSave', 'Kaydet'))}</button>`
     + `<button type="button" class="btn small" data-pe="cancel">${esc(t('cancel'))}</button>`;
+}
+/** Araç çubuğundaki açılır seçimler (paragraf biçemi / punto); data-pe-sel değişim olayı buraya düşer */
+function onEditSelect(sel) {
+  if (!editing || !editing.ed) return;
+  const k = sel.dataset.peSel, v = sel.value;
+  if (k === 'block' && v) editing.ed.cmd('formatBlock', '<' + v + '>');
+  else if (k === 'size' && v) { editing.ed.cmd('fontSize', v); sel.value = ''; }
 }
 async function onEditAction(btn) {
   if (!editing) return;
@@ -977,7 +1239,12 @@ async function onEditAction(btn) {
   if (k === 'tool') { editing.surf.tool = btn.dataset.tool; els.tools.innerHTML = PdfEdit.toolbarHtml(st); return; }
   if (k === 'color') { st.color = btn.dataset.color; els.tools.innerHTML = PdfEdit.toolbarHtml(st); return; }
   if (k === 'width') { st.width = +btn.dataset.width; els.tools.innerHTML = PdfEdit.toolbarHtml(st); return; }
-  if (k === 'rotl') { const i = topPage(); if (i >= 0) { PdfEdit.rotatePage(st, i, -90); editing.touched = true; editing.surf.render(); } return; }
+  if (k === 'rotl' || k === 'rotr') { const i = topPage(); if (i >= 0) { PdfEdit.rotatePage(st, i, k === 'rotl' ? -90 : 90); editing.touched = true; editing.surf.render(); } return; }
+  if (k === 'pgup' || k === 'pgdn') {
+    const i = topPage(); if (i < 0) return;
+    if (PdfEdit.movePage(st, i, k === 'pgup' ? -1 : 1)) { editing.touched = true; editing.surf.render(); }
+    return;
+  }
   if (k === 'delpage') {
     const i = topPage(); if (i < 0) return;
     if (!(await askConfirm(tt('editDelPageAsk', 'Bu sayfa çıktıdan çıkarılsın mı?')))) return;
@@ -996,10 +1263,30 @@ async function onEditAction(btn) {
     return;
   }
   if (k === 'addcol') { gridSync(); const e = editing; e.maxC++; e.touched = true; gridRender(); return; }
+  if (k === 'insrow' || k === 'delrow' || k === 'inscol' || k === 'delcol') { yapisalIslem(k); return; }
+  if (k === 'autosum') { otomatikToplam(); return; }
+  if (k === 'cellbold' || k === 'cellitalic') { hucreBicim(k === 'cellbold' ? 'b' : 'i'); return; }
+  if (k === 'cellcolor' || k === 'cellfill') { hucreBicim(k === 'cellcolor' ? 'renk' : 'dolgu', btn.dataset.color); return; }
   if (k === 'gridmore') { gridSync(); const e = editing; e.shown = Math.min(e.rows.length, e.shown + GRID_MAX); gridRender(); els.tools.innerHTML = gridToolbarHtml(); return; }
   if (k === 'undo') { if (editing.kind === 'pdf') { if (PdfEdit.undo(st)) editing.surf.render(); } else if (editing.ed) editing.ed.cmd('undo'); return; }
   if (k === 'zin' || k === 'zout' || k === 'zfit') { editing.surf.zoom(k === 'zin' ? 1.25 : k === 'zout' ? 0.8 : 0); return; }
   if (k === 'cmd') { editing.ed.cmd(btn.dataset.cmd); return; }
+  if (k === 'redo') { if (editing.ed) editing.ed.cmd('redo'); return; }
+  if (k === 'fore') { if (editing.ed) editing.ed.cmd('foreColor', btn.dataset.color); return; }
+  if (k === 'hilite') { if (editing.ed) editing.ed.cmd('hiliteColor', btn.dataset.color || 'transparent'); return; }
+  if (k === 'table') {
+    if (!editing.ed) return;
+    const f = await askForm(tt('editTable', 'Tablo ekle'), [
+      { id: 'r', label: tt('editTableRows', 'Satır sayısı'), type: 'number', value: 3 },
+      { id: 'c', label: tt('editTableCols', 'Sütun sayısı'), type: 'number', value: 3 },
+    ]);
+    if (!f) return;
+    const nr = Math.max(1, Math.min(50, Math.round(f.r || 0))), nc = Math.max(1, Math.min(12, Math.round(f.c || 0)));
+    const satir = `<tr>${'<td><br></td>'.repeat(nc)}</tr>`;
+    editing.ed.cmd('insertHTML', `<table>${satir.repeat(nr)}</table><p><br></p>`);
+    editing.touched = true;
+    return;
+  }
   if (k === 'find') {
     const find = await askText(tt('editFindWhat', 'Aranacak'), '');
     if (!find) return;
@@ -1026,8 +1313,13 @@ async function saveEdit() {
     } else if (e.kind === 'grid') {
       gridSync();
       if (e.from === 'xlsx') {
-        const sheets = (e.d.sheets || []).map((sh, i) => ({ name: sh.name, rows: i === (e.d.sheetIdx || 0) ? e.rows : (sh.cells || []) }));
-        const out = await xlsxBook(sheets.length ? sheets : [{ name: 'Sayfa1', rows: e.rows }]);
+        // Etkin sayfa düzenleyicinin katmanlarıyla (formül, ham değer, hücre biçimi), ötekiler
+        // kitaptan okunduğu hâliyle yazılır; böylece dokunulmayan sayfaların formülleri de korunur.
+        const akt = e.d.sheetIdx || 0;
+        const sheets = (e.d.sheets || []).map((sh, i) => (i === akt
+          ? { name: sh.name, rows: e.rows, ham: e.ham, formuller: e.formuller, stiller: e.stiller }
+          : { name: sh.name, rows: sh.cells || [], ham: sh.ham, formuller: sh.formuller }));
+        const out = await xlsxBook(sheets.length ? sheets : [{ name: 'Sayfa1', rows: e.rows, ham: e.ham, formuller: e.formuller, stiller: e.stiller }]);
         saveOut(new Uint8Array(out), outName(e.d, 'xlsx'), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       } else {
         const ext = e.d.name.toLowerCase().split('.').pop() === 'txt' ? 'txt' : 'csv';
@@ -1057,7 +1349,11 @@ async function endEdit(saved) {
   const e = editing; editing = null;
   document.body.classList.remove('editmode');
   if (!e) return;
-  if (e.kind === 'grid') els.body.removeEventListener('input', gridDirty);
+  if (e.kind === 'grid') {
+    els.body.removeEventListener('input', gridDirty);
+    els.body.removeEventListener('focusin', gridFocusIn);
+    els.body.removeEventListener('focusout', gridFocusOut);
+  }
   els.body.classList.remove('editing-text');
   if (e.kind === 'word' && e.ed) e.ed.unmount();
   if (e.kind === 'pdf' && e.surf && e.surf.unmount) e.surf.unmount();

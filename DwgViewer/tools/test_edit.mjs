@@ -81,7 +81,7 @@ await page.waitForFunction(() => document.querySelectorAll('#docContent .pdfe-pa
     return { n: ps.length, sizes: ps.map(p => Math.round(parseFloat(p.style.width) / parseFloat(p.style.height) * 1000) / 1000), editmode: document.body.classList.contains('editmode'), tool: document.querySelector('#docContent .pdfe-stack')?.dataset.tool, tools: [...document.querySelectorAll('#docTools [data-pe="tool"]')].map(b => b.dataset.tool).join(',') };
   });
   // üç sayfa da A4 oranında görünmeli: 3. sayfa 842x595 ama 90 derece dönük, yani ekranda 595x842
-  ok('p2 düzenleyici açıldı: 3 sayfa, dönük sayfa dahil A4 oranı, varsayılan el aracı', r.n === 3 && r.sizes.every(x => Math.abs(x - 595 / 842) < 0.01) && r.editmode && r.tool === 'pan' && r.tools === 'pan,pen,hi,text,stamp,erase', JSON.stringify(r));
+  ok('p2 düzenleyici açıldı: 3 sayfa, dönük sayfa dahil A4 oranı, varsayılan el aracı', r.n === 3 && r.sizes.every(x => Math.abs(x - 595 / 842) < 0.01) && r.editmode && r.tool === 'pan' && r.tools === 'pan,pen,hi,text,rect,ell,line,arrow,stamp,erase', JSON.stringify(r));
 }
 // kalem: bir iz çiz
 await page.click('[data-pe="tool"][data-tool="pen"]');
@@ -180,6 +180,58 @@ const PDF_OUT = path.join(out, 'kesif_duzenlendi.pdf');
 await ev(() => window.dwgApp.docs.close());
 
 // ---------------------------------------------------------------------------------
+// 1b) v8.8: şekiller (dikdörtgen / elips / ok) ve sayfa düzeni (sağa döndür, sayfa taşı)
+// ---------------------------------------------------------------------------------
+await openDoc(PDF_PATH);
+await page.click('[data-doc="edit"]');
+await page.waitForFunction(() => document.querySelectorAll('#docContent .pdfe-page').length === 3, null, { timeout: 25000 });
+await page.click('[data-pe="tool"][data-tool="rect"]');
+await drawOn(0, 60, 80);
+ok('s1 dikdörtgen eklendi (saydam vuruş izi + görünür kenar)', await ev(() => {
+  const g = document.querySelector('#docContent .pdfe-page:nth-of-type(1) g.pdfe-ann');
+  const r = g && g.querySelectorAll('rect');
+  return !!g && r.length === 2 && r[0].classList.contains('pdfe-hit') && r[1].getAttribute('stroke') === '#d92b2b' && +r[1].getAttribute('width') > 20;
+}));
+await page.click('[data-pe="tool"][data-tool="arrow"]');
+await drawOn(0, 60, 260);
+ok('s2 ok: vuruş izi + gövde + iki başlık çizgisi', await ev(() => {
+  const gs = document.querySelectorAll('#docContent .pdfe-page:nth-of-type(1) g.pdfe-ann');
+  const ln = gs[1] && gs[1].querySelectorAll('line');
+  return gs.length === 2 && ln && ln.length === 4 && ln[0].classList.contains('pdfe-hit');
+}), String(await ev(() => document.querySelectorAll('#docContent .pdfe-page:nth-of-type(1) g.pdfe-ann').length)));
+await page.click('[data-pe="tool"][data-tool="ell"]');
+await drawOn(1, 70, 120);
+ok('s3 elips ikinci sayfada', await ev(() => {
+  const g = document.querySelector('#docContent .pdfe-page:nth-of-type(2) g.pdfe-ann');
+  return !!g && g.querySelectorAll('ellipse').length === 2;
+}));
+await shot('edit_pdf_sekiller');
+// sağa döndür: ilk sayfa etkinken 0° → 90°, ekrandaki oran ters döner
+await page.locator('#docContent .pdfe-page').nth(0).scrollIntoViewIfNeeded(); await page.waitForTimeout(250);
+await page.click('[data-pe="rotr"]'); await page.waitForTimeout(200);
+ok('s4 sayfa sağa döndürüldü', await ev(() => { const p = document.querySelector('#docContent .pdfe-page'); return parseFloat(p.style.width) > parseFloat(p.style.height); }));
+// sayfa taşıma: üçüncü sayfayı (özgün 842x595) bir üste al → kaynak sırası 0,2,1
+await page.click('[data-pe="zin"]'); await page.click('[data-pe="zin"]'); await page.waitForTimeout(150);
+await page.locator('#docContent .pdfe-page').nth(2).scrollIntoViewIfNeeded(); await page.waitForTimeout(250);
+await page.click('[data-pe="pgup"]'); await page.waitForTimeout(250);
+ok('s5 sayfa bir üste taşındı', await ev(() => [...document.querySelectorAll('#docContent .pdfe-page')].map(p => p.dataset.page).join(',') === '0,2,1'),
+  await ev(() => [...document.querySelectorAll('#docContent .pdfe-page')].map(p => p.dataset.page).join(',')));
+const dlPdf2 = page.waitForEvent('download', { timeout: 40000 });
+await page.click('[data-pe="save"]');
+const PDF_OUT2 = path.join(out, 'kesif_duzen2.pdf');
+{
+  const d = await dlPdf2; await d.saveAs(PDF_OUT2);
+  const res = await PDFDocument.load(fs.readFileSync(PDF_OUT2));
+  const rots = res.getPages().map(p => p.getRotation().angle);
+  const sizes = res.getPages().map(p => { const s = p.getSize(); return Math.round(s.width) + 'x' + Math.round(s.height); });
+  // sıra: sayfa1 (sağa döndürüldü, 90) · sayfa3 (özgün 90, 842x595) · sayfa2 (0)
+  ok('s6 çıktı PDF: sayfa sırası ve döndürme pdf-lib ile doğrulandı', res.getPageCount() === 3
+    && sizes.join(' ') === '595x842 842x595 595x842' && rots.join(' ') === '90 90 0', JSON.stringify({ sizes, rots }));
+  ok('s7 şekiller çıktıya çizildi (dosya özgünden büyük)', fs.statSync(PDF_OUT2).size > fs.statSync(PDF_PATH).size);
+}
+await ev(() => window.dwgApp.docs.close());
+
+// ---------------------------------------------------------------------------------
 // 2) Pro: Word düzenleme ve DOCX yazıcı
 // ---------------------------------------------------------------------------------
 await openDoc(path.join(DOCS, 'SampleDoc.doc'));
@@ -188,7 +240,10 @@ await page.click('[data-doc="edit"]'); await page.waitForTimeout(400);
 ok('w2 akış görünümü düzenlenebilir, araç satırı kuruldu', await ev(() => {
   const r = document.querySelector('.docx-page.doc-editing[contenteditable="true"]');
   const cmds = [...document.querySelectorAll('#docTools [data-pe]')].map(b => b.dataset.pe + (b.dataset.cmd ? ':' + b.dataset.cmd : '')).join(' ');
-  return !!r && document.body.classList.contains('editmode') && cmds === 'cmd:bold cmd:italic cmd:underline cmd:justifyLeft cmd:justifyCenter cmd:justifyRight find undo save cancel';
+  const secler = [...document.querySelectorAll('#docTools [data-pe-sel]')].map(s => s.dataset.peSel).join(' ');
+  return !!r && document.body.classList.contains('editmode') && secler === 'block size'
+    && cmds === 'cmd:bold cmd:italic cmd:underline cmd:strikeThrough fore fore fore fore fore hilite hilite hilite hilite hilite'
+      + ' cmd:justifyLeft cmd:justifyCenter cmd:justifyRight cmd:justifyFull cmd:insertUnorderedList cmd:insertOrderedList table find undo redo cmd:removeFormat save cancel';
 }));
 // metin ekle (Türkçe), kalın uygula, ortala
 await ev(() => { const p = document.querySelector('.docx-page.doc-editing p'); const r = document.createRange(); r.selectNodeContents(p); r.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(r); });
@@ -221,7 +276,7 @@ const DOCX_OUT = path.join(out, 'SampleDoc_duzenlendi.docx');
   const doc = files['word/document.xml'].toString('utf8');
   const ct = files['[Content_Types].xml'].toString('utf8');
   const pgSz = /<w:pgSz w:w="(\d+)" w:h="(\d+)"\/>/.exec(doc);
-  ok('w6 DOCX paketi eksiksiz ve XML iyi biçimli', names === '[Content_Types].xml _rels/.rels word/_rels/document.xml.rels word/document.xml word/styles.xml'
+  ok('w6 DOCX paketi eksiksiz ve XML iyi biçimli', names === '[Content_Types].xml _rels/.rels word/_rels/document.xml.rels word/document.xml word/numbering.xml word/styles.xml'
     && /wordprocessingml\.document\.main\+xml/.test(ct) && doc.startsWith('<?xml') && doc.trimEnd().endsWith('</w:document>')
     && (doc.match(/<w:p>/g) || []).length === (doc.match(/<\/w:p>/g) || []).length, names);
   ok('w7 DOCX içeriği: Türkçe metin, kalın, ortalama, sayfa sonu, A4 sayfa ölçüsü', doc.includes('ŞARTNAME EKİ ğüıöç') && doc.includes('<w:b/>')
@@ -240,6 +295,79 @@ await openDoc(DOCX_OUT);
   // düzenlemeden çıkınca görünüm tercihi akış kipinde kaldığı için .docx-page beklenir
   ok('w9 gidiş-dönüş: ürettiğimiz DOCX kendi okuyucumuzla açılıyor, biçim korunuyor', /Word/.test(r.meta) && /ŞARTNAME EKİ ğüıöç/.test(r.txt) && /Times \(Body\)/.test(r.txt)
     && r.bold && r.center && r.body === 1 && r.paras >= 6 && r.brk, JSON.stringify({ ...r, txt: r.txt.slice(0, 50) }));
+}
+await ev(() => window.dwgApp.docs.close());
+
+// ---------------------------------------------------------------------------------
+// 2b) v8.8: başlık biçemi, punto, renk, vurgu, üstü çizili, iki yana yasla, listeler, tablo
+// ---------------------------------------------------------------------------------
+await openDoc(path.join(DOCS, 'SampleDoc.doc'));
+await page.click('[data-doc="edit"]'); await page.waitForTimeout(400);
+const h1Once = await ev(() => document.querySelectorAll('.docx-page.doc-editing h1').length);
+await page.click('.docx-page.doc-editing p:nth-of-type(1)', { clickCount: 3 });
+await ev(() => { const s = document.querySelector('#docTools [data-pe-sel="block"]'); s.value = 'H1'; s.dispatchEvent(new Event('change', { bubbles: true })); });
+await page.waitForTimeout(150);
+ok('x1 paragraf açılır seçimle Başlık 1 oldu', await ev(() => document.querySelectorAll('.docx-page.doc-editing h1').length) === h1Once + 1);
+// aynı paragrafa punto 36, yazı rengi, vurgu ve üstü çizili (ilk kalan p)
+await page.click('.docx-page.doc-editing p:nth-of-type(1)', { clickCount: 3 });
+await ev(() => { const s = document.querySelector('#docTools [data-pe-sel="size"]'); s.value = '7'; s.dispatchEvent(new Event('change', { bubbles: true })); });
+await page.click('.docx-page.doc-editing p:nth-of-type(1)', { clickCount: 3 });
+await page.click('[data-pe="fore"][data-color="#c00000"]');
+await page.click('.docx-page.doc-editing p:nth-of-type(1)', { clickCount: 3 });
+await page.click('[data-pe="hilite"][data-color="#ffff00"]');
+await page.click('.docx-page.doc-editing p:nth-of-type(1)', { clickCount: 3 });
+await page.click('[data-pe="cmd"][data-cmd="strikeThrough"]');
+await page.waitForTimeout(150);
+ok('x2 punto, renk, vurgu ve üstü çizili DOM\'a işledi', await ev(() => {
+  const p = document.querySelector('.docx-page.doc-editing p');
+  return !!p.querySelector('font[size="7"]') && !!p.querySelector('font[color]') && !!p.querySelector('[style*="background"]') && !!p.querySelector('strike, s');
+}));
+// iki yana yasla + listeler — örnek belgede boş (görünmez) paragraflar var, o yüzden
+// dokunma yerine METİNLİ paragraflar programla seçilir
+const secPar = (i) => ev((i2) => {
+  const ps = [...document.querySelectorAll('.docx-page.doc-editing p')].filter(p => p.textContent.trim());
+  const p = ps[Math.min(i2, ps.length - 1)];
+  const r = document.createRange(); r.selectNodeContents(p);
+  const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+}, i);
+await secPar(1);
+await page.click('[data-pe="cmd"][data-cmd="justifyFull"]');
+await secPar(2);
+await page.click('[data-pe="cmd"][data-cmd="insertUnorderedList"]');
+await secPar(3);
+await page.click('[data-pe="cmd"][data-cmd="insertOrderedList"]');
+await page.waitForTimeout(150);
+ok('x3 madde imli ve numaralı liste oluştu', await ev(() => !!document.querySelector('.docx-page.doc-editing ul li') && !!document.querySelector('.docx-page.doc-editing ol li')));
+// tablo: imleç bir paragrafta, 2 satır × 3 sütun sorulur
+await page.click('.docx-page.doc-editing p:nth-of-type(1)');
+const tblOnce = await ev(() => document.querySelectorAll('.docx-page.doc-editing table').length);
+await queueAnswers(page, { r: 2, c: 3 });
+await page.click('[data-pe="table"]'); await page.waitForTimeout(300);
+ok('x4 tablo eklendi (2 satır × 3 hücre)', await ev(() => {
+  const ts = document.querySelectorAll('.docx-page.doc-editing table');
+  const t2 = ts[ts.length - 1];
+  return !!t2 && t2.rows.length === 2 && t2.rows[0].cells.length === 3;
+}) && await ev(() => document.querySelectorAll('.docx-page.doc-editing table').length) === tblOnce + 1);
+await shot('edit_word_v88');
+const dlDocx2 = page.waitForEvent('download', { timeout: 40000 });
+await page.click('[data-pe="save"]');
+const DOCX_OUT2 = path.join(out, 'SampleDoc_v88.docx');
+{
+  const d = await dlDocx2; await d.saveAs(DOCX_OUT2);
+}
+// --- bağımsız doğrulama: XML'de biçimler, gerçek numaralandırma ve tablo ---
+{
+  const files = unzip(fs.readFileSync(DOCX_OUT2));
+  const doc = files['word/document.xml'].toString('utf8');
+  const num = files['word/numbering.xml'].toString('utf8');
+  ok('x5 DOCX: başlık stili, punto 36 (sz 72), renk, vurgu, üstü çizili, iki yana yasla', doc.includes('<w:pStyle w:val="Heading1"/>')
+    && doc.includes('<w:sz w:val="72"/>') && doc.includes('<w:color w:val="C00000"/>') && doc.includes('w:fill="FFFF00"')
+    && doc.includes('<w:strike/>') && doc.includes('<w:jc w:val="both"/>'),
+    JSON.stringify({ sz: doc.includes('<w:sz w:val="72"/>'), renk: doc.includes('<w:color w:val="C00000"/>'), shd: doc.includes('w:fill="FFFF00"'), strike: doc.includes('<w:strike/>'), jc: doc.includes('<w:jc w:val="both"/>') }));
+  ok('x6 DOCX: gerçek liste numaralandırması (numPr + numbering.xml)', doc.includes('<w:numId w:val="1"/>') && doc.includes('<w:numId w:val="2"/>')
+    && /<w:ilvl w:val="0"\/>/.test(doc) && /w:numFmt w:val="decimal"/.test(num) && /w:numFmt w:val="bullet"/.test(num));
+  const tbls = doc.match(/<w:tbl>[\s\S]*?<\/w:tbl>/g) || [];
+  ok('x7 DOCX: eklenen tablo 2 satır × 3 hücre olarak yazıldı', tbls.some(t2 => (t2.match(/<w:tr>/g) || []).length === 2 && (t2.match(/<w:tc>/g) || []).length === 6), String(tbls.length));
 }
 await ev(() => window.dwgApp.docs.close());
 

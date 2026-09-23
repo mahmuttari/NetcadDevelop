@@ -154,6 +154,54 @@ export function kaydirFormul(src, dr, dc) {
   return out;
 }
 
+/*
+ * YAPISAL KAYDIRMA (v8.8): ızgara düzenleyicide satır/sütun eklenince-silinince formül
+ * başvuruları Excel kuralıyla düzeltilir. kaydirFormul'dan farkı:
+ *   - Kaydırma KOŞULLUDUR: yalnız eklenen/silinen konumdan sonraki başvurular kayar.
+ *   - $ sabitleri de kayar (Excel'de yapısal değişiklik mutlak başvuruyu da taşır;
+ *     $ yalnız KOPYALAMADA sabittir).
+ *   - Silinen aralığa düşen TEK başvuru #REF! olur; bir ARALIĞIN ucu düşerse aralık
+ *     Excel'deki gibi kırpılır (SUM(A1:A10) 5. satır silinince SUM(A1:A9)).
+ *   - Başka sayfaya işaret eden başvurular ('Sayfa 2'!A1 tırnaklı, Sayfa2!A1 tırnaksız)
+ *     KAYMAZ: düzenlenen sayfa bu sayfadır, oradaki adresler başka sayfanın adresidir.
+ * eksen: 'satir' | 'sutun' · indeks: 0 tabanlı ekleme/silme yeri · delta: +n ekleme, -n silme.
+ */
+export function yapisalKaydir(src, eksen, indeks, delta) {
+  if (!src || !delta) return src || '';
+  const satirMi = eksen === 'satir';
+  const s = String(src); let out = '';
+  for (let i = 0; i < s.length;) {
+    const ch = s[i];
+    if (ch === '"') { const j = s.indexOf('"', i + 1); const son = j < 0 ? s.length : j + 1; out += s.slice(i, son); i = son; continue; }
+    if (ch === "'") { const j = s.indexOf("'", i + 1); const son = j < 0 ? s.length : j + 1; out += s.slice(i, son); i = son; continue; }
+    if (ch === '#') { const m = /^#[A-Za-z0-9_/!?]+/.exec(s.slice(i)); if (m) { out += m[0]; i += m[0].length; continue; } }
+    const m = /^(\$?)([A-Za-z]{1,3})(\$?)(\d{1,7})(?![\w.(])/.exec(s.slice(i));
+    if (m) {
+      const onceki = i ? s[i - 1] : '';
+      // '!' öncesi: başka sayfanın adresi — dokunulmaz (tırnaklı sayfa adları yukarıda atlandı)
+      if (!/[A-Za-z0-9_.]/.test(onceki) && onceki !== '!') {
+        const c = sutunNo(m[2]), r = +m[4] - 1;
+        let k = satirMi ? r : c;                       // kaydırılacak eksen koordinatı
+        const aralikUcu = onceki === ':' || s[i + m[0].length] === ':';
+        if (delta < 0 && k >= indeks && k < indeks - delta) {
+          if (!aralikUcu) { out += '#REF!'; i += m[0].length; continue; }
+          k = onceki === ':' ? indeks - 1 : indeks;    // aralığın ucu: kırp (sol uç ileri, sağ uç geri değil — silinenin kenarına)
+          if (k < 0) { out += '#REF!'; i += m[0].length; continue; }
+        } else if (k >= indeks) k += delta;
+        const yr = satirMi ? k : r, yc = satirMi ? c : k;
+        out += (yc < 0 || yr < 0 || yc > 16383 || yr > 1048575)
+          ? '#REF!'
+          : m[1] + sutunAd(yc) + m[3] + (yr + 1);
+        i += m[0].length; continue;
+      }
+      // sayfa adresi (Sayfa2!A1): olduğu gibi geç
+      out += m[0]; i += m[0].length; continue;
+    }
+    out += ch; i++;
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------------------------
 // xlsx / xlsm (OOXML)
 // ---------------------------------------------------------------------------------
@@ -664,6 +712,18 @@ export function hazirla(kitap, opts = {}) {
       get ham() { return coz().ham; },
       get hiza() { return coz().hiza; },
       get renk() { return coz().renk; },
+      /*
+       * Formül katmanı (v8.8): ızgara düzenleyici formülleri değere dondurmadan taşıyabilsin.
+       * Seyrek dizi döner (yalnız formüllü hücre dolu); hesap istemez, coz() tetiklenmez.
+       */
+      get formuller() {
+        const out = [];
+        for (let r = 0; r < s.satir; r++) {
+          const sat = s.h[r] || []; let row = null;
+          for (let c = 0; c < s.sutun; c++) { const h = sat[c]; if (h && h.f) { if (!row) { row = []; out[r] = row; } row[c] = h.f; } }
+        }
+        return out;
+      },
     };
   });
   return { bicim: kitap.bicim, sayfalar, uyarilar: uyari, tarih1904: kitap.tarih1904 };

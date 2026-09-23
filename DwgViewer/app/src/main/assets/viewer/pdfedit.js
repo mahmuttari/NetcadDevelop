@@ -63,7 +63,7 @@ export async function openEdit(bytes) {
     return { src: i, w: width, h: height, rot0: rot, rot, del: false };
   });
   if (!pages.length) throw new Error(tt('editPdfEmpty', 'PDF sayfası yok'));
-  return { pages, ann: [], undo: [], seq: 0, tool: 'pan', color: COLORS[0], width: PEN_W[1] };   // varsayılan el aracı: parmakla kaydırma serbest
+  return { pages, pages0: pages.map(p => p.src), ann: [], undo: [], seq: 0, tool: 'pan', color: COLORS[0], width: PEN_W[1] };   // varsayılan el aracı: parmakla kaydırma serbest
 }
 
 /** Ekranda görünen sayfa ölçüsü (punto); 90 ve 270 derecede en ile boy yer değiştirir */
@@ -109,8 +109,22 @@ export function deletePage(st, i) {
   if (st.pages.filter(p => !p.del).length <= 1) return false;
   pg.del = true; push(st, () => { pg.del = false; }); return true;
 }
+/**
+ * Sayfayı görünüm/çıktı sırasında bir üste (dir<0) ya da alta taşır; silinmiş sayfalar atlanır.
+ * st.pages dizisinin sırası çıktının sırasıdır (exportPdf keep listesini bu sıradan kurar).
+ */
+export function movePage(st, i, dir) {
+  const adim = dir < 0 ? -1 : 1;
+  let j = i + adim;
+  while (j >= 0 && j < st.pages.length && st.pages[j].del) j += adim;
+  if (j < 0 || j >= st.pages.length) return false;
+  const p = st.pages;
+  [p[i], p[j]] = [p[j], p[i]];
+  push(st, () => { [p[i], p[j]] = [p[j], p[i]]; });
+  return true;
+}
 export function undo(st) { const f = st.undo.pop(); if (!f) return false; f(); return true; }
-export const dirty = (st) => st.ann.length > 0 || st.pages.some(p => p.del || p.rot !== p.rot0);
+export const dirty = (st) => st.ann.length > 0 || st.pages.some((p, i) => p.del || p.rot !== p.rot0 || p.src !== st.pages0[i]);
 
 // ---------------------------------------------------------------------------------
 // Çıktı: pdf-lib ile yeni PDF
@@ -179,6 +193,23 @@ export async function exportPdf(bytes, st) {
         if (a.pts.length === 1) {
           const p0 = a.pts[0];
           page.drawCircle({ x: p0[0], y: p0[1], size: w / 2, color: col, opacity: op });
+        }
+      } else if (a.type === 'rect' || a.type === 'ell' || a.type === 'line' || a.type === 'arrow') {
+        // Şekiller (v8.8): iki köşe döndürülmemiş PDF uzayında tutulur; dolgu yok, yalnız kenar
+        const col = hexRgb(lib, a.color);
+        const x0 = Math.min(a.p0[0], a.p1[0]), y0 = Math.min(a.p0[1], a.p1[1]);
+        const gw = Math.abs(a.p1[0] - a.p0[0]), gh = Math.abs(a.p1[1] - a.p0[1]);
+        if (a.type === 'rect') page.drawRectangle({ x: x0, y: y0, width: Math.max(gw, 0.5), height: Math.max(gh, 0.5), borderColor: col, borderWidth: a.w });
+        else if (a.type === 'ell') page.drawEllipse({ x: x0 + gw / 2, y: y0 + gh / 2, xScale: Math.max(gw / 2, 0.25), yScale: Math.max(gh / 2, 0.25), borderColor: col, borderWidth: a.w });
+        else {
+          page.drawLine({ start: { x: a.p0[0], y: a.p0[1] }, end: { x: a.p1[0], y: a.p1[1] }, thickness: a.w, color: col, lineCap: lib.LineCapStyle.Round });
+          if (a.type === 'arrow') {
+            // ok başı: uca iki kısa çizgi (uzunluk kalınlıkla ölçeklenir, en az 8 pt)
+            const ang = Math.atan2(a.p1[1] - a.p0[1], a.p1[0] - a.p0[0]), L = Math.max(8, a.w * 4);
+            for (const da of [Math.PI * 5 / 6, -Math.PI * 5 / 6]) {
+              page.drawLine({ start: { x: a.p1[0], y: a.p1[1] }, end: { x: a.p1[0] + L * Math.cos(ang + da), y: a.p1[1] + L * Math.sin(ang + da) }, thickness: a.w, color: col, lineCap: lib.LineCapStyle.Round });
+            }
+          }
         }
       } else if (a.type === 'text' || a.type === 'stamp') {
         const key = a.id + ':' + a.text + ':' + a.size + ':' + a.color;
@@ -274,6 +305,31 @@ export function mountSurface(host, st, opts = {}) {
       }
       return g;
     }
+    if (a.type === 'rect' || a.type === 'ell' || a.type === 'line' || a.type === 'arrow') {
+      const g = svg('g', {}); g.dataset.ann = String(a.id); g.classList.add('pdfe-ann');
+      const [ax, ay] = toView(pg, a.p0[0], a.p0[1]), [bx, by] = toView(pg, a.p1[0], a.p1[1]);
+      const ort = { fill: 'none', stroke: a.color, 'stroke-width': a.w, 'pointer-events': 'none' };
+      if (a.type === 'rect' || a.type === 'ell') {
+        const x = Math.min(ax, bx), y = Math.min(ay, by), w2 = Math.abs(bx - ax), h2 = Math.abs(by - ay);
+        if (a.type === 'rect') {
+          g.appendChild(svg('rect', { x, y, width: Math.max(w2, 1), height: Math.max(h2, 1), fill: 'transparent', stroke: 'transparent', 'stroke-width': Math.max(a.w + 12, 16), class: 'pdfe-hit' }));
+          g.appendChild(svg('rect', { x, y, width: Math.max(w2, 1), height: Math.max(h2, 1), ...ort }));
+        } else {
+          g.appendChild(svg('ellipse', { cx: x + w2 / 2, cy: y + h2 / 2, rx: Math.max(w2 / 2, 1), ry: Math.max(h2 / 2, 1), fill: 'transparent', stroke: 'transparent', 'stroke-width': Math.max(a.w + 12, 16), class: 'pdfe-hit' }));
+          g.appendChild(svg('ellipse', { cx: x + w2 / 2, cy: y + h2 / 2, rx: Math.max(w2 / 2, 1), ry: Math.max(h2 / 2, 1), ...ort }));
+        }
+      } else {
+        g.appendChild(svg('line', { x1: ax, y1: ay, x2: bx, y2: by, stroke: 'transparent', 'stroke-width': Math.max(a.w + 12, 16), 'stroke-linecap': 'round', class: 'pdfe-hit' }));
+        g.appendChild(svg('line', { x1: ax, y1: ay, x2: bx, y2: by, ...ort, 'stroke-linecap': 'round' }));
+        if (a.type === 'arrow') {
+          const ang = Math.atan2(by - ay, bx - ax), L = Math.max(8, a.w * 4);
+          for (const da of [Math.PI * 5 / 6, -Math.PI * 5 / 6]) {
+            g.appendChild(svg('line', { x1: bx, y1: by, x2: bx + L * Math.cos(ang + da), y2: by + L * Math.sin(ang + da), ...ort, 'stroke-linecap': 'round' }));
+          }
+        }
+      }
+      return g;
+    }
     if (a.type === 'text' || a.type === 'stamp') {
       const g = svg('g', {}); g.dataset.ann = String(a.id); g.classList.add('pdfe-ann');
       const [vx, vy] = toView(pg, a.x, a.y);
@@ -320,15 +376,21 @@ export function mountSurface(host, st, opts = {}) {
     }
     ev.preventDefault();
     layer.setPointerCapture(ev.pointerId);
-    const a = { type: st.tool === 'hi' ? 'hi' : 'ink', page: pgIdx, pts: [toPdf(pg, vx, vy)], w: st.width, color: st.color };
+    const SEKIL = { rect: 'rect', ell: 'ell', line: 'line', arrow: 'arrow' };
+    const a = SEKIL[st.tool]
+      ? { type: SEKIL[st.tool], page: pgIdx, p0: toPdf(pg, vx, vy), p1: toPdf(pg, vx, vy), w: st.width, color: st.color }
+      : { type: st.tool === 'hi' ? 'hi' : 'ink', page: pgIdx, pts: [toPdf(pg, vx, vy)], w: st.width, color: st.color };
     draw = { a, pg, layer, el: null };
   });
   surf.addEventListener('pointermove', (ev) => {
     if (!draw) return;
     const [vx, vy] = ptOf(ev, draw.layer);
-    const p = toPdf(draw.pg, vx, vy), last = draw.a.pts[draw.a.pts.length - 1];
-    if (Math.hypot(p[0] - last[0], p[1] - last[1]) < 0.7) return;
-    draw.a.pts.push(p);
+    const p = toPdf(draw.pg, vx, vy);
+    if (draw.a.pts) {
+      const last = draw.a.pts[draw.a.pts.length - 1];
+      if (Math.hypot(p[0] - last[0], p[1] - last[1]) < 0.7) return;
+      draw.a.pts.push(p);
+    } else draw.a.p1 = p;   // şekil: ikinci köşe sürüklenirken güncellenir
     if (draw.el) draw.el.remove();
     draw.el = annEl(draw.pg, draw.a); draw.el.dataset.ann = 'draft';
     draw.layer.appendChild(draw.el);
@@ -336,6 +398,8 @@ export function mountSurface(host, st, opts = {}) {
   const end = () => {
     if (!draw) return;
     const a = draw.a; if (draw.el) draw.el.remove(); draw = null;
+    // sürüklenmemiş şekil (iki köşe aynı nokta) eklenmez: yanlışlıkla dokunuş iz bırakmasın
+    if (a.p0 && Math.hypot(a.p1[0] - a.p0[0], a.p1[1] - a.p0[1]) < 1) { render(); return; }
     addAnn(st, a); render(); opts.onChange && opts.onChange();
   };
   surf.addEventListener('pointerup', end);
@@ -385,12 +449,19 @@ export function toolbarHtml(st) {
   const b = (tool, icon, label) => `<button type="button" class="btn small${st.tool === tool ? ' on' : ''}" data-pe="tool" data-tool="${tool}" title="${esc(label)}" aria-label="${esc(label)}"><svg class="ic" aria-hidden="true"><use href="#${icon}"/></svg></button>`;
   const col = COLORS.map(c => `<button type="button" class="pdfe-color${st.color === c ? ' on' : ''}" data-pe="color" data-color="${c}" style="background:${c}" aria-label="${esc(c)}"></button>`).join('');
   const w = PEN_W.map(n => `<button type="button" class="pdfe-w${st.width === n ? ' on' : ''}" data-pe="width" data-width="${n}" aria-label="${n} pt"><i style="height:${n}px"></i></button>`).join('');
-  const draws = st.tool === 'pen' || st.tool === 'hi' || st.tool === 'text' || st.tool === 'stamp';   // renk ve kalınlık yalnız çizim araçlarında
+  const SEKILLI = ['pen', 'hi', 'text', 'stamp', 'rect', 'ell', 'line', 'arrow'];
+  const draws = SEKILLI.includes(st.tool);   // renk ve kalınlık yalnız çizim araçlarında
+  const kalinlikli = st.tool === 'pen' || st.tool === 'hi' || st.tool === 'rect' || st.tool === 'ell' || st.tool === 'line' || st.tool === 'arrow';
   return b('pan', 'i-move', tt('editPan', 'El'))
     + b('pen', 'i-pen', tt('editPen', 'Kalem')) + b('hi', 'i-hatch', tt('editHi', 'Vurgu')) + b('text', 'i-text', tt('editText', 'Metin'))
+    + b('rect', 'i-rect', tt('editRect', 'Dikdörtgen')) + b('ell', 'i-circle', tt('editEllipse', 'Elips'))
+    + b('line', 'i-line', tt('editLine', 'Çizgi')) + b('arrow', 'i-arrow-right', tt('editArrow', 'Ok'))
     + b('stamp', 'i-bookmark', tt('editStamp', 'Damga')) + b('erase', 'i-trash', tt('editErase', 'Silgi'))
-    + (draws ? `<span class="sp"></span><span class="pdfe-colors">${col}</span>${st.tool === 'pen' || st.tool === 'hi' ? `<span class="pdfe-ws">${w}</span>` : ''}<span class="sp"></span>` : '<span class="sp"></span>')
+    + (draws ? `<span class="sp"></span><span class="pdfe-colors">${col}</span>${kalinlikli ? `<span class="pdfe-ws">${w}</span>` : ''}<span class="sp"></span>` : '<span class="sp"></span>')
     + `<button type="button" class="btn small" data-pe="rotl" title="${esc(tt('editRotL', 'Sola döndür'))}" aria-label="${esc(tt('editRotL', 'Sola döndür'))}"><svg class="ic" aria-hidden="true"><use href="#i-turn"/></svg></button>`
+    + `<button type="button" class="btn small" data-pe="rotr" title="${esc(tt('editRotR', 'Sağa döndür'))}" aria-label="${esc(tt('editRotR', 'Sağa döndür'))}"><svg class="ic" aria-hidden="true" style="transform:scaleX(-1)"><use href="#i-turn"/></svg></button>`
+    + `<button type="button" class="btn small" data-pe="pgup" title="${esc(tt('editPgUp', 'Sayfayı yukarı taşı'))}" aria-label="${esc(tt('editPgUp', 'Sayfayı yukarı taşı'))}"><svg class="ic" aria-hidden="true"><use href="#i-arrow-up"/></svg></button>`
+    + `<button type="button" class="btn small" data-pe="pgdn" title="${esc(tt('editPgDn', 'Sayfayı aşağı taşı'))}" aria-label="${esc(tt('editPgDn', 'Sayfayı aşağı taşı'))}"><svg class="ic" aria-hidden="true"><use href="#i-arrow-down"/></svg></button>`
     + `<button type="button" class="btn small" data-pe="delpage">${esc(tt('editDelPage', 'Sayfayı sil'))}</button>`
     + `<button type="button" class="btn small" data-pe="undo" title="${esc(t('undo'))}" aria-label="${esc(t('undo'))}"><svg class="ic" aria-hidden="true"><use href="#i-undo"/></svg></button>`
     + `<span class="sp"></span><button type="button" class="btn small" data-pe="zout" aria-label="−"><svg class="ic" aria-hidden="true"><use href="#i-zoom-out"/></svg></button>`

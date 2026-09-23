@@ -909,6 +909,10 @@ body.homemode #tour { display: none; }
 .pdfe-colors, .pdfe-ws { display: inline-flex; gap: 4px; align-items: center; }
 .pdfe-color { width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; padding: 0; cursor: pointer; }
 .pdfe-color.on { border-color: var(--fg); box-shadow: 0 0 0 2px var(--panel); }
+/* renk paletinin "biçimi kaldır" hücresi: boş, kesik çizgili yuvarlak */
+.pdfe-color.grid-nofill { background: transparent; border: 2px dashed var(--muted); }
+/* araç çubuğundaki açılır seçimler (paragraf biçemi / punto) */
+.doc-sel { height: 30px; max-width: 108px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--fg); font: 12px system-ui, sans-serif; padding: 0 4px; }
 .pdfe-w { width: 26px; height: 22px; border: 1px solid var(--line); border-radius: 5px; background: var(--panel); display: grid; place-items: center; padding: 0; cursor: pointer; }
 .pdfe-w.on { border-color: var(--accent); }
 .pdfe-w i { display: block; width: 14px; background: var(--fg); border-radius: 4px; }
