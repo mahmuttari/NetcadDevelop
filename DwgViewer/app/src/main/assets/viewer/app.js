@@ -110,6 +110,27 @@ function applySettings() {
 /** birim çarpanı → kısa ad (ayarlardaki seçeneklerle aynı küme) */
 const BIRIM_ADI = { 0.001: 'mm', 0.01: 'cm', 0.1: 'dm', 1: 'm', 1000: 'km' };
 /*
+ * ÇİZİM BİRİMİ SEÇENEKLERİ (v8.9.7). Uzunluk ve koordinat yanındaki birim yazısı yalnız bir birim
+ * BELİRLİYSE çıkar: ya dosyanın INSUNITS'i ("Çizimden") ya da kullanıcının seçtiği birim. Dosya birimi
+ * yanlışsa (AutoCAD'in metrik şablonu metreyle çizilen dosyaya da 4 = mm yazar) kullanıcı değiştirir;
+ * "Birimsiz" seçilirse hiçbir yerde birim yazılmaz. Seçim ayarlarda ve ölçek çipinde (1:N) aynıdır.
+ */
+const birimSecenekleri = () => [['auto', t('unitFromDrawing') + ': ' + (S.unitsDosya || '—') + ')'], ['none', t('unitNone')],
+  ['0.001', 'mm'], ['0.01', 'cm'], ['0.1', 'dm'], ['1', 'm'], ['1000', 'km']];
+/** O an geçerli birim seçimi: dosyaya özel kayıt, yoksa genel ayar ('auto' | 'none' | çarpan) */
+const birimSecimi = () => { const g = S.fileKey ? store.json('geo:' + S.fileKey, null) : null; return String((g || settings).unit || 'auto'); };
+/** Birim seçimi yalnız bu dosya için kaydedilir; koordinat sistemi ve kaydırma olduğu gibi kalır */
+function birimSec(val) {
+  const g = S.fileKey ? (store.json('geo:' + S.fileKey, null) || {}) : {};
+  const geo = { crs: g.crs || settings.crs, unit: val, swap: g.swap != null ? g.swap : settings.swap, dx: g.dx || settings.dx || 0, dy: g.dy || settings.dy || 0 };
+  if (S.fileKey) store.set('geo:' + S.fileKey, JSON.stringify(geo));
+  else { settings.unit = val; saveSettings(); }
+  applyGeo();
+  D.syncGridChip && D.syncGridChip(); edCall("yenile3B");
+  S.cacheValid = false; requestRender(); drawOverlay(); updateStatus();
+  if (!$('measurePanel').hidden) updateMeasure();
+}
+/*
  * ÇİZİM BİRİMİ AYARI ÇİZİMİN KENDİSİNE DE UYGULANIR.
  *
  * Eskiden bu seçim yalnız GeoRef'e gidiyordu: ölçek çipi (1:N), ızgara etiketi, ölçüm sonuçlarının
@@ -121,8 +142,10 @@ const BIRIM_ADI = { 0.001: 'mm', 0.01: 'cm', 0.1: 'dm', 1: 'm', 1000: 'km' };
 function applyGeo() {
   const g = S.fileKey ? store.json('geo:' + S.fileKey, null) : null;
   const src = g || settings;
-  const secilen = src.unit && src.unit !== 'auto' ? Number(src.unit) : 0;
+  const birimsiz = src.unit === 'none';
+  const secilen = src.unit && src.unit !== 'auto' && !birimsiz ? Number(src.unit) : 0;
   if (secilen > 0) { S.unitToM = secilen; S.units = BIRIM_ADI[secilen] || S.units; }
+  else if (birimsiz) { S.unitToM = 0; S.units = ''; }   // "Birimsiz": hiçbir yerde birim yazılmaz, ölçek (1:N) kapanır
   else if (S.unitToMDosya != null) { S.unitToM = S.unitToMDosya; S.units = S.unitsDosya || ''; }
   const unitToM = secilen > 0 ? secilen : (S.unitToM || 1);
   S.geo = new GeoRef({ crs: src.crs || 'NONE', unitToM, swap: !!src.swap, dx: Number(src.dx) || 0, dy: Number(src.dy) || 0 });
@@ -1177,12 +1200,19 @@ function showSnapChip(kind) {
 /** Ölçek seçici: 1:100 … 1:25000 + gerçek boyut */
 function showScalePicker() {
   if (!S.hasDoc) return;
-  if (!(S.unitToM > 0)) { toast(tt('scaleNeedUnit', 'Ölçek için çizim birimi gerekli (Ayarlar › Çizim birimi).')); return; }
-  const list = [100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000, 25000];
-  const cur = Math.round(scaleN());
-  const html = `<div class="full"><div class="chips">${list.map(n => `<button type="button" class="chip ${cur === n ? 'on' : ''}" data-scale="${n}">1:${fmt(n, 0)}</button>`).join('')}<button type="button" class="chip" data-scale="1">${tt('scaleReal', 'Gerçek boyut 1:1')}</button></div></div><div class="full muted">${tt('scaleNow', 'Şu an')}: 1:${fmt(cur, 0)}</div>`;
-  openDoc(tt('scalePick', 'Ölçek'), html);
+  // Birim bu pencerede de seçilir: ölçek birim olmadan kurulamaz, yanlış birim de burada fark edilir
+  const bs = birimSecimi();
+  const birimHtml = `<div class="full"><strong>${esc(t('drawingUnit'))}</strong><div class="chips">${birimSecenekleri().map(o => `<button type="button" class="chip ${bs === o[0] ? 'on' : ''}" data-unit="${o[0]}">${esc(o[1])}</button>`).join('')}</div></div>`;
+  let olcekHtml;
+  if (S.unitToM > 0) {
+    const list = [100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000, 25000];
+    const cur = Math.round(scaleN());
+    olcekHtml = `<div class="full"><strong>${esc(tt('scalePick', 'Ölçek'))}</strong><div class="chips">${list.map(n => `<button type="button" class="chip ${cur === n ? 'on' : ''}" data-scale="${n}">1:${fmt(n, 0)}</button>`).join('')}<button type="button" class="chip" data-scale="1">${tt('scaleReal', 'Gerçek boyut 1:1')}</button></div></div><div class="full muted">${tt('scaleNow', 'Şu an')}: 1:${fmt(cur, 0)}</div>`;
+  } else olcekHtml = `<div class="full muted">${esc(tt('scaleNeedUnit', 'Ölçek için çizim birimi gerekli (Ayarlar › Çizim birimi).'))}</div>`;
+  openDoc(tt('scalePick', 'Ölçek'), birimHtml + olcekHtml);
   $('docBody').onclick = (ev) => {
+    const u = ev.target.closest('[data-unit]');
+    if (u) { birimSec(u.dataset.unit); showScalePicker(); return; }
     const b = ev.target.closest('[data-scale]'); if (!b) return;
     const n = Number(b.dataset.scale); if (!(n > 0)) return;
     S.view.scale = SCALE_K * S.unitToM / n; viewHistory.push(); requestRender(); hide('docPanel');
@@ -3779,13 +3809,13 @@ function langOptions() {
 function showSettings(ek) {
   const g = S.fileKey ? (store.json('geo:' + S.fileKey, null) || {}) : {};
   const cur = { crs: g.crs || settings.crs, unit: g.unit || settings.unit, swap: g.swap != null ? g.swap : settings.swap, dx: g.dx || settings.dx || 0, dy: g.dy || settings.dy || 0, ...(ek || {}) };
-  const unitOpts = [['auto', t('unitFromDrawing') + (S.units ? ': ' + S.units : '') + ')'], ['0.001', 'mm'], ['0.01', 'cm'], ['1', 'm'], ['0.1', 'dm'], ['1000', 'km']];
+  const unitOpts = birimSecenekleri();
   const html = kv([
     [t('language'), `<select id="sLang">${langOptions()}</select>`, 1],
     [t('crs'), `<select id="sCrs">${CRS.map(c => `<option value="${c.id}" ${c.id === cur.crs ? 'selected' : ''}>${esc(nameOf(c))}</option>`).join('')}</select>`, 1],
     // Dilim ve datumu kullanıcı hesaplamasın: yerden (il/ilçe, harita, adres, koordinat ya da çizimin kendisi) seçilsin
     [`<div class="full btns"><button type="button" class="btn small" id="sCrsPick">${esc(tt('psOpen', 'Yerden seç: il / ilçe · harita · adres'))}</button></div>`],
-    [t('drawingUnit'), `<select id="sUnit">${unitOpts.map(o => `<option value="${o[0]}" ${String(cur.unit) === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('')}</select>`, 1],
+    [t('drawingUnit'), `<select id="sUnit">${unitOpts.map(o => `<option value="${o[0]}" ${String(cur.unit || 'auto') === o[0] ? 'selected' : ''}>${esc(o[1])}</option>`).join('')}</select><div class="muted">${esc(t('unitHint'))}</div>`, 1],
     [t('axisSwap'), `<label class="chk"><input type="checkbox" id="sSwap" ${cur.swap ? 'checked' : ''}> ${esc(t('axisSwapHint'))}</label>`, 1],
     [t('offset') + ' X', `<input id="sDx" type="number" step="any" value="${cur.dx}">`, 1],
     [t('offset') + ' Y', `<input id="sDy" type="number" step="any" value="${cur.dy}">`, 1],
