@@ -47,7 +47,7 @@ export const TOOLS = [
   { id: 'drive', icon: 'i-drive', i18n: 'drive', run: (a) => a.menuAction('drive') },
   { id: 'settings', icon: 'i-props', i18n: 'settings', run: (a) => a.menuAction('settings') },
   { id: 'about', icon: 'i-info', i18n: 'about', run: (a) => a.menuAction('about') },
-  { id: 'pro', icon: 'i-star', i18n: 'editionPro', run: (a) => a.openProPanel() },
+  { id: 'pro', icon: 'i-star', i18n: 'proTitle', run: (a) => a.openProPanel() },
 ];
 
 /*

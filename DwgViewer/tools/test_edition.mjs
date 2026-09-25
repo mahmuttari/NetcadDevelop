@@ -61,7 +61,7 @@ const fakeBridge = ({ price, prices }) => {
   // karşılama kartı → Pro paneli
   {
     const r = await ev(() => { const p = document.getElementById('proLine'), b = document.getElementById('btnGoPro'); return { hidden: p.hidden, vis: !!(p && p.offsetParent), text: p.textContent.trim(), btn: !!b && b.offsetParent !== null, open2: !!document.getElementById('btnOpen2'), input: !!document.getElementById('fileInput') }; });
-    ok('1b karşılama kartında #proLine ve Pro düğmesi görünür', !r.hidden && r.vis && r.btn && /Ücretsiz sürüm/.test(r.text) && /satın alarak/.test(r.text) && /reklamlar kalkar/.test(r.text) && r.open2 && r.input, JSON.stringify(r).slice(0, 200));
+    ok('1b karşılama kartında #proLine ve Pro düğmesi görünür', !r.hidden && r.vis && r.btn && /Ücretsiz sürüm/.test(r.text) && /Ad-Free/.test(r.text) && /Premium/.test(r.text) && /Super/.test(r.text) && !/\bPro\b/.test(r.text) && r.open2 && r.input, JSON.stringify(r).slice(0, 200));
     await shot('free_welcome');
     ok('1b2 Pro paneli başta kapalı', await ev(() => document.getElementById('proPanel').hidden === true));
     await page.click('#btnGoPro'); await page.waitForTimeout(80);
@@ -241,7 +241,7 @@ const fakeBridge = ({ price, prices }) => {
     const st = await ev(() => window.dwgApp.__ads.state());
     const tk = await ev(() => window.dwgApp.__ads.tick(Date.now() + 60 * 60000));
     ok('5e reklam: adsOn false, zamanlayıcı durdu, tick istek üretmez', !st.adsOn && !st.timer && tk === false && (await calls()).length === adReq0, JSON.stringify(st));
-    ok('5f uyarı: "Pro etkinleştirildi"', (await toastText()) === 'Pro etkinleştirildi', await toastText());
+    ok('5f uyarı: "Paketiniz etkinleştirildi"', (await toastText()) === 'Paketiniz etkinleştirildi', await toastText());
     const p = await panel();
     ok('5g panel Super durumunu gösterir: Google Play, Super kartı Etkin, satın alma düğmesi yok', p.open && p.status === 'play' && /Super/.test(p.text) && /Google Play/.test(p.text) && JSON.stringify(p.owned) === JSON.stringify(['super']) && p.buys.length === 0 && p.restore && p.license, JSON.stringify(p).slice(0, 240));
     await shot('pro_panel_after');
@@ -256,12 +256,12 @@ const fakeBridge = ({ price, prices }) => {
     // geri yükleme (zaten Pro): 'restored' uyarısı, şerit yeniden kurulmaz (draw sekmesi aynı düğüm)
     await ev(() => { document.getElementById('toast').hidden = true; window.__drawBtn = document.querySelector('#toolbar [data-tab="draw"]'); });
     await ev(() => window.Android.restorePro()); await page.waitForTimeout(100);
-    ok('5j restorePro (Pro iken) → "Pro etkinleştirildi", şerit yeniden kurulmadı', (await toastText()) === 'Pro etkinleştirildi' && await ev(() => window.__drawBtn === document.querySelector('#toolbar [data-tab="draw"]')));
+    ok('5j restorePro (Pro iken) → "Paketiniz etkinleştirildi", şerit yeniden kurulmadı', (await toastText()) === 'Paketiniz etkinleştirildi' && await ev(() => window.__drawBtn === document.querySelector('#toolbar [data-tab="draw"]')));
     // iptal: onEdition('free','revoked') → sekmeler kalkar, reklam zamanlayıcısı başlar
     await ev(() => { document.getElementById('toast').hidden = true; window.__setEd('free'); window.dwgApp.onEdition('free', 'revoked'); }); await page.waitForTimeout(80);
     const tb2 = await tabs(); const st2 = await ev(() => window.dwgApp.__ads.state());
     const lk2 = await ev(() => [...document.querySelectorAll('#toolbar [data-tab][data-need]')].map(b => b.dataset.tab).sort().join(','));
-    ok('5k onEdition(free, revoked) → sekmeler KALIR ve yeniden rozetlenir, #proLine görünür, adsOn ve zamanlayıcı açık, uyarı', tb2.includes('draw') && tb2.includes('edit') && lk2 === 'annot,draw,edit' && await ev(() => !document.getElementById('proLine').hidden && document.body.classList.contains('edition-free')) && st2.adsOn && st2.timer && (await toastText()) === 'Pro yetkisi kaldırıldı', tb2.join(',') + ' ' + JSON.stringify(st2));
+    ok('5k onEdition(free, revoked) → sekmeler KALIR ve yeniden rozetlenir, #proLine görünür, adsOn ve zamanlayıcı açık, uyarı', tb2.includes('draw') && tb2.includes('edit') && lk2 === 'annot,draw,edit' && await ev(() => !document.getElementById('proLine').hidden && document.body.classList.contains('edition-free')) && st2.adsOn && st2.timer && (await toastText()) === 'Paket yetkisi kaldırıldı', tb2.join(',') + ' ' + JSON.stringify(st2));
     // öteki nedenler: cancelled sessiz, pending ve error uyarı; yetki değişmez
     await ev(() => { document.getElementById('toast').hidden = true; window.dwgApp.onEdition('free', 'cancelled'); }); await page.waitForTimeout(30);
     ok('5l cancelled → sessiz, free kalır', (await toastText()) === '' && await ev(() => window.dwgApp.edition() === 'free'));
@@ -324,7 +324,7 @@ const fakeBridge = ({ price, prices }) => {
     await ev(() => { document.getElementById('toast').hidden = true; });
     await queueAnswers(page, ' DWGPRO-ok '); await page.click('#proPanel [data-pro="license"]'); await page.waitForTimeout(120);
     const p = await panel(); const tb = await tabs();
-    ok('6d doğru kod (kırpılır) → super: draw/edit belirir, uyarı, panel "Super — Lisans — ad (bitiş)"', await ev(() => window.dwgApp.edition() === 'super' && document.getElementById('proLine').hidden) && tb.includes('draw') && tb.includes('edit') && (await toastText()) === 'Pro etkinleştirildi' && p.status === 'license' && /Super/.test(p.text) && /Lisans — Deneme Kullanıcı/.test(p.text) && /bitiş/.test(p.text), JSON.stringify(p).slice(0, 200) + ' ' + tb.join(','));
+    ok('6d doğru kod (kırpılır) → super: draw/edit belirir, uyarı, panel "Super — Lisans — ad (bitiş)"', await ev(() => window.dwgApp.edition() === 'super' && document.getElementById('proLine').hidden) && tb.includes('draw') && tb.includes('edit') && (await toastText()) === 'Paketiniz etkinleştirildi' && p.status === 'license' && /Super/.test(p.text) && /Lisans — Deneme Kullanıcı/.test(p.text) && /bitiş/.test(p.text), JSON.stringify(p).slice(0, 200) + ' ' + tb.join(','));
     await shot('pro_panel_license');
     await ev(() => window.dwgApp.onBack());
     ok('6e lisans akışı: sayfa hatası yok', errors.length === 0, errors.join(' | ').slice(0, 200));
