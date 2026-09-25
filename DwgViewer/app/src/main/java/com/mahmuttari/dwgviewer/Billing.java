@@ -143,7 +143,8 @@ public class Billing implements PurchasesUpdatedListener {
                     List<ProductDetails.SubscriptionOfferDetails> offers = d.getSubscriptionOfferDetails();
                     if (offers == null) continue;
                     for (ProductDetails.SubscriptionOfferDetails o : offers) {
-                        String plan = o.getBasePlanId();
+                        String plan = logicalPlan(o);
+                        if (plan == null) continue;
                         List<ProductDetails.PricingPhase> ph = o.getPricingPhases().getPricingPhaseList();
                         if (ph == null || ph.isEmpty()) continue;
                         // Son evre yinelenen (asıl) fiyattır; önündekiler deneme süresi ya da tanıtım fiyatıdır
@@ -208,13 +209,31 @@ public class Billing implements PurchasesUpdatedListener {
         if (r.getResponseCode() != BillingClient.BillingResponseCode.OK) listener.onPurchase("error:" + msg(r, Tier.sku(tier)));
     }
 
-    /** Temel plan kimliğine karşılık gelen teklif jetonu; deneme/tanıtım teklifi varsa o tercih edilir */
+    /**
+     * Teklifin mantıksal planı (PLAN_MONTHLY / PLAN_YEARLY). Önce temel plan kimliğine, tutmazsa yinelenen
+     * evrenin fatura dönemine (P1M / P1Y) bakılır: Play Console'da temel plan silinemediği ve kimliği yeniden
+     * kullanılamadığı için yanlış kurulan bir planın yerine açılan plan farklı kimlik taşıyabilir (ör. yearly-1).
+     * Taksitli (taahhütlü) planlar hiçbir mantıksal plana eşlenmez.
+     */
+    private static String logicalPlan(ProductDetails.SubscriptionOfferDetails o) {
+        if (o.getInstallmentPlanDetails() != null) return null;
+        String id = o.getBasePlanId();
+        if (BuildConfig.PLAN_MONTHLY.equals(id) || BuildConfig.PLAN_YEARLY.equals(id)) return id;
+        List<ProductDetails.PricingPhase> ph = o.getPricingPhases().getPricingPhaseList();
+        if (ph == null || ph.isEmpty()) return null;
+        String period = ph.get(ph.size() - 1).getBillingPeriod();
+        if ("P1Y".equals(period) || "P12M".equals(period)) return BuildConfig.PLAN_YEARLY;
+        if ("P1M".equals(period)) return BuildConfig.PLAN_MONTHLY;
+        return null;
+    }
+
+    /** Mantıksal plana karşılık gelen teklif jetonu; deneme/tanıtım teklifi varsa o tercih edilir */
     private static String offerToken(ProductDetails d, String plan) {
         List<ProductDetails.SubscriptionOfferDetails> offers = d.getSubscriptionOfferDetails();
         if (offers == null) return null;
         String base = null;
         for (ProductDetails.SubscriptionOfferDetails o : offers) {
-            if (!plan.equals(o.getBasePlanId())) continue;
+            if (!plan.equals(logicalPlan(o))) continue;
             // offerId dolu olan bir teklif (ücretsiz deneme / tanıtım fiyatı) varsa kullanıcı lehinedir
             if (o.getOfferId() != null && !o.getOfferId().isEmpty()) return o.getOfferToken();
             base = o.getOfferToken();
