@@ -1,4 +1,4 @@
-# DWG OfficeZip (Android) — v8.9.5
+# DWG OfficeZip (Android) — v8.9.6
 
 AutoCAD **DWG** ve **DXF** ile MicroStation **DGN** çizimlerini telefonda açan, çevrimdışı çalışan
 Android uygulaması. Dosya cihazdan dışarı çıkmaz; çözümleme telefonun
@@ -20,8 +20,8 @@ notlar ve PDF çıktısı.
    isterse verin.
 3. Uygulama, dosya yöneticisi, e-posta ve WhatsApp'ta `.dwg` / `.dxf` / `.dgn`
    dosyaları için "Birlikte aç" listesine kendiliğinden girer. Uygulama
-   içindeki **sürüm denetimi** derlendiği dalın `release/version.json`
-   dosyasına bakar ve yeni sürüm varsa indirme bağlantısını açar.
+   içindeki **sürüm denetimi** Google Play'in uygulama içi güncellemesini
+   kullanır (v8.9.6); APK ile kurulmuş bir kopyada Play Store sayfasını açar.
 
 Gereksinim: Android 8.0 (API 26) ve güncel bir **Android System WebView**.
 İzinler: konum (GPS, isteğe bağlı), kamera (QR, isteğe bağlı), internet
@@ -32,6 +32,7 @@ verisi gönderilmez).
 
 | Alan | Özellik |
 |---|---|
+| **Güncelleme Google Play'den (v8.9.6)** | Sürüm denetimi artık GitHub'daki `release/version.json`'a bakıp APK indirme bağlantısı açmıyor: Play'den kurulan bir uygulamanın kendini Play dışından güncellemesi Play politikasına (Cihaz ve Ağ Kötüye Kullanımı) aykırıdır. Yeni `Updates.java`, Google Play Core **uygulama içi güncelleme** kitaplığını (`com.google.android.play:app-update:2.1.0`) kullanır: Play'de yeni sürüm varsa **esnek güncelleme** başlar (Play kendi penceresini açar, indirme arka planda sürer, uygulama kullanılmaya devam eder). İndirme bitince "Güncelleme indirildi. Uygulama yeniden başlatılıp kurulsun mu?" sorulur, onayda `completeUpdate()` uygulamayı yeniden başlatıp kurar. Esnek güncellemeye izin yoksa anında güncelleme denenir, yarım kalan anında güncelleme uygulamaya dönüşte (onResume) sürdürülür. Uygulama Play'den kurulmamışsa (APK, hata ayıklama derlemesi) "Güncelleme?" düğmesi Play Store sayfasını açar, açılıştaki otomatik denetim sessiz kalır; tarayıcıda da mağaza sayfası açılır. `BuildConfig.UPDATE_URL`, `Bridge.updateUrl()` ve git dalı hesabı kaldırıldı; köprüye `checkPlayUpdate`, `completePlayUpdate`, `openStore` eklendi. `release/version.json`'ın adresi Play sayfasına çevrildi: eski GitHub APK'lı kopyalar bir sonraki denetimde Play'e yönlenir (`tools/release_check.mjs` Play adresini kabul eder). `updateAsk` metni 15 dilde yeni anlamıyla çevrildi. `versionCode` 137 → **138**, `versionName` 8.9.5 → **8.9.6** |
 | **Abonelik planı fatura dönemiyle de eşleşir (v8.9.5)** | Play Console'da temel planın türü ve kimliği sonradan değiştirilemez, plan silinemez ve kimliği yeniden kullanılamaz. Premium'un yıllık planı yanlışlıkla "taahhütlü/taksitli" türde `yearly` kimliğiyle açıldığı için doğru plan başka bir kimlikle (ör. `yearly-1`) kurulmak zorunda kaldı. `Billing.logicalPlan()` eklendi: bir teklif önce temel plan kimliğine (`monthly` / `yearly`) göre eşlenir, tutmazsa yinelenen evrenin fatura dönemine bakılır (`P1M` → aylık, `P1Y`/`P12M` → yıllık). **Taksitli planlar** (`getInstallmentPlanDetails() != null`) hiçbir plana eşlenmez, yanlışlıkla etkinleştirilseler bile satın alma ekranına düşmez. Fiyat tablosu ve satın alma akışı (`queryProducts`, `offerToken`) aynı eşlemeyi kullanır; kullanıcı arayüzü yine yalnız aylık/yıllık görür. `versionCode` 136 → **137**, `versionName` 8.9.4 → **8.9.5** |
 | **Play Faturalandırma Kitaplığı 8.0.0'a çıkarıldı (v8.9.4)** | Play Console, Kapalı test sürümü oluştururken paketi engelleyen bir **hata** verdi: "Uygulamanızda şu anda Play Faturalandırma Kitaplığı'nın 7.1.1 sürümü kullanılıyor... en az 8.0.0 sürümüne geçmeniz gerekir" — bu olmadan hiçbir sürüm (dahili/kapalı/üretim) kaydedilemiyordu. `com.android.billingclient:billing` 7.1.1 → **8.0.0**'a çıkarıldı. Sürüm 8'de `queryProductDetailsAsync`'in geri çağırma imzası değişti: `ProductDetailsResponseListener` artık ham `List<ProductDetails>` değil, `QueryProductDetailsResult` sarmalayıcısı veriyor (`getProductDetailsList()` ile liste, ayrıca bulunamayan ürünler için yeni `getUnfetchedProductList()`); `Billing.queryProducts()` bunu okuyacak şekilde güncellendi, derleme hatası (`for-each not applicable to expression type QueryProductDetailsResult`) giderildi. Başka bir API kırılması çıkmadı (satın alma akışı, doğrulama, onaylama değişmedi). `versionCode` 135 → **136**, `versionName` 8.9.3 → **8.9.4** |
 | **Ana ekranda yatay sürüklemede lastik-bant sıçraması kesildi (v8.9.3)** | Kullanıcının bildirimi: "Uygulama tüm cihaz ekranlarına uyum sağlasın, ekrana tam otursun; ekranda sağa sola çekiştirince oynuyor, dosya açmadan evvel." Sebep dosya açma öncesi ana ekrana (`#home`) özgüydü: çizim tuvali (`#viewport`) uzun zamandır `touch-action: none` taşıyor ve kendi jestlerini (pan/zoom/orbit) tam denetliyordu, ama **ana ekranın kaydırılan gövdesi** (`.home-pages`) yalnız `overflow: auto` yazıyordu — bu, tarayıcının **her iki eksende** de dokunuşu bir kaydırma girişimi sayması, içinde yatayda kaydırılacak hiçbir şey olmasa bile (Örnek çizimler ve Son dosyalar zaten CSS ızgarasıdır, satır 137 ve 245) bazı WebView sürümlerinde yatay bir lastik-bant/zıplama efekti üretmesi demekti. `html, body`'deki `overscroll-behavior: none` de yetmiyordu, çünkü o özellik kendisi kaydırmayan (`overflow: hidden`) bir üst öğede duruyor — gerçek kaydıran öğenin (`.home-pages`) kendi `overscroll-behavior`'ı olması gerekiyordu. Düzeltme: `.home-pages` artık yalnız düşey kaydırır (`overflow-y: auto; overflow-x: hidden`), jesti düşeye kilitler (`touch-action: pan-y`) ve sınıra dayanınca zıplamayı keser (`overscroll-behavior: contain`); kaydırmayan üst/alt şeritler (`.home-top`, `.home-nav`) de `touch-action: none` aldı, aynı `#viewport` kuralıyla tutarlı. Sabit piksel genişliği taraması: `.home-page { max-width: 640px; margin: 0 auto }` dışında ana ekranda hiçbir sabit genişlik yok (bu satır geniş tabletlerde içeriği ortalayıp sınırlıyor, dar ekranda küçülmeye engel değil) — "her ekrana uyum" şikâyetinin ayrı bir taşma kaynağı bulunmadı, tek sebep bu sürükleme sıçramasıydı. `versionCode` 134 → **135**, `versionName` 8.9.2 → **8.9.3**; bu da gerçek cihaz jesti gerektirdiğinden kod incelemesiyle doğrulandı, cihaz onayı bekliyor |
@@ -302,10 +303,12 @@ cd DwgViewer
 JDK 17+, Android SDK (platform 34, build-tools 34.0.0), Gradle 8.14.3 ve
 AGP 8.11.1 gerekir; `local.properties` içinde `sdk.dir=…` verin. Sürüm
 (release) derlemesi R8 ile küçültülür; JS köprüsü ve junrar
-`app/proguard-rules.pro` ile korunur. Derleme, git dalını ve kısa commit
-numarasını `BuildConfig.UPDATE_URL` / `BuildConfig.GIT_SHA` olarak gömer:
-sürüm denetimi derlendiği dalın `release/version.json` dosyasına bakar,
-derleme kimliği "Hakkında" ekranında ve hata kaydında görünür.
+`app/proguard-rules.pro` ile korunur. Derleme kısa commit
+numarasını `BuildConfig.GIT_SHA` olarak gömer: derleme kimliği "Hakkında"
+ekranında ve hata kaydında görünür. Sürüm denetimi v8.9.6'dan beri Google
+Play Core uygulama içi güncellemesiyle yapılır (`Updates.java`);
+`release/version.json` yalnız eski, GitHub APK'sıyla kurulmuş kopyaları Play
+sayfasına yönlendirmek için durur.
 
 GitHub Actions (`.github/workflows/dwgviewer-apk.yml`) her `DwgViewer/**`
 değişikliğinde sürüm eşitliğini denetler (`tools/release_check.mjs

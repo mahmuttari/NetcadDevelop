@@ -41,8 +41,8 @@ const haptic = (kind) => { try { if (typeof editorMod.haptic === 'function') edi
 const uiPrefs = () => { try { return editorMod.ui || {}; } catch (_) { return {}; } };
 const glove = () => !!uiPrefs().glove;
 const edCall = (name, ...a) => { try { const f = editor[name]; return typeof f === 'function' ? f.apply(editor, a) : undefined; } catch (e) { console.warn(e); return undefined; } };
-/** sürüm dosyası: Android köprüsü derlendiği dalın adresini verir (Bridge.updateUrl); tarayıcıda main */
-const VERSION_URL = (A() && A().updateUrl) ? A().updateUrl() : 'https://raw.githubusercontent.com/mahmuttari/NetcadDevelop/main/DwgViewer/release/version.json';
+/** Uygulamanın Google Play sayfası: güncelleme yalnız Play üzerinden yapılır (Android'de Updates.java) */
+const STORE_URL = 'https://play.google.com/store/apps/details?id=com.mahmuttari.dwgviewer';
 
 // ---------------------------------------------------------------------------
 // Ayarlar
@@ -5470,25 +5470,37 @@ function onBackSystem() {
 }
 
 // ---- sürüm denetimi ---------------------------------------------------------------------------
-async function checkUpdate(manual) {
+// Güncelleme Google Play'in uygulama içi güncellemesiyle yapılır: Android köprüsü Play'e sorar, yeni sürüm
+// varsa Play kendi penceresini açar, indirme arka planda sürer; bittiğinde onUpdate('ready') gelir ve
+// kullanıcı onaylarsa uygulama yeniden başlayıp kurulur. Play'den kurulmamış bir uygulamada (APK, hata
+// ayıklama) elle istenen denetim mağaza sayfasını açar. Tarayıcıda yalnız mağaza sayfası açılır.
+let updateManual = false, updateReadyAsked = false;
+function checkUpdate(manual) {
   if (window.__noUpdate) return;                                   // sınama bayrağı (tools/harness.mjs)
-  if (!manual && !(A() && A().versionCode)) return;                // otomatik denetim yalnız Android'de: tarayıcıda confirm açılmasın
-  try {
-    const ctrl = new AbortController(); setTimeout(() => ctrl.abort(), 6000);
-    const r = await fetch(VERSION_URL, { cache: 'no-store', signal: ctrl.signal });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const j = await r.json();
-    const mine = A() && A().versionCode ? Number(A().versionCode()) : 0;
-    if (j.versionCode > mine) {
-      if (manual || await askConfirm(`${t('update')}: ${j.versionName}. ${t('updateAsk')}`)) { if (A() && A().openUrl) A().openUrl(j.url); else window.open(j.url, '_blank'); }
-    } else if (manual) toast(t('upToDate'));
-  } catch (e) { if (manual) toast(t('updateFail') + ': ' + e.message); }
+  const a = A();
+  if (a && a.checkPlayUpdate) { updateManual = !!manual; try { a.checkPlayUpdate(!!manual); } catch (e) { if (manual) toast(t('updateFail') + ': ' + e.message); } return; }
+  if (!manual) return;                                             // otomatik denetim yalnız Android'de
+  if (a && a.openUrl) a.openUrl(STORE_URL); else window.open(STORE_URL, '_blank');
+}
+/** Android'den güncelleme durumu: available · none · ready · store · error:<mesaj> (bkz. Updates.java) */
+async function onUpdate(st) {
+  st = String(st || '');
+  const manual = updateManual;
+  if (st === 'none') { if (manual) toast(t('upToDate')); updateManual = false; return; }
+  if (st === 'ready') {
+    if (updateReadyAsked && !manual) return;                       // her dönüşte yeniden sorulmaz; düğmeyle yine sorulur
+    updateReadyAsked = true; updateManual = false;
+    if (await askConfirm(t('updateAsk')) && A() && A().completePlayUpdate) A().completePlayUpdate();
+    return;
+  }
+  if (st.startsWith('error:')) { if (manual) toast(t('updateFail') + ': ' + st.slice(6)); updateManual = false; return; }
+  updateManual = false;                                            // available / store: Play kendi ekranını açtı
 }
 
 // ---------------------------------------------------------------------------
 // Başlangıç
 // ---------------------------------------------------------------------------
-window.dwgApp = { osnap: Osnap, paylasGorunum, gorunumPng, loadCurrent, onFilePicked, onLocation, onBack, onBackSystem, loadBytes, zoomExtents, render, toScreen, toWorld, state: S, notes, editor, setMode, setLayout, refreshRecent: buildRecent, showInfo,
+window.dwgApp = { onUpdate, osnap: Osnap, paylasGorunum, gorunumPng, loadCurrent, onFilePicked, onLocation, onBack, onBackSystem, loadBytes, zoomExtents, render, toScreen, toWorld, state: S, notes, editor, setMode, setLayout, refreshRecent: buildRecent, showInfo,
   onFilesPicked, onQr: (text) => { try { const s = String(text || '').trim(); if (s) onQr(s); } catch (e) { console.warn(e); } },   // Android ACTION_SEND / EXTRA_TEXT
   onLocationError: (m) => { const perm = /kalıcı olarak reddedildi|permanently denied/i.test(String(m)); const openSet = A() && A().openAppSettings ? () => A().openAppSettings() : null;
     toast('GPS: ' + m, perm && openSet ? { ms: 8000, action: { label: tt('settings', 'Ayarlar'), fn: openSet } } : undefined); },

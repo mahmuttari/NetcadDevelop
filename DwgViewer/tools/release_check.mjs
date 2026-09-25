@@ -23,6 +23,8 @@ const warn = (m) => console.log('UYARI ' + m);
 const rd = (f) => fs.readFileSync(path.join(projectRoot, f), 'utf8');
 const hasUnzip = spawnSync('sh', ['-c', 'command -v unzip'], { encoding: 'utf8' }).status === 0;
 
+const PLAY_URL = 'https://play.google.com/store/apps/details?id=com.mahmuttari.dwgviewer';
+
 // ---- kaynaklar ----
 const gradle = rd('app/build.gradle');
 const vc = Number((/versionCode\s+(\d+)/.exec(gradle) || [])[1]);
@@ -39,7 +41,8 @@ for (const [f, apk] of [['release/version.json', 'DwgGoruntuleyici.apk']]) {
   if (Number(vj.versionCode) === vc) good(`${f} versionCode = ${vc}`); else bad(`${f} versionCode ${vj.versionCode} ≠ build.gradle ${vc}`);
   if (vj.versionName === vn) good(`${f} versionName = ${vn}`); else bad(`${f} versionName "${vj.versionName}" ≠ build.gradle "${vn}"`);
   if (!/^https:\/\//.test(vj.url || '')) bad(`${f} url https ile başlamıyor`);
-  else if (!vj.url.endsWith('/' + apk)) bad(`${f} url ${apk} ile bitmiyor: ${vj.url}`);
+  // v8.9.6'dan beri uygulama Play'den güncellenir; version.json yalnız eski (GitHub APK'lı) kurulumları Play sayfasına yönlendirir
+  else if (!vj.url.endsWith('/' + apk) && vj.url !== PLAY_URL) bad(`${f} url ne ${apk} ne Play sayfası: ${vj.url}`);
 }
 console.log(`README.md:1      ${readmeLine.trim()}  → v${rv}`);
 if (rv === vn) good(`README başlığı v${vn}`); else bad(`README.md ilk satırı "v${rv}" ≠ build.gradle "${vn}"`);

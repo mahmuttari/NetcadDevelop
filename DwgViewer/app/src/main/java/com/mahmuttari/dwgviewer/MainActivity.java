@@ -127,6 +127,7 @@ public class MainActivity extends androidx.activity.ComponentActivity {
     /** Pro yetkisi (Play satın alması ya da lisans kodu; prefs "pro") ve Google Play Faturalandırma */
     private Pro pro;
     private Billing billing;
+    private Updates updates;
     /** Ana iş parçacığı zamanlayıcısı: süreli lisans bitiş planı (scheduleLicenseExpiry) */
     private final android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private final java.util.concurrent.ExecutorService bg = java.util.concurrent.Executors.newSingleThreadExecutor();
@@ -155,6 +156,8 @@ public class MainActivity extends androidx.activity.ComponentActivity {
         google = new GoogleDrive(this);
         webdav = new WebDav(this);
         pro = new Pro(this);
+        // Play uygulama içi güncelleme: sonuç JS'e bildirilir (bkz. Updates)
+        updates = new Updates(this, st -> jsWhenReady("window.dwgApp && window.dwgApp.onUpdate && window.dwgApp.onUpdate(" + JSONObject.quote(st) + ")"));
         // Sahip hesabı yetkisi, reklam kurulmadan ÖNCE eşitlenir: yoksa açılışta bir kez reklam kurulur
         // ve yetki sonradan yükselse de o örnek ayakta kalırdı.
         syncOwnerGrant();
@@ -476,6 +479,12 @@ public class MainActivity extends androidx.activity.ComponentActivity {
         currentFile = f == null ? null : new File(f);
         currentName = in.getString("currentName", "cizim.dwg");
         currentSize = in.getLong("currentSize", -1);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (updates != null) updates.onResume();
     }
 
     @Override
@@ -1200,8 +1209,12 @@ public class MainActivity extends androidx.activity.ComponentActivity {
         }
         @JavascriptInterface public String appVersion() { return BuildConfig.VERSION_NAME; }
         @JavascriptInterface public int versionCode() { return BuildConfig.VERSION_CODE; }
-        /** Sürüm denetimi için version.json adresi (derlendiği dala göre) */
-        @JavascriptInterface public String updateUrl() { return BuildConfig.UPDATE_URL; }
+        /** Play uygulama içi güncelleme denetimi; sonuç window.dwgApp.onUpdate(durum) ile döner (bkz. Updates) */
+        @JavascriptInterface public void checkPlayUpdate(boolean manual) { runOnUiThread(() -> { if (updates != null) updates.check(manual); }); }
+        /** İndirilmiş esnek güncellemeyi kurar (uygulama yeniden başlar) */
+        @JavascriptInterface public void completePlayUpdate() { runOnUiThread(() -> { if (updates != null) updates.complete(); }); }
+        /** Uygulamanın Play Store sayfası */
+        @JavascriptInterface public void openStore() { runOnUiThread(() -> { if (updates != null) updates.openStore(); }); }
         /** Derleme kimliği: kısa git commit numarası ('yok' ise git bulunamadı) */
         @JavascriptInterface public String buildId() { return BuildConfig.GIT_SHA; }
         /** O anki basamak: "free" | "adfree" | "premium" | "super" (JS kapıları buna göre kurar; onEdition ile değişir) */
@@ -1930,6 +1943,7 @@ public class MainActivity extends androidx.activity.ComponentActivity {
         mainHandler.removeCallbacks(licenseExpiry);
         if (ads != null) ads.destroy();
         if (billing != null) billing.destroy();
+        if (updates != null) updates.destroy();
         if (docs != null) docs.closePdf();
         bg.shutdown();
         fsExec.shutdownNow();

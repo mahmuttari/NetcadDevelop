@@ -4,8 +4,8 @@ plugins {
     id "org.jetbrains.kotlin.plugin.compose"
 }
 
-// Derleme kimliği: git dalı ve kısa commit numarası. Git kökü DwgViewer'ın üstündedir; git
-// bulunamazsa ya da komut başarısız olursa derleme bozulmaz, 'main' ve 'yok' kullanılır.
+// Derleme kimliği: kısa commit numarası. Git kökü DwgViewer'ın üstündedir; git
+// bulunamazsa ya da komut başarısız olursa derleme bozulmaz, 'yok' kullanılır.
 def gitOut = { List<String> cmd, String fallback ->
     try {
         def p = new ProcessBuilder(cmd).directory(rootProject.projectDir).redirectErrorStream(true).start()
@@ -15,11 +15,6 @@ def gitOut = { List<String> cmd, String fallback ->
     } catch (Exception ignored) {
         return fallback
     }
-}
-def gitBranch = gitOut(["git", "rev-parse", "--abbrev-ref", "HEAD"], "")
-if (!gitBranch || gitBranch == "HEAD") {
-    // CI'da çıkış çoğunlukla ayrık HEAD'dir; dal adı ortam değişkenlerinden alınır
-    gitBranch = System.getenv("GITHUB_HEAD_REF") ?: System.getenv("GITHUB_REF_NAME") ?: "main"
 }
 def gitSha = gitOut(["git", "rev-parse", "--short", "HEAD"], "yok")
 
@@ -51,17 +46,16 @@ android {
         applicationId "com.mahmuttari.dwgviewer"
         minSdk 26
         targetSdk 36
-        versionCode 137
-        versionName "8.9.5"
+        versionCode 138
+        versionName "8.9.6"
 
         // Uygulamanın taşıdığı diller. Listede olmayan bir dilde kurulan cihaz İngilizce'ye düşer;
         // bağımlılıkların (AndroidX, Play) 85 dilde etiketi APK'ye girmez. Yeni dil eklerken bu liste,
         // res/values-<kod>/strings.xml, res/xml/locales_config.xml ve viewer/lang/<kod>.js birlikte güncellenir.
         resourceConfigurations += ["tr", "en", "ar", "de", "es", "fr", "hi", "in", "it", "ja", "ko", "pt", "ru", "vi", "zh"]
 
-        // Derleme kimliği hata kaydında görünür; sürüm denetimi derlendiği daldaki version.json'a bakar
+        // Derleme kimliği hata kaydında görünür. Sürüm denetimi Google Play'in uygulama içi güncellemesiyle yapılır (Updates.java)
         buildConfigField "String", "GIT_SHA", "\"" + gitSha + "\""
-        buildConfigField "String", "UPDATE_URL", "\"https://raw.githubusercontent.com/mahmuttari/NetcadDevelop/" + gitBranch + "/DwgViewer/release/version.json\""
 
         // Google ile giriş: gradle.properties → GOOGLE_CLIENT_ID (Android türü OAuth istemcisi).
         // Yönlendirme şeması istemci numarasından türetilir: com.googleusercontent.apps.<no>
@@ -151,6 +145,8 @@ dependencies {
     implementation "com.google.android.gms:play-services-ads:23.6.0"
     // Google Play Faturalandırma: Pro uygulama içi satın alma (tek seferlik, tüketilmeyen ürün)
     implementation "com.android.billingclient:billing:8.0.0"
+    // Google Play uygulama içi güncelleme (Play'den kurulan uygulama yalnız Play üzerinden güncellenir)
+    implementation "com.google.android.play:app-update:2.1.0"
     // Jetpack Compose — YALNIZ çizim açılış ekranı için. Başvuru sahibinin gönderdiği ekran
     // (app/src/main/java/com/example/dwgloader/MainActivity.kt) tek satırı değiştirilmeden
     // derlenir; uygulamanın geri kalanı WebView'dır. ComposeView bir ComponentActivity ister,
