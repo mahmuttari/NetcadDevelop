@@ -68,7 +68,7 @@ export const ui = (() => {
   }
   return o;
 })();
-const landscapeMq = window.matchMedia('(orientation: landscape) and (max-height: 560px)');
+const landscapeMq = window.matchMedia('(orientation: landscape) and (max-height: 640px)');   // app.css ray düzeniyle aynı eşik
 const wideMq = window.matchMedia('(min-width: 900px)');
 const orient = () => landscapeMq.matches ? 'landscape' : 'portrait';
 /** ui nesnesini DOM'a uygular, saklar ve 'dwg:ui' olayını gönderir */
@@ -801,6 +801,7 @@ function act(name, btn) {
     case 'xattach': case 'xbind': case 'xopen': case 'xdetach': api.action(name); break;
     // --- komut satırından gelen AutoCAD karşılıkları (karosu yok)
     case 'regen': S.cacheValid = false; api.requestRender(); if (ed.is3D() && v3) v3.render(); break;
+    case 'collapse': collapse(!ui.tbCollapsed[orient()]); break;   // Ctrl+0 (AutoCAD'de ekranı temizle): şeridi katla / aç
     case 'selectall': if (!needModel()) return; if (ed.is3D()) exit3D(); if (tools.active !== 'select') { tools.start('select'); markActive('t:select'); } tools.selectAll(); break;
     case 'list': { const p = ed.sel.size ? [...ed.sel][0] : null; if (!p) { api.toast(t('noSel')); break; } api.showInfo(p); break; }
     case 'layiso': { const lays = selLayers(); if (!lays) break; call(api.isolateLayers, lays); break; }
@@ -4038,7 +4039,23 @@ function deskKey(ev) {
     if (r.special === 'polar') { togglePolar(); return true; }
     if (r.act) { act(r.act); return true; }
   }
-  if (!cmdLineOn() || tools.running || ed.m3) return false;
+  if (!cmdLineOn() || ed.m3) return false;
+  /*
+   * Komut çalışırken NOKTA isteminde koordinat yazımı. Fareyle bir noktaya tıklamak odağı çizime alır;
+   * ardından klavyeden yazılan "@2,0" hiçbir yere gitmiyor, Enter da komutu bitiriyordu (masaüstü
+   * araştırması, probe4). AutoCAD'de tıklamadan sonra yazmaya devam edilir: koordinat karakterleri
+   * (rakam . , @ < - # *) komut satırına eklenir ve odak oraya geçer; Enter'ı artık girdi karşılar.
+   * Nesne seçme isteminde ve komut satırı zaten odaktayken dokunulmaz.
+   */
+  if (tools.running) {
+    if (ev.ctrlKey || ev.metaKey || ev.altKey || ed.pickingObject()) return false;
+    if (!/^[0-9.,@<#*-]$/.test(ev.key || '')) return false;
+    const ci = $('cmdInput');
+    if (!ci || ci.hidden || ci.disabled || document.activeElement === ci) return false;
+    ci.value += ev.key;
+    ci.focus();
+    return true;
+  }
   if (!Desk.isCommandChar(ev)) return false;
   const inp = $('cmdInput');
   if (!inp || inp.hidden || document.activeElement === inp) return false;

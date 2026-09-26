@@ -310,6 +310,48 @@ const yak = (a, b, e = 1e-6) => Math.abs(a - b) < e;
   await setUi({ desktop: true }); await page.waitForTimeout(120);
 }
 
+// ---------------------------------------------------------------------------------
+// 9) Büyük ekran / masaüstü araştırmasının bulguları (v8.9.8)
+// ---------------------------------------------------------------------------------
+{
+  const r = await box();
+  await ev(() => { window.dwgApp.editor.tools.cancel(); window.dwgApp.editor.sel.clear(); const i = document.getElementById('cmdInput'); i.value = ''; i.blur(); document.getElementById('toast').hidden = true; });
+  const g = await ev(async () => { const D = await import('./desktop.js'); return D.resolveKey({ key: 'a', ctrlKey: true, metaKey: false, shiftKey: false, altKey: false }); });
+  ok('9a Ctrl+A tümünü seç eylemine çözülür (AutoCAD)', !!g && g.act === 'selectall', JSON.stringify(g));
+  await page.mouse.move(r.x + 300, r.y + 300);
+  await page.keyboard.press('Control+a'); await page.waitForTimeout(300);
+  const n = await ev(() => window.dwgApp.editor.sel.size);
+  ok('9b Ctrl+A görünen nesneleri seçer', n > 0, String(n));
+  const yazi = await ev(() => String(window.getSelection() || '').length);
+  ok('9c Ctrl+A arayüz yazısını seçmez', yazi === 0, String(yazi));
+  await ev(() => { window.dwgApp.editor.tools.cancel(); window.dwgApp.editor.sel.clear(); });
+  const kat = () => ev(() => document.getElementById('toolbar').classList.contains('collapsed'));
+  const k0 = await kat(); await page.keyboard.press('Control+0'); await page.waitForTimeout(250);
+  const k1 = await kat(); await page.keyboard.press('Control+0'); await page.waitForTimeout(250);
+  const k2 = await kat();
+  ok('9d Ctrl+0 şeridi katlar ve geri açar', k1 !== k0 && k2 === k0, JSON.stringify([k0, k1, k2]));
+  // 9e fareyle nokta seçildikten sonra klavyeden yazılan göreli koordinat kaybolmaz
+  await ev(() => { document.getElementById('toast').hidden = true; });
+  await page.mouse.move(r.x + 500, r.y + 350);
+  await page.keyboard.type('line'); await page.keyboard.press('Enter'); await page.waitForTimeout(250);
+  const adet0 = await ev(() => window.dwgApp.state.prims.length);
+  await page.mouse.move(r.x + 520, r.y + 420); await page.mouse.down(); await page.mouse.up(); await page.waitForTimeout(250);
+  await page.keyboard.type('@2,0');
+  const giris = await ev(() => ({ v: document.getElementById('cmdInput').value, odak: document.activeElement && document.activeElement.id }));
+  ok('9e tıklamadan sonra yazılan "@2,0" komut satırına gider ve odak oraya geçer', giris.v === '@2,0' && giris.odak === 'cmdInput', JSON.stringify(giris));
+  await page.keyboard.press('Enter'); await page.waitForTimeout(300);
+  const son = await sonPrim(), adet1 = await ev(() => window.dwgApp.state.prims.length);
+  const dx = son ? son[son.length - 1][1] - son[0][1] : NaN, dy = son ? son[son.length - 1][2] - son[0][2] : NaN;
+  ok('9f Enter göreli koordinatla çizgiyi kurar (Δx 2, Δy 0)', adet1 === adet0 + 1 && yak(dx, 2, 1e-6) && yak(dy, 0, 1e-6), JSON.stringify({ adet0, adet1, dx, dy }));
+  await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+  await ev(() => { window.dwgApp.editor.tools.cancel(); });
+  // 9g geniş ekranda alt sayfa sağdan açılır, çizimin tamamını örtmez
+  await page.click('#btnMeasure'); await page.waitForTimeout(400);
+  const q = await ev(() => { const b = document.getElementById('measurePanel').getBoundingClientRect(); return { l: b.left, w: b.width, r: b.right, W: innerWidth }; });
+  ok('9g ölçüm sayfası geniş ekranda sağ yan sayfadır (≤ 520 px, sağa yaslı)', q.w <= 521 && Math.abs(q.r - q.W) < 1 && q.l > q.W / 2, JSON.stringify(q));
+  await page.click('#btnMeasure'); await page.waitForTimeout(250);
+}
+
 ok('8 sayfa hatası yok', errors.length === 0, errors.slice(0, 3).join(' | '));
 
 await browser.close(); await srv.kill();

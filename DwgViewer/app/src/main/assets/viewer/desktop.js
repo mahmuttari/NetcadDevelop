@@ -55,6 +55,7 @@ export const CTRL = {
   z: { act: 'undo' }, y: { act: 'redo' },
   c: { act: 'copyclip' }, v: { act: 'pasteclip' },
   s: { act: 'savedxf' }, p: { act: 'pdf' },
+  a: { act: 'selectall' },   // AutoCAD Ctrl+A: görünen bütün nesneleri seçer (yoksa tarayıcı arayüz yazısını seçiyordu)
   '0': { act: 'collapse' },
 };
 

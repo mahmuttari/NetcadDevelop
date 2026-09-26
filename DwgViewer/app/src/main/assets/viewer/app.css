@@ -354,7 +354,7 @@ body.glove .ask-field .opt-text { min-height: 52px; }
 
 /* --- paneller ve alt sayfalar --- */
 .panel { position: absolute; z-index: 10; background: var(--panel); border: 1px solid var(--line); display: flex; flex-direction: column; box-shadow: var(--shadow); }
-.panel.right { top: calc(52px + var(--safe-top)); right: 0; bottom: 30px; width: min(86vw, 340px); border-radius: 12px 0 0 12px; }
+.panel.right { top: calc(52px + var(--safe-top)); right: 0; bottom: calc(46px + var(--safe-bottom)); width: min(86vw, 340px); border-radius: 12px 0 0 12px; }   /* alt pay durum çubuğu kadar: 30 px'te ölçek çipinin yarısını örtüyordu */
 .panel.bottom { left: 0; right: 0; bottom: 0; max-height: 58%; border-radius: 14px 14px 0 0; padding-bottom: var(--safe-bottom); transition: transform .18s ease-out, max-height .18s ease-out; }
 .panel.bottom[data-detent="full"] { max-height: 92%; }
 .panel.bottom.dragging { transition: none; }
@@ -408,6 +408,8 @@ body.glove .ask-field .opt-text { min-height: 52px; }
 .lctl .lc-sw .sw { width: 22px; height: 22px; border-radius: 5px; border: 1px solid rgba(128,128,128,.5); display: block; }
 .lctl .lc-lt, .lctl .lc-lw { width: auto; padding: 0 8px; font-size: calc(12px * var(--fs)); color: var(--fg); background: var(--btn); border-color: var(--line); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .lctl .lc-lt { flex: 1 1 auto; min-width: 56px; max-width: 120px; }   /* 340 px panelde daralır, ad kesilirse üç nokta */
+/* Yazı blok düzende: inline-flex içinde üç nokta çalışmıyor, ortalanmış taşan ad ('CONTINUOUS') İKİ yandan kırpılıyordu */
+.lctl .lc-lt, .lctl .lc-lw { display: block; line-height: 38px; text-align: center; }
 .lctl .lc-lw { flex: 0 0 auto; min-width: 48px; }
 .lctl .lc:active { filter: brightness(1.2); }
 /* Tek satırlı (AutoCAD cetveli) düzen görüntü alanına değil PANELİN genişliğine bakar: 340 px'lik
@@ -420,9 +422,9 @@ body.glove .ask-field .opt-text { min-height: 52px; }
   .lhead .lctl > span { width: 40px; display: inline-flex; align-items: center; justify-content: center; }
   .lhead .lctl > span svg.ic { width: 18px; height: 18px; }
   .lhead .lctl > span.hl-lt, .lhead .lctl > span.hl-lw { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; }
-  .lhead .lctl > span.hl-lt { width: 120px; } .lhead .lctl > span.hl-lw { width: 64px; }
+  .lhead .lctl > span.hl-lt { width: 120px; } .lhead .lctl > span.hl-lw { width: 84px; }   /* 64 px'te EN 'LINEWEIGHT' 'LINEWEI…' oluyordu */
   .lctl { padding-left: 0; }
-  .lctl .lc-lt { flex: 0 0 120px; } .lctl .lc-lw { flex: 0 0 64px; }
+  .lctl .lc-lt { flex: 0 0 120px; } .lctl .lc-lw { flex: 0 0 84px; }
   .lc-ct { width: 44px; text-align: right; }   /* sabit genişlik: sayı 1 ya da 3 haneli olsun sütunlar satırdan satıra kaymaz */
 }
 .layer-actions { display: flex; gap: 6px; align-items: center; padding: 8px 12px 0; flex-wrap: wrap; }
@@ -813,7 +815,9 @@ body.homemode #tour { display: none; }
 .tour .row { justify-content: flex-end; }
 
 /* --- yatay / alçak ekran: şerit sağda dikey ray --- */
-@media (orientation: landscape) and (max-height: 560px) {
+/* Eşik 640: 7" tablet yatayda (1024 × 600) yığılı telefon düzeni çizime 340 px bırakıyor, yakınlaştırma sütunu
+   tepeden kesiliyordu (büyük ekran araştırması P2/P3). Ray düzeninde çizim alanı tam yüksekliktir. */
+@media (orientation: landscape) and (max-height: 640px) {
   #app { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto minmax(0, 1fr) auto; grid-template-areas: "top top" "main tabs" "main tb" "st st"; }
   body.left-hand #app { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "top top" "tabs main" "tb main" "st st"; }
   #topbar { padding-top: calc(2px + var(--safe-top)); padding-bottom: 2px; min-height: 40px; }
@@ -879,6 +883,22 @@ body.homemode #tour { display: none; }
    AutoCAD cetveline geçer (kap sorgusu 600 px), çizim alanına yine en az 640 px kalır --- */
 @media (min-width: 1280px) {
   .side { flex-basis: 640px; }
+}
+/* --- geniş ekranda ALT SAYFALAR SAĞDAN AÇILIR (ölçüm, bilgi, belge, ayarlar…). Tam genişlikte alttan açıldığında
+   1280 px'lik ekranda yüksekliğin %57'sini kaplıyor, şeridi, durum çubuğunu ve yandaki katman sütununu örtüyor,
+   sağ üçte ikisi boş kalıyordu; ölçüm sırasında dördüncü köşeye dokunuş panelin üstüne düşüyordu (büyük ekran
+   araştırması P1). Yan sütuna yerleşmiş paneller (#side içindekiler) bundan etkilenmez. --- */
+@media (min-width: 900px) {
+  #app > .panel.bottom { left: auto; right: 0; width: min(44vw, 520px); max-height: calc(100% - 56px); border-radius: 14px 0 0 0; }
+  body.left-hand #app > .panel.bottom { right: auto; left: 0; border-radius: 0 14px 0 0; }
+  html[dir="rtl"] #app > .panel.bottom { right: auto; left: 0; border-radius: 0 14px 0 0; }
+  html[dir="rtl"] body.left-hand #app > .panel.bottom { left: auto; right: 0; border-radius: 14px 0 0 0; }
+  /* komut öneri listesi girişin altında, okunur genişlikte (1920 px'e yayılınca ad solda, açıklama en sağda kalıyordu) */
+  .cmd-sug { max-width: 640px; }
+}
+/* fare ile üzerine gelme geri bildirimi (dokunmatikte :hover yapışır, yalnız gerçek işaretçide) */
+@media (hover: hover) and (pointer: fine) {
+  .tb-row button:hover, .tb-tabs button:hover, .btn:hover, .st-quick button:hover, #topbar .btn:hover { background: color-mix(in srgb, var(--btn) 80%, var(--fg) 20%); }
 }
 
 /* --- belge görünümü (PDF / Word / Excel / arşiv / resim / metin) --- */
@@ -1184,7 +1204,7 @@ html[dir="rtl"] .open-item.fav .nm { padding-right: 0; padding-left: 18px; }
 html[dir="rtl"] .open-item.fav .nm > svg.ic { right: auto; left: 0; }
 html[dir="rtl"] .open-tile > svg.ic { left: auto; right: 6px; }
 html[dir="rtl"] .open-tile .lbtn { right: auto; left: 0; }
-@media (orientation: landscape) and (max-height: 520px) {
+@media (orientation: landscape) and (max-height: 640px) {
   html[dir="rtl"] #layoutTabs { border-left: 0; border-right: 1px solid var(--line); }
   html[dir="rtl"] body.left-hand #layoutTabs { border-right: 0; border-left: 1px solid var(--line); }
   html[dir="rtl"] #toolbar { border-left: 0; border-right: 1px solid var(--line); padding-right: 0; padding-left: var(--safe-left); }

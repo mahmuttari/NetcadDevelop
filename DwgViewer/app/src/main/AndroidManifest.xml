@@ -7,6 +7,9 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+    <!-- Dokunmatik ZORUNLU DEĞİL: klavye-fareyle çalışan Chromebook ve harici ekran kullanımı için (masaüstü kipi
+         desktop.js). Bildirilmezse Play, dokunmatiği olmayan Chromebook'larda uygulamayı listelemez. -->
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
     <!--
         Android 11'den (API 30) beri bir uygulama, başka paketleri ancak burada BİLDİRİRSE
@@ -42,7 +45,7 @@
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
-            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode|density|locale|layoutDirection"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode|density|locale|layoutDirection"
             android:windowSoftInputMode="adjustResize">
 
             <intent-filter>

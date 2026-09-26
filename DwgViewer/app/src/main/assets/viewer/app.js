@@ -566,7 +566,15 @@ function drawOverlay() {
   if (S.ui2d.north) drawNorth(c, fg);
   if (S.rulers) drawRulers(c, fg);
   const attr = basemapAttribution();
-  if (attr && S.geo.active && S.basemap.id !== 'none') { c.font = '10px sans-serif'; c.fillStyle = fg; c.globalAlpha = 0.7; c.textAlign = 'right'; c.textBaseline = 'bottom'; c.fillText(attr, S.W - 6, S.H - 4 - kaplamaPayi().alt); c.globalAlpha = 1; c.textAlign = 'left'; }
+  if (attr && S.geo.active && S.basemap.id !== 'none') {
+    // Künye sağ alttadır; geniş ekranda sağdan açılan yan sayfa orayı örterse sol alta, ölçek çubuğunun üstüne geçer
+    // (altlık künyesi her zaman görünür kalmalı: Esri/OSM kullanım koşulu)
+    const sol = sagAltOrtulu(), pay = kaplamaPayi().alt;
+    c.font = '10px sans-serif'; c.fillStyle = fg; c.globalAlpha = 0.7; c.textBaseline = 'bottom';
+    if (sol) { c.textAlign = 'left'; c.fillText(attr, 6, S.H - 4 - pay - (S.ui2d.scaleBar ? 30 : 0)); }
+    else { c.textAlign = 'right'; c.fillText(attr, S.W - 6, S.H - 4 - pay); }
+    c.globalAlpha = 1; c.textAlign = 'left';
+  }
 }
 /*
  * KAPLAMANIN GÜVENLİ PAYI.
@@ -595,6 +603,18 @@ function kaplayanlar(b) {
     if (ortak > b.width * 0.5) out.push(e);
   }
   return out;
+}
+/** Görüntü alanının sağ alt köşesini (künyenin yeri) açık bir yan sayfa örtüyor mu */
+function sagAltOrtulu() {
+  try {
+    const b = vp.getBoundingClientRect(), x0 = b.right - 280, y0 = b.bottom - 40;
+    for (const e of document.querySelectorAll('.panel.bottom')) {
+      if (e.hidden || !e.offsetParent) continue;
+      const q = e.getBoundingClientRect();
+      if (q.left < b.right && q.right > x0 && q.top < b.bottom && q.bottom > y0) return true;
+    }
+  } catch (_) { /* ölçülemedi */ }
+  return false;
 }
 function kaplamaPayi() {
   let ust = 0, alt = 0;
