@@ -54,7 +54,7 @@ export const FKEYS = {
 export const CTRL = {
   z: { act: 'undo' }, y: { act: 'redo' },
   c: { act: 'copyclip' }, v: { act: 'pasteclip' },
-  s: { act: 'savedxf' }, p: { act: 'pdf' },
+  s: { act: 'save' }, p: { act: 'pdf' },   // Ctrl+S AutoCAD'de QSAVE'dir (v8.9.8'e kadar "DXF kaydet"e gidiyordu: her basışta yeni kopya)
   a: { act: 'selectall' },   // AutoCAD Ctrl+A: görünen bütün nesneleri seçer (yoksa tarayıcı arayüz yazısını seçiyordu)
   '0': { act: 'collapse' },
 };
@@ -69,8 +69,9 @@ export function resolveKey(ev, opts = {}) {
   if (FKEYS[k]) return { ...FKEYS[k], key: k };
   if (ev.ctrlKey || ev.metaKey) {
     const c = CTRL[k.toLowerCase()];
-    // Shift+Ctrl+Z AutoCAD'de de yinelemedir
+    // Shift+Ctrl+Z AutoCAD'de de yinelemedir; Shift+Ctrl+S AutoCAD'de SAVEAS'tır
     if (k.toLowerCase() === 'z' && ev.shiftKey) return { act: 'redo', key: k };
+    if (k.toLowerCase() === 's' && ev.shiftKey) return { act: 'saveas', key: k };
     return c ? { ...c, key: k } : null;
   }
   return null;

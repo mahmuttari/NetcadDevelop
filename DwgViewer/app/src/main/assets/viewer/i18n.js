@@ -240,6 +240,7 @@ export const TR = {
   // --- v7.89 · ekrandaki görüntüyü paylaşma
   waShare: 'WhatsApp\'a gönder', shareView: 'Görünümü paylaş', shareTarget: 'paylaşım', shareNoDoc: 'Önce bir çizim açın', shareCaption: 'DWG OfficeZip ile paylaşıldı', shareNotInstalled: '%s bu cihazda kurulu değil', shareOther: 'Başka uygulama', shareFail: 'Görüntü paylaşılamadı', shareSaved: 'Görüntü kaydedildi; paylaşmak için galeriden gönderin', shareDocFail: 'Bu belge bu cihazdan paylaşılamıyor',
   fileShare: 'Dosyayı paylaş', fileShareOrig: 'Özgün dosya', fileShareOrigHint: 'Açtığınız dosya olduğu gibi: %s', fileShareDxf: 'Değişikliklerle birlikte (DXF)', fileShareDxfHint: 'Eklediğiniz ölçü ve çizimler dahil; DWG yazılamadığı için DXF olarak gider', fileShareFail: 'Dosya paylaşılamadı',
+  grpFile: 'Dosya', stQuickSave: 'Kaydet (Ctrl+S)', saveLoc: 'Konum', saveLocDl: 'İndirilenler › DWGViewer', saveLocPick: 'Başka bir konum seç…', saveAsHint: 'Kayıt DXF (AutoCAD 2000) biçimindedir; açtığınız dosya değişmez. Bundan sonra “Kaydet” bu dosyaya yazar.', savedTo: 'Kaydedildi: %s', saveDwgNote: 'DWG yazılamadığı için DXF',
 };
 export const EN = {
   open: 'Open', noFile: 'No file', fit: 'Zoom extents', layers: 'Layers', measure: 'Measure', more: 'More', search: 'Search',
@@ -482,6 +483,7 @@ export const EN = {
   // --- v7.89 · ekrandaki görüntüyü paylaşma
   waShare: 'Send to WhatsApp', shareView: 'Share view', shareTarget: 'sharing', shareNoDoc: 'Open a drawing first', shareCaption: 'Shared with DWG OfficeZip', shareNotInstalled: '%s is not installed on this device', shareOther: 'Another app', shareFail: 'The view could not be shared', shareSaved: 'View saved; send it from your gallery', shareDocFail: 'This document cannot be shared from this device',
   fileShare: 'Share file', fileShareOrig: 'Original file', fileShareOrigHint: 'The file as you opened it: %s', fileShareDxf: 'With your changes (DXF)', fileShareDxfHint: 'Includes the dimensions and drawings you added; sent as DXF because DWG cannot be written', fileShareFail: 'The file could not be shared',
+  grpFile: 'File', stQuickSave: 'Save (Ctrl+S)', saveLoc: 'Location', saveLocDl: 'Downloads › DWGViewer', saveLocPick: 'Choose another location…', saveAsHint: 'Saved as DXF (AutoCAD 2000); the file you opened is not changed. From now on “Save” writes to this file.', savedTo: 'Saved: %s', saveDwgNote: 'DWG cannot be written, so DXF',
 };
 /* ---------------------------------------------------------------------------
  * Dil kayıt defteri

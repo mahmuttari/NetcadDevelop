@@ -191,7 +191,7 @@ export default {
   tl_display: '表示設定', th_display: '',
   tl_pdf: 'PDF', th_pdf: '尺度を指定して PDF を作成',
   tl_png: 'PNG', th_png: 'ビューを画像として保存',
-  tl_savedxf: 'DXF 保存', th_savedxf: '編集した図面を DXF で保存', tl_save: '保存', th_save: '図面を元の名前で DXF として保存します', tl_saveas: '名前を付けて保存', th_saveas: '名前と範囲を選んで DXF を保存します',
+  tl_savedxf: 'DXF 保存', th_savedxf: '編集した図面を DXF で保存', tl_save: '保存', th_save: '図面を DXF で保存します。以後の保存は同じファイルに上書きします (Ctrl+S)', tl_saveas: '名前を付けて保存', th_saveas: '名前・保存先・範囲を選んで DXF を保存します。以後「保存」はそこに書き込みます (Ctrl+Shift+S)',
   tl_savedelta: '変更', th_savedelta: '変更したオブジェクトのみ保存',
   tl_undo: '元に戻す', th_undo: '',
   tl_redo: 'やり直し', th_redo: '',
@@ -599,5 +599,6 @@ export default {
   // --- v7.89 · ekrandaki görüntüyü paylaşma
   waShare: 'WhatsApp に送る', shareView: '表示を共有', shareTarget: '共有', shareNoDoc: '先に図面を開いてください', shareCaption: 'DWG OfficeZip で共有', shareNotInstalled: '%s はこの端末にインストールされていません', shareOther: '別のアプリ', shareFail: 'ビューを共有できませんでした', shareSaved: '画像を保存しました。ギャラリーから送信してください', shareDocFail: 'この文書はこの端末から共有できません',
   fileShare: 'ファイルを共有', fileShareOrig: '元のファイル', fileShareOrigHint: '開いたときのままのファイル：%s', fileShareDxf: '変更を含める (DXF)', fileShareDxfHint: '追加した寸法や図形を含みます。DWG は書き出せないため DXF で送ります', fileShareFail: 'ファイルを共有できませんでした',
+  grpFile: 'ファイル', stQuickSave: '保存 (Ctrl+S)', saveLoc: '保存先', saveLocDl: 'ダウンロード › DWGViewer', saveLocPick: '別の場所を選択…', saveAsHint: 'DXF（AutoCAD 2000）で保存します。開いたファイルは変更されません。以後「保存」はこのファイルに書き込みます。', savedTo: '保存しました: %s', saveDwgNote: 'DWG は書き込めないため DXF',
   psOpen: '場所から選ぶ: 県 / 郡 · 地図 · 住所', psTitle: '投影法を選ぶ', psProvince: '県 / 郡', psMap: '地図', psAddress: '住所', psCoord: '座標', psDrawing: '図面から', psPickIl: '県', psPickIlce: '郡', psIlCenter: '県全体 (中心)', psSearch: '検索', psSearchPh: '地区・通り・地名…', psGps: '現在地', psCoordPh: '40.7654, 29.9187', psApply: '選ぶ', psScale: '縮尺係数', psFalseE: '東距の定数', psZone3: '3°帯', psZone6: '6°帯 (UTM)', psCM: '中央子午線', psEdge: '帯境界までの距離', psEdgeWarn: '作業範囲が帯の境界に近い (%s)。一つの帯に収まらない場合、帯の選択はプロジェクトの判断です。', psOutside: '選んだ地点はトルコ国外です。提案はトルコの帯に限られます。', psDatumNote: '測地系は座標から判定できません。同じ帯でも ED50 と ITRF96 は数百メートル異なります。測地系はプロジェクト文書で確認してください。', psNoNet: '住所検索にはインターネット接続が必要です。', psNoResult: '結果がありません。', psBadCoord: '座標を読み取れませんでした。', psDrawGuess: '図面座標からの推定', psDrawNone: '図面の座標はトルコのどの帯にも入りません。県/郡か地図から場所を選んでください。', psPicked: '選んだ地点', psSelected: '座標系を選びました',
 };

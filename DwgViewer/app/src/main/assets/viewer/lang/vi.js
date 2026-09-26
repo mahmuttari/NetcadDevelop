@@ -191,7 +191,7 @@ export default {
   tl_display: 'Tuỳ chọn hiển thị', th_display: '',
   tl_pdf: 'PDF', th_pdf: 'Tạo PDF theo tỷ lệ',
   tl_png: 'PNG', th_png: 'Lưu khung nhìn thành ảnh',
-  tl_savedxf: 'Lưu DXF', th_savedxf: 'Lưu bản vẽ đã sửa thành DXF', tl_save: 'Lưu', th_save: 'Lưu bản vẽ thành DXF với tên của chính nó', tl_saveas: 'Lưu thành', th_saveas: 'Lưu thành DXF với tên và phạm vi đã chọn',
+  tl_savedxf: 'Lưu DXF', th_savedxf: 'Lưu bản vẽ đã sửa thành DXF', tl_save: 'Lưu', th_save: 'Lưu bản vẽ thành DXF; các lần lưu sau ghi đè cùng tệp (Ctrl+S)', tl_saveas: 'Lưu thành', th_saveas: 'Lưu DXF với tên, vị trí và phạm vi đã chọn; sau đó Lưu ghi vào đó (Ctrl+Shift+S)',
   tl_savedelta: 'Thay đổi', th_savedelta: 'Chỉ lưu các đối tượng đã đổi',
   tl_undo: 'Hoàn tác', th_undo: '',
   tl_redo: 'Làm lại', th_redo: '',
@@ -441,5 +441,6 @@ export default {
   // --- v7.89 · ekrandaki görüntüyü paylaşma
   waShare: 'Gửi tới WhatsApp', shareView: 'Chia sẻ khung nhìn', shareTarget: 'chia sẻ', shareNoDoc: 'Hãy mở một bản vẽ trước', shareCaption: 'Chia sẻ bằng DWG OfficeZip', shareNotInstalled: '%s chưa được cài trên thiết bị này', shareOther: 'Ứng dụng khác', shareFail: 'Không thể chia sẻ khung nhìn', shareSaved: 'Đã lưu ảnh; gửi từ thư viện', shareDocFail: 'Không thể chia sẻ tài liệu này từ thiết bị này',
   fileShare: 'Chia sẻ tệp', fileShareOrig: 'Tệp gốc', fileShareOrigHint: 'Tệp như khi bạn mở: %s', fileShareDxf: 'Kèm các thay đổi của bạn (DXF)', fileShareDxfHint: 'Bao gồm kích thước và hình vẽ bạn đã thêm; gửi dưới dạng DXF vì không thể ghi DWG', fileShareFail: 'Không thể chia sẻ tệp',
+  grpFile: 'Tệp', stQuickSave: 'Lưu (Ctrl+S)', saveLoc: 'Vị trí', saveLocDl: 'Tải xuống › DWGViewer', saveLocPick: 'Chọn vị trí khác…', saveAsHint: 'Lưu dưới dạng DXF (AutoCAD 2000); tệp bạn đã mở không thay đổi. Từ nay “Lưu” sẽ ghi vào tệp này.', savedTo: 'Đã lưu: %s', saveDwgNote: 'Không ghi được DWG nên lưu DXF',
   psOpen: 'Chọn theo địa điểm: tỉnh / huyện · bản đồ · địa chỉ', psTitle: 'Chọn phép chiếu', psProvince: 'Tỉnh / huyện', psMap: 'Bản đồ', psAddress: 'Địa chỉ', psCoord: 'Tọa độ', psDrawing: 'Từ bản vẽ', psPickIl: 'Tỉnh', psPickIlce: 'Huyện', psIlCenter: 'Toàn tỉnh (trung tâm)', psSearch: 'Tìm', psSearchPh: 'Khu phố, đường, tên địa danh…', psGps: 'Vị trí của tôi', psCoordPh: '40.7654, 29.9187', psApply: 'Chọn', psScale: 'hệ số tỉ lệ', psFalseE: 'hoành độ giả', psZone3: 'múi 3°', psZone6: 'múi 6° (UTM)', psCM: 'kinh tuyến trục', psEdge: 'Khoảng cách tới ranh múi', psEdgeWarn: 'Khu vực gần ranh múi (%s). Nếu không nằm gọn trong một múi thì chọn múi là quyết định của dự án.', psOutside: 'Điểm đã chọn nằm ngoài Türkiye; gợi ý chỉ giới hạn ở các múi của Thổ Nhĩ Kỳ.', psDatumNote: 'Không thể suy ra datum từ tọa độ: trong cùng một múi, ED50 và ITRF96 lệch vài trăm mét. Hãy lấy datum từ hồ sơ dự án.', psNoNet: 'Tìm địa chỉ cần kết nối mạng.', psNoResult: 'Không có kết quả.', psBadCoord: 'Không đọc được tọa độ.', psDrawGuess: 'Ước đoán từ tọa độ bản vẽ', psDrawNone: 'Tọa độ bản vẽ không rơi vào múi nào của Thổ Nhĩ Kỳ; hãy chọn vị trí theo tỉnh/huyện hoặc trên bản đồ.', psPicked: 'Vị trí đã chọn', psSelected: 'Đã chọn hệ tọa độ',
 };

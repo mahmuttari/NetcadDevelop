@@ -87,6 +87,7 @@
     -->
     <symbol id="i-send-chat" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.2 2 1.6 6.1 1.6 11.2c0 2.9 1.5 5.5 3.9 7.2L4.3 22.4l4.5-2.1c1 .2 2.1.4 3.2.4 5.8 0 10.4-4.1 10.4-9.5S17.8 2 12 2zm0 2.4c4.6 0 8 3.1 8 6.8s-3.4 6.8-8 6.8c-1 0-2-.2-2.9-.4l-.5-.2-2 .9.6-2-.5-.4c-2-1.3-3.2-3.2-3.2-5.4 0-3.7 3.4-6.8 8-6.8z"/><path d="M16.9 8.1 7.4 11.4c-.5.2-.5.8 0 1l3.6 1.2 1.2 3.6c.2.5.8.5 1 0l3.3-9.5c.2-.5-.2-.8-.6-.6zm-1.7 1.9-2.1 6-.8-2.3z"/></symbol>
     <symbol id="i-save" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M2 2h15l5 5v15H2zm5 2v5h7V4zm0 10v6h10v-6z"/></symbol>
+    <symbol id="i-saveas" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M2 2h14l4 4v5.2l-2 2V7l-3-3h-1v5H6V4H4v16h7.6l-.4 2H2zm6 2v3h5V4z"/><path d="M13.4 22l.7-3.5 6-6 2.8 2.8-6 6z"/></symbol>
     <symbol id="i-export" viewBox="0 0 24 24"><path d="M12 2l6 6h-4v7h-4V8H6z"/><path d="M2 14h2.6v5.4h14.8V14H22v8H2z"/></symbol>
     <symbol id="i-undo" viewBox="0 0 24 24"><path d="M6 10h8a5.5 5.5 0 0 1 0 11H9" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M9 3 2 10l7 7z"/></symbol>
     <symbol id="i-redo" viewBox="0 0 24 24"><path d="M18 10h-8a5.5 5.5 0 0 0 0 11h5" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M15 3l7 7-7 7z"/></symbol>
@@ -422,6 +423,8 @@
       <!-- Geri al / yinele her sekmede el altında: 10 geri · 10 ileri hafıza, rozet kalan adım sayısını yazar -->
       <button type="button" data-quick="undo" data-i18n-title="stQuickUndo" data-i18n-aria="stQuickUndo" aria-label="Geri al" disabled><svg class="ic" aria-hidden="true"><use href="#i-undo"/></svg><b class="st-ct" hidden></b></button>
       <button type="button" data-quick="redo" data-i18n-title="stQuickRedo" data-i18n-aria="stQuickRedo" aria-label="Yinele" disabled><svg class="ic" aria-hidden="true"><use href="#i-redo"/></svg><b class="st-ct" hidden></b></button>
+      <!-- Kaydet (v8.9.8): çizim düzenlenince görünür; kaydedilmemiş değişiklik varken köşesinde nokta (AutoCAD hızlı erişim çubuğu) -->
+      <button type="button" data-quick="save" data-i18n-title="stQuickSave" data-i18n-aria="stQuickSave" aria-label="Kaydet (Ctrl+S)" hidden><svg class="ic" aria-hidden="true"><use href="#i-save"/></svg></button>
       <button type="button" data-quick="grid" data-i18n-title="stQuickGrid" data-i18n-aria="stQuickGrid" aria-label="Izgara" aria-pressed="false"><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg></button>
       <button type="button" data-quick="lw" data-i18n-title="stQuickLw" data-i18n-aria="stQuickLw" aria-label="Çizgi kalınlığı" aria-pressed="false"><svg class="ic" aria-hidden="true"><use href="#i-lw"/></svg></button>
       <button type="button" data-quick="text" data-i18n-title="stQuickText" data-i18n-aria="stQuickText" aria-label="Yazı" aria-pressed="true"><svg class="ic" aria-hidden="true"><use href="#i-text"/></svg></button>
@@ -712,6 +715,9 @@
   <div id="moreMenu" class="menu" hidden>
     <button data-act="pro" type="button" class="accent" hidden><svg class="ic" aria-hidden="true"><use href="#i-star"/></svg><span data-i18n="goPro">Pro sürüme geç</span></button>
     <button data-act="home" type="button"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg><span data-i18n="homeTab">Ana ekran</span></button>
+    <!-- Kaydet / Farklı kaydet (v8.9.8): "Kaydeti ve farklı kaydeti bulamadım." Dosya işlemleri menünün başında bir arada -->
+    <button data-act="save" type="button"><svg class="ic" aria-hidden="true"><use href="#i-save"/></svg><span data-i18n="save">Kaydet</span><kbd class="mk">Ctrl+S</kbd></button>
+    <button data-act="saveas" type="button"><svg class="ic" aria-hidden="true"><use href="#i-saveas"/></svg><span data-i18n="saveAs">Farklı kaydet</span><kbd class="mk">Ctrl+Shift+S</kbd></button>
     <button data-act="info" type="button"><svg class="ic" aria-hidden="true"><use href="#i-info"/></svg><span data-i18n="info">Çizim bilgisi</span></button>
     <button data-act="fileshare" type="button"><svg class="ic" aria-hidden="true"><use href="#i-export"/></svg><span data-i18n="fileShare">Dosyayı paylaş</span></button>
     <button data-act="drive" type="button"><svg class="ic" aria-hidden="true"><use href="#i-drive"/></svg><span data-i18n="drive">Google Drive</span></button>

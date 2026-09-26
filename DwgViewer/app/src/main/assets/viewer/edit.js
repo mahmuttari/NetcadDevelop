@@ -460,6 +460,9 @@ export class EditDoc {
     this.log = [];      // kalıcı komutlar
     this.undoStack = []; // { cmd, restore:() => void }
     this.redoStack = [];
+    // Değişiklik sayacı: her uygulama / geri alma / yineleme artırır. "Kaydedilmemiş değişiklik" bununla anlaşılır
+    // (günlük uzunluğu yetmez: geri alıp başka bir komut çalıştırınca uzunluk aynı, içerik farklıdır)
+    this.ver = 0;
   }
   get dirty() { return this.log.length > 0; }
   find(keys) {
@@ -485,6 +488,7 @@ export class EditDoc {
     const restore = this.apply(cmd);
     if (!restore) return false;
     this.log.push(cmd);
+    this.ver++;
     this.undoStack.push({ cmd, restore });
     if (this.undoStack.length > UNDO_DEPTH) this.undoStack.shift();
     this.redoStack = [];
@@ -920,6 +924,7 @@ export class EditDoc {
     if (!u) return false;
     u.restore();
     this.log.pop();
+    this.ver++;
     this.redoStack.push(u.cmd);
     if (this.redoStack.length > UNDO_DEPTH) this.redoStack.shift();
     this.save();
@@ -930,7 +935,7 @@ export class EditDoc {
     const cmd = this.redoStack.pop();
     if (!cmd) return false;
     const restore = this.apply(cmd);
-    if (restore) { this.log.push(cmd); this.undoStack.push({ cmd, restore }); if (this.undoStack.length > UNDO_DEPTH) this.undoStack.shift(); }
+    if (restore) { this.log.push(cmd); this.ver++; this.undoStack.push({ cmd, restore }); if (this.undoStack.length > UNDO_DEPTH) this.undoStack.shift(); }
     this.save();
     this._katmanSonrasi(cmd);
     return true;
@@ -941,11 +946,11 @@ export class EditDoc {
     if (!this.ctx.key) return 0;
     const log = this.ctx.store.json('edits:' + this.ctx.key, []);
     let n = 0;
-    for (const cmd of log) { const r = this.apply(cmd); if (r) { this.log.push(cmd); this.undoStack.push({ cmd, restore: r }); n++; } }
+    for (const cmd of log) { const r = this.apply(cmd); if (r) { this.log.push(cmd); this.ver++; this.undoStack.push({ cmd, restore: r }); n++; } }
     while (this.undoStack.length > UNDO_DEPTH) this.undoStack.shift();   // yeniden açılışta da yalnız son 10 adım geri alınabilir
     return n;
   }
-  clear() { this.log = []; this.undoStack = []; this.redoStack = []; this.save(); }
+  clear() { this.log = []; this.undoStack = []; this.redoStack = []; this.ver++; this.save(); }
 }
 
 // ---------------------------------------------------------------------------------------

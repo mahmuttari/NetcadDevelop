@@ -191,7 +191,7 @@ export default {
   tl_display: 'خيارات العرض', th_display: '',
   tl_pdf: 'PDF', th_pdf: 'إنشاء PDF بمقياس',
   tl_png: 'PNG', th_png: 'حفظ العرض كصورة',
-  tl_savedxf: 'حفظ DXF', th_savedxf: 'حفظ الرسم المحرّر بصيغة DXF', tl_save: 'حفظ', th_save: 'يحفظ الرسم بصيغة DXF باسمه الأصلي', tl_saveas: 'حفظ باسم', th_saveas: 'يحفظ بصيغة DXF باسم ونطاق مختارين',
+  tl_savedxf: 'حفظ DXF', th_savedxf: 'حفظ الرسم المحرّر بصيغة DXF', tl_save: 'حفظ', th_save: 'يحفظ الرسم بصيغة DXF؛ عمليات الحفظ التالية تكتب فوق الملف نفسه (Ctrl+S)', tl_saveas: 'حفظ باسم', th_saveas: 'يحفظ DXF باسم وموقع ونطاق مختارين؛ ثم يكتب “حفظ” هناك (Ctrl+Shift+S)',
   tl_savedelta: 'التغييرات', th_savedelta: 'حفظ الكائنات المتغيّرة فقط',
   tl_undo: 'تراجع', th_undo: '',
   tl_redo: 'إعادة', th_redo: '',
@@ -598,5 +598,6 @@ export default {
   // --- v7.89 · ekrandaki görüntüyü paylaşma
   waShare: 'إرسال إلى واتساب', shareView: 'مشاركة العرض', shareTarget: 'المشاركة', shareNoDoc: 'افتح رسمًا أولًا', shareCaption: 'تمت المشاركة عبر DWG OfficeZip', shareNotInstalled: '%s غير مثبَّت على هذا الجهاز', shareOther: 'تطبيق آخر', shareFail: 'تعذّرت مشاركة العرض', shareSaved: 'تم حفظ الصورة؛ أرسلها من المعرض', shareDocFail: 'لا يمكن مشاركة هذا المستند من هذا الجهاز',
   fileShare: 'مشاركة الملف', fileShareOrig: 'الملف الأصلي', fileShareOrigHint: 'الملف كما فتحته: %s', fileShareDxf: 'مع تغييراتك (DXF)', fileShareDxfHint: 'يتضمن الأبعاد والرسومات التي أضفتها؛ يُرسل بصيغة DXF لأن كتابة DWG غير ممكنة', fileShareFail: 'تعذّرت مشاركة الملف',
+  grpFile: 'ملف', stQuickSave: 'حفظ (Ctrl+S)', saveLoc: 'الموقع', saveLocDl: 'التنزيلات › DWGViewer', saveLocPick: 'اختيار موقع آخر…', saveAsHint: 'يُحفظ بصيغة DXF (AutoCAD 2000)؛ لا يتغير الملف الذي فتحته. من الآن يكتب “حفظ” في هذا الملف.', savedTo: 'تم الحفظ: %s', saveDwgNote: 'لا يمكن كتابة DWG، لذا DXF',
   psOpen: 'الاختيار حسب المكان: المحافظة / القضاء · الخريطة · العنوان', psTitle: 'اختيار الإسقاط', psProvince: 'المحافظة / القضاء', psMap: 'خريطة', psAddress: 'عنوان', psCoord: 'إحداثي', psDrawing: 'من الرسم', psPickIl: 'المحافظة', psPickIlce: 'القضاء', psIlCenter: 'المحافظة كاملة (المركز)', psSearch: 'بحث', psSearchPh: 'الحي أو الشارع أو اسم المكان…', psGps: 'موقعي', psCoordPh: '40.7654, 29.9187', psApply: 'اختيار', psScale: 'معامل المقياس', psFalseE: 'الإزاحة الشرقية', psZone3: 'نطاق 3°', psZone6: 'نطاق 6° (UTM)', psCM: 'خط الطول المركزي', psEdge: 'المسافة إلى حد النطاق', psEdgeWarn: 'منطقة العمل قريبة من حد النطاق (%s). إذا لم تقع كلها في نطاق واحد فاختيار النطاق قرار مشروع.', psOutside: 'النقطة المختارة خارج تركيا؛ الاقتراح مقصور على النطاقات التركية.', psDatumNote: 'لا يمكن استنتاج المسند من الإحداثيات: ED50 وITRF96 يختلفان بمئات الأمتار في النطاق نفسه. خذ المسند من وثائق المشروع.', psNoNet: 'يحتاج البحث عن العنوان إلى اتصال بالإنترنت.', psNoResult: 'لا نتائج.', psBadCoord: 'تعذّرت قراءة الإحداثي.', psDrawGuess: 'مقدَّر من إحداثيات الرسم', psDrawNone: 'إحداثيات الرسم لا تقع في نطاق تركي؛ اختر الموقع من المحافظة/القضاء أو من الخريطة.', psPicked: 'الموقع المختار', psSelected: 'تم اختيار نظام الإحداثيات',
 };

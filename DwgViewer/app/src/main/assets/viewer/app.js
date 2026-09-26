@@ -3508,7 +3508,7 @@ function refreshMenu() {
 function menuAction(act) {
   closeMenu();
   if (!Ed.gate(act)) return;   // Ücretsiz sürümde Pro eylemi (notes / profile / compare / pdf): yükseltme kutusu
-  const needDoc = ['info', 'fileshare', 'layouts', 'notes', 'profile', 'compare', 'xrefs', 'views', 'png', 'pdf', 'textout', 'markdim', 'findrep', 'blocklib', 'copyclip', 'pasteclip', 'mesh3d', 'tableout', 'blocks', 'xattach', 'xbind', 'xopen', 'xdetach'];
+  const needDoc = ['save', 'saveas', 'info', 'fileshare', 'layouts', 'notes', 'profile', 'compare', 'xrefs', 'views', 'png', 'pdf', 'textout', 'markdim', 'findrep', 'blocklib', 'copyclip', 'pasteclip', 'mesh3d', 'tableout', 'blocks', 'xattach', 'xbind', 'xopen', 'xdetach'];
   if (needDoc.includes(act) && !S.hasDoc) { toast(t('openFirst')); return; }
   switch (act) {
     case 'info': showDocInfo(); break;
@@ -3536,6 +3536,7 @@ function menuAction(act) {
     case 'wshare': paylasGorunum('com.whatsapp', 'WhatsApp'); break;
     case 'share': paylasGorunum('', ''); break;
     case 'fileshare': paylasDosya(); break;
+    case 'save': case 'saveas': editor.act(act); break;   // Kaydet / Farklı kaydet: editörün tek kaydetme yolu (Ctrl+S ile aynı)
     case 'pdf': showPdf(); break;
     case 'textout': showTextOut(); break;
     case 'markdim': markMeasurement(); break;
@@ -5725,6 +5726,7 @@ window.dwgApp = { onUpdate, osnap: Osnap, paylasGorunum, gorunumPng, loadCurrent
   docs: Docs, drive: Drive, onGoogle: (ok, json) => Drive.onGoogle(ok, json), onDrive: (id, ok, json) => Drive.onDrive(id, ok, json), onDriveProgress: (id, d, tot) => Drive.onProgress(id, d, tot), openDrive: () => Drive.open(),
   open: Open, openCenter: (tab) => Open.open(tab), onFsRoot: (obj) => Open.onFsRoot(obj), onFs: (id, ok, json) => Open.onFs(id, ok, json),
   // Arşiv çıkarma köprüsünün yanıtı ve ilerlemesi (MainActivity.arcSave)
+  onSaveAs: (id, ok, info) => { if (editor && editor.onSaveAs) editor.onSaveAs(id, ok, info); },   // Android "Kaydet" seçicisinin sonucu
   onArc: (id, ok, json) => Arsiv.onArc(id, ok, json), onArcProgress: (id, d, tot, ad) => Arsiv.onArcProgress(id, d, tot, ad),
   home: Home, cloud: Cloud, openSample, refreshResume: () => Home.renderResume(), onWebDav: (id, ok, json) => Cloud.onWebDav(id, ok, json), goHome, refreshMenu,
   onWebDavProgress: (id, d, tot) => Cloud.onProgress(id, d, tot),

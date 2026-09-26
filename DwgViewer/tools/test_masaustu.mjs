@@ -52,7 +52,7 @@ const yak = (a, b, e = 1e-6) => Math.abs(a - b) < e;
       f8: D.resolveKey(K('F8')), f3: D.resolveKey(K('F3')), f10: D.resolveKey(K('F10')), f7: D.resolveKey(K('F7')),
       f9: D.resolveKey(K('F9')), f12: D.resolveKey(K('F12')),
       ctrlZ: D.resolveKey(K('z', { ctrlKey: true })), ctrlShiftZ: D.resolveKey(K('z', { ctrlKey: true, shiftKey: true })),
-      ctrlS: D.resolveKey(K('s', { ctrlKey: true })), ctrlQ: D.resolveKey(K('q', { ctrlKey: true })),
+      ctrlS: D.resolveKey(K('s', { ctrlKey: true })), ctrlShiftS: D.resolveKey(K('S', { ctrlKey: true, shiftKey: true })), ctrlQ: D.resolveKey(K('q', { ctrlKey: true })),
       duz: D.resolveKey(K('a')),
       harf: D.isCommandChar(K('l')), rakam: D.isCommandChar(K('3')), ctrlHarf: D.isCommandChar(K('l', { ctrlKey: true })),
       ok: D.isCommandChar(K('ArrowUp')), bosluk: D.isCommandChar(K(' ')),
@@ -68,7 +68,7 @@ const yak = (a, b, e = 1e-6) => Math.abs(a - b) < e;
     g.f8.special === 'ortho' && g.f10.special === 'polar' && g.f3.act === 'osnap' && g.f7.act === 'grid',
     JSON.stringify({ f8: g.f8, f10: g.f10, f3: g.f3, f7: g.f7 }));
   ok('1b karşılığı OLMAYAN işlev tuşu boş bırakılmış (F9, F12 uydurulmadı)', g.f9 === null && g.f12 === null);
-  ok('1c Ctrl kısayolları: Z geri, Shift+Z ileri, S kaydet; tanımsız olan null', g.ctrlZ.act === 'undo' && g.ctrlShiftZ.act === 'redo' && g.ctrlS.act === 'savedxf' && g.ctrlQ === null, JSON.stringify({ z: g.ctrlZ, sz: g.ctrlShiftZ, s: g.ctrlS, q: g.ctrlQ }));
+  ok('1c Ctrl kısayolları: Z geri, Shift+Z ileri, S kaydet (QSAVE), Shift+S farklı kaydet (SAVEAS); tanımsız olan null', g.ctrlZ.act === 'undo' && g.ctrlShiftZ.act === 'redo' && g.ctrlS.act === 'save' && g.ctrlShiftS.act === 'saveas' && g.ctrlQ === null, JSON.stringify({ z: g.ctrlZ, sz: g.ctrlShiftZ, s: g.ctrlS, ss: g.ctrlShiftS, q: g.ctrlQ }));
   ok('1d değiştiricisiz düz harf kısayol DEĞİLDİR (komut satırına gider)', g.duz === null);
   ok('1e komut karakteri: harf ve rakam evet; Ctrl\'lü, ok ve boşluk hayır',
     g.harf === true && g.rakam === true && g.ctrlHarf === false && g.ok === false && g.bosluk === false, JSON.stringify(g));
