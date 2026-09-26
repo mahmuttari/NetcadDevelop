@@ -22,3 +22,6 @@ release/*.aab
 # Geçici deneme betikleri: bir akışı doğrulamak için yazılıp koşturulan, teslim edilmeyen
 # dosyalar. Kalıcı olanı tools/test_*.mjs adıyla yazılır ve takıma girer.
 tools/_deneme_*.mjs
+
+# Python paketleri (sınama için indirilir) pakete ve depoya girmez
+*.whl
