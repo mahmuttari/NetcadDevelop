@@ -655,10 +655,10 @@ export const kagit = {
   /** metnin kâğıttaki genişliği (nokta) */
   yaziGenislik(belge, metin, boyut) { return belge.metinW(String(metin)) * boyut; },
   /** dolu üçgen ok (kuzey işareti) */
-  kuzey(sayfa, belge, cx, cy, r) {
+  kuzey(sayfa, belge, cx, cy, r, harf = 'K') {   // harf: arayüz dilinde kuzeyin baş harfi (K, N, С …)
     const A = sayfa.akis;
     A.y('q 0 0 0 rg ' + sy(cx) + ' ' + sy(cy + r) + ' m ' + sy(cx + r * 0.5) + ' ' + sy(cy - r * 0.8) + ' l '
       + sy(cx) + ' ' + sy(cy - r * 0.4) + ' l ' + sy(cx - r * 0.5) + ' ' + sy(cy - r * 0.8) + ' l h f Q');
-    kagit.yazi(sayfa, belge, cx, cy + r * 1.25, r * 0.85, 'K', { hiza: 1 });
+    kagit.yazi(sayfa, belge, cx, cy + r * 1.25, r * 0.85, harf, { hiza: 1 });
   },
 };

@@ -1844,7 +1844,7 @@ export class View3D {
       c.beginPath(); c.moveTo(0, -r); c.lineTo(-r * 0.45, r * 0.55); c.lineTo(0, r * 0.2); c.closePath(); c.fillStyle = fg; c.fill();
       c.restore();
       c.font = `bold ${Math.round(11 * fs)}px system-ui, sans-serif`; c.fillStyle = fg; c.textAlign = 'center';
-      c.fillText('K', cx + Math.sin(ang) * (r + 12), cy - Math.cos(ang) * (r + 12) - 6);
+      c.fillText(t('northLetter'), cx + Math.sin(ang) * (r + 12), cy - Math.cos(ang) * (r + 12) - 6);
       c.textAlign = 'left';
     }
     // kot etiketleri

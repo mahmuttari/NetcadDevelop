@@ -648,7 +648,7 @@ function drawNorth(c, fg) {
   c.fillStyle = S.dark ? 'rgba(20,26,34,.7)' : 'rgba(255,255,255,.75)'; c.beginPath(); c.arc(0, 0, 18, 0, TAU); c.fill();
   c.fillStyle = '#ff453a'; c.beginPath(); c.moveTo(0, -14); c.lineTo(5, 2); c.lineTo(0, -1); c.lineTo(-5, 2); c.closePath(); c.fill();
   c.fillStyle = fg; c.beginPath(); c.moveTo(0, 14); c.lineTo(5, -2); c.lineTo(0, 1); c.lineTo(-5, -2); c.closePath(); c.fill();
-  c.font = 'bold 9px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('K', 0, -9);
+  c.font = 'bold 9px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(tt('northLetter', 'K'), 0, -9);   // K (Kuzey) / N / С / 北 …
   c.restore();
 }
 /** 18 px üst/sol cetvel şeritleri (tabular rakam, son dokunma noktasında işaret) */
@@ -4827,7 +4827,7 @@ function kunyeVektor(sayfa, belge, g) {
   PK.yazi(sayfa, belge, px + 3 * PT, py - tb * 0.42, 4.5 * PT, g.baslik);
   PK.yazi(sayfa, belge, px + 3 * PT, py - tb * 0.78, 3 * PT, g.bilgi);
   const nx = px + pw - 8 * PT, ny = py - tb / 2;
-  PK.kuzey(sayfa, belge, nx, ny, 4 * PT);
+  PK.kuzey(sayfa, belge, nx, ny, 4 * PT, tt('northLetter', 'K'));
   if (g.sayfaOlcek && S.unitToM) {
     const dunyaPerPt = (g.bb[2] - g.bb[0]) / pw;
     const barM = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000].find(v => v / (dunyaPerPt * S.unitToM) > 25 * PT) || 1000;
@@ -4890,7 +4890,7 @@ function rasterSayfa(g) {
     // Kuzey oku PLANIN okudur; 3B görünüşte bakış döndüğü için yazılmaz (künyede yaw / pitch durur)
     if (!gorsel) {
       c.beginPath(); c.moveTo(nx, ny - 5 * pxPerMm); c.lineTo(nx + 2.5 * pxPerMm, ny + 4 * pxPerMm); c.lineTo(nx, ny + 2 * pxPerMm); c.lineTo(nx - 2.5 * pxPerMm, ny + 4 * pxPerMm); c.closePath(); c.fill();
-      c.font = `bold ${Math.round(3 * pxPerMm)}px sans-serif`; c.textAlign = 'center'; c.fillText('K', nx, ny - 7 * pxPerMm); c.textAlign = 'left';
+      c.font = `bold ${Math.round(3 * pxPerMm)}px sans-serif`; c.textAlign = 'center'; c.fillText(tt('northLetter', 'K'), nx, ny - 7 * pxPerMm); c.textAlign = 'left';
     }
     if (!gorsel && sayfaOlcek && S.unitToM) {
       const worldPerPx = (bb[2] - bb[0]) / aw;
