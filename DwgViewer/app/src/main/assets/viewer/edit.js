@@ -400,7 +400,7 @@ function dimInfoXform(info, m, dz, zs = 1) {
   for (const k of ['p1', 'p2', 'd', 'cp', 'tp', 'x1s', 'x1e', 'x2s']) if (Array.isArray(d[k])) nd[k] = pt(d[k]);
   const a0 = d.rot || 0, wx = m[0] * Math.cos(a0) + m[2] * Math.sin(a0), wy = m[1] * Math.cos(a0) + m[3] * Math.sin(a0);
   nd.rot = ((Math.atan2(wy, wx) % Math.PI) + Math.PI) % Math.PI;   // doğrultunun işareti önemsiz: [0, π)
-  if (d.sty) { nd.sty = { ...d.sty }; for (const k of ['txt', 'asz', 'exo', 'exe']) if (typeof d.sty[k] === 'number') nd.sty[k] = d.sty[k] * s; }
+  if (d.sty) { nd.sty = { ...d.sty }; for (const k of ['txt', 'asz', 'exo', 'exe', 'tsz', 'gap']) if (typeof d.sty[k] === 'number') nd.sty[k] = d.sty[k] * s; }
   if (typeof d.meas === 'number' && d.type !== 2 && d.type !== 5) nd.meas = d.meas * s;
   if (d.app) nd.app = transformDef(d.app, pt, s, [m[0], m[1], m[2], m[3]]);
   return { ...info, dim: nd, edited: true };
@@ -547,7 +547,12 @@ export class EditDoc {
         if (!ps.length) return null;
         const snaps = ps.map(p => clonePrim(p));
         const zs = cmd.zs == null ? 1 : cmd.zs;   // kot çarpanı (3B ölçekle); 1 = eski davranış
-        const ni = infoMapper({ edited: true }, (i) => insXform(i, cmd.m, cmd.dz || 0, zs), ps, dimXf(cmd.m, cmd.dz || 0, zs));   // yerleştirme matrisi de döner / ölçeklenir / yansır; dosya ölçüsünün tanımı da
+        // Dosya ölçüsünün tanımı YALNIZ bütün parçaları birlikte dönüşüyorsa dönüşür. Germe (STRETCH) ya da 3B seçim ölçünün bir
+        // kısmını taşıyınca tanım noktaları ne eski ne yeni olurdu: taşınan parçalar dönüşmüş, kalanlar eski tanımı taşırdı.
+        const psSet = new Set(ps), yarim = new Set();
+        for (const q of C.prims()) if (!psSet.has(q) && q.info && q.info.t === 'DIMENSION' && q.info.dim && q.info.h != null) yarim.add(q.info.h);
+        const dxf = dimXf(cmd.m, cmd.dz || 0, zs);
+        const ni = infoMapper({ edited: true }, (i) => insXform(i, cmd.m, cmd.dz || 0, zs), ps, (i) => (yarim.has(i.h) ? i : dxf(i)));   // yerleştirme matrisi de döner / ölçeklenir / yansır; dosya ölçüsünün tanımı da
         for (const p of ps) { transformPrim(p, cmd.m, cmd.dz || 0, zs); p.info = ni(p.info); }
         C.rebuild();
         return () => { ps.forEach((p, i) => Object.assign(p, snaps[i])); C.rebuild(); };
@@ -800,7 +805,8 @@ export class EditDoc {
       case 'explode': {
         // blok yerleştirmesini parçalarına ayırır: her ilkel kendi kimliğini alır, blok bağı kalkar.
         // Kimlikler komutun içinde saklanır; böylece kayıtlı günlük yeniden oynatıldığında aynı anahtarlar çıkar.
-        const group = C.prims().filter(p => p.info && p.info.h === cmd.h && p.info.t === 'INSERT');
+        // cmd.t verilmişse (v8.9.8) dosyadan gelen çok parçalı nesne (ölçü, tablo, MLINE…) parçalanır; yoksa blok yerleştirmesi
+        const group = C.prims().filter(p => p.info && p.info.h === cmd.h && (cmd.t ? p.info.t === cmd.t && !p.info.gid : p.info.t === 'INSERT'));
         if (!group.length) return null;
         const snaps = group.map(p => ({ p, info: p.info, key: p.key }));
         const marks = group.filter(p => p.k === 4).map(p => ({ p, at: C.remove(p) }));   // ekleme noktası işareti bloğa aitti: patlayınca kalkar
@@ -808,7 +814,10 @@ export class EditDoc {
           if (p.k === 4) return;
           const id = (cmd.ids && cmd.ids[i]) || (cmd.h + '_x' + i);
           p.key = id;
-          p.info = { ...p.info, t: p.et || 'LINE', h: id, name: undefined, attrs: undefined, blk: undefined, m: undefined, dyn: undefined, exploded: true, edited: true };
+          // parçanın türü: kendi varlık türü; dosya nesnesinin parçası o nesnenin türünü taşıyorsa (ölçü parçası "DIMENSION")
+          // geometrisinden (yazı / nokta / dolu / çizgi) — parçalanmış ölçü parçası artık ölçü sayılmaz
+          const tur = cmd.t && (!p.et || p.et === cmd.t) ? (p.k === 1 ? 'TEXT' : p.k === 2 ? 'POINT' : p.fill ? 'SOLID' : 'LWPOLYLINE') : (p.et || 'LINE');
+          p.info = { ...p.info, t: tur, h: id, name: undefined, attrs: undefined, blk: undefined, m: undefined, dyn: undefined, dim: undefined, exploded: true, edited: true };
         });
         C.rebuild();
         return () => { for (const sN of snaps) { sN.p.info = sN.info; sN.p.key = sN.key; } for (const r of marks.slice().reverse()) C.insert(r.p, r.at); C.rebuild(); };
@@ -1079,7 +1088,9 @@ export function writeDxf(prims, layers, opts = {}) {
   // DIMSTYLE: DIMENSION 3 kodundaki ad (Standard); ölçüye özgü değerler varlığın ACAD DSTYLE XDATA'sındadır. Kayıt tanıtıcısı 105'tir.
   { const t0 = H(); w(0, 'TABLE'); w(2, 'DIMSTYLE'); w(5, t0); w(100, 'AcDbSymbolTable'); w(70, 1); w(100, 'AcDbDimStyleTable');
     w(0, 'DIMSTYLE'); w(105, H()); w(330, t0); w(100, 'AcDbSymbolTableRecord'); w(100, 'AcDbDimStyleTableRecord'); w(2, 'Standard'); w(70, 0);
-    w(40, 1); w(41, 2.5); w(42, 0.625); w(44, 1.25); w(140, 2.5); w(147, 0.625); w(73, 0); w(74, 0); w(77, 1); w(78, 8); w(271, 2); w(278, 46); w(340, stH);
+    // Yalnız AutoCAD öntanımlıları: ondalık (271) ve ayırıcı (278) YAZILMAZ — yazılsaydı dosyasında bu değerler olmayan
+    // ölçüler yeniden açılınca "2 ondalık, nokta ayırıcı" yazılmış sayılırdı. Uygulama ölçüleri kendi DSTYLE'larını taşır.
+    w(40, 1); w(41, 2.5); w(42, 0.625); w(44, 1.25); w(140, 2.5); w(147, 0.625); w(73, 0); w(74, 0); w(77, 1); w(78, 8); w(340, stH);
     w(0, 'ENDTAB'); }
   // BLOCK_RECORD: model / kâğıt uzayı ve uygulamanın her blok tanımı için bir kayıt (BLOCK'un sahibi 330 ile buraya bağlanır)
   w(0, 'TABLE'); w(2, 'BLOCK_RECORD'); const brTab = H(); w(5, brTab); w(100, 'AcDbSymbolTable'); w(70, blocks.size + 2 + allDims.length);
@@ -1438,7 +1449,10 @@ export function writeDxf(prims, layers, opts = {}) {
   /** DIMENSION varlığı (AC1015): AcDbDimension + tür alt sınıfı + ACAD DSTYLE + uygulama tanımı */
   const passDstyle = (sy) => {
     const o = [], R = (c, v) => o.push([1070, c], [1040, num(v)]), I = (c, v) => o.push([1070, c], [1070, v | 0]), S = (c, v) => o.push([1070, c], [1000, v]);
-    R(40, 1); if (sy.txt > 0) R(140, sy.txt); if (sy.asz >= 0) R(41, sy.asz); if (sy.exo >= 0) R(42, sy.exo); if (sy.exe >= 0) R(44, sy.exe);
+    R(40, 1); if (sy.txt > 0) R(140, sy.txt); if (sy.exo >= 0) R(42, sy.exo); if (sy.exe >= 0) R(44, sy.exe);
+    // çizgi işaretli ölçü: DIMTSZ yazılır (41 = 0 yazmak AutoCAD'in yeniden kurmasında ne ok ne işaret bırakırdı)
+    if (sy.tsz > 0) R(142, sy.tsz); else if (sy.asz > 0) R(41, sy.asz);
+    if (sy.gap >= 0) R(147, sy.gap); if (typeof sy.tad === 'number') I(77, sy.tad);
     if (typeof sy.dec === 'number') I(271, sy.dec); if (sy.adec >= 0) I(179, sy.adec); if (sy.lfac > 0) R(144, sy.lfac); if (sy.post) S(3, sy.post); if (sy.dsep > 0) I(278, sy.dsep);
     return [[1001, 'ACAD'], [1000, 'DSTYLE'], [1002, '{'], ...o, [1002, '}']];
   };
@@ -1463,9 +1477,12 @@ export function writeDxf(prims, layers, opts = {}) {
     const c = G.core, cci = c ? normCi(c.info && c.info.ci) : null, fi = G.file;
     for (const p of G.parts) {
       // uygulama ölçüsü: parça ölçünün katman / rengindeyse BLOKTAN; dosya ölçüsü: parçalar ortak bilgiyi paylaşır, renk ÇÖZÜLMÜŞ renkle karşılaştırılır
-      const same = c ? (p.lay === c.lay && normCi(p.info && p.info.ci) === cci) : (p.lay === fi.lay && p.col === fi.col);
+      // Parçalar ölçüyle AYNI bilgi nesnesini paylaşıyorsa (dosya ölçüsü, yeniden açılıp benimsenmiş ölçü) renk bilgiden
+      // okunamaz: parçanın ÇÖZÜLMÜŞ rengi karşılaştırılır, farklıysa kendi ACI'siyle yazılır (yoksa mavi yazı kırmızıya dönerdi)
+      const ortak = !c || p.info === c.info, bas = c || fi;
+      const same = ortak ? (p.lay === bas.lay && p.col === bas.col) : (p.lay === c.lay && normCi(p.info && p.info.ci) === cci);
       const own = () => { const L = layers.get(p.lay); return { ...p, info: { ...p.info, ci: aciOf(p.col, L ? L.color : null) } }; };
-      const q = same ? { ...p, lay: '0', lt: null, info: { ...p.info, ci: BYBLOCK } } : (c ? p : own());
+      const q = same ? { ...p, lay: '0', lt: null, info: { ...p.info, ci: BYBLOCK } } : (ortak ? own() : p);
       if (q.k === 1 && c) {
         // Ölçü yazısı MTEXT (AutoCAD'in kendi ölçü bloklarındaki gibi): MTEXT kaçışları iki yönde de çözülür ({ } \\ korunur).
         // Alt hizalı (7/8/9) ek noktası taban çizgisidir; okuyucu bunu TEXT'in taban çizgisiyle aynı yere çizer.

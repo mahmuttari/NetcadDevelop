@@ -265,6 +265,79 @@ await ac(fDelta);
   ok('8e iki geri al: yalnız asıl ölçü kalır', u.length === k.parca && u.every(h => h === 'B1'), J(u));
 }
 
+
+// ---- 9. inceleme bulguları: bayatlık, yazı kaçışları, geçiş stili, açısal yön, renk, germe, bozuk XDATA ---------------------
+{
+  await ac(`${SM}/example_2000.dwg`);
+  const r = await ev(async () => {
+    const S = window.dwgApp.state, E = window.dwgApp.editor, T = E.tools, Ed = await import('./edit.js'), An = await import('./annot.js');
+    const base = { ...T.dimDefaults(), h: 20, arrow: 20, exo: 5, exe: 10, scale: 1, prec: 2, suffix: ' mm', prefix: '', factor: 1 };
+    const mk = (def, o = {}) => { const res = T.buildDim({ ...base, ...def }, { ...T.annotOpts(), ...o }); T.commitMany(res.ents); };
+    mk({ kind: 'linear', sub: 'horizontal', pts: [[0, 0, 0], [300, 0, 0], [0, 80, 0]], text: '%%c<>' });
+    mk({ kind: 'linear', sub: 'horizontal', pts: [[0, 400, 0], [300, 400, 0], [0, 480, 0]], text: 'A\nB' });
+    mk({ kind: 'angular', pts: [[1000, 0, 0], [1100, 0, 0], [1000, -100, 0]], prec: 0, suffix: '°' });   // saat yönünde seçim
+    const yaz = () => Ed.writeDxf(S.scene.layouts[0].prims, S.layers, { onlyEdited: true, ltypes: S.ltypes, blocks: S.blocks, vars: S.vars, dimFmt: { prec: 2, pad: false, dsep: ',' } });
+    const txt = yaz();
+    // açısal: çizilen yay kısa (90°) ve 13 → 14 saat yönünün tersine
+    const angCore = S.scene.layouts[0].prims.filter(p => p.ent && p.ent.def && p.ent.def.kind === 'angular').pop();
+    const arc = angCore.ent.arcs[0];
+    let sw = (arc[5] - arc[4]) * (arc[0] < 0 ? -1 : 1); while (sw < 0) sw += 2 * Math.PI; while (sw > 2 * Math.PI) sw -= 2 * Math.PI;
+    const f = An.dimDxf(angCore.ent.def);
+    const crossZ = (f.p13[0] - f.p15[0]) * (f.p14[1] - f.p15[1]) - (f.p13[1] - f.p15[1]) * (f.p14[0] - f.p15[0]);
+    return { txt, yayDer: sw * 180 / Math.PI, ccw: crossZ > 0, satirSonu: /\r\n1\r\nA\\PB\r\n/.test(txt), yuzde: /\r\n1\r\n%%c<>\r\n/.test(txt) };
+  });
+  ok('9a saat yönündeki açısal ölçü KISA yayı çizer (90°, 270° değil) ve DXF\'te 13 → 14 saat yönünün tersine', Math.abs(r.yayDer - 90) < 1e-6 && r.ccw, J({ yay: r.yayDer, ccw: r.ccw }));
+  ok('9b çok satırlı ölçü yazısı DXF\'e \\P ile yazılır (ham satır sonu kod/değer satırlarını bozmaz); %%c olduğu gibi', r.satirSonu && r.yuzde, J({ satir: r.satirSonu, yuzde: r.yuzde }));
+  const f9 = yaz('olcu_inceleme.dxf', r.txt);
+  await ac(f9);
+  const b = await ev(() => { const S = window.dwgApp.state; const g = new Map(); for (const p of S.scene.layouts[0].prims) if (p.info && p.info.t === 'DIMENSION' && p.info.dim) g.set(p.info.h, { gid: p.info.gid || null, text: (S.scene.layouts[0].prims.find(q => q.info === p.info && q.k === 1) || { lines: [''] }).lines.join('|') }); return [...g.values()]; });
+  ok('9c "%%c<>", çok satırlı yazı ve açısal ölçü yeniden açılınca BENİMSENİR (tanım kaybolmaz)', b.length === 3 && b.every(x => x.gid), J(b));
+  // AutoCAD'de değiştirilmiş stil → bayat
+  {
+    const L = r.txt.split('\r\n');
+    // ilk DIMENSION'ın DSTYLE'ında 41 (ok) değeri 5 yapılır
+    let i = L.indexOf('DIMENSION'); while (!(L[i] === 'DSTYLE')) i++; while (!(L[i] === '1070' && L[i + 1] === '41')) i++; L[i + 3] = '5';
+    await ac(yaz('olcu_bayat_stil.dxf', L.join('\r\n')));
+    const st = await ev(() => { const p = window.dwgApp.state.scene.layouts[0].prims.find(q => q.info && q.info.t === 'DIMENSION' && q.info.dim); return { gid: p.info.gid || null, asz: p.info.dim.sty.asz }; });
+    ok('9d AutoCAD\'de ok boyu değiştirilmiş ölçü benimsenmez (bir sonraki kayıt o değişikliği geri almasın)', st.gid === null && st.asz === 5, J(st));
+  }
+  // bozuk XDATA (sayı olmayan dönüş) → benimsenmez
+  {
+    const L = r.txt.replace('"sub":"horizontal"', '"sub":"rotated","rot":"abc"');
+    await ac(yaz('olcu_bozuk_xdata.dxf', L));
+    const st = await ev(() => { const p = window.dwgApp.state.scene.layouts[0].prims.find(q => q.info && q.info.t === 'DIMENSION' && q.info.dim); return { gid: p.info.gid || null, app: !!p.info.dim.app }; });
+    ok('9e bozuk XDATA tanımı (sayı olmayan açı) reddedilir, ölçü DXF alanlarından kurulur', st.gid === null && st.app === false, J(st));
+  }
+}
+// geçiş: stili yazılmamış dosya ölçüsü kayıttan sonra da "2 ondalık / nokta" SAYILMAZ; çizgi işaretli ölçü 142 ile yazılır
+{
+  const L = []; const g = (c, v) => L.push(String(c), String(v));
+  g(0, 'SECTION'); g(2, 'HEADER'); g(9, '$ACADVER'); g(1, 'AC1015'); g(0, 'ENDSEC'); g(0, 'SECTION'); g(2, 'ENTITIES');
+  for (const [c, v] of [[0, 'DIMENSION'], [5, 'C1'], [8, '0'], [2, '*DX'], [10, 50], [20, 60], [30, 0], [11, 50], [21, 65], [31, 0], [70, 33], [1, ''], [42, 100], [3, 'ISO'], [100, 'AcDbAlignedDimension'], [13, 0], [23, 0], [33, 0], [14, 100], [24, 0], [34, 0],
+    [1001, 'ACAD'], [1000, 'DSTYLE'], [1002, '{'], [1070, 142], [1040, 1.5], [1002, '}']]) g(c, v);
+  g(0, 'ENDSEC'); g(0, 'EOF');
+  await ac(yaz('gecis_stil.dxf', L.join('\n') + '\n'));
+  const once = await ev(() => window.dwgApp.state.scene.layouts[0].prims.find(q => q.info && q.info.t === 'DIMENSION' && q.info.dim).info.dim.sty);
+  const t2 = await dxfYaz({ onlyEdited: false });
+  await ac(yaz('gecis_stil_2.dxf', t2));
+  const sonra = await ev(() => window.dwgApp.state.scene.layouts[0].prims.find(q => q.info && q.info.t === 'DIMENSION' && q.info.dim).info.dim.sty);
+  ok('9f stili yazılmamış dosya ölçüsü kayıttan sonra da ondalık / ayırıcı "yazılmamış" kalır (Standard kaydına 271 / 278 yazılmaz)', once.dec === undefined && sonra.dec === undefined && once.dsep === undefined && sonra.dsep === undefined && !/\r\n271\r\n2\r\n/.test(t2.split('ENTITIES')[0]), J({ once, sonra }));
+  ok('9g çizgi işaretli (DIMTSZ) ölçü DSTYLE\'da 142 ile yazılır, "41 = 0" yazılmaz', /\r\n1070\r\n142\r\n1040\r\n1\.5\r\n/.test(t2) && !/\r\n1070\r\n41\r\n1040\r\n0\r\n/.test(t2), '');
+}
+// germe (STRETCH) ölçünün yalnız bir kısmını taşıyınca dosya ölçüsünün tanımı yarım dönüşmez
+{
+  await ac(`${SM}/pface_full.dxf`);
+  const r = await ev(() => {
+    const S = window.dwgApp.state, E = window.dwgApp.editor, ps = S.scene.layouts[0].prims;
+    const byH = new Map(); for (const p of ps) if (p.info && p.info.t === 'DIMENSION' && p.info.dim && p.info.dim.type === 1) { if (!byH.has(p.info.h)) byH.set(p.info.h, []); byH.get(p.info.h).push(p); }
+    const [h, parts] = [...byH.entries()][0];
+    const d0 = JSON.stringify(parts[0].info.dim.p2);
+    E.runCmd({ op: 'xform', keys: [parts[0].key], m: [1, 0, 0, 1, -150, 0], dz: 0 });   // yalnız bir parça
+    const now = S.scene.layouts[0].prims.filter(p => p.info && p.info.h === h);
+    return { ayni: now.every(p => JSON.stringify(p.info.dim.p2) === d0), n: now.length };
+  });
+  ok('9h ölçünün yalnız bir parçası taşınınca (germe) tanım noktaları dönüşmez — parçalar tutarlı tanımı taşır', r.ayni && r.n > 1, J(r));
+}
 C.summary(errors);
 await browser.close(); try { srv.close && srv.close(); } catch (_) { /* geç */ }
 C.exit();

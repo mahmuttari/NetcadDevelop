@@ -145,6 +145,81 @@ await temiz();
   await ev((b) => window.dwgApp.zoomExtents(b), [0, 0, 1200, 1200]); await bekle(200);
 }
 
+
+// ---- 6. inceleme bulguları: sıkı pencere, XREF çakışması, benzerini seç hızı, tutamakta çift dokunuş, parçalama ------------
+await temiz();
+{
+  const r = await ev((g) => {
+    const E = window.dwgApp.editor, T = E.tools, ps = window.dwgApp.state.scene.layouts[0].prims.filter(p => p.info && p.info.gid === g);
+    // yazının GÖRÜNEN kutusu (sınır karesi değil) + öteki parçaların kutusu, 3 birim payla
+    const noText = ps.filter(p => p.k !== 1), txt = ps.find(p => p.k === 1);
+    const bb = noText.reduce((a, p) => [Math.min(a[0], p.bb[0]), Math.min(a[1], p.bb[1]), Math.max(a[2], p.bb[2]), Math.max(a[3], p.bb[3])], [Infinity, Infinity, -Infinity, -Infinity]);
+    const w = 0.6 * txt.h * Math.max(...txt.lines.map(l => l.length));
+    const c = Math.cos(txt.rot || 0), s = Math.sin(txt.rot || 0);
+    for (const [x, y] of [[0, 0], [w, 0], [w, txt.h], [0, txt.h], [-w, 0], [-w, txt.h], [w / 2, txt.h], [-w / 2, 0]]) { const X = txt.x + x * c - y * s, Y = txt.y + x * s + y * c; bb[0] = Math.min(bb[0], X); bb[1] = Math.min(bb[1], Y); bb[2] = Math.max(bb[2], X); bb[3] = Math.max(bb[3], Y); }
+    const sinirKare = txt.bb;
+    E.sel.clear();
+    const n = T.selectRegion({ rect: [bb[0] - 3, bb[1] - 3, bb[2] + 3, bb[3] + 3] }, false);
+    const secili = [...E.sel].filter(p => p.info && p.info.gid === g).length; E.sel.clear();
+    const icinde = sinirKare[0] >= bb[0] - 3 && sinirKare[2] <= bb[2] + 3 && sinirKare[1] >= bb[1] - 3 && sinirKare[3] <= bb[3] + 3;
+    return { n, secili, sinirKareIcinde: icinde };
+  }, gid);
+  ok('6a ölçüyü (yazısı dâhil) sıkıca çevreleyen pencere ölçüyü seçer — yazının bol sınır karesi pencereden taşsa da', r.secili === 4 && !r.sinirKareIcinde, J(r));
+}
+{
+  const r = await ev(() => {
+    const T = window.dwgApp.editor.tools;
+    const ortak = { t: 'LINE', h: '2F' }, x1 = { t: 'LINE', h: '2F' }, x2 = { t: 'LINE', h: '2F' };
+    const host = { key: 'host', info: ortak, k: 0 }, a = { key: 'XA#0', xref: 'A', info: x1, k: 0 }, a2 = { key: 'XA#1', xref: 'A', info: x1, k: 0 }, b = { key: 'XA#9', xref: 'A', info: x2, k: 0 };
+    return { host: T.objKey(host), a: T.objKey(a), a2: T.objKey(a2), b: T.objKey(b), say: T.objCount([host, a, a2, b]) };
+  });
+  ok('6b XREF parçası ana çizimdeki aynı tanıtıcılı nesneyle ve öteki yerleştirmeyle AYNI nesne sayılmaz; aynı varlığın parçaları birlikte', r.host !== r.a && r.a === r.a2 && r.a !== r.b && r.say === 3, J(r));
+}
+{
+  const r = await ev(() => {
+    const E = window.dwgApp.editor, T = E.tools, ps = window.dwgApp.state.scene.layouts[0].prims;
+    const L = ps.find(p => p.info && p.info.t === 'LINE');
+    E.sel.clear(); E.sel.add(L);
+    const t0 = performance.now(); for (let i = 0; i < 2000; i++) T.groupOf(ps[i % ps.length]); const t1 = performance.now();
+    E.selAction('similar'); const t2 = performance.now();
+    const n = E.sel.size; E.sel.clear();
+    return { grup2000: Math.round(t1 - t0), benzer: Math.round(t2 - t1), n, N: ps.length };
+  });
+  ok('6c nesne dizini: 2000 groupOf çağrısı ve "Benzerini seç" hızlı (dizin bir kez kurulur)', r.grup2000 < 400 && r.benzer < 1500 && r.n > 1, J(r));
+}
+await temiz();
+await arac('t:select');
+{
+  // ölçüyü seç (çizgisine dokun), hemen ardından YAZISINA dokun: yazı tutamağına denk gelir ama çift dokunuştur
+  const txt = await ev((g) => { const t = window.dwgApp.state.scene.layouts[0].prims.find(p => p.info && p.info.gid === g && p.k === 1); const gi = window.dwgApp.editor.dimGripInfo(); return [t.x, t.y]; }, gid);
+  // yazı tutamağının yeri (ölçü seçiliyken) — sonra seçim bırakılır ve YAZIYA iki kez dokunulur
+  await tapWorld(800, 450);
+  const gi = await ev(() => { const g = window.dwgApp.editor.dimGripInfo(); return g ? g.world[g.ids.indexOf('tx')] : null; });
+  await ev(() => { window.dwgApp.editor.sel.clear(); window.dwgApp.editor.tools.say && window.dwgApp.editor.tools.say(); });
+  await bekle(400);
+  const [X, Y] = await ekran(gi[0], gi[1]);
+  await page.touchscreen.tap(X, Y); await bekle(110); await page.touchscreen.tap(X, Y); await bekle(400);
+  const bas = await kutuAcik();
+  ok('6d parmakla: ölçüyü seçen dokunuşun ardından yazı tutamağına ikinci dokunuş "Ölçü özellikleri"ni açar (sürükleme başlamaz)', /Ölçü özellikleri/.test(bas || ''), J({ bas, gi, txt }));
+  await kutuKapat();
+}
+await temiz();
+{
+  const r = await ev(async () => {
+    const E = window.dwgApp.editor, T = E.tools, S = window.dwgApp.state;
+    const p = S.scene.layouts[0].prims.find(q => q.info && q.info.h === '37E' && q.k !== 4);
+    const once = T.groupOf(p).length;
+    const inf = p.info;
+    const ids = T.groupOf(p).map(() => Math.random().toString(36).slice(2));
+    const ok1 = E.runCmd({ op: 'explode', h: inf.h, t: inf.t, ids });
+    const parca = S.scene.layouts[0].prims.find(q => q.key === ids[0]);
+    const sonra = parca ? T.groupOf(parca).length : null, tur = parca && parca.info.t;
+    const u = E.doc.undo();
+    const geri = T.groupOf(S.scene.layouts[0].prims.find(q => q.info && q.info.h === '37E' && q.k !== 4)).length;
+    return { once, ok1, sonra, geri, t: tur };
+  });
+  ok('6e dosyadaki çok parçalı nesne (ölçü 37E, 9 parça) parçalanır: her parça ayrı nesne; geri al bütünü geri getirir', r.once === 9 && r.ok1 && r.sonra === 1 && r.geri === 9 && r.t !== 'DIMENSION', J(r));
+}
 await page.screenshot({ path: `${out}/olcu_secim.png` });
 C.summary(errors);
 await browser.close(); try { srv.close && srv.close(); } catch (_) { /* geç */ }

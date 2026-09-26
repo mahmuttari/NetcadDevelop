@@ -20,6 +20,23 @@ import { dimLinear, dimRadial, dimAngular, leaderEnts, cloudEnt, balloonEnts, ar
 import { cmdOf } from './acad.js';
 import { constrain as deskConstrain } from './desktop.js';
 
+/** XREF ilkellerinin nesne kimliği: ortak bilgi nesnesine verilen sıra numarası (bkz. objKey) */
+const XREF_KIMLIK = new WeakMap();
+let xrefSayac = 0;
+/*
+ * YAZININ GERÇEK KÖŞELERİ (pencere seçimi için). Yazı ilkelinin sınır kutusu, döndürmeye dayanıklı olsun diye ekleme
+ * noktası çevresinde bol bir karedir; pencere "bütün parçalar içeride" kuralıyla bu kareye bakınca ölçüyü sıkıca çevreleyen
+ * pencere hiçbir şey seçmiyordu. Burada yazının hizası (ha / va), satır sayısı ve açısıyla dar dörtgeni kurulur.
+ */
+function metinKoseleri(p) {
+  const h = p.h > 0 ? p.h : 1, lines = Array.isArray(p.lines) && p.lines.length ? p.lines : [''];
+  const w = 0.6 * h * Math.max(1, ...lines.map(l => String(l).length)) * (p.ws > 0 ? p.ws : 1);
+  const x0 = p.ha === 1 || p.ha === 4 ? -w / 2 : p.ha === 2 ? -w : 0;
+  const yUst = p.va === 3 ? 0 : p.va === 2 ? h / 2 : h, yAlt = yUst - h - (lines.length - 1) * h * 1.667;
+  const c = Math.cos(p.rot || 0), sn = Math.sin(p.rot || 0);
+  return [[x0, yAlt], [x0 + w, yAlt], [x0 + w, yUst], [x0, yUst]].map(([x, y]) => [p.x + x * c - y * sn, p.y + x * sn + y * c]);
+}
+
 const R2D = 180 / Math.PI, D2R = Math.PI / 180;
 
 export const TOOLS = {
@@ -558,11 +575,22 @@ export class ToolManager {
     }
     const inf = p.info;
     if (act === 'explode') {
-      if (!inf || inf.t !== 'INSERT') { A.toast(t('notBlock')); return; }
-      const group = A.allPrims().filter(q => q.info && q.info.h === inf.h && q.info.t === 'INSERT');
-      if (!group.length) { A.toast(t('notBlock')); return; }
+      if (inf && inf.t === 'INSERT') {
+        const group = A.allPrims().filter(q => q.info && q.info.h === inf.h && q.info.t === 'INSERT');
+        if (!group.length) { A.toast(t('notBlock')); return; }
+        const ids = group.map(() => newId());
+        if (A.run({ op: 'explode', h: inf.h, ids })) { A.toast(t('exploded') + ' \u00b7 ' + group.length); A.render(); }
+        return;
+      }
+      /*
+       * Dosyadan gelen ÇOK PARÇALI nesne (ölçü, tablo, çoklu kılavuz, MLINE, kalınlıklı polyline, ağ…) AutoCAD'deki gibi
+       * parçalanır: her parça kendi nesnesi olur. Nesne kimliği tanıtıcıya bağlandığından (objKey) bu olmadan tek bir tablo
+       * çizgisi ayrıca silinip boyanamazdı.
+       */
+      const group = inf && inf.h != null && !inf.gid && !p.xref ? A.allPrims().filter(q => q.info && q.info.h === inf.h && !q.info.gid && q.k !== 4) : [];
+      if (group.length < 2) { A.toast(t('notBlock')); return; }
       const ids = group.map(() => newId());
-      if (A.run({ op: 'explode', h: inf.h, ids })) { A.toast(t('exploded') + ' \u00b7 ' + group.length); A.render(); }
+      if (A.run({ op: 'explode', h: inf.h, t: inf.t, ids })) { A.toast(t('exploded') + ' \u00b7 ' + group.length); A.render(); }
       return;
     }
     if (act === 'attr') {
@@ -1725,13 +1753,35 @@ export class ToolManager {
    * anahtarı. Dokunuşla seçim, pencere / kesen seçim ve kullanıcıya gösterilen bütün sayılar ("[1 seçili]", rozet, menü
    * başlığı) bu tek işlevden geçer: 4 parçalı ölçü "4 seçili" görünmez, pencere onu parçalayamaz.
    */
-  objKey(p) { const i = p && p.info; return i && i.gid ? 'g:' + i.gid : i && i.h != null ? 'h:' + i.h : 'p:' + (p && p.key); }
+  objKey(p) {
+    const i = p && p.info;
+    // Dış referans (XREF) ilkelleri: tanıtıcı XREF DOSYASININ tanıtıcısıdır, ana çizimle ve aynı XREF'in öteki
+    // yerleştirmeleriyle çakışır. Kimlik, sahnenin varlık başına bir tane kurduğu ORTAK BİLGİ NESNESİdir
+    // (her yerleştirmede yeniden kurulur): aynı varlığın parçaları birlikte, ötekiler ayrı.
+    if (p && p.xref && i) { let id = XREF_KIMLIK.get(i); if (id == null) XREF_KIMLIK.set(i, id = ++xrefSayac); return 'x:' + id; }
+    return i && i.gid ? 'g:' + i.gid : i && i.h != null ? 'h:' + i.h : 'p:' + (p && p.key);
+  }
   objCount(iter) { const s = new Set(); for (const p of iter || []) if (p && p.k !== 4) s.add(this.objKey(p)); return s.size; }
+  /*
+   * NESNE DİZİNİ: nesne anahtarı → parçalar, bütün çizim için TEK geçişte kurulur ve belge değişene kadar saklanır.
+   * groupOf eskiden her çağrıda bütün çizimi tarıyordu; "Benzerini seç" 5.000 eşleşmede 100.000 ilkeli 5.000 kez
+   * tarıyor, telefonda uygulamayı dondururdu. Dizin ilkel dizisi, uzunluğu ve belgenin değişiklik sayacı değişince tazelenir.
+   */
+  grupDizini() {
+    const A = this.api, ps = A.sahneIlkelleri ? A.sahneIlkelleri() : A.visiblePrims(), dm = A.duzenDamgasi ? A.duzenDamgasi() : null;
+    const c = this._gd;
+    if (c && c.ps === ps && c.n === ps.length && c.d0 === (dm && dm[0]) && c.d1 === (dm && dm[1])) return c.map;
+    const map = new Map();
+    for (const q of ps) { if (!q || q.k === 4) continue; const k = this.objKey(q); if (k.charCodeAt(0) === 112 /* p */) continue; let a = map.get(k); if (!a) map.set(k, a = []); a.push(q); }
+    this._gd = { ps, n: ps.length, d0: dm && dm[0], d1: dm && dm[1], map };
+    return map;
+  }
   groupOf(p) {
     const k = this.objKey(p);
     if (k.startsWith('p:')) return [p];
-    // ekleme noktası işareti (k=4) nesneye sayılmaz ve seçilmez (AutoCAD'de de yerleştirme tek nesnedir)
-    const g = this.api.visiblePrims().filter(q => q.k !== 4 && this.objKey(q) === k);
+    // ekleme noktası işareti (k=4) nesneye sayılmaz ve seçilmez (AutoCAD'de de yerleştirme tek nesnedir); gizli
+    // (katmanı kapalı / nesne gizli) parça seçilmez
+    const A = this.api, g = (this.grupDizini().get(k) || []).filter(q => (A.gorunur ? A.gorunur(q) : true));
     return g.length ? g : [p];
   }
   /** Aynala: "Orijinal kalsın" düğmesi — açıkken kopya (AutoCAD <N>), kapalıyken kaynak silinir (Yes) */
@@ -1750,7 +1800,11 @@ export class ToolManager {
     const G = new Map();
     for (const p of list) {
       if (p.k === 4 || p.inf || !p.bb || !isFinite(p.bb[0])) continue;
-      const hit = shape.rect ? (crossing ? primCrossesRect(p, shape.rect) : bboxInRect(p.bb, shape.rect)) : (crossing ? primCrossesPoly(p, shape.poly) : primInPoly(p, shape.poly));
+      let hit;
+      if (!crossing && p.k === 1 && typeof p.x === 'number') {   // pencere: yazının dar köşeleri (sınır karesi değil)
+        const K = metinKoseleri(p), r = shape.rect;
+        hit = r ? K.every(q => q[0] >= Math.min(r[0], r[2]) && q[0] <= Math.max(r[0], r[2]) && q[1] >= Math.min(r[1], r[3]) && q[1] <= Math.max(r[1], r[3])) : K.every(q => pointInPoly(q, shape.poly));
+      } else hit = shape.rect ? (crossing ? primCrossesRect(p, shape.rect) : bboxInRect(p.bb, shape.rect)) : (crossing ? primCrossesPoly(p, shape.poly) : primInPoly(p, shape.poly));
       const k = this.objKey(p);
       let g = G.get(k); if (!g) { g = { parts: [], any: false, all: true }; G.set(k, g); }
       g.parts.push(p); g.any = g.any || !!hit; g.all = g.all && !!hit;

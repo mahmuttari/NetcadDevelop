@@ -286,6 +286,10 @@ export function initEditor(a) {
     visiblePrims: () => S.prims.filter(p => !(S.layers.get(p.lay) && !S.layers.get(p.lay).visible) && objShown(p)),
     selectable: () => S.prims.filter(p => { const l = S.layers.get(p.lay); return !(l && (!l.visible || l.locked)) && objShown(p); }),   // bölge seçimi: görünür ve kilitsiz katmanlar
     allPrims: () => (S.scene ? S.scene.layouts[0].prims : []),
+    // nesne dizini (tools.grupDizini) için: görünürlük ve belge değişiklik damgası
+    gorunur: (p) => !(S.layers.get(p.lay) && !S.layers.get(p.lay).visible) && objShown(p),
+    sahneIlkelleri: () => S.prims || [],   // geçerli düzenin (model ya da kâğıt) ilkelleri — visiblePrims'in kaynağı
+    duzenDamgasi: () => [doc, doc ? doc.ver : 0],
     // Ölçü özellikleri kutusu (v8.9.8): katman listesi, renk kareleri, bu çizimde yeni ölçülerin ayarları
     layerNames: () => [...S.layers.keys()].sort((a, b) => a.localeCompare(b, 'tr')),
     objCount: () => nesneSayisi(),
@@ -939,7 +943,7 @@ function toggleGrips() {
   if (ui.grips && ed.sel.size && [...ed.sel].every(p => p.info && p.info.t === 'DIMENSION')) { api.toast(t('gripsDim'), 2600); return; }
   // seçimde yol var ama düğüm çizilemiyor: nesne başına 200 / toplam 400 düğüm ya da 100 nesne sınırı. Sınırın kendisine
   // bakılır (gizmoVertLayout araç çalışırken / 3B'de / kutu kapalıyken de null döner; o durumlarda bu ileti yanlış olurdu)
-  if (ui.grips && [...ed.sel].some(p => p.k === 0 && !(p.info && p.info.t === 'DIMENSION')) && !Gz.vertsOfAll(ed.sel).length) { api.toast(t('gripsTooMany'), 2600); return; }
+  if (ui.grips && [...ed.sel].some(p => p.k === 0 && !(p.info && p.info.t === 'DIMENSION')) && !Gz.vertsOfAll(ed.sel, (ps) => tools.objCount(ps)).length) { api.toast(t('gripsTooMany'), 2600); return; }
   api.toast(ui.grips ? t('gripsOnMsg') : t('gripsOffMsg'), 1200);
 }
 /** F3 / durum çubuğu / şerit karosu: tek kaynak osnap.toggle (liste saklanır, açılınca geri gelir) */
@@ -1786,9 +1790,15 @@ function selAction(id) {
      */
     case 'explode': {
       if (!gate('t:explode') || !doc) return;
-      const hs = []; for (const p of ed.sel) { const i = p.info; if (i && i.t === 'INSERT' && i.h && !hs.includes(i.h)) hs.push(i.h); }
+      // blok yerleştirmeleri ve dosyadan gelen çok parçalı nesneler (ölçü, tablo, MLINE…: aynı tanıtıcılı birden çok parça)
+      const hs = [], cmds = [], prims = S.scene.layouts[0].prims;
+      for (const p of ed.sel) {
+        const i = p.info; if (!i || i.h == null || i.gid || p.xref || hs.includes(i.h)) continue;
+        if (i.t === 'INSERT') { hs.push(i.h); cmds.push({ op: 'explode', h: i.h, ids: prims.filter(q => q.info && q.info.h === i.h && q.info.t === 'INSERT').map(() => newId()) }); continue; }
+        const grp = prims.filter(q => q.info && q.info.h === i.h && q.info.t === i.t && !q.info.gid && q.k !== 4);
+        if (grp.length > 1) { hs.push(i.h); cmds.push({ op: 'explode', h: i.h, t: i.t, ids: grp.map(() => newId()) }); }
+      }
       if (!hs.length) { api.toast(t('notBlock')); return; }
-      const cmds = hs.map(h => ({ op: 'explode', h, ids: S.scene.layouts[0].prims.filter(q => q.info && q.info.h === h && q.info.t === 'INSERT').map(() => newId()) }));
       if (tools.running) { tools.cancel(); markActive(null); }
       ed.sel.clear();
       doc.run(cmds.length > 1 ? { op: 'group', cmds } : cmds[0]);
@@ -2650,7 +2660,7 @@ function gizmoLayout() {
  */
 function gizmoVertLayout() {
   if (!ui.grips || !gizmoOn() || !ed.sel.size) return null;
-  const verts = Gz.vertsOfAll(ed.sel);
+  const verts = Gz.vertsOfAll(ed.sel, (ps) => tools.objCount(ps));
   if (!verts.length) return null;
   const VL = Gz.layoutVerts(verts, toScreen, { fs: ui.fontScale, glove: ui.glove });
   return VL ? { verts, VL } : null;
@@ -2821,6 +2831,9 @@ ed.gizmoDown = (sx, sy, o = {}) => {
       const i = DG.hitGrip(sx, sy, DGL);
       if (i >= 0) {
         if (!gate('t:dimedit')) return true;
+        // ölçüyü SEÇEN dokunuşun hemen ardından aynı yere ikinci dokunuş (yazı / uç tutamağına denk gelse de) çift
+        // dokunuştur: tutamak sürüklemesi başlamaz, ölçü özellikleri açılır
+        if (o.ciftDokunus) { giz = null; dgSonDokunus = null; haptic('snap'); void tools.editDims([...ed.sel]); return true; }
         const gr = DGL.grips[i];
         giz = { kind: 'dim', id: gr.id, i, T: DGL.T, g0: [gr.x, gr.y, gr.z], s0: [sx, sy], w0: toWorld(sx, sy), moved: false, def: null, built: null, prev: null, sn: null, info: null };
         haptic('snap'); api.drawOverlay();
@@ -3324,14 +3337,20 @@ function bolgeBitir(d) {
   const izd = (x, y, z) => { const q = v3.project(x, y, z); return q && q[2] >= -1 && q[2] <= 1 ? q : null; };
   const res = regionPick3(model.prims, izd, shape, { crossing: d.crossing === true, visible: bolgeUygun });
   // 2B'deki kural: pencere nesnenin bütün (görünür) parçalarını ister, kesen tek parçayla bütün nesneyi alır
+  // Gruplar BÜTÜN görünür parçalardan kurulur (yazı, nokta dâhil); isabet yalnız 3B'de sınanabilen parçalarla (çizgi / ağ)
+  // değerlendirilir. 3B'de sınanamayan parçalar (yazı, nokta, elips yolu) pencere kuralında tarafsızdır ama grup seçilince eklenir.
   const vur = new Set(res.prims), grup = new Map();
+  const sinanir = (p) => bolgeUygun(p) && !(p.k === 0 && Array.isArray(p.ops) && p.ops.some(o => o[0] === 3));
   for (const p of model.prims) {
-    if (p.k === 4 || !bolgeUygun(p)) continue;
-    const k = tools.objKey(p); let g = grup.get(k); if (!g) { g = { parts: [], any: false, all: true }; grup.set(k, g); }
-    g.parts.push(p); const h = vur.has(p); g.any = g.any || h; g.all = g.all && h;
+    if (!p || p.k === 4 || p.inf || !objShown(p)) continue;
+    const L = S.layers.get(p.lay); if (L && !L.visible) continue;
+    const k = tools.objKey(p); let g = grup.get(k); if (!g) { g = { parts: [], any: false, all: true, sinanan: 0 }; grup.set(k, g); }
+    g.parts.push(p);
+    if (sinanir(p)) { const h = vur.has(p); g.sinanan++; g.any = g.any || h; g.all = g.all && h; }
+    else if (vur.has(p)) g.any = true;
   }
   const added = [];
-  for (const g of grup.values()) if (d.crossing === true ? g.any : g.all) for (const p of g.parts) if (!ed.sel.has(p)) { ed.sel.add(p); added.push(p); }
+  for (const g of grup.values()) if (d.crossing === true ? g.any : (g.sinanan > 0 && g.all)) for (const p of g.parts) if (!ed.sel.has(p)) { ed.sel.add(p); added.push(p); }
   const n = nesneSayisi(added);
   api.toast(n ? `${n} ${t('selectedN')}` : t('selRegionNone'), 1400);
   if (n) haptic('snap');
@@ -3871,7 +3890,7 @@ function prompt3D() {
       : `${t('geo3Pick')} [${m.pts.length}/${m.need}]`)
     : m.name === 'note' ? t('p3Note')
       : {
-        select: `${t('p3Select')} [${ed.sel.size} ${t('selCount')}] · ${m.selMode === 'lasso' ? t('selLassoHint') : m.selMode === 'box' ? t('selBoxHint') : `\u2192 ${t('selWindowLbl')}  \u2190 ${t('selCrossingLbl')}`}`,
+        select: `${t('p3Select')} [${nesneSayisi()} ${t('selCount')}] · ${m.selMode === 'lasso' ? t('selLassoHint') : m.selMode === 'box' ? t('selBoxHint') : `\u2192 ${t('selWindowLbl')}  \u2190 ${t('selCrossingLbl')}`}`,
         dist: m.pts.length ? t('p3Dist2') : t('p3Dist1'),
         move: m.pts.length ? t('p3Move2') : t('p3Move1'),
         copy: m.pts.length ? t('p3Copy2') : t('p3Copy1'),

@@ -357,8 +357,12 @@ export class SceneBuilder {
       inf.dim = { type: (e.dimensionType | 0) & 15, meas: e.measurement, p1: P(e.subDefinitionPoint1), p2: P(e.subDefinitionPoint2), d: P(e.definitionPoint), cp: P(e.centerPoint), tp: P(e.textPoint), rot: e.rotationAngle || 0, x1s: P(e.xline1Start), x1e: P(e.xline1End), x2s: P(e.xline2Start),
         // yazı geçersiz kılması biçim kodlarından arındırılır (\\A1; gibi), "<>" ölçülen değer yer tutucusu kalır
         ov: e.text && e.text !== '<>' ? textPlain(e.text) : '',
+        // ham yazı ve 70 bayrakları (uygulamanın XDATA tanımı hâlâ geçerli mi: dimAppDef; 128 = yazı elle taşınmış)
+        raw: typeof e.text === 'string' ? e.text : '', fl: e.dimensionType | 0,
         // etkin stil: yazı yüksekliği, ok boyu, uzatma boşluğu / taşması (DIMSCALE uygulanmış), ondalıklar, çarpan, ön / son ek
         sty: { txt: ds.DIMTXT * k, asz: (ds.DIMTSZ > 0 ? 0 : ds.DIMASZ) * k, exo: ds.DIMEXO * k, exe: ds.DIMEXE * k,
+          // çizgi işaretli ölçü (DIMTSZ), yazı boşluğu ve yazı konumu: DXF'e geçirilirken AutoCAD'in yeniden kurması bozulmasın
+          ...(ds.DIMTSZ > 0 ? { tsz: ds.DIMTSZ * k } : {}), gap: ds.DIMGAP * k, tad: ds.DIMTAD | 0,
           dec: known('DIMDEC', 'number') ? ds.DIMDEC : undefined, adec: known('DIMADEC', 'number') ? ds.DIMADEC : -1,
           lfac: known('DIMLFAC', 'number') ? ds.DIMLFAC : undefined, post: known('DIMPOST', 'string') ? ds.DIMPOST : '',
           // ondalık ayırıcı da yalnız dosyada yazılıysa (yoksa 46 '.' öntanımlısı Türkçe arayüzde ölçüyü noktalı yazdırırdı); DWG tablosu karakter verir
@@ -369,7 +373,8 @@ export class SceneBuilder {
         inf.dim.app = app;
         // BENİMSEME: tanım hâlâ geçerliyse ölçü uygulama ölçüsü gibi davranır — grup kimliği (gid) ve tanım taşıyan parça
         // (entity() DIMENSION dalı) sayesinde taşıma / kopya / dizi / ayna tanımı da dönüştürür, düzenleme tanımdan kurar
-        if (dimAppDef(inf.dim)) inf.gid = 'D' + e.handle;
+        // dış referansta benimsenmez: tanım XREF'in kendi koordinatlarındadır ve her yerleştirme aynı kimliği alırdı
+        if (!this.opts.xref && dimAppDef(inf.dim)) inf.gid = 'D' + e.handle;
       }
     }
     if (e.type === 'TEXT' || e.type === 'MTEXT') { inf.text = textPlain(e.text); inf.style = e.styleName; }
@@ -809,7 +814,7 @@ export class SceneBuilder {
           const ip = e.insertionPoint, m = ip && (ip.x || ip.y) ? mul(ctx.m, [1, 0, 0, 1, ip.x, ip.y]) : ctx.m;
           const i0 = this.prims.length;
           this.block(blk, { ...ctx, m, layer: e.layer, color: st.col, lt: st.ltName, lw: st.lw, depth: ctx.depth + 1, info });
-          if (!ctx.info && info.gid && info.dim && info.dim.app) {
+          if (!ctx.info && info.gid && info.dim && info.dim.app && isIdent(ctx.m)) {
             const core = this.prims.slice(i0).find(p => p.k === 0 && !p.fill && p.info === info), f = dimDxf(info.dim.app);
             if (core && f) { core.ent = { type: 'DIMENSION', gid: info.gid, def: JSON.parse(JSON.stringify(info.dim.app)), measure: info.dim.app.kind === 'angular' ? f.meas * 180 / Math.PI : f.meas }; core.et = 'DIMENSION'; }   // et: pano / blok (primToEnt itype) ölçü çekirdeğini tanısın
             else delete info.gid;

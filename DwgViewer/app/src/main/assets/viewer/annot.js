@@ -168,7 +168,9 @@ export function dimAngular(v, a, b, o) {
   const p1 = [v[0] + d2[0] * r, v[1] + d2[1] * r, z];
   // yay, ops biçiminde tek parça olarak DIMENSION varlığına verilir
   const ccw = sweep > 0;
-  const arcOp = [ccw ? 2 : -2, v[0], v[1], r, ccw ? a0 : a1, ccw ? a1 : a0, z];
+  // [2, …, s, e] s'den e'ye saat yönünün TERSİNE, [-2, …, s, e] saat yönünde gider. Saat yönündeki seçimde eskiden hem
+  // işaret hem uçlar değiştiriliyordu: iki ters çevirme uzun yayı (270°) çiziyor, yazı "90°" diyordu
+  const arcOp = [ccw ? 2 : -2, v[0], v[1], r, a0, a1, z];
   const ext = o.ext >= 0 ? o.ext : h * 0.5;                        // kolların yayı aşan taşması (DIMEXE)
   const arm = (d) => [[v[0], v[1], z], [v[0] + d[0] * (r + ext), v[1] + d[1] * (r + ext), z]];
   const segs = [arm(d1), arm(d2)];
@@ -472,20 +474,44 @@ export function dimDxf(def) {
     while (sw <= -Math.PI) sw += TAU;
     while (sw > Math.PI) sw -= TAU;
     const am = a0 + sw / 2;
-    return { type: 5, p10: [v[0] + Math.cos(am) * r, v[1] + Math.sin(am) * r, v[2]], p13: a, p14: b, p15: v, meas: Math.abs(sw) };
+    // DXF'te açı 13'ten 14'e saat yönünün TERSİNE ölçülür (ezdxf, AutoCAD): saat yönündeki seçimde kollar yer değiştirir
+    return { type: 5, p10: [v[0] + Math.cos(am) * r, v[1] + Math.sin(am) * r, v[2]], p13: sw < 0 ? b : a, p14: sw < 0 ? a : b, p15: v, meas: Math.abs(sw) };
   }
   return null;
 }
 /** AC1015 DXF dizgisi: MTEXT kaçışları (\\ { }) ve ASCII dışı karakter \U+XXXX (dxf.js unescapeText / scene.mtextLines ikisini de çözer) */
-export const dxfText = (s) => String(s == null ? '' : s).replace(/[\\{}]/g, c => '\\' + c).replace(/[^\x20-\x7e]/g, c => '\\U+' + c.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0'));
+export const dxfText = (s) => String(s == null ? '' : s).replace(/[\\{}]/g, c => '\\' + c).replace(/\r?\n/g, '\\P').replace(/[^\x20-\x7e]/g, c => '\\U+' + c.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0'));   // satır sonu MTEXT \P (ham satır sonu DXF'in kod/değer satırlarını bozardı)
 /** Uygulama XDATA'sı: tanımın tamamı JSON, boşluksuz ve ASCII (dxf.js değeri kırpar), 240 karakterlik 1000 parçaları */
 export function dimXdataEncode(def) {
-  const json = JSON.stringify({ v: 1, def }).replace(/[^\x21-\x7e]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
+  // Veri içindeki ters bölü JSON'da "\\" olur; ardından "U+0041" gelirse dxf.js'in \U+ çözücüsü onu harfe çevirip JSON'u
+  // bozardı. Bu yüzden veri ters bölüsü \u005c yazılır (JSON'un öteki kaçışları — \" \n \u… — olduğu gibi kalır)
+  const json = JSON.stringify({ v: 1, def }).replace(/\\(.)/g, (m, c) => (c === '\\' ? '\\u005c' : m)).replace(/[^\x21-\x7e]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
   const out = [[1001, DIM_APP], [1000, 'DIMDEF'], [1070, 1]];
   for (let i = 0; i < json.length; i += 240) out.push([1000, json.slice(i, i + 240)]);
   return out;
 }
 const KINDS = new Set(['linear', 'radial', 'angular']);
+const SUBS = new Set(['aligned', 'horizontal', 'vertical', 'rotated', 'radius', 'diameter']);
+const sayi = (v, alt, ust) => typeof v === 'number' && isFinite(v) && v >= alt && v <= ust;
+const noktaGecerli = (q) => Array.isArray(q) && q.length >= 2 && q.length <= 3 && q.every(n => sayi(n, -1e15, 1e15));
+/*
+ * XDATA'daki tanım DOSYADAN gelir (güvenilmez): her alan türü ve aralığıyla denetlenir. Sayı olmayan bir dönüş açısı ya da
+ * sonsuz bir yükseklik NaN / Infinity karşılaştırmaları yanlış döndüğü için bayatlık denetimini geçiyor, ölçü düzenlenemez
+ * ve yeniden kaydedince DXF alanları sıfırlanırdı.
+ */
+function tanimGecerli(d) {
+  if (!d || typeof d !== 'object' || !KINDS.has(d.kind)) return false;
+  if (!Array.isArray(d.pts) || d.pts.length < 2 || d.pts.length > 4 || !d.pts.every(noktaGecerli)) return false;
+  if (d.sub != null && !SUBS.has(d.sub)) return false;
+  for (const k of ['h', 'arrow', 'r', 'scale', 'factor']) if (d[k] != null && !sayi(d[k], 1e-12, 1e12)) return false;
+  for (const k of ['exo', 'exe']) if (d[k] != null && !sayi(d[k], 0, 1e12)) return false;
+  if (d.rot != null && !sayi(d.rot, -1e3, 1e3)) return false;
+  if (d.prec != null && !sayi(d.prec, 0, 8)) return false;
+  if (d.dsep != null && !sayi(d.dsep, 0, 0xffff)) return false;
+  if (d.tp != null && !noktaGecerli(d.tp)) return false;
+  for (const k of ['text', 'prefix', 'suffix']) if (d[k] != null && !(typeof d[k] === 'string' && d[k].length <= 256)) return false;
+  return true;
+}
 /** e.xdata (dxf.js / libredwg biçimi) → tanım ya da null (bozuk, tanınmayan sürüm) */
 export function dimXdataDecode(xdata) {
   for (const x of xdata || []) {
@@ -497,8 +523,7 @@ export function dimXdataDecode(xdata) {
     for (let k = i + 2; k < vals.length && vals[k].code === 1000; k++) json += String(vals[k].value);
     try {
       const o = JSON.parse(json), d = o && o.def;
-      if (!d || !KINDS.has(d.kind) || !Array.isArray(d.pts) || !d.pts.every(q => Array.isArray(q) && q.length >= 2 && q.every(n => typeof n === 'number' && isFinite(n)))) continue;
-      return d;
+      if (tanimGecerli(d)) return d;
     } catch (_) { /* bozuk */ }
   }
   return null;
@@ -511,14 +536,34 @@ export function dimXdataDecode(xdata) {
 export function dimAppDef(d) {
   const a = d && d.app, f = dimDxf(a);
   if (!f || f.type !== d.type) return null;
-  const tol = 1e-5;
+  if (!(f.meas >= 0) || !isFinite(f.meas)) return null;
+  // karşılaştırmalar NaN'a dayanıklı yazılır: "farklı değilse" değil "eşitse" kabul
+  const tol = 1e-5, esit = (x, y) => Math.abs(x - y) <= 1e-9 * Math.max(1, Math.abs(y));
   for (const [q, r] of [[f.p10, d.d], [f.p13, d.p1], [f.p14, d.p2], [f.p15, d.cp]]) {
     if (!q) continue;
-    if (!r || Math.hypot(q[0] - r[0], q[1] - r[1]) > tol) return null;
+    if (!r || !(Math.hypot(q[0] - r[0], q[1] - r[1]) <= tol)) return null;
   }
-  const want = String(a.text || '').trim();
-  if ((d.ov || '') !== (want === '<>' ? '' : want)) return null;
-  const s = d.sty || {}, k = a.scale > 0 ? a.scale : 1, h = (a.h > 0 ? a.h : 2.5) * k;
-  if (s.txt > 0 && Math.abs(s.txt - h) > 1e-9 * Math.max(1, h)) return null;
+  // AutoCAD'de yazısı elle taşınmış ölçü (70 bit 128) tanımımızdan kurulamaz
+  if (typeof d.fl === 'number' && (d.fl & 128)) return null;
+  // yazı geçersiz kılması: ham DXF dizgisiyle karşılaştırılır (%%c, satır sonu, { } \ düz metne çevrilince eşleşmiyordu)
+  const want = String(a.text || '').trim(), wantOv = want === '<>' ? '' : want;
+  if (typeof d.raw === 'string') {
+    const kac = wantOv.replace(/[\\{}]/g, c => '\\' + c).replace(/\r?\n/g, '\\P');
+    if (d.raw.trim() !== kac && d.raw.trim() !== (want === '<>' ? '<>' : kac)) return null;
+  } else if ((d.ov || '') !== wantOv) return null;
+  // stil geçersiz kılmaları: yazıcının DSTYLE'a yazdığı her değer dosyadakiyle aynı olmalı — AutoCAD'de ok boyu, ondalık,
+  // çarpan ya da son ek değiştirilmişse tanım bayattır (yoksa bir sonraki kayıt o değişiklikleri geri alırdı)
+  const s = d.sty || {}, k = a.scale > 0 ? a.scale : 1, h0 = a.h > 0 ? a.h : 2.5, h = h0 * k;
+  if (s.txt > 0 && !esit(s.txt, h)) return null;
+  if (typeof s.asz === 'number' && !esit(s.asz, (a.arrow > 0 ? a.arrow : h0) * k)) return null;
+  if (typeof s.exo === 'number' && !esit(s.exo, (a.exo >= 0 ? a.exo : h0 * 0.25) * k)) return null;
+  if (typeof s.exe === 'number' && !esit(s.exe, (a.exe >= 0 ? a.exe : h0 * 0.5) * k)) return null;
+  const ang = a.kind === 'angular';
+  if (a.prec != null) { const fp = ang ? s.adec : s.dec; if (typeof fp === 'number' && fp >= 0 && fp !== (a.prec | 0)) return null; }
+  if (!ang) {
+    if (typeof s.lfac === 'number' && !esit(s.lfac, a.factor > 0 ? a.factor : 1)) return null;
+    if (typeof s.post === 'string' && s.post !== (a.prefix || '') + '<>' + (a.suffix || '')) return null;
+  }
+  if (a.dsep > 0 && s.dsep > 0 && (a.dsep | 0) !== (s.dsep | 0)) return null;
   return JSON.parse(JSON.stringify(a));
 }

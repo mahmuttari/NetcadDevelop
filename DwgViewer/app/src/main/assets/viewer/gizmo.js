@@ -117,9 +117,11 @@ export const GRIP_OBJ_LIMIT = 100, GRIP_VERT_LIMIT = 400;
  * Seçili yolların düğümleri TEK listede; her düğüm ilkelini (p) taşır. Toplam 400 düğüm ya da 100 nesne aşılırsa BOŞ dizi
  * döner; nesne başına 200'ü aşan yol atlanır (çağıran, liste boşsa 'gripsTooMany' der). Ölçü parçaları dışarıda kalır (tanımı bozulur).
  */
-export function vertsOfAll(prims) {
+export function vertsOfAll(prims, nesneSay) {
   const all = [...prims];
-  if (all.length > GRIP_OBJ_LIMIT) return [];   // AutoCAD GRIPOBJLIMIT gibi seçimin TAMAMI sayılır (yazı, nokta, blok dâhil)
+  // AutoCAD GRIPOBJLIMIT gibi seçimin TAMAMI sayılır (yazı, nokta, blok dâhil) — NESNE olarak: çok parçalı tek nesne
+  // (kalınlıklı polyline, ağ) parça sayısıyla sınırı aşmasın
+  if ((typeof nesneSay === 'function' ? nesneSay(all) : all.length) > GRIP_OBJ_LIMIT) return [];
   const list = all.filter(p => p && p.k === 0 && !(p.info && (p.info.t === 'DIMENSION' || p.info.t === 'INSERT')));   // blok yerleştirmesinin geometrisi düğümden değişmez (BEDIT / REFEDIT ile)
   if (!list.length) return [];
   const out = [];

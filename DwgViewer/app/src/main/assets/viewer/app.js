@@ -1433,7 +1433,9 @@ vp.addEventListener('pointerdown', (ev) => {
     }
     // Seçim tutamağı: parmak bir tutamağa indiyse jest kaydırmaya değil dönüşüme gider. "Kalem çizer, parmak gezinir"
     // kipinde de tutamak sürüklenir (açık hedef), yalnız bölge seçimi ve örtük pencere parmağa kapalı kalır.
-    if (edCall('gizmoDown', sx, sy, { handlesOnly: navOnly })) {
+    const ciftDokunus = !!(lastTapPos && performance.now() - lastTap < TOL.dbl && Math.hypot(lastTapPos[0] - sx, lastTapPos[1] - sy) < 30 && !S.notesOn);
+    if (edCall('gizmoDown', sx, sy, { handlesOnly: navOnly, ciftDokunus })) {
+      if (ciftDokunus) { lastTap = 0; lastTapPos = null; }
       gesture = { type: 'gizmo', sx, sy }; S.gestureActive = true;
       /*
        * TUTAMAĞIN ÜSTÜNDE UZUN BASIŞ DA MENÜYÜ AÇAR. Seçim kutusunun TAŞIMA tutamağı kutunun tam
