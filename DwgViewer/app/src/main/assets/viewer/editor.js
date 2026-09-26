@@ -216,6 +216,8 @@ function registerTiles() {
 }
 registerTiles();
 const tileLabel = (act) => { const it = TILE[act]; return it ? tt('tl_' + act, it.tr) : act; };
+/** "1 object" / "3 objects": tekil-çoğul ayrımı olan dillerde doğru biçim (EN 'Selection · 1 objects' yazıyordu) */
+const nesneSay = (n) => `${n} ${n === 1 ? t('objectN') : t('objectsN')}`;
 const tileHint = (act) => { const it = TILE[act]; return it ? tt('th_' + act, it.htr) : ''; };
 /** Açılır kutu başlığı: İngilizce karo etiketi komut adıdır (VISUALSTYLES); başlıkta okunur ad (Visual styles) durur */
 const tileName = (act) => { const it = TILE[act], l = tileLabel(act); return it && it.en && l === cmdOf(act) ? it.en : l; };
@@ -1556,7 +1558,7 @@ function showProps(all) {
   }
   if (same && (first.info && first.info.t === 'DIMENSION')) rows.push([`<div class="full btns"><button class="btn small" id="pDim">${esc(t('dimSelMenu'))}</button></div>`]);
   rows.push([`<div class="full btns"><button class="btn primary small" id="pOk">${esc(t('apply'))}</button></div>`]);
-  api.openDoc(`${t('propsTitle')} (${ed.sel.size} ${t('objectsN')})`, api.kv(rows));
+  api.openDoc(`${t('propsTitle')} (${nesneSay(ed.sel.size)})`, api.kv(rows));
   let ci = null;
   $('docBody').onclick = (ev) => { const b = ev.target.closest('[data-ci]'); if (b) { ci = Number(b.dataset.ci); document.querySelectorAll('#docBody [data-ci]').forEach(x => x.classList.toggle('active', x === b)); } };
   $('pType').onchange = () => {
@@ -1626,7 +1628,7 @@ function selMenu() {
   let items = selDimPrim() ? [...SEL_MENU.slice(0, 10), ['dimedit', 'i-dimedit'], ...SEL_MENU.slice(10)] : SEL_MENU;
   // seçimde blok yerleştirmesi varsa "Blok düzenle" kartı da gelir (Özellikler'in önünde)
   if ([...ed.sel].some(p => p.info && p.info.t === 'INSERT' && p.info.name)) { const i = items.findIndex(x => x[0] === 'props'); items = [...items.slice(0, i), ['bedit', 'i-bedit'], ...items.slice(i)]; }
-  api.openDoc(`${t('selMenuTitle')} · ${ed.sel.size} ${t('objectsN')}`,
+  api.openDoc(`${t('selMenuTitle')} · ${nesneSay(ed.sel.size)}`,
     `<div class="full os-grid sel-grid">${items.map(([id, ic]) => `<button type="button" class="os-card" data-sm="${id}"><svg class="ic" aria-hidden="true"><use href="#${ic}"/></svg><span>${esc(selMenuLabel(id))}</span></button>`).join('')}</div>`);
   $('docBody').onclick = (ev) => { const b = ev.target.closest('[data-sm]'); if (!b) return; api.hide('docPanel'); selAction(b.dataset.sm); };
 }

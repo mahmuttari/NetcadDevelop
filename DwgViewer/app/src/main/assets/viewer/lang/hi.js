@@ -110,7 +110,7 @@ export default {
   aboutKeys: 'कुंजीपटल', aboutKeysText: '+ / − ज़ूम · F फ़िट · Home मुख्य दृश्य · PgUp/PgDn दृश्य इतिहास · तीर खिसकाव (Shift सूक्ष्म) · Z खिड़की · G ग्रिड · D प्रदर्शन विकल्प · Enter समाप्त · Esc वापस · Del हटाएँ · Ctrl+Z / Ctrl+Y पूर्ववत / पुनः',
   aboutThirdParty: 'तृतीय पक्ष', aboutThirdPartyText: 'LibreDWG (GPL-3.0) · @mlightcad/libredwg-web (GPL-3.0) · jsQR (Apache-2.0) · junrar (MIT) · AndroidX (Apache-2.0)', aboutLicense: 'लाइसेंस', aboutLicenseText: 'ऐप का स्रोत कोड GNU GPL-3.0 के अंतर्गत वितरित है (LibreDWG की आवश्यकता के अनुसार)।',
   ctx3Restored: '3D दृश्य पुनर्स्थापित', planOrthoMsg: 'योजना दृश्य अनंत ऊँचाई से देखता है: प्रक्षेप समांतर कर दिया गया।', ctx3Lost: '3D ग्राफ़िक्स ड्राइवर ने मेमोरी वापस ले ली; दृश्य फिर से बनाया जा रहा है…', noHome: 'कोई मुख्य दृश्य सहेजा नहीं गया; दृश्य › मुख्य दृश्य तय करें', silByStyle: 'इस शैली में बाह्य रेखाएँ शामिल हैं; बंद करने के लिए दूसरी शैली चुनें', editsApplied: 'सहेजे गए संपादन लागू किए गए', modelOnly: 'संपादन केवल मॉडल स्थान में संभव है।', undone: 'पूर्ववत किया गया', redone: 'पुनः किया गया', measureResult: 'माप',
-  newLayer: 'नई लेयर', layerNamePh: 'नाम', colorPh: 'रंग 1-255', createLayer: 'लेयर बनाएँ', layerCreated: 'लेयर बन गई', layerExists: 'लेयर पहले से है', curColor: 'वर्तमान रंग', colorHint: 'K = लेयर अनुसार। ACI संख्या:', fromLayerLc: 'लेयर अनुसार', selectFirstQ: 'पहले «चुनें» से वस्तुएँ चुनें।', propsTitle: 'गुणधर्म', objectsN: 'वस्तुएँ', propsApplied: 'गुणधर्म लागू किए गए',
+  newLayer: 'नई लेयर', layerNamePh: 'नाम', colorPh: 'रंग 1-255', createLayer: 'लेयर बनाएँ', layerCreated: 'लेयर बन गई', layerExists: 'लेयर पहले से है', curColor: 'वर्तमान रंग', colorHint: 'K = लेयर अनुसार। ACI संख्या:', fromLayerLc: 'लेयर अनुसार', selectFirstQ: 'पहले «चुनें» से वस्तुएँ चुनें।', propsTitle: 'गुणधर्म', objectsN: 'वस्तुएँ', objectN: 'वस्तु', propsApplied: 'गुणधर्म लागू किए गए',
   noChanges: 'सहेजने के लिए कोई बदलाव नहीं।', dxfSaved: 'DXF सहेजा गया', dxfFail: 'DXF सहेजा नहीं जा सका', v3Fail: '3D दृश्य नहीं खुल सका', tapVertex: 'किसी शीर्ष पर टैप करें (शीर्ष स्नैप होते हैं)', dist3: '3D दूरी', horizontal: 'क्षैतिज', point1: 'बिंदु 1', point2: 'बिंदु 2', moved: 'खिसकाया गया', select3First: 'पहले वस्तुएँ चुनें (3D › चुनें)।', zSet: 'तल-ऊँचाई तय हुई', zPrompt: 'तल-ऊँचाई (Z):',
   p3Select: 'चुनें: शीर्षों पर टैप करें', p3Dist1: '3D दूरी: पहला शीर्ष', p3Dist2: '3D दूरी: दूसरा शीर्ष', p3Move1: 'खिसकाएँ: आधार शीर्ष', p3Move2: 'खिसकाएँ: लक्ष्य शीर्ष', p3Pline: '3D पॉलीलाइन: शीर्षों पर टैप करें या x,y,z भरें', pointsN: 'बिंदु', finishBtn: '✓ समाप्त', backBtn: '↶ वापस', cancelBtn: '✕ रद्द', pline3Added: '3D पॉलीलाइन जोड़ी गई', typeXyz: 'x,y,z भरें', selCount: 'चयनित',
   numberExpected: 'संख्या अपेक्षित है', coordFormat: 'निर्देशांक प्रारूप: x,y | x,y,z | @dx,dy | @L<कोण', noObject: 'कोई वस्तु नहीं मिली', notCircle: 'यह वृत्त या चाप नहीं है', notText: 'यह पाठ नहीं है', textPrompt: 'पाठ:', textHeightPrompt: 'पाठ की ऊँचाई:', pointZ: 'बिंदु की तल-ऊँचाई (Z):', typeFactor: 'गुणक भरें', typeZ: 'तल-ऊँचाई भरें', typeDist: 'दूरी भरें', factorPositive: 'गुणक 0 से बड़ा होना चाहिए', collinear: 'बिंदु एक ही रेखा पर हैं',
@@ -531,13 +531,13 @@ export default {
   'th_t:trim': 'पहले स्क्रीन या माप पूछता है: काटने का किनारा + हिस्सा, या सिरे से लिखी लंबाई काटें', 'tl_t:extend': 'बढ़ाएँ', 'th_t:extend': 'पहले स्क्रीन या माप पूछता है: सीमा + सिरा, या सिरे को लिखी लंबाई से बढ़ाएँ',
   'tl_t:fillet': 'गोलाई', 'th_t:fillet': 'पहले स्क्रीन या माप पूछता है: चाप कहाँ से गुज़रे या लिखी त्रिज्या, फिर दो रेखाएँ', 'tl_t:chamfer': 'चैम्फर',
   'th_t:chamfer': 'पहले स्क्रीन या माप पूछता है: चैम्फ़र कहाँ से गुज़रे या लिखी दूरी, फिर दो रेखाएँ',
-  // kalem (S Pen · Apple Pencil · genel Android kalemleri)
+  // kalem (S Pen · genel Android kalemleri; Apple Pencil yalnız iPad'de çalışır, anılmaz)
   penTitle: 'स्टाइलस', penFound: 'स्टाइलस मिला', penNotFound: 'अभी तक कोई स्टाइलस नहीं मिला — पेन से एक बार छुएँ',
   penPressureOk: 'दबाव समर्थित है', penPalmDropped: '%s हथेली स्पर्श अस्वीकृत', palmReject: 'हथेली अस्वीकृति (पेन लगे रहने पर स्पर्श अनदेखा करें)',
   penHover: 'हवा में पूर्वावलोकन (छूने से पहले स्थिति और स्नैप)', penDraw: 'पेन बनाता है, उँगली चलाती है', penPressure: 'दबाव के अनुसार रेखा मोटाई (नोट्स में)',
   penBarrel: 'साइड बटन का काम', penAct_menu: 'मेनू', penAct_erase: 'मिटाएँ',
   penAct_snap: 'स्नैप', penAct_undo: 'पूर्ववत', penAct_none: 'कोई नहीं',
-  penHint: 'पेन को उलट दें: रबर सिरा वस्तुएँ मिटाता है। S Pen, Apple Pencil और सामान्य Android स्टाइलस समर्थित हैं।',
+  penHint: 'पेन को उलट दें: रबर सिरा वस्तुएँ मिटाता है। S Pen और सामान्य Android स्टाइलस समर्थित हैं।',
   // AutoCAD komut satırı
   cmdPrompt: 'कमांड:', cmdPh: 'कमांड लिखें (LINE, TR, F…)', cmdUnknown: '%s: अज्ञात कमांड', cmdKnown: 'पहचाना गया, अभी उपलब्ध नहीं', cmdNotAvail: '%s: यह AutoCAD कमांड इस ऐप में उपलब्ध नहीं है',
   cmdLineOn: 'कमांड लाइन (AutoCAD कमांड नाम)', cmdHelp: 'कमांड सूची', cmdAcad: 'AutoCAD कमांड',

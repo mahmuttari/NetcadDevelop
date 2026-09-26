@@ -523,6 +523,8 @@ body.glove .ask-field .opt-text { min-height: 52px; }
 .menu button.accent svg.ic { color: var(--accent); }
 .notesbar { position: absolute; left: 8px; right: 8px; bottom: 44px; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; padding: 6px; background: var(--panel);
   border: 1px solid var(--line); border-radius: 12px; z-index: 6; }
+/* Geniş ekranda not çubuğu düğmeleri kadar geniş, ortada (tablette 1264 px'lik yarı saydam şerit çizimin üstünü örtüyordu) */
+@media (min-width: 900px) { .notesbar { left: 50%; right: auto; transform: translateX(-50%); width: max-content; max-width: calc(100% - 16px); } }
 .notesbar button { width: 40px; height: 40px; border: 0; border-radius: 8px; background: var(--btn); color: var(--fg); flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
 .notesbar button svg.ic { width: 20px; height: 20px; }
 .notesbar button.active { outline: 2px solid var(--accent); }
@@ -848,7 +850,7 @@ body.homemode #tour { display: none; }
   .toast { bottom: 20px; }
   .cmdbar:not([hidden]) ~ .navfabs { flex-direction: row; left: 50%; right: auto; transform: translateX(-50%); }   /* alçak ekranda sütun sığmaz: ortada satır (küp/pusula ve yön tuşlarından uzak) */
   body.left-hand .cmdbar:not([hidden]) ~ .navfabs { left: 50%; right: auto; }
-  .notesbar { left: 8px; right: 72px; } body.left-hand .notesbar { left: 72px; right: 8px; }
+  .notesbar { left: 8px; right: 72px; transform: none; width: auto; } body.left-hand .notesbar { left: 72px; right: 8px; }   /* geniş ekran ortalamasını geri al: ray yanında tam boy */
   #toolbar { padding-right: var(--safe-right); } body.left-hand #toolbar { padding-right: 0; padding-left: var(--safe-left); }
 }
 

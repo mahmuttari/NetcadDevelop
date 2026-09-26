@@ -110,7 +110,7 @@ export default {
   aboutKeys: '键盘', aboutKeysText: '+ / − 缩放 · F 适应 · Home 主视图 · PgUp/PgDn 视图历史 · 方向键平移（Shift 微调）· Z 窗口 · G 栅格 · D 显示选项 · Enter 完成 · Esc 返回 · Del 删除 · Ctrl+Z / Ctrl+Y 撤消 / 重做',
   aboutThirdParty: '第三方组件', aboutThirdPartyText: 'LibreDWG (GPL-3.0) · @mlightcad/libredwg-web (GPL-3.0) · jsQR (Apache-2.0) · junrar (MIT) · AndroidX (Apache-2.0)', aboutLicense: '许可', aboutLicenseText: '本应用源代码依据 GNU GPL-3.0 发布（LibreDWG 的要求）。',
   ctx3Restored: '三维视图已恢复', planOrthoMsg: '平面视图从无限高处观看：投影已切换为平行。', ctx3Lost: '3D 图形驱动程序回收了内存；正在重建视图…', noHome: '尚未保存主视图；视图 › 设为主视图', silByStyle: '此样式包含轮廓边；若要关闭，请选择其他样式', editsApplied: '项已保存的修改已应用', modelOnly: '只能在模型空间中编辑。', undone: '已撤消', redone: '已重做', measureResult: '测量结果',
-  newLayer: '新建图层', layerNamePh: '名称', colorPh: '颜色 1-255', createLayer: '创建图层', layerCreated: '图层已创建', layerExists: '图层已存在', curColor: '当前颜色', colorHint: 'K = 随层。ACI 编号：', fromLayerLc: '随层', selectFirstQ: '请先用「选择」选中对象。', propsTitle: '特性', objectsN: '个对象', propsApplied: '特性已应用',
+  newLayer: '新建图层', layerNamePh: '名称', colorPh: '颜色 1-255', createLayer: '创建图层', layerCreated: '图层已创建', layerExists: '图层已存在', curColor: '当前颜色', colorHint: 'K = 随层。ACI 编号：', fromLayerLc: '随层', selectFirstQ: '请先用「选择」选中对象。', propsTitle: '特性', objectsN: '个对象', objectN: '个对象', propsApplied: '特性已应用',
   noChanges: '没有需要保存的更改。', dxfSaved: 'DXF 已保存', dxfFail: 'DXF 保存失败', v3Fail: '无法打开三维视图', tapVertex: '点按一个顶点（顶点会被捕捉）', dist3: '三维距离', horizontal: '水平', point1: '点 1', point2: '点 2', moved: '已移动', select3First: '请先选择对象（三维 › 选择）。', zSet: '高程已设置', zPrompt: '高程（Z）：',
   p3Select: '选择：点按顶点', p3Dist1: '三维距离：第一个顶点', p3Dist2: '三维距离：第二个顶点', p3Move1: '移动：基准顶点', p3Move2: '移动：目标顶点', p3Pline: '三维多段线：点按顶点或输入 x,y,z', pointsN: '个点', finishBtn: '✓ 完成', backBtn: '↶ 返回', cancelBtn: '✕ 取消', pline3Added: '已添加三维多段线', typeXyz: '输入 x,y,z', selCount: '已选择',
   numberExpected: '需要输入数值', coordFormat: '坐标格式：x,y | x,y,z | @dx,dy | @L<角度', noObject: '未找到对象', notCircle: '不是圆或圆弧', notText: '不是文字', textPrompt: '文字：', textHeightPrompt: '文字高度：', pointZ: '点高程（Z）：', typeFactor: '请输入比例因子', typeZ: '请输入高程', typeDist: '请输入距离', factorPositive: '比例因子必须大于 0', collinear: '这些点共线',
@@ -332,13 +332,13 @@ export default {
   'th_t:trim': '先询问屏幕还是数值：剪切边 + 部分，或从端点截去输入的长度', 'tl_t:extend': '延伸', 'th_t:extend': '先询问屏幕还是数值：边界 + 端点，或将端点加长输入的长度',
   'tl_t:fillet': '圆角', 'th_t:fillet': '先询问屏幕还是数值：圆弧经过的位置或输入的半径，然后两条线', 'tl_t:chamfer': '倒角',
   'th_t:chamfer': '先询问屏幕还是数值：倒角经过的位置或输入的距离，然后两条线',
-  // kalem (S Pen · Apple Pencil · genel Android kalemleri)
+  // kalem (S Pen · genel Android kalemleri; Apple Pencil yalnız iPad'de çalışır, anılmaz)
   penTitle: '触控笔', penFound: '已检测到触控笔', penNotFound: '尚未检测到触控笔 — 请用笔轻点一次',
   penPressureOk: '支持压感', penPalmDropped: '已忽略 %s 次手掌触摸', palmReject: '防误触 (笔接触屏幕时忽略触摸)',
   penHover: '悬停预览 (落笔前显示位置和捕捉)', penDraw: '笔绘图，手指导航', penPressure: '按压感应线宽（批注中）',
   penBarrel: '侧键功能', penAct_menu: '菜单', penAct_erase: '删除',
   penAct_snap: '捕捉', penAct_undo: '撤销', penAct_none: '无',
-  penHint: '把笔翻转过来，橡皮端可删除对象。支持 S Pen、Apple Pencil 及常见的 Android 触控笔。',
+  penHint: '把笔翻转过来，橡皮端可删除对象。支持 S Pen 及常见的 Android 触控笔。',
   // AutoCAD komut satırı
   cmdPrompt: '命令:', cmdPh: '输入命令 (LINE、TR、F…)', cmdUnknown: '%s: 未知命令', cmdKnown: '可识别，暂不可用', cmdNotAvail: '%s：此 AutoCAD 命令在本应用中不可用',
   cmdLineOn: '命令行 (AutoCAD 命令名)', cmdHelp: '命令列表', cmdAcad: 'AutoCAD 命令',

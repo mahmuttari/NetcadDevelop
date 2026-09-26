@@ -988,10 +988,13 @@ function drawPenHover(c, fg) {
   { const b = hoverBase(); if (b) drawRubber(c, b, s, fg); }   // taban noktadan imlece lastik bant
   drawAimLink(c, fg, s);
   c.save();
+  // Artı kolları ve okuma kutusu yazı ölçeğiyle büyür (büyüteç etiketi gibi): 10 inç tablette ve 1080p
+  // monitörde sabit 11 px'lik okuma kol boyunda okunmuyordu (kalem / masaüstü araştırması)
+  const fsk = Math.max(1, uiPrefs().fontScale || 1), arm = Math.round(14 * fsk);
   c.setLineDash([3, 3]); c.lineWidth = 1; c.strokeStyle = fg; c.globalAlpha = 0.55;
   c.beginPath();
-  c.moveTo(s[0] - 14, s[1] + 0.5); c.lineTo(s[0] + 14, s[1] + 0.5);
-  c.moveTo(s[0] + 0.5, s[1] - 14); c.lineTo(s[0] + 0.5, s[1] + 14);
+  c.moveTo(s[0] - arm, s[1] + 0.5); c.lineTo(s[0] + arm, s[1] + 0.5);
+  c.moveTo(s[0] + 0.5, s[1] - arm); c.lineTo(s[0] + 0.5, s[1] + arm);
   c.stroke();
   c.setLineDash([]); c.globalAlpha = 1;
   if (sn) {
@@ -1004,13 +1007,13 @@ function drawPenHover(c, fg) {
   // koordinatı gösterdiğinden (drawLoupe etiketi) burada yazılmaz — aynı sayı iki yerde durmasın.
   if (!penHover.aim) {
     const txt = hoverLabel(sn, q, penHover.w);
-    c.font = '11px system-ui, sans-serif'; c.textBaseline = 'bottom'; c.textAlign = 'left';
-    const w = c.measureText(txt).width + 10;
+    c.font = `${Math.round(11 * fsk)}px system-ui, sans-serif`; c.textBaseline = 'bottom'; c.textAlign = 'left';
+    const w = c.measureText(txt).width + Math.round(10 * fsk), bh = Math.round(18 * fsk);
     // Kutu imlecin sağına sığmıyorsa soluna geçer; iki yana da sığmıyorsa (iki yollu izleme ipucu) kenara dayanır — yazı kırpılmasın.
-    const bx = Math.max(4, Math.min(S.W - w - 4, s[0] + 14 + w > S.W ? s[0] - 14 - w : s[0] + 14));
+    const bx = Math.max(4, Math.min(S.W - w - 4, s[0] + arm + w > S.W ? s[0] - arm - w : s[0] + arm));
     c.fillStyle = S.dark ? 'rgba(20,26,34,.88)' : 'rgba(255,255,255,.88)';
-    c.fillRect(bx, s[1] - 24, w, 18);
-    c.fillStyle = sn ? acc : fg; c.fillText(txt, bx + 5, s[1] - 8);
+    c.fillRect(bx, s[1] - 6 - bh, w, bh);
+    c.fillStyle = sn ? acc : fg; c.fillText(txt, bx + Math.round(5 * fsk), s[1] - 8);
   }
   c.restore();
   if (penHover.aim) drawLoupe(c, fg);

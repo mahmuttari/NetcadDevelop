@@ -110,7 +110,7 @@ export default {
   aboutKeys: 'キーボード', aboutKeysText: '+ / − ズーム · F 全体表示 · Home ホームビュー · PgUp/PgDn ビュー履歴 · 矢印キーで画面移動（Shift で微調整）· Z 窓 · G グリッド · D 表示設定 · Enter 終了 · Esc 戻る · Del 削除 · Ctrl+Z / Ctrl+Y 元に戻す / やり直し',
   aboutThirdParty: 'サードパーティ', aboutThirdPartyText: 'LibreDWG (GPL-3.0) · @mlightcad/libredwg-web (GPL-3.0) · jsQR (Apache-2.0) · junrar (MIT) · AndroidX (Apache-2.0)', aboutLicense: 'ライセンス', aboutLicenseText: 'このアプリのソースコードは GNU GPL-3.0 で配布されています（LibreDWG の要件）。',
   ctx3Restored: '3D ビューを復元しました', planOrthoMsg: '平面図は無限遠の高さから見ます。投影を平行に切り替えました。', ctx3Lost: '3D グラフィックドライバーがメモリを解放しました。ビューを再構築しています…', noHome: 'ホームビューが保存されていません。ビュー › ホームビューに設定', silByStyle: 'このスタイルにはシルエットが含まれます。オフにするには別のスタイルを選んでください', editsApplied: '件の保存済み編集を適用しました', modelOnly: '編集はモデル空間でのみ可能です。', undone: '元に戻しました', redone: 'やり直しました', measureResult: '計測結果',
-  newLayer: '新しい画層', layerNamePh: '名前', colorPh: '色 1-255', createLayer: '画層を作成', layerCreated: '画層を作成しました', layerExists: '同名の画層があります', curColor: '現在の色', colorHint: 'K = 画層に従う（ByLayer）。ACI 番号：', fromLayerLc: '画層に従う', selectFirstQ: '先に「選択」でオブジェクトを選んでください。', propsTitle: 'プロパティ', objectsN: '個のオブジェクト', propsApplied: 'プロパティを適用しました',
+  newLayer: '新しい画層', layerNamePh: '名前', colorPh: '色 1-255', createLayer: '画層を作成', layerCreated: '画層を作成しました', layerExists: '同名の画層があります', curColor: '現在の色', colorHint: 'K = 画層に従う（ByLayer）。ACI 番号：', fromLayerLc: '画層に従う', selectFirstQ: '先に「選択」でオブジェクトを選んでください。', propsTitle: 'プロパティ', objectsN: '個のオブジェクト', objectN: '個のオブジェクト', propsApplied: 'プロパティを適用しました',
   noChanges: '保存する変更はありません。', dxfSaved: 'DXF を保存しました', dxfFail: 'DXF を保存できませんでした', v3Fail: '3D ビューを開けませんでした', tapVertex: '頂点をタップしてください（頂点にスナップします）', dist3: '3D 距離', horizontal: '水平', point1: '点 1', point2: '点 2', moved: '移動しました', select3First: '先にオブジェクトを選択してください（3D › 選択）。', zSet: '標高を設定しました', zPrompt: '標高（Z）：',
   p3Select: '選択：頂点をタップ', p3Dist1: '3D 距離：1 つ目の頂点', p3Dist2: '3D 距離：2 つ目の頂点', p3Move1: '移動：基準の頂点', p3Move2: '移動：目標の頂点', p3Pline: '3D ポリライン：頂点をタップするか x,y,z を入力', pointsN: '点', finishBtn: '✓ 終了', backBtn: '↶ 戻る', cancelBtn: '✕ キャンセル', pline3Added: '3D ポリラインを追加しました', typeXyz: 'x,y,z を入力', selCount: '選択',
   numberExpected: '数値を入力してください', coordFormat: '座標の書式：x,y | x,y,z | @dx,dy | @L<角度', noObject: 'オブジェクトが見つかりません', notCircle: '円でも円弧でもありません', notText: '文字ではありません', textPrompt: '文字：', textHeightPrompt: '文字高さ：', pointZ: '点の標高（Z）：', typeFactor: '倍率を入力', typeZ: '標高を入力', typeDist: '距離を入力', factorPositive: '倍率は 0 より大きい必要があります', collinear: '点が一直線上にあります',
@@ -531,13 +531,13 @@ export default {
   'th_t:trim': '先に画面か数値かを尋ねます：切断エッジ＋部分、または端から入力した長さを切り取り', 'tl_t:extend': '延長', 'th_t:extend': '先に画面か数値かを尋ねます：境界＋端、または端を入力した長さだけ延長',
   'tl_t:fillet': 'フィレット', 'th_t:fillet': '先に画面か数値かを尋ねます：円弧を通す位置または入力した半径、その後 2 本の線', 'tl_t:chamfer': '面取り',
   'th_t:chamfer': '先に画面か数値かを尋ねます：面取りを通す位置または入力した距離、その後 2 本の線',
-  // kalem (S Pen · Apple Pencil · genel Android kalemleri)
+  // kalem (S Pen · genel Android kalemleri; Apple Pencil yalnız iPad'de çalışır, anılmaz)
   penTitle: 'ペン', penFound: 'ペンを検出しました', penNotFound: 'まだペンを検出していません — ペンで一度タップしてください',
   penPressureOk: '筆圧に対応', penPalmDropped: '手のひらのタッチを %s 件除外', palmReject: 'パームリジェクション (ペン接地中はタッチを無視)',
   penHover: 'ホバー プレビュー (接地前に位置とスナップを表示)', penDraw: 'ペンで描き、指で移動', penPressure: '筆圧による線の太さ (メモ)',
   penBarrel: 'サイドボタンの動作', penAct_menu: 'メニュー', penAct_erase: '削除',
   penAct_snap: 'スナップ', penAct_undo: '元に戻す', penAct_none: 'なし',
-  penHint: 'ペンを裏返すと消しゴム側でオブジェクトを削除できます。S Pen、Apple Pencil、一般的な Android ペンに対応。',
+  penHint: 'ペンを裏返すと消しゴム側でオブジェクトを削除できます。S Pen と一般的な Android ペンに対応。',
   // AutoCAD komut satırı
   cmdPrompt: 'コマンド:', cmdPh: 'コマンドを入力 (LINE, TR, F…)', cmdUnknown: '%s: 不明なコマンド', cmdKnown: '認識済み・未対応', cmdNotAvail: '%s: この AutoCAD コマンドはこのアプリでは使用できません',
   cmdLineOn: 'コマンド ライン (AutoCAD コマンド名)', cmdHelp: 'コマンド一覧', cmdAcad: 'AutoCAD コマンド',

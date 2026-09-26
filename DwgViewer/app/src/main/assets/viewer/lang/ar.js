@@ -110,7 +110,7 @@ export default {
   aboutKeys: 'لوحة المفاتيح', aboutKeysText: '+ / − تكبير · F ملاءمة · Home العرض الرئيسي · PgUp/PgDn سجل العروض · الأسهم للتحريك (Shift دقيق) · Z نافذة · G شبكة · D خيارات العرض · Enter إنهاء · Esc رجوع · Del حذف · Ctrl+Z / Ctrl+Y تراجع / إعادة',
   aboutThirdParty: 'مكوّنات خارجية', aboutThirdPartyText: 'LibreDWG (GPL-3.0) · @mlightcad/libredwg-web (GPL-3.0) · jsQR (Apache-2.0) · junrar (MIT) · AndroidX (Apache-2.0)', aboutLicense: 'الترخيص', aboutLicenseText: 'يُوزَّع الكود المصدري للتطبيق بموجب GNU GPL-3.0 (وفق ما تشترطه LibreDWG).',
   ctx3Restored: 'استُعيد العرض ثلاثي الأبعاد', planOrthoMsg: 'المنظر الأفقي ينظر من ارتفاع لا نهائي: تم تحويل الإسقاط إلى متوازٍ.', ctx3Lost: 'استعاد برنامج تشغيل الرسوم ثلاثية الأبعاد الذاكرة؛ تجري إعادة بناء العرض…', noHome: 'لا يوجد عرض رئيسي محفوظ؛ العروض › تعيين العرض الرئيسي', silByStyle: 'هذا النمط يتضمن الظلال الخارجية؛ اختر نمطًا آخر لإيقافها', editsApplied: 'طُبّقت التعديلات المحفوظة', modelOnly: 'التحرير ممكن في فضاء النموذج فقط.', undone: 'تم التراجع', redone: 'تمت الإعادة', measureResult: 'القياس',
-  newLayer: 'طبقة جديدة', layerNamePh: 'الاسم', colorPh: 'اللون 1-255', createLayer: 'إنشاء الطبقة', layerCreated: 'أُنشئت الطبقة', layerExists: 'الطبقة موجودة بالفعل', curColor: 'اللون الحالي', colorHint: 'K = حسب الطبقة. رقم ACI:', fromLayerLc: 'حسب الطبقة', selectFirstQ: 'حدّد الكائنات أولًا بأداة «تحديد».', propsTitle: 'الخصائص', objectsN: 'كائن', propsApplied: 'طُبّقت الخصائص',
+  newLayer: 'طبقة جديدة', layerNamePh: 'الاسم', colorPh: 'اللون 1-255', createLayer: 'إنشاء الطبقة', layerCreated: 'أُنشئت الطبقة', layerExists: 'الطبقة موجودة بالفعل', curColor: 'اللون الحالي', colorHint: 'K = حسب الطبقة. رقم ACI:', fromLayerLc: 'حسب الطبقة', selectFirstQ: 'حدّد الكائنات أولًا بأداة «تحديد».', propsTitle: 'الخصائص', objectsN: 'كائن', objectN: 'كائن', propsApplied: 'طُبّقت الخصائص',
   noChanges: 'لا توجد تغييرات للحفظ.', dxfSaved: 'حُفظ ملف DXF', dxfFail: 'تعذّر حفظ ملف DXF', v3Fail: 'تعذّر فتح العرض ثلاثي الأبعاد', tapVertex: 'المس رأسًا (يتم التقاط الرؤوس)', dist3: 'مسافة ثلاثية الأبعاد', horizontal: 'أفقي', point1: 'النقطة 1', point2: 'النقطة 2', moved: 'تم النقل', select3First: 'حدّد الكائنات أولًا (ثلاثي الأبعاد › تحديد).', zSet: 'ضُبط المنسوب', zPrompt: 'المنسوب (Z):',
   p3Select: 'تحديد: المس الرؤوس', p3Dist1: 'مسافة ثلاثية الأبعاد: الرأس الأول', p3Dist2: 'مسافة ثلاثية الأبعاد: الرأس الثاني', p3Move1: 'نقل: الرأس الأساسي', p3Move2: 'نقل: الرأس الهدف', p3Pline: 'خط متعدد ثلاثي الأبعاد: المس الرؤوس أو اكتب x,y,z', pointsN: 'نقطة', finishBtn: '✓ إنهاء', backBtn: '↶ رجوع', cancelBtn: '✕ إلغاء', pline3Added: 'أُضيف خط متعدد ثلاثي الأبعاد', typeXyz: 'اكتب x,y,z', selCount: 'محدد',
   numberExpected: 'يُتوقع رقم', coordFormat: 'صيغة الإحداثي: x,y | x,y,z | @dx,dy | @L<الزاوية', noObject: 'لم يُعثر على كائن', notCircle: 'ليس دائرة ولا قوسًا', notText: 'ليس نصًا', textPrompt: 'النص:', textHeightPrompt: 'ارتفاع النص:', pointZ: 'منسوب النقطة (Z):', typeFactor: 'اكتب المعامل', typeZ: 'اكتب المنسوب', typeDist: 'اكتب المسافة', factorPositive: 'يجب أن يكون المعامل أكبر من 0', collinear: 'النقاط على استقامة واحدة',
@@ -530,13 +530,13 @@ export default {
   'th_t:trim': 'يسأل أولًا شاشة أم قياس: حافة القطع + الجزء، أو قصّ طول مكتوب من الطرف', 'tl_t:extend': 'إطالة', 'th_t:extend': 'يسأل أولًا شاشة أم قياس: الحدّ + الطرف، أو تطويل الطرف بطول مكتوب',
   'tl_t:fillet': 'تدوير', 'th_t:fillet': 'يسأل أولًا شاشة أم قياس: مكان مرور القوس أو نصف قطر مكتوب، ثم خطّان', 'tl_t:chamfer': 'شطف',
   'th_t:chamfer': 'يسأل أولًا شاشة أم قياس: مكان مرور الشطف أو مسافة مكتوبة، ثم خطّان',
-  // kalem (S Pen · Apple Pencil · genel Android kalemleri)
+  // kalem (S Pen · genel Android kalemleri; Apple Pencil yalnız iPad'de çalışır, anılmaz)
   penTitle: 'القلم', penFound: 'تم التعرف على القلم', penNotFound: 'لم يتم التعرف على قلم بعد — المس مرة واحدة بالقلم',
   penPressureOk: 'الضغط مدعوم', penPalmDropped: 'تم تجاهل %s لمسة من راحة اليد', palmReject: 'رفض راحة اليد (تجاهل اللمس أثناء ملامسة القلم)',
   penHover: 'معاينة عند التحويم (الموضع والالتقاط قبل الملامسة)', penDraw: 'القلم يرسم والإصبع يتنقل', penPressure: 'سماكة الخط حسب الضغط (في الملاحظات)',
   penBarrel: 'مهمة الزر الجانبي', penAct_menu: 'القائمة', penAct_erase: 'مسح',
   penAct_snap: 'الالتقاط', penAct_undo: 'تراجع', penAct_none: 'بدون',
-  penHint: 'اقلب القلم: طرف الممحاة يحذف الكائنات. مدعوم مع S Pen وApple Pencil وأقلام أندرويد الشائعة.',
+  penHint: 'اقلب القلم: طرف الممحاة يحذف الكائنات. مدعوم مع S Pen وأقلام أندرويد الشائعة.',
   // AutoCAD komut satırı
   cmdPrompt: 'الأمر:', cmdPh: 'اكتب أمرًا (LINE، TR، F…)', cmdUnknown: '%s: أمر غير معروف', cmdKnown: 'معروف، غير متاح بعد', cmdNotAvail: '%s: أمر AutoCAD هذا غير متاح في هذا التطبيق',
   cmdLineOn: 'سطر الأوامر (أسماء أوامر AutoCAD)', cmdHelp: 'قائمة الأوامر', cmdAcad: 'أمر AutoCAD',

@@ -110,7 +110,7 @@ export default {
   aboutKeys: '키보드', aboutKeysText: '+ / − 확대·축소 · F 전체 보기 · Home 기본 뷰 · PgUp/PgDn 뷰 기록 · 화살표 이동(Shift 미세) · Z 창 · G 격자 · D 화면 설정 · Enter 마침 · Esc 뒤로 · Del 삭제 · Ctrl+Z / Ctrl+Y 실행 취소 / 다시 실행',
   aboutThirdParty: '외부 구성 요소', aboutThirdPartyText: 'LibreDWG (GPL-3.0) · @mlightcad/libredwg-web (GPL-3.0) · jsQR (Apache-2.0) · junrar (MIT) · AndroidX (Apache-2.0)', aboutLicense: '라이선스', aboutLicenseText: '이 앱의 소스 코드는 GNU GPL-3.0으로 배포됩니다(LibreDWG의 요구 사항).',
   ctx3Restored: '3D 뷰를 복원했습니다', planOrthoMsg: '평면도는 무한 높이에서 봅니다. 투영을 평행으로 전환했습니다.', ctx3Lost: '3D 그래픽 드라이버가 메모리를 회수했습니다. 뷰를 다시 만드는 중…', noHome: '저장된 기본 뷰가 없습니다. 뷰 › 기본 뷰로 설정', silByStyle: '이 스타일에는 실루엣이 포함됩니다. 끄려면 다른 스타일을 고르세요', editsApplied: '건의 저장된 편집을 적용했습니다', modelOnly: '편집은 모형 공간에서만 가능합니다.', undone: '실행을 취소했습니다', redone: '다시 실행했습니다', measureResult: '측정 결과',
-  newLayer: '새 도면층', layerNamePh: '이름', colorPh: '색상 1-255', createLayer: '도면층 만들기', layerCreated: '도면층을 만들었습니다', layerExists: '같은 이름의 도면층이 있습니다', curColor: '현재 색상', colorHint: 'K = 도면층별(ByLayer). ACI 번호:', fromLayerLc: '도면층별', selectFirstQ: '먼저 「선택」으로 객체를 고르세요.', propsTitle: '특성', objectsN: '개 객체', propsApplied: '특성을 적용했습니다',
+  newLayer: '새 도면층', layerNamePh: '이름', colorPh: '색상 1-255', createLayer: '도면층 만들기', layerCreated: '도면층을 만들었습니다', layerExists: '같은 이름의 도면층이 있습니다', curColor: '현재 색상', colorHint: 'K = 도면층별(ByLayer). ACI 번호:', fromLayerLc: '도면층별', selectFirstQ: '먼저 「선택」으로 객체를 고르세요.', propsTitle: '특성', objectsN: '개 객체', objectN: '개 객체', propsApplied: '특성을 적용했습니다',
   noChanges: '저장할 변경 내용이 없습니다.', dxfSaved: 'DXF를 저장했습니다', dxfFail: 'DXF를 저장하지 못했습니다', v3Fail: '3D 뷰를 열지 못했습니다', tapVertex: '정점을 누르세요(정점에 스냅됩니다)', dist3: '3D 거리', horizontal: '수평', point1: '점 1', point2: '점 2', moved: '이동했습니다', select3First: '먼저 객체를 선택하세요(3D › 선택).', zSet: '표고를 설정했습니다', zPrompt: '표고(Z):',
   p3Select: '선택: 정점을 누르세요', p3Dist1: '3D 거리: 첫 번째 정점', p3Dist2: '3D 거리: 두 번째 정점', p3Move1: '이동: 기준 정점', p3Move2: '이동: 대상 정점', p3Pline: '3D 폴리선: 정점을 누르거나 x,y,z를 입력', pointsN: '개 점', finishBtn: '✓ 마침', backBtn: '↶ 뒤로', cancelBtn: '✕ 취소', pline3Added: '3D 폴리선을 추가했습니다', typeXyz: 'x,y,z 입력', selCount: '선택됨',
   numberExpected: '숫자를 입력해야 합니다', coordFormat: '좌표 형식: x,y | x,y,z | @dx,dy | @L<각도', noObject: '객체를 찾지 못했습니다', notCircle: '원이나 호가 아닙니다', notText: '문자가 아닙니다', textPrompt: '문자:', textHeightPrompt: '문자 높이:', pointZ: '점 표고(Z):', typeFactor: '배율을 입력하세요', typeZ: '표고를 입력하세요', typeDist: '거리를 입력하세요', factorPositive: '배율은 0보다 커야 합니다', collinear: '점들이 한 직선 위에 있습니다',
@@ -531,13 +531,13 @@ export default {
   'th_t:trim': '먼저 화면 또는 치수를 묻습니다: 절단 모서리 + 부분, 또는 끝에서 입력한 길이만큼 잘라내기', 'tl_t:extend': '연장', 'th_t:extend': '먼저 화면 또는 치수를 묻습니다: 경계 + 끝, 또는 끝을 입력한 길이만큼 연장',
   'tl_t:fillet': '모깎기', 'th_t:fillet': '먼저 화면 또는 치수를 묻습니다: 호가 지날 위치 또는 입력한 반지름, 그다음 두 선', 'tl_t:chamfer': '모따기',
   'th_t:chamfer': '먼저 화면 또는 치수를 묻습니다: 모따기가 지날 위치 또는 입력한 거리, 그다음 두 선',
-  // kalem (S Pen · Apple Pencil · genel Android kalemleri)
+  // kalem (S Pen · genel Android kalemleri; Apple Pencil yalnız iPad'de çalışır, anılmaz)
   penTitle: '펜', penFound: '펜이 감지되었습니다', penNotFound: '아직 펜이 감지되지 않았습니다 — 펜으로 한 번 누르세요',
   penPressureOk: '필압 지원', penPalmDropped: '손바닥 터치 %s건 무시됨', palmReject: '손바닥 무시 (펜이 닿아 있을 때 터치 무시)',
   penHover: '호버 미리보기 (닿기 전에 위치와 스냅 표시)', penDraw: '펜으로 그리고 손가락으로 이동', penPressure: '필압에 따른 선 두께 (메모)',
   penBarrel: '측면 버튼 동작', penAct_menu: '메뉴', penAct_erase: '지우기',
   penAct_snap: '스냅', penAct_undo: '실행 취소', penAct_none: '없음',
-  penHint: '펜을 뒤집으면 지우개 쪽으로 객체를 지웁니다. S Pen, Apple Pencil 및 일반 Android 펜을 지원합니다.',
+  penHint: '펜을 뒤집으면 지우개 쪽으로 객체를 지웁니다. S Pen 및 일반 Android 펜을 지원합니다.',
   // AutoCAD komut satırı
   cmdPrompt: '명령:', cmdPh: '명령을 입력하세요 (LINE, TR, F…)', cmdUnknown: '%s: 알 수 없는 명령', cmdKnown: '인식됨, 아직 사용 불가', cmdNotAvail: '%s: 이 AutoCAD 명령은 이 앱에서 사용할 수 없습니다',
   cmdLineOn: '명령행 (AutoCAD 명령 이름)', cmdHelp: '명령 목록', cmdAcad: 'AutoCAD 명령',
