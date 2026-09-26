@@ -363,6 +363,12 @@ body.glove .ask-field .opt-text { min-height: 52px; }
 .panel-head { display: flex; align-items: center; gap: 6px; padding: 4px 8px 6px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .panel-head strong { flex: 1 1 auto; font-size: calc(15px * var(--fs)); }
 /* Ölçü paneli: ipucu metni uzun dillerde kapat düğmesini ikinci satıra itmesin; ipucu kısalır (…), düğmeler tek satırda kalır */
+/* Katman paneli başlığı: sayaç başlığın ALTINA küçük satır olarak iner, düğmeler tek satırda kalır.
+   Yan yanayken Türkçede ('Katmanlar · 10 katman · Tümü · Hiçbiri · Ters çevir') kapatma düğmesi ikinci satıra düşüyordu. */
+#layerPanel .panel-head { gap: 4px; }
+#layerPanel .ph-title { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; line-height: 1.15; }
+#layerPanel .ph-title strong { flex: none; }
+#layerCount { font-size: calc(11.5px * var(--fs)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #measurePanel .panel-head { flex-wrap: nowrap; }
 #measurePanel .panel-head strong { flex: 0 0 auto; }
 #measureHint { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -463,6 +469,8 @@ body.glove .ask-field .opt-text { min-height: 52px; }
 .kv .pair input, .kv .pair select { flex: 1 1 0; min-width: 0; width: auto; }
 .kv .pair button { flex: 0 0 auto; }
 .kv .pair small { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Yön seçimi en uzun seçeneği kadar geniş kalır: yanındaki ölçü yazısı onu daraltıp 'Landscape'i kesiyordu */
+.kv .pair #pOrient { flex: 0 0 auto; }
 .list { display: flex; flex-direction: column; }
 .list .item { padding: 10px 4px; border-bottom: 1px solid rgba(128,128,128,.12); cursor: pointer; font-size: calc(13px * var(--fs)); min-height: 44px; }
 .list .item small { color: var(--muted); display: block; }
@@ -623,7 +631,7 @@ body.dense-bars.glove #cmdOrtho svg.ic, body.dense-bars.glove #cmdTt svg.ic, bod
 .tb-tabs button svg.ic { width: 24px; height: 24px; }
 .tb-tabs button.tab-fav svg.ic { color: var(--accent); }
 @media (max-width: 560px) { .tb-tabs button { padding: 4px 4px 2px; min-width: 44px; font-size: calc(10.5px * var(--fs)); } }
-.tb-row { display: flex; gap: 8px; padding: 6px 8px calc(6px + var(--safe-bottom)); overflow-x: auto; scrollbar-width: none; align-items: flex-start; scroll-snap-type: x proximity; }
+.tb-row { display: flex; gap: 8px; padding: 6px 8px calc(6px + var(--safe-bottom)); overflow-x: auto; scrollbar-width: none; align-items: flex-start; scroll-snap-type: x proximity; scroll-padding-inline: 8px; }   /* pay: yaslanan grubun ilk karosu ekran kenarına yapışmasın */
 .tb-row::-webkit-scrollbar { display: none; }
 .tb-group { display: flex; flex-direction: column; gap: 2px; flex: 0 0 auto; scroll-snap-align: start; }
 .tb-group + .tb-group { border-left: 1px solid var(--line); padding-left: 8px; }
@@ -783,7 +791,7 @@ body.left-hand .dpad { left: auto; right: 12px; }
    (view3d.js) kendiliğinden birlikte kayar; küpün ALTINDA değil YANINDA durur, çünkü köşede
    küpün altı doğrudan sütunun ilk düğmesidir. */
 .cube { position: absolute; right: 10px; top: 10px; width: 86px; padding: 4px; border-radius: 12px; background: color-mix(in srgb, var(--panel) 70%, transparent); border: 1px solid var(--line); color: var(--fg); touch-action: none; }
-.cube .cube-svg { width: 70px; height: 70px; margin: 0 auto; }
+.cube .cube-svg { width: 76px; height: 76px; margin: 0 auto; overflow: visible; }
 /* HUD açıkken küp kutunun HEMEN altına oturur: yükseklik view3d'den gelir (--hud3-h).
    Eski 62 px, iki satırlı HUD'dan kalmaydı; yoğun HUD 16 px'e inince arada boş şerit kalıyordu. */
 .cube.below-hud { top: calc(var(--hud3-h, 24px) + 6px); }
@@ -1128,7 +1136,9 @@ body.glove .selbox { width: 24px; height: 24px; }
 .vs-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 4px 0 8px; }
 .vs-grid button { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 56px; min-height: 56px; border: 1px solid var(--line); border-radius: 10px; background: var(--btn); color: var(--fg); padding: 6px 2px; }
 .vs-grid button svg.ic { width: 28px; height: 28px; }
-.vs-grid button span { font-size: calc(9.5px * var(--fs)); color: var(--muted); white-space: nowrap; }
+/* Etiket iki satıra sarar: 412 dp'de beş sütunlu ızgarada 'Shaded with edges', 'Schattiert mit Kanten' gibi
+   adlar tek satıra sığmıyor, karonun iki yanından taşıyordu. */
+.vs-grid button span { font-size: calc(9.5px * var(--fs)); color: var(--muted); white-space: normal; text-align: center; line-height: 1.15; overflow-wrap: break-word; max-width: 100%; }
 .vs-grid button.on { box-shadow: inset 0 0 0 2px var(--accent); background: var(--btn-on); }
 .vs-grid button.on span { color: var(--fg); }
 @media (max-width: 400px) { .vs-grid { grid-template-columns: repeat(4, 1fr); } }

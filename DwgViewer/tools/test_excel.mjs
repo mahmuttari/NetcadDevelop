@@ -183,7 +183,7 @@ ok('1e aralık toplamı (SUM(A2:A4) = 177)', (await H(2, 3)) === '177', await H(
 ok('1f sayfalar arası başvuru (Fiyat!A1*2 = 30)', (await H(3, 3)) === '30', await H(3, 3));
 ok('1g tanımlı ad çözüldü (ORAN = 15)', (await H(3, 2)) === '15', await H(3, 2));
 ok('1h tarih biçimi uygulandı (45923 → 23.09.2025)', (await H(1, 2)) === '23.09.2025', await H(1, 2));
-ok('1i yüzde biçimi uygulandı (0,18 → %18)', (await H(1, 3)) === '18%', await H(1, 3));
+ok('1i yüzde biçimi uygulandı (0,18 → %18)', (await H(1, 3)) === '%18', await H(1, 3));
 ok('1j özel para biçimi uygulandı', (await H(2, 2)) === '1.234,50 TL', await H(2, 2));
 {
   const hz = await ev(() => [...document.querySelectorAll('.xlsx-tbl tr')].slice(1).map(tr => [...tr.querySelectorAll('td')].map(td => td.className || '-').join(',')));

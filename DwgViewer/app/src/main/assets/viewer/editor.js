@@ -217,6 +217,8 @@ function registerTiles() {
 registerTiles();
 const tileLabel = (act) => { const it = TILE[act]; return it ? tt('tl_' + act, it.tr) : act; };
 const tileHint = (act) => { const it = TILE[act]; return it ? tt('th_' + act, it.htr) : ''; };
+/** Açılır kutu başlığı: İngilizce karo etiketi komut adıdır (VISUALSTYLES); başlıkta okunur ad (Visual styles) durur */
+const tileName = (act) => { const it = TILE[act], l = tileLabel(act); return it && it.en && l === cmdOf(act) ? it.en : l; };
 const ICON = (id) => `<svg class="ic" aria-hidden="true"><use href="#${id}"/></svg>`;
 /** Nesne gizleme / izolasyon durumu (app.js S.hideObj / S.isoObj): gizlenen nesne görünür sayılmaz */
 const objShown = (p) => !(S.hideObj && S.hideObj.size && S.hideObj.has(p.key)) && !(S.isoObj && !S.isoObj.has(p.key));
@@ -460,7 +462,7 @@ function buildToolbar() {
   // bildirmez — doğrudan yazılsaydı Super pakette bile rozet niteliği kalırdı (test_lock 2).
   // "Kilitlileri gizle" açıkken iğne de gizlenir: şeritten kaldırılan bir aracın kısayolu
   // orada kalsaydı kullanıcı kapattığı rozeti sekmelerin başında yeniden görürdü.
-  const pin = (lockedOn() || has('t:select')) ? `<button type="button" class="tb-pin" data-act="t:select"${lockAttr('t:select')} data-i18n-title="tl_t:select" title="${esc(tileLabel('t:select'))}" data-i18n-aria="tl_t:select" aria-label="${esc(tileLabel('t:select'))}">${ICON('i-select')}<span class="lb" data-i18n="tl_t:select">${esc(tileLabel('t:select'))}</span>${lockBadge('t:select', 'bar')}</button>` : '';
+  const pin = (lockedOn() || has('t:select')) ? `<button type="button" class="tb-pin" data-act="t:select"${lockAttr('t:select')} data-i18n-title="tl_t:select" title="${esc(tileLabel('t:select'))}" data-i18n-aria="tl_t:select" aria-label="${esc(tileLabel('t:select'))}">${ICON('i-select')}<span class="lb" data-i18n="select">${esc(t('select'))}</span>${lockBadge('t:select', 'bar')}</button>` : '';
   tb.innerHTML = `<div class="tb-tabs" role="tablist">${pin}${tabs.map(x => { const n = tabNeed(x); return `<button type="button" role="tab" data-tab="${x.id}"${n ? ` data-need="${n}"` : ''} class="${x.id === ed.tab ? 'active' : ''}${x.id === 'fav' ? ' tab-fav' : ''}" aria-selected="${x.id === ed.tab}">${ICON(x.icon)}<span data-i18n="${x.i18n}">${esc(t(x.i18n))}</span>${lockBadgeFor(n, 'bar')}</button>`; }).join('')}<button type="button" class="tb-collapse" aria-label="${esc(tt('collapsed', 'Katla'))}">${ICON('i-chevron')}</button></div>` + tabs.map(rowHtml).join('');
   if (!tb.dataset.bound) {
     tb.dataset.bound = '1';
@@ -531,7 +533,7 @@ const vstyleName = (id) => { const v = VSTYLES.find(x => x[0] === id); return v 
 function vstylePop(btn) {
   if (!v3 || !ed.is3D()) { if (!needModel()) return; enter3D(); }
   if (!v3) return;
-  const html = `<div class="pop-title">${esc(tileLabel('vstyle'))}</div><div class="vs-grid">${VSTYLES.map(([id, k, tr]) => `<button type="button" data-vs="${id}" class="${v3.opts.style === id ? 'on' : ''}"><svg class="ic" aria-hidden="true"><use href="#i-vs-${id}"/></svg><span>${esc(tt(k, tr))}</span></button>`).join('')}</div>` +
+  const html = `<div class="pop-title">${esc(tileName('vstyle'))}</div><div class="vs-grid">${VSTYLES.map(([id, k, tr]) => `<button type="button" data-vs="${id}" class="${v3.opts.style === id ? 'on' : ''}"><svg class="ic" aria-hidden="true"><use href="#i-vs-${id}"/></svg><span>${esc(tt(k, tr))}</span></button>`).join('')}</div>` +
     `<div class="pop-row"><button type="button" class="btn small" data-vs-more="1">${esc(tt('dispTitle', 'Ekran ayarları'))} › ${esc(tt('mode3d', '3B'))}</button></div>`;
   const pop = openPop(btn, html);
   pop.addEventListener('click', (ev) => {
@@ -622,7 +624,7 @@ function snap3Pop(btn) {
   if (!gate('snap3')) return;
   if (!v3 || !ed.is3D()) { if (!needModel()) return; enter3D(); }
   if (!v3) return;
-  const html = `<div class="pop-title">${esc(tileLabel('snap3set'))}</div><div class="vs-grid">`
+  const html = `<div class="pop-title">${esc(tileName('snap3set'))}</div><div class="vs-grid">`
     + MODES3.map(m => `<button type="button" data-s3="${m.id}" class="${(ui.snap3Modes || []).includes(m.id) ? 'on' : ''}">${snapMarkerSvg(m.id, 'ic')}<span>${esc(snapModeName(m.id))}</span></button>`).join('')
     + '</div>';
   const pop = openPop(btn, html);

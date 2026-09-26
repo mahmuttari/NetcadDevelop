@@ -2,7 +2,7 @@
  * DWG OfficeZip – uygulama: yükleme, çizim döngüsü, dokunma, paneller ve araçlar.
  * Çözümleme worker.js'te, geometri geom.js'te, çizim render.js'te.
  */
-import { S, toWorld, toScreen, fitView, zoomAtScreen, visibleRect, UNITS, UNIT_TO_M, fmt, fmtUnit, store, clampPrec, PREC_MIN, PREC_MAX, numLocale } from './state.js';
+import { S, toWorld, toScreen, fitView, zoomAtScreen, visibleRect, UNITS, UNIT_TO_M, fmt, fmtUnit, store, clampPrec, PREC_MIN, PREC_MAX, numLocale, sepOf } from './state.js';
 import { RTree, snapPoint, snapCandidates, primDist, flatten, pathLength, pathLength3, polyArea, meshMetrics, TAU, segmentsOf, segIntersect } from './geom.js';
 import { FG, ACI, primSignature } from './scene.js';
 import { drawFrame, rgbCss, bgColor, fgColor, tracePath, renderRegion, gridState, niceStep, worldTransform as renderWorldTransform, worldOrigin, plotRgb, plotKey } from './render.js';
@@ -512,7 +512,11 @@ function drawOverlay() {
     c.font = 'bold 12px sans-serif'; c.textBaseline = 'bottom'; c.textAlign = 'left';
     for (let i = 0; i < pts.length; i++) {
       c.fillStyle = acc; c.beginPath(); c.arc(pts[i][0], pts[i][1], 5, 0, TAU); c.fill();
-      c.fillStyle = S.dark ? '#fff' : '#111'; c.fillText(String(i + 1), pts[i][0] + 7, pts[i][1] - 6);
+      // Kapanış noktası ilk noktanın üstüne düşer (yakalama ile birebir): numarası "1"in üstüne binip "¹5"
+      // gibi okunuyordu. Daha önce numaralanmış bir noktayla çakışan nokta ikinci kez numaralanmaz.
+      let cakisik = false;
+      for (let j = 0; j < i && !cakisik; j++) cakisik = Math.abs(pts[j][0] - pts[i][0]) < 3 && Math.abs(pts[j][1] - pts[i][1]) < 3;
+      if (!cakisik) { c.fillStyle = S.dark ? '#fff' : '#111'; c.fillText(String(i + 1), pts[i][0] + 7, pts[i][1] - 6); }
       if (i > 0) {
         const mx = (pts[i][0] + pts[i - 1][0]) / 2, my = (pts[i][1] + pts[i - 1][1]) / 2;
         const d = Math.hypot(S.measure[i][0] - S.measure[i - 1][0], S.measure[i][1] - S.measure[i - 1][1]);
@@ -575,12 +579,29 @@ function drawOverlay() {
  * çubuğun yüksekliği yazı ölçeğine ve satır sayısına göre değişir.
  */
 const KAPLAMA_ORTEN = ['cmdBar', 'cmdSug', 'cmdShow'];
+/*
+ * Açık ALT SAYFA da (.panel.bottom: GPS konumu, ölçüm, bilgi, belge…) tuvalin üstüne biner. Eskiden
+ * listede yoktu: GPS paneli açıkken ölçek çubuğu ve altlık künyesi ("Esri, Maxar…") panelin altında
+ * kalıyordu — künyesiz uydu görüntüsü lisans koşulunu da bozar. Yalnız görüntü alanını ENİNE kaplayan
+ * sayfa sayılır (genişliğin yarısından fazlası): yatay ekranda yan panel olan .panel.bottom ile masaüstü
+ * yan sütunundaki paneller tuvalin altını örtmez, pay istemez.
+ */
+function kaplayanlar(b) {
+  const out = KAPLAMA_ORTEN.map(id => $(id));
+  for (const e of document.querySelectorAll('.panel.bottom')) {
+    if (e.hidden || !e.offsetParent) continue;
+    const q = e.getBoundingClientRect();
+    const ortak = Math.min(q.right, b.right) - Math.max(q.left, b.left);
+    if (ortak > b.width * 0.5) out.push(e);
+  }
+  return out;
+}
 function kaplamaPayi() {
   let ust = 0, alt = 0;
   try {
     const b = vp.getBoundingClientRect();
-    for (const id of KAPLAMA_ORTEN) {
-      const e = $(id); if (!e || e.hidden || !e.offsetParent) continue;
+    for (const e of kaplayanlar(b)) {
+      if (!e || e.hidden || !e.offsetParent) continue;
       const q = e.getBoundingClientRect(); if (!(q.height > 0)) continue;
       const y0 = q.top - b.top, y1 = q.bottom - b.top, orta = (y0 + y1) / 2;
       if (orta > S.H * 0.6) alt = Math.max(alt, S.H - y0 + 6);
@@ -1106,7 +1127,7 @@ function updateStatus(sx, sy) {
     const el = $('stCoord');
     const xy = 'X: ' + fmt(w[0]) + '  Y: ' + fmt(w[1]);
     let tam = xy;
-    if (S.geo.active) { const ll = S.geo.toLonLat(w[0], w[1]); if (ll) tam += '  φ ' + ll[1].toFixed(6) + ' λ ' + ll[0].toFixed(6); }
+    if (S.geo.active) { const ll = S.geo.toLonLat(w[0], w[1]); if (ll) tam += '  φ ' + derece(ll[1], 6) + ' λ ' + derece(ll[0], 6); }
     el.dataset.k0 = tam;
     el.dataset.k1 = xy;
     el.dataset.k2 = fmt(w[0]) + ' ; ' + fmt(w[1]);
@@ -2064,8 +2085,10 @@ async function onTap(sx, sy) {
 // ---------------------------------------------------------------------------
 // Paneller
 // ---------------------------------------------------------------------------
-function show(id) { const el = $(id); if (el) el.hidden = false; }
-function hide(id) { const el = $(id); if (!el) return; if (id === 'displayPanel') closeDisplayOptions(); else el.hidden = true; }
+// Alt sayfa açılıp kapanınca kaplama yeniden çizilir: ölçek çubuğu ve künye sayfanın üstüne çıkar / yerine iner.
+const kaplamaTazele = (el) => { if (el && el.classList.contains('panel')) requestAnimationFrame(() => { try { drawOverlay(); } catch (_) { /* çizim yok */ } }); };
+function show(id) { const el = $(id); if (el) { el.hidden = false; kaplamaTazele(el); } }
+function hide(id) { const el = $(id); if (!el) return; if (id === 'displayPanel') closeDisplayOptions(); else el.hidden = true; kaplamaTazele(el); }
 const PANELS = ['layerPanel', 'infoPanel', 'measurePanel', 'docPanel', 'searchPanel', 'displayPanel', 'drivePanel'];
 function openPanels() { return PANELS.filter(id => { const el = $(id); return el && !el.hidden; }); }
 function closeMenu() { hide('moreMenu'); }
@@ -2089,6 +2112,10 @@ function toast(msg, opts) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, ms);
 }
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+/** Enlem / boylam: arayüz dilinin ondalık ayırıcısıyla, binlik ayırıcısız ve sabit hane (40,705223 / 40.705223).
+ *  toFixed her dilde nokta yazıyordu; Türkçe ekranda aynı panelde "508.916,677" (nokta = binlik) durunca
+ *  "40.705223" kırk milyon diye okunabiliyordu. */
+function derece(v, d) { try { return v.toLocaleString(numLocale(), { minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: false }); } catch (_) { return v.toFixed(d); } }
 /** [k, v] → satır; [html] → tam satır; [k, html, 1] → ham html değer */
 /**
  * Etiket / değer satırları. Öğe: [etiket, değer, ham?, satırKimliği?]
@@ -2297,7 +2324,9 @@ function updateMeasure() {
     for (let i = 1; i < m.length; i++) {
       const sl = segLen(m[i - 1], m[i]), d = sl.d; total += d;
       const ang = Math.atan2(m[i][1] - m[i - 1][1], m[i][0] - m[i - 1][0]) * 180 / Math.PI;
-      rows.push([`${i} → ${i + 1}`, `${fmt(d)}${u}   (ΔX ${fmt(m[i][0] - m[i - 1][0])}, ΔY ${fmt(m[i][1] - m[i - 1][1])}` + (sl.dz ? `, ΔZ ${fmt(sl.dz)}` : '') + `, ${fmt(ang, 2)}°)` + (sl.dz ? `   ${t('lengthH')} ${fmt(sl.dxy)}${u}` : '') + (S.unitToM && S.unitToM !== 1 ? `  = ${fmt(d * S.unitToM, 2)} m` : '')]);
+      // Ondalık ayırıcısı virgül olan dilde liste de virgülle ayrılırsa "ΔX 6,95, ΔY 0" okunmaz: orada ";"
+      const ls = sepOf().ondalik === ',' ? '; ' : ', ';
+      rows.push([`${i} → ${i + 1}`, `${fmt(d)}${u}   (ΔX ${fmt(m[i][0] - m[i - 1][0])}${ls}ΔY ${fmt(m[i][1] - m[i - 1][1])}` + (sl.dz ? `${ls}ΔZ ${fmt(sl.dz)}` : '') + `${ls}${fmt(ang, 2)}°)` + (sl.dz ? `   ${t('lengthH')} ${fmt(sl.dxy)}${u}` : '') + (S.unitToM && S.unitToM !== 1 ? `  = ${fmt(d * S.unitToM, 2)} m` : '')]);
     }
     if (m.length > 2) {
       const closing = segLen(m[m.length - 1], m[0]).d;
@@ -3526,7 +3555,7 @@ function showDocInfo() {
     const surf = Object.entries(d.surfaces || {}).map(([k, v]) => k + ' ' + v).join(', ');
     rows.push([t('solidDiag'), `${d.solids} ${t('solidsN')} · ${d.faces} ${t('facesN')}${d.approx ? ' (' + d.approx + ' ' + t('approxN') + ')' : ''} · ${d.skipped} ${t('skippedN')}` + (surf ? ' · ' + surf : '') + (d.versions.length ? ' · ACIS ' + d.versions.join('/') : '') + (d.unknownTags.length ? ' · ' + t('unknownTag') + ' ' + d.unknownTags.join(' ') : '') + (d.errors.length ? ' · ' + d.errors.join('; ') : '')]);
   } }
-  if (S.geo.active && S.ext) { const ll = S.geo.toLonLat((S.ext[0] + S.ext[2]) / 2, (S.ext[1] + S.ext[3]) / 2); if (ll) rows.push([t('crs'), S.geo.crs.name + ` (${t('centerLbl')} φ ${ll[1].toFixed(5)}, λ ${ll[0].toFixed(5)})`]); }
+  if (S.geo.active && S.ext) { const ll = S.geo.toLonLat((S.ext[0] + S.ext[2]) / 2, (S.ext[1] + S.ext[3]) / 2); if (ll) rows.push([t('crs'), S.geo.crs.name + ` (${t('centerLbl')} φ ${derece(ll[1], 5)} · λ ${derece(ll[0], 5)})`]); }
   rows.push(['<strong>' + t('types') + '</strong>']);
   for (const k of Object.keys(c).sort((a, b) => c[b] - c[a])) rows.push([trType(k), c[k]]);
   openDoc(t('info'), kv(rows));
@@ -3753,7 +3782,7 @@ function gpsGoto() {
 $('gpsBtn').addEventListener('click', () => { if (!S.gps.on) gpsToggle(true); else gpsGoto(); });
 function showGps() {
   const rows = [[t('crs'), S.geo.active ? S.geo.crs.name : t('gpsNoCrs')],
-    [t('positionLbl'), S.gps.lat != null ? `φ ${S.gps.lat.toFixed(6)}  λ ${S.gps.lon.toFixed(6)}  ±${fmt(S.gps.acc, 0)} m` : (S.gps.on ? t('gpsWait') : t('gpsOff'))]];
+    [t('positionLbl'), S.gps.lat != null ? `φ ${derece(S.gps.lat, 6)}  λ ${derece(S.gps.lon, 6)}  ±${fmt(S.gps.acc, 0)} m` : (S.gps.on ? t('gpsWait') : t('gpsOff'))]];
   if (S.gps.lat != null && S.geo.active) { const d = S.geo.toDrawing(S.gps.lon, S.gps.lat); if (d) rows.push([t('drawingCoord'), fmt(d[0]) + ' ; ' + fmt(d[1])]); }
   rows.push([`<div class="full btns"><button class="btn small" id="gOn">${S.gps.on ? tt('gpsTurnOff', "GPS'i kapat") : t('gpsOn')}</button><button class="btn small" id="gGo">${t('gpsHere')}</button><label class="chk"><input type="checkbox" id="gFollow" ${S.gps.follow ? 'checked' : ''}> ${t('gpsFollow')}</label><button class="btn small" id="gSet">${t('settings')}</button></div>`]);
   openDoc(t('gps'), kv(rows));
@@ -4424,7 +4453,8 @@ function pdfOnizCiz() {
   const o = { ...pdfAyar, win: pdfWin };
   const [wmm, hmm] = pdfSayfaMm(o, !!o.all);
   const kw = Math.max(80, Math.round(cv.clientWidth || 260)), kh = Math.max(60, Math.round(cv.clientHeight || 150));
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  // Tavan 3: 2,6-3 yoğunluklu telefonlarda (çoğu Android) 2'lik tavan önizlemeyi büyütüp bulanıklaştırıyordu
+  const dpr = Math.min(3, window.devicePixelRatio || 1);
   cv.width = Math.round(kw * dpr); cv.height = Math.round(kh * dpr);
   const c = cv.getContext('2d'); if (!c) return;
   c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, kw, kh);

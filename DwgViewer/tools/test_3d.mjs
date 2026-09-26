@@ -111,7 +111,7 @@ await page.screenshot({ path: `${out}/e_2d_after.png` });
    */
   ok('8a2 yoğun HUD izdüşümü YİNELEMEZ (durum çubuğunda "3B · Paralel" yazar)', !/Paralel|Persp/.test(h1.metin || ''), JSON.stringify(h1.metin));
   ok('8a2b ama 3B ızgara adımını SAKLAMAZ (2B çipiyle aynı ölçü değildir)', /Izgara/.test(h1.metin || ''), JSON.stringify(h1.metin));
-  ok('8a3 yoğun HUD kamera açılarını ve Z aralığını TEK satırda verir', /Yaw/.test(h1.metin || '') && /Z:/.test(h1.metin || ''), JSON.stringify(h1.metin));
+  ok('8a3 yoğun HUD kamera açılarını ve Z aralığını TEK satırda verir', /Yaw|Yön/.test(h1.metin || '') && /Z:/.test(h1.metin || ''), JSON.stringify(h1.metin));
 
   const h2 = await page.evaluate(async () => {
     const E = window.dwgApp.editor, v = E.view3d();

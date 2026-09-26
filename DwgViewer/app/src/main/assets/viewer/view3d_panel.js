@@ -286,7 +286,7 @@ export function openView3DOptions(v3, bodyEl, host = {}) {
 // ---------------------------------------------------------------------------------
 const CUBE_FACES = [
   { id: 'top', n: [0, 0, 1], tr: 'Ü', en: 'T' }, { id: 'bottom', n: [0, 0, -1], tr: 'Al', en: 'Bo' }, { id: 'front', n: [0, -1, 0], tr: 'Ö', en: 'F' },
-  { id: 'back', n: [0, 1, 0], tr: 'A', en: 'Ba' }, { id: 'left', n: [-1, 0, 0], tr: 'S', en: 'L' }, { id: 'right', n: [1, 0, 0], tr: 'Sğ', en: 'R' },
+  { id: 'back', n: [0, 1, 0], tr: 'Ar', en: 'Ba' }, { id: 'left', n: [-1, 0, 0], tr: 'So', en: 'L' }, { id: 'right', n: [1, 0, 0], tr: 'Sa', en: 'R' },
 ];
 /** köşe id'si: (+x,-y,+z) → isoNE, (-x,-y,+z) → isoNW, (+x,+y,+z) → isoSE, (-x,+y,+z) → isoSW; altlar "-low" */
 function cornerId(x, y, z) { const top = z > 0; const id = y < 0 ? (x > 0 ? 'isoNE' : 'isoNW') : (x > 0 ? 'isoSE' : 'isoSW'); return top ? id : id + '-low'; }
@@ -296,7 +296,10 @@ export function buildViewCube(container, v3, host = {}) {
   const NS = 'http://www.w3.org/2000/svg';
   container.innerHTML = '';
   const svg = document.createElementNS(NS, 'svg');
-  svg.setAttribute('viewBox', '-1.45 -1.45 2.9 2.9'); svg.setAttribute('width', '70'); svg.setAttribute('height', '70');
+  // ±1 küpün izdüşümü yatayda √2, düşeyde √3'e (1,73) kadar uzanır; köşe halkası (r 0,2) da eklenince
+  // ±1,93 eder. Eski ±1,45 kutusu dik bakışlarda küpün tepesini ve yan köşe halkalarını kesiyordu.
+  // Kutu ±1,8'e açıldı, taşan birkaç piksel (yalnız çok dik eğimde) kutunun iç payına çizilir (overflow).
+  svg.setAttribute('viewBox', '-1.8 -1.8 3.6 3.6'); svg.setAttribute('width', '76'); svg.setAttribute('height', '76'); svg.style.overflow = 'visible';
   svg.setAttribute('class', 'cube-svg'); svg.style.display = 'block'; svg.style.touchAction = 'none'; svg.style.userSelect = 'none';
   const gFaces = document.createElementNS(NS, 'g'), gEdges = document.createElementNS(NS, 'g'), gCorners = document.createElementNS(NS, 'g'), gLabels = document.createElementNS(NS, 'g'), gNorth = document.createElementNS(NS, 'g');
   svg.append(gFaces, gEdges, gCorners, gLabels, gNorth);
@@ -341,7 +344,7 @@ export function buildViewCube(container, v3, host = {}) {
   const bPersp = document.createElement('button'); bPersp.type = 'button'; bPersp.dataset.cube = 'persp'; bPersp.className = 'cube-btn';
   const bHome = document.createElement('button'); bHome.type = 'button'; bHome.dataset.cube = 'home'; bHome.className = 'cube-btn'; bHome.setAttribute('aria-label', tt('fit3', 'Sığdır'));
   bHome.innerHTML = document.getElementById('i-home') ? '<svg class="ic" width="16" height="16" aria-hidden="true"><use href="#i-home"/></svg>' : '⌂';
-  // Küp 70 px'e indi, kutu 86 px kaldı: düğme satırına 78 px düşer. Simge düğmesi dar (24 px),
+  // Kutu 86 px (iç genişlik 76 px): düğme satırına 76 px düşer. Simge düğmesi dar (24 px),
   // metin düğmesi kalan 50 px'i alır — 15 dilin en uzun etiketi ('Paralel', 39,1 px) oraya sığar.
   for (const b of [bPersp, bHome]) b.style.cssText = 'min-width:0;height:24px;padding:0 2px;border:1px solid var(--line,#888);border-radius:6px;background:var(--btn,#333);color:var(--fg,#eee);font:600 10px system-ui,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
   bPersp.style.flex = '1 1 0'; bHome.style.flex = '0 0 24px'; bHome.style.padding = '0';

@@ -82,7 +82,7 @@ if (step === 'all' || step === 'dxf') {
    * onu kullanır; ekranda görünen ise sığan ilk nüshadır. İkisi de sınanır.
    */
   const kd = await page.evaluate(() => { const co = document.getElementById('stCoord'); return { tam: co.dataset.k0, ekran: co.textContent, kirpik: co.scrollWidth > co.clientWidth + 1 }; });
-  ok('4e durum çubuğu: X/Y ve φ/λ (tam nüsha)', /X: 200 {2}Y: 120/.test(kd.tam) && /φ 40\.7653\d* λ 29\.9407\d*/.test(kd.tam), kd.tam);
+  ok('4e durum çubuğu: X/Y ve φ/λ (tam nüsha)', /X: 200 {2}Y: 120/.test(kd.tam) && /φ 40[.,]7653\d* λ 29[.,]9407\d*/.test(kd.tam), kd.tam);
   ok('4e2 ekranda görünen nüsha yarım değil', !kd.kirpik && /200/.test(kd.ekran) && /120/.test(kd.ekran), JSON.stringify(kd));
   await shot('n_gps');
 }

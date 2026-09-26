@@ -26,10 +26,18 @@
  * Uygulama Türkçe önceliklidir (ay ve gün adları da Türkçedir), bu yüzden gün-ay-yıl ve
  * nokta ayracı kullanılır. 5-8 (para) ve 41-44 (muhasebe) da yerele bağlıdır; simge ₺'dir.
  */
+/*
+ * 9-10 (YÜZDE) da yerele bağlıdır: Türkçe Excel yerleşik yüzdeyi "%20" diye, işareti ÖNE koyarak
+ * gösterir (TDK yazımı); İngilizce Excel "20%". Uygulama arayüz dili Türkçeyken aynı dosya "KDV 20%"
+ * gösteriyordu — oysa aynı ekrandaki yakınlaştırma çipi "%100" yazar. Kod arayüz dilinden okunur
+ * (<html lang>); belge yokken (Node sınamaları) İngilizce biçim kalır. Getter olduğu için tabloyu
+ * açarken kurulan eşlemeler (Object.entries) o anki dili alır.
+ */
+const trArayuz = () => { try { return typeof document !== 'undefined' && /^tr/i.test(document.documentElement.lang || ''); } catch (_) { return false; } };
 export const YERLESIK = {
   0: 'General', 1: '0', 2: '0.00', 3: '#,##0', 4: '#,##0.00',
   5: '"₺"#,##0;-"₺"#,##0', 6: '"₺"#,##0;[Red]-"₺"#,##0', 7: '"₺"#,##0.00;-"₺"#,##0.00', 8: '"₺"#,##0.00;[Red]-"₺"#,##0.00',
-  9: '0%', 10: '0.00%', 11: '0.00E+00', 12: '# ?/?', 13: '# ??/??',
+  get 9() { return trArayuz() ? '%0' : '0%'; }, get 10() { return trArayuz() ? '%0.00' : '0.00%'; }, 11: '0.00E+00', 12: '# ?/?', 13: '# ??/??',
   14: 'dd.mm.yyyy', 15: 'd-mmm-yy', 16: 'd-mmm', 17: 'mmm-yy', 18: 'h:mm AM/PM',
   19: 'h:mm:ss AM/PM', 20: 'h:mm', 21: 'h:mm:ss', 22: 'dd.mm.yyyy h:mm',
   37: '#,##0 ;(#,##0)', 38: '#,##0 ;[Red](#,##0)', 39: '#,##0.00;(#,##0.00)', 40: '#,##0.00;[Red](#,##0.00)',
