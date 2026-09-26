@@ -1957,3 +1957,15 @@ body[data-theme="hicontrast"] .empty-ill, body.contrast .empty-ill { opacity: 1;
 .ps-card small, .ps-card em { color: var(--muted); font-size: calc(11px * var(--fs)); font-style: normal; }
 .ps-card:active { background: color-mix(in srgb, var(--accent) 18%, var(--panel)); }
 .small { font-size: calc(11.5px * var(--fs)); }
+
+/* KAYDET (v8.9.8): kaydedilmemiş değişiklik göstergesi. Dosya adının ÖNÜNDE (ad üç noktayla kırpılsa da görünür),
+   durum çubuğundaki disket düğmesinin köşesinde; belge kipinde (PDF / Word…) gösterilmez */
+#fileName.unsaved::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-inline-end: 6px; border-radius: 50%; background: var(--accent); vertical-align: middle; }
+body.docmode #fileName.unsaved::before { display: none; }
+.st-quick button[data-quick="save"].unsaved { color: var(--fg); }
+.st-quick button[data-quick="save"].unsaved::after { content: ''; position: absolute; top: 7px; right: 7px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--bar); }
+/* "⋯" menüsündeki kısayol ipucu yalnız fareli / klavyeli düzende (dokunmatik telefonda Ctrl+S anlamsız) */
+.menu button > kbd.mk { margin-inline-start: auto; font: inherit; font-size: calc(11px * var(--fs)); color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
+/* kısayol ipucu görünürken kilit rozeti onun yanında; dokunmatikte ipucu gizli, rozet öteki satırlar gibi sağ uçta */
+@media (hover: hover) and (pointer: fine) { .menu button > kbd.mk + .lk-pill { margin-inline-start: 8px; } }
+@media not all and (hover: hover) and (pointer: fine) { .menu button > kbd.mk { display: none; } }

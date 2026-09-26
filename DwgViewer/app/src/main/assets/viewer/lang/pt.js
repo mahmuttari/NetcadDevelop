@@ -27,7 +27,7 @@ export default {
   searchPh: 'Texto, camada, bloco, atributo, identificador…', noResult: 'Sem resultados', results: 'resultados',
   gpsOff: 'GPS desligado', gpsWait: 'À espera da posição…', gpsNoCrs: 'Selecione primeiro o sistema de coordenadas nas Definições.', gpsHere: 'Ir para a minha posição', gpsFollow: 'Seguir a posição',
   crs: 'Sistema de coordenadas', drawingUnit: 'Unidade do desenho', axisSwap: 'Eixos trocados (X = Norte)', offset: 'Deslocamento adicional', lwScale: 'Escala de espessura (px/mm)',
-  language: 'Idioma', save: 'Guardar', cancel: 'Cancelar', delete: 'Eliminar', undo: 'Anular',
+  language: 'Idioma', save: 'Salvar', cancel: 'Cancelar', delete: 'Eliminar', undo: 'Anular',
   pen: 'Caneta', line: 'Linha', arrow: 'Seta', rect: 'Retângulo', circle: 'Círculo', noteText: 'Texto', photo: 'Foto', select: 'Selecionar', noteColor: 'Cor',
   notesSaved: 'Notas guardadas', notePrompt: 'Texto da nota:', noNotes: 'Não há notas neste desenho.',
   pdfTitle: 'Criar PDF', paper: 'Papel', orient: 'Orientação', orientAuto: 'Automático', portrait: 'Vertical', landscape: 'Horizontal', pdfScale: 'Escala 1:', pdfFit: 'Ajustar a vista', dpi: 'Resolução', title: 'Título', create: 'Criar',
@@ -191,7 +191,7 @@ export default {
   tl_display: 'Opções de visualização', th_display: '',
   tl_pdf: 'PDF', th_pdf: 'Criar um PDF à escala',
   tl_png: 'PNG', th_png: 'Guardar a vista como imagem',
-  tl_savedxf: 'Guardar DXF', th_savedxf: 'Guardar o desenho editado em DXF', tl_save: 'Salvar', th_save: 'Salva o desenho como DXF com o próprio nome', tl_saveas: 'Salvar como', th_saveas: 'Salva como DXF com nome e escopo escolhidos',
+  tl_savedxf: 'Guardar DXF', th_savedxf: 'Guardar o desenho editado em DXF', tl_save: 'Salvar', th_save: 'Salva o desenho como DXF; os próximos salvamentos sobrescrevem o mesmo arquivo (Ctrl+S)', tl_saveas: 'Salvar como', th_saveas: 'Salva DXF com nome, local e escopo escolhidos; depois Salvar grava ali, exceto com “Apenas alterações” (Ctrl+Shift+S)',
   tl_savedelta: 'Alterações', th_savedelta: 'Guardar só os objetos alterados',
   tl_undo: 'Anular', th_undo: '',
   tl_redo: 'Refazer', th_redo: '',
@@ -599,5 +599,6 @@ export default {
   // --- v7.89 · ekrandaki görüntüyü paylaşma
   waShare: 'Enviar para o WhatsApp', shareView: 'Partilhar vista', shareTarget: 'partilha', shareNoDoc: 'Abra primeiro um desenho', shareCaption: 'Partilhado com DWG OfficeZip', shareNotInstalled: '%s não está instalado neste dispositivo', shareOther: 'Outra aplicação', shareFail: 'Não foi possível partilhar a vista', shareSaved: 'Vista guardada; envie-a da galeria', shareDocFail: 'Este documento não pode ser partilhado a partir deste dispositivo',
   fileShare: 'Partilhar ficheiro', fileShareOrig: 'Ficheiro original', fileShareOrigHint: 'O ficheiro tal como o abriu: %s', fileShareDxf: 'Com as suas alterações (DXF)', fileShareDxfHint: 'Inclui as cotas e desenhos que adicionou; enviado como DXF porque o DWG não pode ser escrito', fileShareFail: 'Não foi possível partilhar o ficheiro',
+  grpFile: 'Arquivo', stQuickSave: 'Salvar (Ctrl+S)', saveLoc: 'Local', saveLocDl: 'Downloads › DWGViewer', saveLocPick: 'Escolher outro local…', saveAsHint: 'Salvo como DXF (AutoCAD 2000); o arquivo aberto não é alterado. A partir de agora “Salvar” grava neste arquivo (“Apenas alterações” é um arquivo à parte e não muda o destino).', savedTo: 'Salvo: %s', saveDwgNote: 'DWG não pode ser gravado, por isso DXF',
   psOpen: 'Escolher por local: província / distrito · mapa · endereço', psTitle: 'Escolher projeção', psProvince: 'Província / distrito', psMap: 'Mapa', psAddress: 'Endereço', psCoord: 'Coordenada', psDrawing: 'Do desenho', psPickIl: 'Província', psPickIlce: 'Distrito', psIlCenter: 'Província inteira (centro)', psSearch: 'Procurar', psSearchPh: 'Bairro, rua, nome do local…', psGps: 'A minha localização', psCoordPh: '40.7654, 29.9187', psApply: 'Escolher', psScale: 'fator de escala', psFalseE: 'falso este', psZone3: 'fuso 3°', psZone6: 'fuso 6° (UTM)', psCM: 'meridiano central', psEdge: 'Distância ao limite do fuso', psEdgeWarn: 'A área está perto de um limite de fuso (%s). Se não couber num só, a escolha é uma decisão do projeto.', psOutside: 'O ponto escolhido está fora da Türkiye; a sugestão limita-se aos fusos turcos.', psDatumNote: 'O datum não se deduz das coordenadas: ED50 e ITRF96 diferem algumas centenas de metros no mesmo fuso. Tire o datum dos documentos do projeto.', psNoNet: 'A pesquisa de endereços precisa de ligação.', psNoResult: 'Sem resultados.', psBadCoord: 'Não foi possível ler a coordenada.', psDrawGuess: 'Estimado a partir das coordenadas do desenho', psDrawNone: 'As coordenadas do desenho não caem num fuso turco; escolha o local por província/distrito ou no mapa.', psPicked: 'Local escolhido', psSelected: 'Sistema de coordenadas escolhido',
 };

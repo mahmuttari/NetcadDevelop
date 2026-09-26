@@ -191,7 +191,7 @@ export default {
   tl_display: '显示选项', th_display: '',
   tl_pdf: 'PDF', th_pdf: '生成按比例的 PDF',
   tl_png: 'PNG', th_png: '把视图保存为图像',
-  tl_savedxf: '保存 DXF', th_savedxf: '把编辑后的图纸保存为 DXF', tl_save: '保存', th_save: '以图纸自身的名称保存为 DXF', tl_saveas: '另存为', th_saveas: '选择名称和范围后另存为 DXF',
+  tl_savedxf: '保存 DXF', th_savedxf: '把编辑后的图纸保存为 DXF', tl_save: '保存', th_save: '将图纸保存为 DXF；之后的保存会覆盖同一文件 (Ctrl+S)', tl_saveas: '另存为', th_saveas: '选择名称、位置和范围保存 DXF；之后“保存”写入该处（“仅更改”除外） (Ctrl+Shift+S)',
   tl_savedelta: '更改', th_savedelta: '仅保存已更改的对象',
   tl_undo: '撤消', th_undo: '',
   tl_redo: '重做', th_redo: '',
@@ -400,5 +400,6 @@ export default {
   // --- v7.89 · ekrandaki görüntüyü paylaşma
   waShare: '发送到 WhatsApp', shareView: '分享视图', shareTarget: '分享', shareNoDoc: '请先打开一张图纸', shareCaption: '由 DWG OfficeZip 分享', shareNotInstalled: '%s 未安装在此设备上', shareOther: '其他应用', shareFail: '无法分享视图', shareSaved: '视图已保存；请从相册发送', shareDocFail: '无法从此设备分享该文档',
   fileShare: '分享文件', fileShareOrig: '原始文件', fileShareOrigHint: '按打开时的原样：%s', fileShareDxf: '包含您的更改 (DXF)', fileShareDxfHint: '包含您添加的标注和图形；由于无法写入 DWG，以 DXF 发送', fileShareFail: '无法分享文件',
+  grpFile: '文件', stQuickSave: '保存 (Ctrl+S)', saveLoc: '位置', saveLocDl: '下载 › DWGViewer', saveLocPick: '选择其他位置…', saveAsHint: '保存为 DXF（AutoCAD 2000）；您打开的文件不会改变。此后“保存”将写入此文件（“仅更改”是单独的文件，不改变保存目标）。', savedTo: '已保存：%s', saveDwgNote: '无法写入 DWG，因此保存为 DXF',
   psOpen: '按地点选择：省 / 区 · 地图 · 地址', psTitle: '选择投影', psProvince: '省 / 区', psMap: '地图', psAddress: '地址', psCoord: '坐标', psDrawing: '取自图纸', psPickIl: '省', psPickIlce: '区', psIlCenter: '全省（中心）', psSearch: '搜索', psSearchPh: '街区、街道、地名…', psGps: '我的位置', psCoordPh: '40.7654, 29.9187', psApply: '选择', psScale: '比例因子', psFalseE: '东偏常数', psZone3: '3° 带', psZone6: '6° 带 (UTM)', psCM: '中央子午线', psEdge: '到带界的距离', psEdgeWarn: '作业区靠近带界 (%s)。若无法完全落在同一带内，选带属于项目决策。', psOutside: '所选点位于土耳其境外；建议仅限土耳其分带。', psDatumNote: '基准面无法由坐标推断：同一带内 ED50 与 ITRF96 相差数百米。请从项目文件中确认基准面。', psNoNet: '地址搜索需要联网。', psNoResult: '没有结果。', psBadCoord: '无法读取坐标。', psDrawGuess: '由图纸坐标推测', psDrawNone: '图纸坐标不落在任何土耳其分带内；请按省/区或在地图上选择位置。', psPicked: '所选位置', psSelected: '已选择坐标系',
 };

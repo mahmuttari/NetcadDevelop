@@ -16,6 +16,8 @@ import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.net.Uri;
+import android.os.ParcelFileDescriptor;
+import android.os.StatFs;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
@@ -44,6 +46,7 @@ import org.json.JSONObject;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -75,6 +78,7 @@ public class MainActivity extends androidx.activity.ComponentActivity {
     /** Son açılan seçicinin çoklu seçim isteyip istemediği (toplu işlem) */
     private boolean pickMulti = false;
     private static final int REQ_TREE = 1002;
+    private static final int REQ_SAVEAS = 1003;   // Farklı kaydet: ACTION_CREATE_DOCUMENT (konum seçici)
     private static final int REQ_LOCATION = 2001;
     private static final int REQ_CAMERA = 2002;
     private static final int RECENT_MAX = 30;
@@ -101,6 +105,13 @@ public class MainActivity extends androidx.activity.ComponentActivity {
 
     // geçerli dosya
     private Uri currentUri;
+    /*
+     * Farklı kaydet seçicisi açıkken bekleyen istek: JS istek kimliği ve yazılacak baytların ÖNBELLEK DOSYASI. Baytlar yalnız
+     * bellekte tutulsaydı seçici açıkken süreç öldürülünce (düşük bellek, "etkinlikleri tutma") seçicinin açtığı belge BOŞ
+     * kalırdı; dosya ve kimlik onSaveInstanceState ile taşınır, dönüşte yeni etkinlik de yazar.
+     */
+    private String saveAsReq;
+    private String saveAsPath;
     /** bu açılışta intent'le gelen dosya var mı: 'bekleyen dosya' yalnız budur */
     private boolean intentBekliyor;
     /** render süreci çöktükten sonra açık dosya BİR KEZ geri yüklenir (döngüye girmesin diye sayılır) */
@@ -470,9 +481,11 @@ public class MainActivity extends androidx.activity.ComponentActivity {
         if (currentFile != null) out.putString("currentFile", currentFile.getAbsolutePath());
         out.putString("currentName", currentName);
         out.putLong("currentSize", currentSize);
+        if (saveAsReq != null) { out.putString("saveAsReq", saveAsReq); out.putString("saveAsPath", saveAsPath); }
     }
 
     private void restoreState(Bundle in) {
+        if (in.getString("saveAsReq") != null) { saveAsReq = in.getString("saveAsReq"); saveAsPath = in.getString("saveAsPath"); }
         String u = in.getString("currentUri"), f = in.getString("currentFile");
         if (u == null && f == null) return;
         currentUri = u == null ? null : Uri.parse(u);
@@ -724,6 +737,36 @@ public class MainActivity extends androidx.activity.ComponentActivity {
             // klasör seçimi (SAF ağaç izni); iptalde JS'e null döner
             Uri tree = resultCode == RESULT_OK && data != null ? data.getData() : null;
             if (tree == null) jsWhenReady("window.dwgApp && window.dwgApp.onFsRoot && window.dwgApp.onFsRoot(null)"); else onTreePicked(tree);
+            return;
+        }
+        if (requestCode == REQ_SAVEAS) {
+            // Farklı kaydet: kullanıcının seçtiği konum ve ad; iptalde JS'e 'cancel'. Yazma arka planda (ağ sağlayıcısında
+            // çok MB'lık yazma ana iş parçacığını kilitleyip "Uygulama yanıt vermiyor" gösterirdi)
+            final Uri u = resultCode == RESULT_OK && data != null ? data.getData() : null;
+            final String req = saveAsReq, yol = saveAsPath;
+            saveAsReq = null; saveAsPath = null;
+            if (u == null) { saveAsBitir(req, false, "cancel"); if (yol != null) new File(yol).delete(); return; }
+            bg.execute(() -> {
+                int r = YAZ_HATA;
+                try { if (yol != null && new File(yol).isFile()) r = yerineYaz(u, dosyaOku(new File(yol))); }
+                catch (Exception e) { Log.w(TAG, "saveAs oku", e); }
+                if (yol != null) new File(yol).delete();
+                if (r != YAZ_TAMAM) {
+                    // seçicinin açtığı boş belge geride kalmasın
+                    try { DocumentsContract.deleteDocument(getContentResolver(), u); } catch (Exception ignored) { }
+                    saveAsBitir(req, false, "error");
+                    return;
+                }
+                // kalıcı izin: sonraki "Kaydet"ler (uygulama yeniden başladıktan sonra da) aynı belgeye yazabilsin;
+                // bazı sağlayıcılar kalıcı izin vermez — o zaman yazma bu oturumla sınırlıdır, sonra yeni dosyaya düşülür
+                try { getContentResolver().takePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION); } catch (Exception ignored) { }
+                try {
+                    String ad = queryName(u);
+                    JSONObject o = new JSONObject();
+                    o.put("uri", u.toString()); o.put("name", ad == null ? "" : ad);
+                    saveAsBitir(req, true, o.toString());
+                } catch (Exception e) { Log.w(TAG, "saveAs", e); saveAsBitir(req, false, "error"); }
+            });
             return;
         }
         if (requestCode != REQ_PICK || resultCode != RESULT_OK || data == null) return;
@@ -1080,6 +1123,84 @@ public class MainActivity extends androidx.activity.ComponentActivity {
             s.where = f.getAbsolutePath();
         }
         return s;
+    }
+
+    /*
+     * KAYIT HEDEFİNİN ÜSTÜNE YAZMA (v8.9.8, "Kaydet"). Sonuç: YAZ_TAMAM, YAZ_YOK (hedef silinmiş / izin yok / tanınmayan
+     * adres — JS aynı adla yeni dosya açar) ya da YAZ_HATA (yer yok, G/Ç hatası — JS hedefi DEĞİŞTİRMEZ, hata söyler).
+     *   - İçerik adresi: MediaStore'da bu uygulamanın açtığı dosya ya da Farklı kaydet'te seçilen belge. "wt" kırpar;
+     *     kırpmadan ÖNCE aynı birimde yeterli boş yer olduğu denetlenir (yer yetmezse iyi dosya yarım kalmasın). 't'yi yok
+     *     sayan sağlayıcılarda eski kuyruk kalmasın diye yazdıktan sonra boy da kırpılır (bulut sağlayıcılarının boru
+     *     tanıtıcılarında kırpma desteklenmez; orada akış zaten bütün içeriği değiştirir).
+     *   - Dosya adresi (yalnız Android 9 ve öncesi, yalnız uygulamanın kendi dış klasörü): önce geçici dosyaya yazılır,
+     *     sonra adı değiştirilir — yarıda kalan yazma eski kaydı bozmaz.
+     */
+    static final int YAZ_TAMAM = 0, YAZ_YOK = 1, YAZ_HATA = 2;
+    private int yerineYaz(Uri u, byte[] b) {
+        if (u == null) return YAZ_YOK;
+        String sc = u.getScheme();
+        try {
+            if ("file".equals(sc)) {
+                File f = new File(u.getPath() == null ? "" : u.getPath()), kok = getExternalFilesDir(null);
+                if (kok == null || !f.getCanonicalPath().startsWith(kok.getCanonicalPath() + File.separator)) return YAZ_YOK;
+                File dir = f.getParentFile();
+                if (dir == null || !dir.isDirectory()) return YAZ_YOK;
+                File tmp = new File(dir, "." + f.getName() + ".yaziliyor");
+                try (OutputStream out = new FileOutputStream(tmp, false)) { out.write(b); }
+                if (!tmp.renameTo(f)) { tmp.delete(); return YAZ_HATA; }
+                return YAZ_TAMAM;
+            }
+            if (!"content".equals(sc)) return YAZ_YOK;
+            String auth = u.getAuthority() == null ? "" : u.getAuthority();
+            if (auth.equals(getPackageName() + ".files")) return YAZ_YOK;   // uygulamanın kendi iç dosyaları hedef olamaz
+            // yerel depodaki hedeflerde (MediaStore, cihaz depolaması, İndirilenler) kırpmadan önce boş yer denetimi
+            if (auth.equals("media") || auth.startsWith("com.android.externalstorage") || auth.startsWith("com.android.providers.downloads")) {
+                try {
+                    File kok = getExternalFilesDir(null);
+                    if (kok != null && new StatFs(kok.getPath()).getAvailableBytes() < (long) b.length + 256 * 1024) return YAZ_HATA;
+                } catch (Exception ignored) { }
+            }
+            ParcelFileDescriptor pfd = null;
+            try { pfd = getContentResolver().openFileDescriptor(u, "wt"); }
+            catch (FileNotFoundException | SecurityException | IllegalArgumentException e) { return YAZ_YOK; }
+            catch (Exception e) { pfd = null; }
+            if (pfd != null) {
+                try (FileOutputStream fo = new ParcelFileDescriptor.AutoCloseOutputStream(pfd)) {
+                    fo.write(b); fo.flush();
+                    try { fo.getChannel().truncate(b.length); } catch (Exception ignored) { }
+                }
+                return YAZ_TAMAM;
+            }
+            try (OutputStream out = getContentResolver().openOutputStream(u, "w")) {
+                if (out == null) return YAZ_YOK;
+                out.write(b);
+                return YAZ_TAMAM;
+            }
+        } catch (FileNotFoundException | SecurityException e) {
+            Log.w(TAG, "yerineYaz: hedef yok", e);
+            return YAZ_YOK;
+        } catch (Exception e) {
+            Log.w(TAG, "yerineYaz", e);
+            return YAZ_HATA;
+        }
+    }
+    /** Farklı kaydet isteğini bitirir: JS'e dwgApp.onSaveAs(istek, ok, bilgi) — bilgi JSON {uri,name} ya da 'cancel' / 'error' */
+    private void saveAsBitir(String req, boolean ok, String info) {
+        if (req == null) return;
+        jsWhenReady("window.dwgApp && window.dwgApp.onSaveAs && window.dwgApp.onSaveAs(" + JSONObject.quote(req) + "," + ok + "," + JSONObject.quote(info == null ? "" : info) + ")");
+    }
+    /** Android 9 ve öncesi: klasörde aynı adlı dosya varsa MediaStore gibi "ad (1).dxf" üretilir (üstüne yazılmaz) */
+    private static String benzersizAd(File dir, String ad) {
+        if (dir == null || !new File(dir, ad).exists()) return ad;
+        int nokta = ad.lastIndexOf('.');
+        String govde = nokta > 0 ? ad.substring(0, nokta) : ad, uz = nokta > 0 ? ad.substring(nokta) : "";
+        for (int n = 1; n < 1000; n++) { String a = govde + " (" + n + ")" + uz; if (!new File(dir, a).exists()) return a; }
+        return govde + " (" + System.currentTimeMillis() + ")" + uz;
+    }
+    private static byte[] dosyaOku(File f) throws IOException {
+        byte[] b = new byte[(int) f.length()];
+        try (FileInputStream in = new FileInputStream(f)) { int o = 0, n; while (o < b.length && (n = in.read(b, o, b.length - o)) > 0) o += n; }
+        return b;
     }
 
     /** Görüntü ya da belgeyi ortak depoya yazar; share=true ise paylaşım menüsünü açar. */
@@ -1734,6 +1855,84 @@ public class MainActivity extends androidx.activity.ComponentActivity {
                 Log.w(TAG, "saveFileIn", e);
                 return "";
             }
+        }
+
+        /*
+         * KAYDET / FARKLI KAYDET (v8.9.8). saveFile her çağrıda MediaStore'a YENİ kayıt açıyor ("ad (1).dxf"…) ve
+         * paylaşım penceresini açıyordu: "Kaydet" dışa aktarma gibi davranıyordu. saveNew bir kez yeni dosya açar ve
+         * adresini döndürür ({uri, where}); saveOver o adresin — ya da Farklı kaydet'te seçilen belgenin — üstüne yazar;
+         * saveAsPick Android'in kendi "Kaydet" seçicisini açar (cihaz, SD kart, Drive…); shareUri kaydedilen dosyayı paylaşır.
+         */
+        /** Android 10+ İndirilenler/DWGViewer'a yazabilir; 9 ve öncesinde izinsiz ortak klasör yoktur (JS ilk kayıtta seçiciyi açar) */
+        @JavascriptInterface
+        public boolean canSaveDownloads() { return Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q; }
+        @JavascriptInterface
+        public String saveNew(String base64, String fileName, String mime) {
+            Shared s = null;
+            try {
+                byte[] b = Base64.decode(base64, Base64.DEFAULT);
+                boolean q = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q;
+                String ad = dosyaAdi(fileName, "cizim.dxf");
+                if (!q) ad = benzersizAd(new File(getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "DWGViewer"), ad);
+                s = openShared(ad, mime, "DWGViewer");
+                try (OutputStream out = s.out) { out.write(b); }
+                // gerçek ad: aynı adlı dosya varsa MediaStore yeni kaydı "ad (1).dxf" yapar — kullanıcıya o söylenir, o hatırlanır
+                String gercek = ad;
+                if (q && s.uri != null) { String n = queryName(s.uri); if (n != null && !n.isEmpty() && !n.equals(s.uri.getLastPathSegment())) gercek = n; }
+                JSONObject o = new JSONObject();
+                o.put("uri", q ? (s.uri == null ? "" : s.uri.toString()) : Uri.fromFile(new File(s.where)).toString());
+                o.put("name", gercek);
+                o.put("dir", q ? "dl" : "app");
+                o.put("where", q ? "DWGViewer/" + gercek : s.where);
+                return o.toString();
+            } catch (Exception e) {
+                Log.w(TAG, "saveNew", e);
+                // yarım kalan kayıt geride kalmasın
+                if (s != null && s.uri != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) { try { getContentResolver().delete(s.uri, null, null); } catch (Exception ignored) { } }
+                return "";
+            }
+        }
+        /** "ok" | "gone" (hedef yok / izin yok: JS yeni dosya açar) | "fail" (yer yok, G/Ç hatası: hedef korunur) */
+        @JavascriptInterface
+        public String saveOver(String base64, String uri) {
+            try {
+                int r = yerineYaz(Uri.parse(uri), Base64.decode(base64, Base64.DEFAULT));
+                return r == YAZ_TAMAM ? "ok" : r == YAZ_YOK ? "gone" : "fail";
+            } catch (Exception e) { Log.w(TAG, "saveOver", e); return "fail"; }
+        }
+        @JavascriptInterface
+        public void saveAsPick(String reqId, String base64, String fileName, String mime) {
+            final File f = new File(getCacheDir(), "farkli_kaydet.bekleyen");
+            try (OutputStream out = new FileOutputStream(f, false)) { out.write(Base64.decode(base64, Base64.DEFAULT)); }
+            catch (Exception e) { Log.w(TAG, "saveAsPick", e); saveAsBitir(reqId, false, "error"); return; }
+            runOnUiThread(() -> {
+                if (saveAsReq != null) saveAsBitir(saveAsReq, false, "cancel");   // yanıtsız kalmış önceki istek
+                saveAsReq = reqId; saveAsPath = f.getAbsolutePath();
+                Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                i.addCategory(Intent.CATEGORY_OPENABLE);
+                i.setType(mime == null || mime.isEmpty() ? "application/octet-stream" : mime);
+                i.putExtra(Intent.EXTRA_TITLE, dosyaAdi(fileName, "cizim.dxf"));
+                try { startActivityForResult(i, REQ_SAVEAS); }
+                catch (Exception e) { Log.w(TAG, "saveAsPick", e); saveAsReq = null; saveAsPath = null; f.delete(); saveAsBitir(reqId, false, "error"); }
+            });
+        }
+        @JavascriptInterface
+        public void shareUri(String uri, String mime) {
+            runOnUiThread(() -> {
+                try {
+                    Uri u = Uri.parse(uri);
+                    if ("file".equals(u.getScheme())) u = FileProvider.getUriForFile(MainActivity.this, getPackageName() + ".files", new File(u.getPath()));
+                    Intent i = new Intent(Intent.ACTION_SEND);
+                    i.setType(mime == null || mime.isEmpty() ? "application/octet-stream" : mime);
+                    i.putExtra(Intent.EXTRA_STREAM, u);
+                    i.setClipData(ClipData.newRawUri("", u));
+                    i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    startActivity(Intent.createChooser(i, null));
+                } catch (Exception e) {
+                    Log.w(TAG, "shareUri", e);
+                    Toast.makeText(MainActivity.this, R.string.share_file_failed, Toast.LENGTH_SHORT).show();
+                }
+            });
         }
 
         /*
