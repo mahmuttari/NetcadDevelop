@@ -39,14 +39,22 @@ const kopruKur = (o = {}) => ev((o) => {
   window.__kay = [];
   let n = 0;
   window.Android = {
-    saveNew: (b64, name, mime) => { n++; const txt = atob(b64); window.__kay.push(['new', name, mime, txt.length, /SECTION/.test(txt.slice(0, 200)), txt.includes('AC1015')]); return o.newFail ? '' : JSON.stringify({ uri: 'content://media/external/downloads/' + (100 + n), where: 'İndirilenler/DWGViewer/' + name }); },
-    saveOver: (b64, uri) => { const txt = atob(b64); window.__kay.push(['over', uri, txt.length]); return !window.__overFail; },
+    // MediaStore gibi: aynı ad varsa "ad (1).dxf" verir ve GERÇEK adı döndürür
+    canSaveDownloads: () => window.__dl !== false,
+    saveNew: (b64, name, mime) => {
+      n++; const txt = atob(b64); window.__dosyalar = window.__dosyalar || [];
+      let ad = name; for (let k = 1; window.__dosyalar.includes(ad); k++) ad = name.replace(/\.dxf$/i, '') + ' (' + k + ').dxf';
+      window.__dosyalar.push(ad);
+      window.__kay.push(['new', name, mime, txt.length, /SECTION/.test(txt.slice(0, 200)), txt.includes('AC1015'), ad]);
+      return o.newFail ? '' : JSON.stringify({ uri: 'content://media/external/downloads/' + (100 + n), name: ad, dir: 'dl', where: 'DWGViewer/' + ad });
+    },
+    saveOver: (b64, uri) => { const txt = atob(b64); window.__kay.push(['over', uri, txt.length]); window.__sonYazilan = txt; return window.__overCevap || 'ok'; },
     saveAsPick: (id, b64, name, mime) => { window.__kay.push(['pick', name, mime, atob(b64).length]); const cev = window.__pickCevap || { ok: true, info: JSON.stringify({ uri: 'content://com.android.externalstorage.documents/document/primary%3AProje%2F' + encodeURIComponent(name), name, where: name }) }; setTimeout(() => window.dwgApp.onSaveAs(id, cev.ok, cev.info), 60); },
     shareUri: (uri, mime) => { window.__kay.push(['share', uri, mime]); },
     saveFile: (...a) => { window.__kay.push(['saveFile-ESKI', a[1], a[3]]); return 'x'; },
   };
 }, o);
-const kopruKaldir = () => ev(() => { delete window.Android; delete window.__overFail; delete window.__pickCevap; });
+const kopruKaldir = () => ev(() => { delete window.Android; delete window.__overCevap; delete window.__pickCevap; delete window.__dl; });
 const kay = () => ev(() => (window.__kay || []).slice());
 const durum = () => ev(() => {
   const E = window.dwgApp.editor, q = document.querySelector('#stQuick [data-quick="save"]');
@@ -77,7 +85,7 @@ await duzenle(0);
   await menudenSec('save');
   const k = await kay(), d2 = await durum();
   ok('3a menüden Kaydet: İndirilenler/DWGViewer\'a YENİ dosya "example_2000.dxf" (DXF, AC1015); eski paylaşımlı yol çağrılmadı, paylaşım penceresi açılmadı', k.length === 1 && k[0][0] === 'new' && k[0][1] === 'example_2000.dxf' && k[0][2] === 'application/dxf' && k[0][4] && k[0][5], J(k));
-  ok('3b kayıttan sonra: nokta söndü, hedef hatırlandı, ileti yeri ve DWG → DXF notunu söyler', !d2.unsaved && !d2.fnDot && !d2.qDot && d2.qGor && d2.hedef && d2.hedef.uri === 'content://media/external/downloads/101' && /Kaydedildi: İndirilenler\/DWGViewer\/example_2000\.dxf/.test(d2.toast) && /DWG yazılamadığı için DXF/.test(d2.toast), J(d2));
+  ok('3b kayıttan sonra: nokta söndü, hedef hatırlandı, ileti yeri (arayüz dilinde) ve DWG → DXF notunu söyler', !d2.unsaved && !d2.fnDot && !d2.qDot && d2.qGor && d2.hedef && d2.hedef.uri === 'content://media/external/downloads/101' && d2.hedef.dir === 'dl' && /Kaydedildi: İndirilenler › DWGViewer › example_2000\.dxf/.test(d2.toast) && /DWG yazılamadığı için DXF/.test(d2.toast), J(d2));
   const pay = await ev(() => { const b = document.querySelector('#toast button.act:not([hidden])'); if (b) b.click(); return !!b; });
   await bekle(100);
   const k2 = await kay();
@@ -95,20 +103,35 @@ await ev(() => { window.dwgApp.editor.act('undo'); });
   const d = await durum();
   ok('2b kayıttan sonra geri almak da kaydedilmemiş değişikliktir (kayıtlı dosya ekrandakinden farklı)', d.unsaved && d.fnDot && d.qDot, J(d));
 }
-await ev(() => { window.__overFail = true; window.__kay = []; });
+await ev(() => { window.__overCevap = 'fail'; window.__kay = []; });
 await ev(() => window.dwgApp.editor.act('save')); await bekle(250);
 {
   const k = await kay(), d = await durum();
-  ok('3e hedef yazılamazsa (silinmiş / izin düşmüş) aynı adla yeni dosya açılır ve yeni hedef olur', k.length === 2 && k[0][0] === 'over' && k[1][0] === 'new' && k[1][1] === 'example_2000.dxf' && d.hedef.uri === 'content://media/external/downloads/102' && !d.unsaved, J([k, d.hedef]));
+  ok('3e yazma hatası (yer yok / G/Ç): hedef KORUNUR, yeni kopya açılmaz, kaydedilmemiş kalır, hata söylenir', k.length === 1 && k[0][0] === 'over' && d.hedef.uri === 'content://media/external/downloads/101' && d.unsaved && /kaydedilemedi/i.test(d.toast), J([k, d]));
 }
-await ev(() => { delete window.__overFail; window.__kay = []; });
+await ev(() => { window.__overCevap = 'gone'; window.__kay = []; });
+await ev(() => window.dwgApp.editor.act('save')); await bekle(250);
+{
+  const k = await kay(), d = await durum();
+  ok('3f hedef yoksa (silinmiş / izin düşmüş) aynı adla yeni dosya açılır; ad çakışınca GERÇEK ad ("(1)") söylenir ve hatırlanır', k.length === 2 && k[0][0] === 'over' && k[1][0] === 'new' && k[1][1] === 'example_2000.dxf' && k[1][6] === 'example_2000 (1).dxf' && d.hedef.uri === 'content://media/external/downloads/102' && d.hedef.name === 'example_2000 (1).dxf' && /example_2000 \(1\)\.dxf/.test(d.toast) && !d.unsaved, J([k, d]));
+}
+await ev(() => { delete window.__overCevap; window.__kay = []; });
+// Farklı kaydet, İndirilenler, şu anki hedefin adıyla: "(2)" kopyası açılmaz, hedefin üstüne yazılır
+await duzenle(300);
+await queueAnswers(page, { ad: 'example_2000 (1)', yer: 'dl', delta: false });
+await ev(() => window.dwgApp.editor.act('saveas')); await bekle(350);
+{
+  const k = await kay(), d = await durum();
+  ok('3g Farklı kaydet → İndirilenler, hedefle aynı ad: yeni kopya açılmaz, hedefin üstüne yazılır', k.length === 1 && k[0][0] === 'over' && k[0][1] === 'content://media/external/downloads/102' && !d.unsaved, J([k, d.hedef]));
+}
+await ev(() => { window.__kay = []; });
 
 // ---- 4. Farklı kaydet ---------------------------------------------------------------------------------------------------
 await duzenle(400);
 await tus('Control+Shift+S');
 {
   const f = await formAcik();
-  ok('4a Ctrl+Shift+S "Farklı kaydet" kutusunu açar: ad (hedefin adı), konum (İndirilenler / başka konum), kapsam; ipucu özgün dosyanın değişmediğini söyler', f && f.baslik === 'Farklı kaydet' && f.ad === 'example_2000' && J(f.yer) === J(['dl', 'pick']) && f.alanlar.includes('delta') && /açtığınız dosya değişmez/.test(f.ipucu), J(f));
+  ok('4a Ctrl+Shift+S "Farklı kaydet" kutusunu açar: ad (hedefin adı), konum (İndirilenler / başka konum), kapsam; ipucu özgün dosyanın değişmediğini söyler', f && f.baslik === 'Farklı kaydet' && f.ad === 'example_2000 (1)' && J(f.yer) === J(['dl', 'pick']) && f.alanlar.includes('delta') && /açtığınız dosya değişmez/.test(f.ipucu), J(f));
   await ev(() => { document.getElementById('askF_ad').value = 'Proje A'; const s = document.getElementById('askF_yer'); s.value = 'pick'; s.dispatchEvent(new Event('change')); });
   await page.click('#askOk'); await bekle(450);
   const k = await kay(), d = await durum();
@@ -153,6 +176,77 @@ await ev(() => { window.__kay = []; }); await ev(() => window.dwgApp.editor.act(
   const k = await kay();
   ok('5c yeniden açılıştan sonra Kaydet yine aynı belgeye yazar', k.length === 1 && k[0][0] === 'over' && /Proje%20A\.dxf$/.test(k[0][1]), J(k));
 }
+// Kaydet → hepsini geri al → yeniden aç: kayıtlı dosya ekrandakinden farklı → kaydedilmemiş
+{
+  await ev(() => { window.__kay = []; }); await tus('Control+s');
+  await ev(() => window.dwgApp.editor.act('undo')); await bekle(100);
+  const once = await durum();
+  await openFile(page, `${SM}/pface_full.dxf`, { settle: 300 });
+  await openFile(page, FILE, { settle: 400 });
+  const d = await durum();
+  ok('5d kayıttan sonra geri alınıp kapanan çizim yeniden açılınca da "kaydedilmemiş" (kayıtlı dosya farklı)', once.unsaved && d.unsaved && d.fnDot && d.qDot, J([once, d]));
+}
+// GEOMETRİ: günlük yeniden oynatılınca çizim kaymamalı (ekle + taşı; ekle + taşı + geri al) ve kaydedilmiş hâl doğru olmalı
+{
+  await temizDepo();
+  await openFile(page, FILE, { settle: 400 });
+  const kur = await ev(() => {
+    const E = window.dwgApp.editor;
+    E.runCmd({ op: 'add', ents: [{ type: 'LINE', id: 'geoA', pts: [[5000, 5000, 0], [5010, 5000, 0]], layer: '0', color: 1 }] });
+    E.runCmd({ op: 'xform', keys: ['geoA'], m: [1, 0, 0, 1, 100, 0], dz: 0 });
+    E.runCmd({ op: 'add', ents: [{ type: 'LINE', id: 'geoB', pts: [[6000, 5000, 0], [6010, 5000, 0]], layer: '0', color: 1 }] });
+    E.runCmd({ op: 'xform', keys: ['geoB'], m: [1, 0, 0, 1, 100, 0], dz: 0 });
+    E.act('undo');
+    const x = (k) => { const p = window.dwgApp.state.scene.layouts[0].prims.find(q => q.key === k); return p ? Math.round(Math.min(...p.ops.map(o => o[1]))) : null; };
+    return [x('geoA'), x('geoB')];
+  });
+  await ev(() => { window.__kay = []; }); await tus('Control+s');
+  const yazilan = await ev(() => { const k = window.__kay.find(x => x[0] === 'new' || x[0] === 'over'); return k ? k[0] : null; });
+  const gor = async () => ev(() => { const x = (k) => { const p = window.dwgApp.state.scene.layouts[0].prims.find(q => q.key === k); return p ? Math.round(Math.min(...p.ops.map(o => o[1]))) : null; }; return [x('geoA'), x('geoB')]; });
+  await openFile(page, `${SM}/pface_full.dxf`, { settle: 300 });
+  await openFile(page, FILE, { settle: 400 });
+  const r1 = await gor(), d1 = await durum();
+  await openFile(page, `${SM}/pface_full.dxf`, { settle: 300 });
+  await openFile(page, FILE, { settle: 400 });
+  const r2 = await gor();
+  ok('5e günlük değişmez: "ekle + taşı" yeniden açılışta 5100\'de (5200 değil), "ekle + taşı + geri al" 6000\'de; ikinci açılışta da aynı; kaydedilmiş görünür', J(kur) === J([5100, 6000]) && J(r1) === J([5100, 6000]) && J(r2) === J([5100, 6000]) && !!yazilan && !d1.unsaved, J({ kur, r1, r2, yazilan, d1 }));
+}
+// Ctrl+S komut satırı odaktayken; belge (PDF) önündeyken
+{
+  await duzenle(7000);
+  await ev(() => { window.__kay = []; const c = document.getElementById('cmdInput'); if (c) { c.hidden = false; c.focus(); } });
+  const odak = await ev(() => document.activeElement && document.activeElement.id);
+  await page.keyboard.press('Control+s'); await bekle(300);
+  const k = await kay();
+  ok('5f komut satırı odaktayken Ctrl+S kaydeder', odak === 'cmdInput' && k.some(x => x[0] === 'new' || x[0] === 'over'), J([odak, k]));
+  await ev(() => { window.__kay = []; document.body.classList.add('docmode'); document.activeElement && document.activeElement.blur && document.activeElement.blur(); });
+  await page.keyboard.press('Control+s'); await bekle(250);
+  const k2 = await kay();
+  await ev(() => { document.body.classList.remove('docmode'); });
+  ok('5g belge (PDF / Word) önündeyken Ctrl+S arkadaki çizimi kaydetmez', k2.length === 0, J(k2));
+}
+// Android 9 ve öncesi: İndirilenler yok → ilk Kaydet seçiciyi açar; Farklı kaydet'te konum sorulmaz
+{
+  await temizDepo();
+  await openFile(page, FILE, { settle: 400 });
+  await ev(() => { window.__dl = false; window.__kay = []; });
+  await duzenle(0);
+  await tus('Control+s'); await bekle(250);
+  const k = await kay(), d = await durum();
+  ok('5h Android 9 ve öncesi: ilk Kaydet konum seçicisini açar, seçilen belge hedef olur', k.length === 1 && k[0][0] === 'pick' && k[0][1] === 'example_2000.dxf' && d.hedef && /primary%3AProje/.test(d.hedef.uri) && !d.unsaved, J([k, d]));
+  await ev(() => window.dwgApp.editor.act('saveas')); await bekle(250);
+  const f = await formAcik();
+  await ev(() => { const b = document.getElementById('askNo'); if (b) b.click(); }); await bekle(200);
+  ok('5i Android 9 ve öncesi: Farklı kaydet kutusunda konum seçeneği yok (tek yol seçici)', f && !f.alanlar.includes('yer') && f.alanlar.includes('ad'), J(f));
+  await ev(() => { delete window.__dl; });
+}
+// seçici açıkken sayfa yeniden yüklenmiş: bekleyeni olmayan dönüş en azından söylenir
+{
+  await ev(() => { document.getElementById('toast').hidden = true; window.dwgApp.onSaveAs('yok-99', true, JSON.stringify({ uri: 'content://x/1', name: 'Kurtarilan.dxf' })); });
+  await bekle(150);
+  const d = await durum();
+  ok('5j bekleyeni olmayan seçici dönüşü (sayfa yeniden yüklenmiş) kullanıcıya söylenir', /Kaydedildi: Kurtarilan\.dxf/.test(d.toast), d.toast);
+}
 await page.screenshot({ path: `${out}/kaydet_android.png` });
 
 // ---- 6. tarayıcı: indirme ------------------------------------------------------------------------------------------------
@@ -165,7 +259,7 @@ await duzenle(0);
   await menudenSec('save');
   let ad = null; try { ad = (await dl).suggestedFilename(); } catch (_) { ad = null; }
   const d = await durum();
-  ok('6a tarayıcıda Kaydet çizimin adıyla DXF indirir; nokta söner', ad === 'example_2000.dxf' && !d.unsaved, J([ad, d]));
+  ok('6a tarayıcıda Kaydet çizimin adıyla DXF indirir; indirmenin iptal edilip edilmediği bilinemediği için "kaydedildi" SAYILMAZ, hedef tutulmaz', ad === 'example_2000.dxf' && d.unsaved && !d.hedef, J([ad, d]));
   const f = await (async () => { await ev(() => window.dwgApp.editor.act('saveas')); await bekle(250); const x = await formAcik(); await ev(() => { const b = document.getElementById('askNo'); if (b) b.click(); }); await bekle(200); return x; })();
   ok('6b tarayıcıda Farklı kaydet kutusunda konum seçimi yok (yalnız ad ve kapsam)', f && !f.alanlar.includes('yer') && f.alanlar.includes('ad') && f.alanlar.includes('delta'), J(f));
 }

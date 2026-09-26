@@ -242,6 +242,7 @@ export function transformPrim(p, m, dz = 0, zs = 1) {
     p.quad = p.quad.map(c => apply(m, c[0], c[1])); p.bb = [Math.min(...p.quad.map(c => c[0])), Math.min(...p.quad.map(c => c[1])), Math.max(...p.quad.map(c => c[0])), Math.max(...p.quad.map(c => c[1]))];
   }
   if (p.ent) { // tanım da güncellensin
+    p.ent = { ...p.ent };   // yazarken kopya: tanım nesnesi günlükteki komutla paylaşılmış olabilir (bkz. entKopya)
     p.ent.pts = (p.ent.pts || []).map(q => { const r = apply(m, q[0], q[1]); return [r[0], r[1], (q[2] || 0) * zs + dz]; });
     if (p.ent.r) p.ent.r *= Math.sqrt(Math.abs(det(m)));
     if (p.ent.type === 'ARC') { const r = Math.atan2(m[1], m[0]); p.ent.a0 += r; p.ent.a1 += r; }
@@ -274,6 +275,7 @@ export function setPrimZ(p, z) {
   if (p.k === 0) for (const o of p.ops) { if (o[0] === 0 || o[0] === 1) o[3] = z; else if (o[0] === 2 || o[0] === -2) o[6] = z; }
   else p.z = z;
   if (p.ent) {
+    p.ent = { ...p.ent };   // yazarken kopya (bkz. entKopya)
     p.ent.pts = (p.ent.pts || []).map(q => [q[0], q[1], z]);
     // ölçülendirme: parçaların kendi noktaları (segs / arcs) ve TANIMI da yeni kota iner — yoksa ölçü sonradan
     // düzenlenince (özellikler, tutamak) tanımdan eski kotta yeniden kurulurdu
@@ -449,6 +451,14 @@ function resyncGroups(C, groups, infoFn) {
   arr.length = 0; for (const p of out) arr.push(p);
   return () => { arr.length = 0; for (const p of old) arr.push(p); };
 }
+/*
+ * GÜNLÜK KOMUTU DEĞİŞMEZ (v8.9.8). entToPrim komutun KENDİ ent nesnesini ilkele koyar (base.ent). transformPrim ve setPrimZ
+ * o nesnenin alanlarını yerinde değiştiriyordu: "çizgi ekle" komutu, sonraki "taşı" ile birlikte günlüğe DEĞİŞMİŞ olarak
+ * yazılıyor, çizim yeniden açılınca taşıma İKİ KEZ uygulanıyordu (her açılışta bir kez daha kayıyordu); taşımayı geri almak da
+ * günlükteki eklemeyi düzeltmiyordu. "Kaydet" bu günlüğün imzasıyla "kaydedilmiş hâl bu" dediği için bu, kayıtlı iyi dosyanın
+ * üstüne yanlış geometri yazılmasına yol açardı. Artık uygulanan her ent kopyadır; ilkeller günlükle hiçbir nesneyi paylaşmaz.
+ */
+const entKopya = (e) => (typeof structuredClone === 'function' ? structuredClone(e) : JSON.parse(JSON.stringify(e)));
 export class EditDoc {
   /**
    * @param ctx { prims:()=>array, layers:Map, blocks:Map (blok tanımları, blocks.js), vars:{} (başlık değişkenleri: INSBASE), insert:(prim, at)=>void, remove:(prim)=>index, rebuild:()=>void, store:{get,set}, key:string }
@@ -507,7 +517,7 @@ export class EditDoc {
     switch (cmd.op) {
       case 'add': {
         const created = [];
-        for (const ent of cmd.ents) for (const p of entsToPrims(ent, C.layers, C.blocks)) { C.insert(p); created.push(p); }
+        for (const ent of cmd.ents) for (const p of entsToPrims(entKopya(ent), C.layers, C.blocks)) { C.insert(p); created.push(p); }
         if (!created.length) return null;
         C.rebuild();
         return () => { for (const p of created) C.remove(p); C.rebuild(); };
@@ -527,7 +537,7 @@ export class EditDoc {
         const ps = this.find(cmd.keys || []);
         const removed = ps.map(p => ({ p, at: C.remove(p) }));
         const created = [];
-        for (const ent of cmd.ents || []) for (const p of entsToPrims(ent, C.layers, C.blocks)) { C.insert(p); created.push(p); }
+        for (const ent of cmd.ents || []) for (const p of entsToPrims(entKopya(ent), C.layers, C.blocks)) { C.insert(p); created.push(p); }
         if (!removed.length && !created.length) return null;
         C.rebuild();
         return () => { for (const p of created) C.remove(p); for (const r of removed.slice().reverse()) C.insert(r.p, r.at); C.rebuild(); };

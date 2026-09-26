@@ -5783,7 +5783,13 @@ window.addEventListener('keydown', (ev) => {
    */
   // Esc de her zaman geçer: komut satırına yazarken çalışan aracı iptal etmek AutoCAD'de de
   // tek tuştur. Odak girişteyken Esc tuzağa düşerse kullanıcı aracı bırakamaz.
-  if (yazi && !(typeof ev.key === 'string' && (/^F\d{1,2}$/.test(ev.key) || ev.key === 'Escape'))) return;
+  // Ctrl+S / Ctrl+Shift+S komut satırındayken de kaydeder (masaüstü kipinde yazdıktan sonra odak hep oradadır); kutu
+  // alanlarında (Farklı kaydet adı gibi) değil — kutu açıkken kayıt başlamasın
+  const kaydetTusu = (ev.ctrlKey || ev.metaKey) && typeof ev.key === 'string' && /^s$/i.test(ev.key);
+  if (yazi && !(typeof ev.key === 'string' && (/^F\d{1,2}$/.test(ev.key) || ev.key === 'Escape')) && !(kaydetTusu && tg.id === 'cmdInput')) return;
+  // belge (PDF / Word…) ya da ana ekran önündeyken Ctrl+S arkadaki çizimi kaydetmez (menü de orada Kaydet'i gizler);
+  // tarayıcının "sayfayı kaydet"i de açılmasın
+  if (kaydetTusu && (document.body.classList.contains('docmode') || Home.isShown())) { ev.preventDefault(); return; }
   if (edCall('key', ev) === true) { ev.preventDefault(); return; }
   if (!S.hasDoc) return;
   const k = ev.key; if (typeof k !== 'string') return;

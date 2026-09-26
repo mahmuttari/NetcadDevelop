@@ -191,7 +191,7 @@ export default {
   tl_display: '화면 설정', th_display: '',
   tl_pdf: 'PDF', th_pdf: '축척을 지정해 PDF 만들기',
   tl_png: 'PNG', th_png: '화면을 이미지로 저장',
-  tl_savedxf: 'DXF 저장', th_savedxf: '편집한 도면을 DXF로 저장', tl_save: '저장', th_save: '도면을 DXF로 저장합니다. 이후 저장은 같은 파일에 덮어씁니다 (Ctrl+S)', tl_saveas: '다른 이름으로 저장', th_saveas: '이름, 위치, 범위를 선택해 DXF로 저장합니다. 이후 저장은 그곳에 씁니다 (Ctrl+Shift+S)',
+  tl_savedxf: 'DXF 저장', th_savedxf: '편집한 도면을 DXF로 저장', tl_save: '저장', th_save: '도면을 DXF로 저장합니다. 이후 저장은 같은 파일에 덮어씁니다 (Ctrl+S)', tl_saveas: '다른 이름으로 저장', th_saveas: '이름, 위치, 범위를 선택해 DXF로 저장합니다. 이후 저장은 그곳에 씁니다(“변경 사항만” 제외) (Ctrl+Shift+S)',
   tl_savedelta: '변경', th_savedelta: '바뀐 객체만 저장',
   tl_undo: '실행 취소', th_undo: '',
   tl_redo: '다시 실행', th_redo: '',
@@ -599,6 +599,6 @@ export default {
   // --- v7.89 · ekrandaki görüntüyü paylaşma
   waShare: 'WhatsApp으로 보내기', shareView: '화면 공유', shareTarget: '공유', shareNoDoc: '먼저 도면을 여세요', shareCaption: 'DWG OfficeZip에서 공유', shareNotInstalled: '%s이(가) 이 기기에 설치되어 있지 않습니다', shareOther: '다른 앱', shareFail: '화면을 공유하지 못했습니다', shareSaved: '이미지를 저장했습니다. 갤러리에서 보내세요', shareDocFail: '이 문서는 이 기기에서 공유할 수 없습니다',
   fileShare: '파일 공유', fileShareOrig: '원본 파일', fileShareOrigHint: '연 그대로의 파일: %s', fileShareDxf: '변경 내용 포함 (DXF)', fileShareDxfHint: '추가한 치수와 도형이 포함됩니다. DWG는 쓸 수 없어 DXF로 보냅니다', fileShareFail: '파일을 공유하지 못했습니다',
-  grpFile: '파일', stQuickSave: '저장 (Ctrl+S)', saveLoc: '위치', saveLocDl: '다운로드 › DWGViewer', saveLocPick: '다른 위치 선택…', saveAsHint: 'DXF(AutoCAD 2000)로 저장됩니다. 연 파일은 바뀌지 않습니다. 이제부터 “저장”은 이 파일에 씁니다.', savedTo: '저장됨: %s', saveDwgNote: 'DWG는 쓸 수 없어 DXF로',
+  grpFile: '파일', stQuickSave: '저장 (Ctrl+S)', saveLoc: '위치', saveLocDl: '다운로드 › DWGViewer', saveLocPick: '다른 위치 선택…', saveAsHint: 'DXF(AutoCAD 2000)로 저장됩니다. 연 파일은 바뀌지 않습니다. 이제부터 “저장”은 이 파일에 씁니다(“변경 사항만”은 별도 파일이며 대상은 바뀌지 않습니다).', savedTo: '저장됨: %s', saveDwgNote: 'DWG는 쓸 수 없어 DXF로',
   psOpen: '장소로 선택: 주 / 군 · 지도 · 주소', psTitle: '투영법 선택', psProvince: '주 / 군', psMap: '지도', psAddress: '주소', psCoord: '좌표', psDrawing: '도면에서', psPickIl: '주', psPickIlce: '군', psIlCenter: '주 전체 (중심)', psSearch: '검색', psSearchPh: '동네, 거리, 지명…', psGps: '내 위치', psCoordPh: '40.7654, 29.9187', psApply: '선택', psScale: '축척 계수', psFalseE: '가동치(동)', psZone3: '3° 대', psZone6: '6° 대 (UTM)', psCM: '중앙 자오선', psEdge: '대 경계까지 거리', psEdgeWarn: '작업 구역이 대 경계에 가깝습니다 (%s). 한 대에 들어가지 않으면 대 선택은 프로젝트 결정입니다.', psOutside: '선택한 지점이 튀르키예 밖입니다. 제안은 튀르키예 대로 한정됩니다.', psDatumNote: '기준계는 좌표로 알 수 없습니다: 같은 대에서도 ED50과 ITRF96은 수백 미터 차이가 납니다. 기준계는 프로젝트 문서에서 확인하세요.', psNoNet: '주소 검색에는 인터넷 연결이 필요합니다.', psNoResult: '결과 없음.', psBadCoord: '좌표를 읽을 수 없습니다.', psDrawGuess: '도면 좌표로 추정', psDrawNone: '도면 좌표가 튀르키예의 어느 대에도 들어가지 않습니다. 주/군 또는 지도에서 위치를 선택하세요.', psPicked: '선택한 위치', psSelected: '좌표계를 선택했습니다',
 };

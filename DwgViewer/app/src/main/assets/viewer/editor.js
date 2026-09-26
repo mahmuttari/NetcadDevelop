@@ -103,7 +103,7 @@ const TABS = [
   { id: 'view', i18n: 'tabView', icon: 'i-eye', groups: [
     { cap: 'grpNav', items: [T('extents', 'i-fit', 'Sığdır', 'Fit', 'Çizimin tamamını ekrana sığdırır', 'Zoom to the drawing extents'), T('zoomwin', 'i-zoom-window', 'Pencere', 'Window', 'Sürüklenen dikdörtgene yakınlaştırır', 'Zoom into a dragged rectangle'), T('pan', 'i-hand', 'Kaydır', 'Pan', 'Açıkken sürükleme yalnız görünümü kaydırır: araç, tutamak ve seçim dokunuşu almaz. Kapatmak için yeniden dokunun (Esc). 3B görünümde tek parmağı döndür ↔ kaydır arasında çevirir', 'While on, dragging only pans the view: tools, grips and selection ignore the pointer. Tap again (or Esc) to turn it off. In 3D it switches one finger between orbit and pan'), T('prevview', 'i-prev', 'Önceki', 'Previous', 'Önceki görünüme döner', 'Previous view'), T('nextview', 'i-next', 'Sonraki', 'Next', 'Sonraki görünüme geçer', 'Next view'), T('goto', 'i-goto', 'Koordinat', 'Go to', 'X,Y ya da enlem/boylam girerek gider', 'Go to X,Y or lat/lon'), T('home', 'i-home', 'Ana görünüm', 'Home', 'Kaydedilmiş ana görünüme döner', 'Saved home view')] },
     { cap: 'grpPanels', items: [T('layers', 'i-layers', 'Katmanlar', 'Layers', 'Katman görünürlüğü, izolasyon, soldurma', 'Layer visibility, isolate, fade'), T('search', 'i-search', 'Ara', 'Search', 'Yazı, katman, blok, öznitelik ara', 'Find text, layers, blocks'), T('info', 'i-info', 'Bilgi', 'Info', 'Çizim bilgisi', 'Drawing info'), T('count', 'i-count', 'Sayım', 'Count', 'Blok ve varlık sayımı, oransal dağılım', 'Block and entity counts with a bar chart'), T('views', 'i-bookmark', 'Görünümler', 'Views', 'Kayıtlı görünümler ve yer imleri', 'Saved views'), T('layouts', 'i-layout', 'Sayfalar', 'Layouts', 'Model / kâğıt sayfa düzenleri', 'Model / paper layouts'), T('notes', 'i-pen', 'Notlar', 'Notes', 'Kırmızı kalem notları', 'Redline notes'), T('gps', 'i-gps', 'GPS', 'GPS', 'Konumu çizimde gösterir', 'Show position on the drawing'), T('basemap', 'i-map', 'Altlık', 'Basemap', 'Harita altlığı', 'Map basemap'), T('compare', 'i-compare', 'Karşılaştır', 'Compare', 'İki revizyonu karşılaştırır', 'Compare two revisions'), T('drive', 'i-drive', 'Drive', 'Drive', 'Google Drive: dosya aç, yükle', 'Google Drive: open and upload files'), T('display', 'i-sliders', 'Ekran ayarları', 'Display options', 'Tema, ön ayarlar, süzgeçler, çizgiler, ızgara…', 'Theme, presets, filters, lines, grid…')] },
-    { cap: 'grpFile', items: [T('save', 'i-save', 'Kaydet', 'Save', 'Çizimi DXF olarak kaydeder; sonraki kayıtlar aynı dosyanın üstüne yazar (Ctrl+S)', 'Saves the drawing as DXF; later saves overwrite the same file (Ctrl+S)'), T('saveas', 'i-saveas', 'Farklı kaydet', 'Save as', 'Ad, konum ve kapsam seçerek DXF kaydeder; bundan sonra Kaydet oraya yazar (Ctrl+Shift+S)', 'Saves DXF with a chosen name, location and scope; Save then writes there (Ctrl+Shift+S)')] },
+    { cap: 'grpFile', items: [T('save', 'i-save', 'Kaydet', 'Save', 'Çizimi DXF olarak kaydeder; sonraki kayıtlar aynı dosyanın üstüne yazar (Ctrl+S)', 'Saves the drawing as DXF; later saves overwrite the same file (Ctrl+S)'), T('saveas', 'i-saveas', 'Farklı kaydet', 'Save as', 'Ad, konum ve kapsam seçerek DXF kaydeder; bundan sonra Kaydet oraya yazar — “Yalnız değişiklikler” hariç (Ctrl+Shift+S)', 'Saves DXF with a chosen name, location and scope; Save then writes there — except with “Only changes” (Ctrl+Shift+S)')] },
     { cap: 'grpOut', items: [T('pdf', 'i-pdf', 'PDF', 'PDF', 'Ölçekli PDF oluşturur', 'Create a scaled PDF'), T('png', 'i-image', 'PNG', 'PNG', 'Görünümü resim olarak kaydeder', 'Save the view as an image'), T('savedxf', 'i-save', 'DXF kaydet', 'Save DXF', 'Düzenlenmiş çizimi DXF olarak kaydeder', 'Save the edited drawing as DXF'), T('savedelta', 'i-export', 'Değişiklikler', 'Changes', 'Yalnız değişen nesneleri DXF olarak kaydeder', 'Save only changed objects'), T('textout', 'i-textout', 'Metin çıkar', 'Extract text', 'Çizimdeki bütün yazıları CSV olarak dışa aktarır', 'Export every text in the drawing as CSV'), T('mesh3d', 'i-cube', '3B dışa aktar', 'Export 3D', 'Katı ve ağ gövdelerini OBJ ya da STL olarak yazar', 'Write solids and meshes as OBJ or STL'), T('tableout', 'i-table', 'Tablo çıkar', 'Extract table', 'Çizimdeki tabloyu ızgaradan okuyup CSV yapar', 'Read a drawn table grid and export it as CSV'), T('batch', 'i-batch', 'Toplu işlem', 'Batch', 'Birden çok dosyaya aynı işlemi uygular', 'Apply the same operation to many files'), T('pdfcad', 'i-pdfcad', 'PDF→CAD', 'PDF→CAD', 'PDF sayfasının vektör içeriğini çizime çevirir', 'Convert a PDF page vector content into drawing objects')] },
     { cap: 'grpHist', items: [T('undo', 'i-undo', 'Geri al', 'Undo'), T('redo', 'i-redo', 'Yinele', 'Redo'), T('more', 'i-more', 'Diğer', 'More', 'Diğer işlevler menüsü', 'More functions')] } ] },
   { id: 'display', i18n: 'tabDisplay', icon: 'i-sliders', groups: [] },   // satır içeriği 2B/3B'ye göre üretilir
@@ -2402,8 +2402,10 @@ function kayitYukle() {
   const o = api.store && api.store.json ? api.store.json(kayitAnahtar(), null) : null;
   if (!o || typeof o !== 'object') return;
   const h = o.hedef;
-  if (h && typeof h === 'object' && typeof h.name === 'string') kayit.hedef = { uri: typeof h.uri === 'string' ? h.uri : '', name: h.name, where: typeof h.where === 'string' ? h.where : h.name };
-  if (typeof o.imza === 'string' && doc && o.imza === logImza(doc)) kayit.savedVer = doc.ver;
+  if (h && typeof h === 'object' && typeof h.name === 'string') kayit.hedef = { uri: typeof h.uri === 'string' ? h.uri : '', name: h.name, dir: h.dir === 'dl' ? 'dl' : '', where: typeof h.where === 'string' ? h.where : h.name };
+  // imza tutuyorsa kaydedilmiş hâl budur; tutmuyorsa (kayıttan sonra değişip kapanmış, her şey geri alınmış olsa bile)
+  // kayıtlı dosya ekrandakinden farklıdır: -2 "kaydedilmemiş" demektir, bir sonraki kayda kadar
+  if (typeof o.imza === 'string' && doc) kayit.savedVer = o.imza === logImza(doc) ? doc.ver : -2;
 }
 function kayitSakla() { try { api.store.set(kayitAnahtar(), JSON.stringify({ hedef: kayit.hedef, imza: logImza(anaDoc()) })); } catch (_) { /* depo dolu */ } }
 /** Kaydedilmemiş değişiklik var mı: son kayıttan (ya da açılıştan) sonra belge değişti mi */
@@ -2413,7 +2415,7 @@ function kaydedilmemis() {
   if (d.ver === kayit.savedVer) return false;
   // hiç kaydedilmemiş çizimde düzenleme yoksa kaydedilecek bir şey yoktur (özgün dosya olduğu gibi duruyor);
   // kaydedildikten sonra her şey geri alınmışsa kayıtlı dosya artık ekrandakinden farklıdır → kaydedilmemiş
-  return d.dirty || kayit.savedVer >= 0;
+  return d.dirty || kayit.savedVer !== -1;
 }
 /** Göstergeler: dosya adındaki nokta, durum çubuğundaki disket düğmesi, şeritteki Kaydet karolarının vurgusu */
 function kayitGoster() {
@@ -2439,17 +2441,21 @@ function kodla(text) {
 }
 /** Özgün dosya DXF değilse (DWG, DGN…) kayıt biçimi değişmiştir: kullanıcıya bir kez söylenir */
 const ozgunDxfDegil = () => !/\.dxf$/i.test(String(S.fileName || ''));
+/** Kullanıcıya gösterilen yer: İndirilenler dosyası arayüz dilinde ("Downloads › DWGViewer › plan.dxf"), öteki yerde adı */
+const hedefYeri = (h) => (h.dir === 'dl' ? t('saveLocDl') + ' › ' + h.name : (h.where || h.name));
+/** Android 10+ İndirilenler/DWGViewer'a izinsiz yazabilir; 9 ve öncesinde ortak klasör yoktur → konum seçicisi */
+const indirilenlerVar = () => { const A = window.Android; if (!A || typeof A.canSaveDownloads !== 'function') return true; try { return !!A.canSaveDownloads(); } catch (_) { return true; } };
 function kayitBildir(h, veri) {
   const drv = window.dwgApp && window.dwgApp.drive;
   const A = window.Android;
   const eylem = drv && drv.signedIn && drv.signedIn() ? { label: tt('driveUpload', "Drive'a yükle"), fn: () => drv.uploadWithPicker({ b64: veri.b64, name: h.name, mime: KAYIT_MIME }) }
     : (h.uri && A && typeof A.shareUri === 'function' ? { label: t('share'), fn: () => { try { A.shareUri(h.uri, KAYIT_MIME); } catch (_) { /* yok */ } } } : undefined);
-  api.toast(t('savedTo').replace('%s', h.where || h.name) + (ozgunDxfDegil() ? ' · ' + t('saveDwgNote') : ''), { type: 'ok', ms: 6000, action: eylem });
+  api.toast(t('savedTo').replace('%s', hedefYeri(h)) + (ozgunDxfDegil() ? ' · ' + t('saveDwgNote') : ''), { type: 'ok', ms: 6000, action: eylem });
   haptic('toggle');
 }
 /** Başarılı tam kayıt: hedef budur, belge bu hâliyle kaydedildi */
 function kaydedildi(h, veri) {
-  kayit.hedef = { uri: h.uri || '', name: h.name, where: h.where || h.name };
+  kayit.hedef = { uri: h.uri || '', name: h.name, dir: h.dir === 'dl' ? 'dl' : '', where: h.where || h.name };
   const d = anaDoc(); kayit.savedVer = d ? d.ver : -1;
   kayitSakla(); kayitGoster(); kayitBildir(kayit.hedef, veri);
 }
@@ -2459,14 +2465,17 @@ function yeniDosyaya(veri, name, hedefYap) {
   let h = null;
   if (A && typeof A.saveNew === 'function') {
     let r = null; try { r = JSON.parse(A.saveNew(veri.b64, name, KAYIT_MIME) || 'null'); } catch (_) { r = null; }
-    if (r && r.where) h = { uri: typeof r.uri === 'string' ? r.uri : '', name, where: r.where };
+    // aynı adlı dosya varsa MediaStore yeni dosyayı "ad (1).dxf" yapar: söylenen ve hatırlanan ad GERÇEK addır
+    if (r && r.where) h = { uri: typeof r.uri === 'string' ? r.uri : '', name: typeof r.name === 'string' && r.name ? r.name : name, dir: r.dir === 'dl' ? 'dl' : '', where: r.where };
   } else if (A && typeof A.saveFile === 'function') {   // eski köprü: yol döner, üstüne yazılamaz
     let w = ''; try { w = A.saveFile(veri.b64, name, KAYIT_MIME, false); } catch (_) { w = ''; }
     if (w) h = { uri: '', name, where: w };
   } else {
+    // tarayıcı: indirme başlatılır; iptal edilip edilmediği bilinemez → çizim "kaydedildi" SAYILMAZ, hedef tutulmaz
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([veri.bytes], { type: KAYIT_MIME })); a.download = name;
     document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
-    h = { uri: '', name, where: name };
+    kayitBildir({ uri: '', name, where: name }, veri);
+    return true;
   }
   if (!h) { api.toast(t('dxfFail'), { type: 'error' }); return false; }
   if (hedefYap) kaydedildi(h, veri); else kayitBildir(h, veri);
@@ -2477,12 +2486,19 @@ function saveHizli() {
   if (bses) { api.toast(t('beditCloseFirst')); return; }
   const veri = kodla(dxfMetni(false)), h = kayit.hedef, A = window.Android;
   if (h && h.uri && A && typeof A.saveOver === 'function') {
-    let ok = false; try { ok = !!A.saveOver(veri.b64, h.uri); } catch (_) { ok = false; }
-    if (ok) { kaydedildi(h, veri); return; }
+    let r = 'gone'; try { r = A.saveOver(veri.b64, h.uri); } catch (_) { r = 'fail'; }
+    if (r === true || r === 'ok') { kaydedildi(h, veri); return; }
+    // yer yok / G/Ç hatası: hedef korunur, çizim kaydedilmemiş kalır (kırpılmadan önce denetlendiği için iyi dosya bozulmadı)
+    if (r === 'fail') { api.toast(t('dxfFail'), { type: 'error' }); return; }
     // hedef silinmiş ya da yazma izni düşmüş (uygulama yeniden kurulmuş): aynı adla yeni dosya açılır, o hedef olur
   }
-  yeniDosyaya(veri, (h && h.name) || dosyaAdi(api.baseName(), 'cizim'), true);
+  const ad = (h && h.name) || dosyaAdi(api.baseName(), 'cizim');
+  // Android 9 ve öncesi: izinsiz ortak klasör yok → ilk kayıt konum seçicisiyle (masaüstü uygulamalarında da yeni çizimin
+  // ilk "Kaydet"i "Farklı kaydet" gibidir)
+  if (A && typeof A.saveAsPick === 'function' && !indirilenlerVar()) { void seciciyleKaydet(veri, ad).then(o => { if (o) kaydedildi(seciciHedef(o, ad), veri); }); return; }
+  yeniDosyaya(veri, ad, true);
 }
+const seciciHedef = (o, ad) => ({ uri: o.uri, name: typeof o.name === 'string' && o.name ? o.name : ad, dir: '', where: typeof o.name === 'string' && o.name ? o.name : ad });
 /** Dosya adından yol ayıracı ve dosya sisteminin kabul etmediği imleri atar */
 const dosyaAdi = (ad, varsayilan) => {
   let a = String(ad == null ? '' : ad).trim().replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '_').replace(/^\.+/, '').slice(0, 120).trim();
@@ -2503,32 +2519,45 @@ function seciciyleKaydet(veri, name) {
 }
 /** Köprüden dönüş: ok=false ve info 'cancel' → kullanıcı vazgeçti (ileti yok); info JSON {uri, name, where} */
 ed.onSaveAs = (id, ok, info) => {
-  const res = secimBekleyen.get(id); if (!res) return;
-  secimBekleyen.delete(id);
   let o = info;
   if (typeof o === 'string') { try { o = JSON.parse(o); } catch (_) { o = null; } }
+  const res = secimBekleyen.get(id);
+  if (!res) {
+    // seçici açıkken sayfa yeniden yüklendi (süreç öldü): dosya yazıldı ama isteği bekleyen yok — en azından söylenir
+    if (ok && o && typeof o.name === 'string' && o.name) api.toast(t('savedTo').replace('%s', o.name), { type: 'ok', ms: 6000 });
+    else if (!ok && info !== 'cancel') api.toast(t('dxfFail'), { type: 'error' });
+    return;
+  }
+  secimBekleyen.delete(id);
   if (!ok) { if (info !== 'cancel') api.toast(t('dxfFail'), { type: 'error' }); res(null); return; }
   res(o && typeof o.uri === 'string' && o.uri ? o : null);
 };
 async function saveFarkli() {
   if (!needDoc()) return;
   if (bses) { api.toast(t('beditCloseFirst')); return; }
-  const A = window.Android, secici = !!(A && typeof A.saveAsPick === 'function');
+  const A = window.Android, secici = !!(A && typeof A.saveAsPick === 'function'), dl = indirilenlerVar();
   const h = kayit.hedef;
   const fields = [{ id: 'ad', label: tt('saveFileName', 'Dosya adı'), value: h && h.name ? h.name.replace(/\.dxf$/i, '') : api.baseName() }];
-  if (secici) fields.push({ id: 'yer', label: t('saveLoc'), type: 'select', value: 'dl', options: [['dl', t('saveLocDl')], ['pick', t('saveLocPick')]] });
+  // konum yalnız iki seçenek varken sorulur; Android 9 ve öncesinde tek yol seçicidir
+  if (secici && dl) fields.push({ id: 'yer', label: t('saveLoc'), type: 'select', value: 'dl', options: [['dl', t('saveLocDl')], ['pick', t('saveLocPick')]] });
   fields.push({ id: 'delta', type: 'check', label: tt('saveOnlyChanges', 'Yalnız değişiklikler'), value: false });
   const r = await askForm(tt('saveAs', 'Farklı kaydet'), fields, { ok: t('save'), hint: t('saveAsHint') });
   if (!r) return;
   const d = anaDoc();
   if (r.delta && !(d && d.dirty)) { api.toast(t('noChanges')); return; }
   const name = dosyaAdi(r.ad, api.baseName()), veri = kodla(dxfMetni(!!r.delta)), hedefYap = !r.delta;
-  if (secici && r.yer === 'pick') {
+  if (secici && (r.yer === 'pick' || !dl)) {
     const o = await seciciyleKaydet(veri, name);
     if (!o) return;   // vazgeçildi ya da yazılamadı (bildirildi)
-    const hh = { uri: o.uri, name: typeof o.name === 'string' && o.name ? o.name : name, where: typeof o.where === 'string' && o.where ? o.where : (o.name || name) };
+    const hh = seciciHedef(o, name);
     if (hedefYap) kaydedildi(hh, veri); else kayitBildir(hh, veri);
     return;
+  }
+  // İndirilenler'de şu anki hedefle AYNI ad: yeni "(1)" kopyası açılmaz, hedefin üstüne yazılır
+  if (hedefYap && h && h.uri && h.dir === 'dl' && h.name === name && A && typeof A.saveOver === 'function') {
+    let rr = 'gone'; try { rr = A.saveOver(veri.b64, h.uri); } catch (_) { rr = 'fail'; }
+    if (rr === true || rr === 'ok') { kaydedildi(h, veri); return; }
+    if (rr === 'fail') { api.toast(t('dxfFail'), { type: 'error' }); return; }
   }
   yeniDosyaya(veri, name, hedefYap);
 }

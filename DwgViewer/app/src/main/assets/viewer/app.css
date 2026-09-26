@@ -1966,5 +1966,6 @@ body.docmode #fileName.unsaved::before { display: none; }
 .st-quick button[data-quick="save"].unsaved::after { content: ''; position: absolute; top: 7px; right: 7px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--bar); }
 /* "⋯" menüsündeki kısayol ipucu yalnız fareli / klavyeli düzende (dokunmatik telefonda Ctrl+S anlamsız) */
 .menu button > kbd.mk { margin-inline-start: auto; font: inherit; font-size: calc(11px * var(--fs)); color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
-.menu button > kbd.mk + .lk-pill { margin-inline-start: 8px; }
+/* kısayol ipucu görünürken kilit rozeti onun yanında; dokunmatikte ipucu gizli, rozet öteki satırlar gibi sağ uçta */
+@media (hover: hover) and (pointer: fine) { .menu button > kbd.mk + .lk-pill { margin-inline-start: 8px; } }
 @media not all and (hover: hover) and (pointer: fine) { .menu button > kbd.mk { display: none; } }
