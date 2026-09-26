@@ -75,7 +75,7 @@ console.log('katman', info.n, 'dolu', info.dolu.length, 'X =', X, 'geçerli =', 
   ok('A5 geçerli katmanın satırı "cur" sınıfında ve ✓ simgesi taşıyor', !!cur && /\bcur\b/.test(cur.cls) && cur.cur === '#i-check', JSON.stringify(cur && { cls: cur.cls, cur: cur.cur }));
   const ilk = await satir(info.adlar[0]);
   ok('A6 açık katmanın ampulü yanıyor (st-on, i-bulb), dondur güneş, kilit açık', !!ilk && /st-on/.test(ilk.on.cls) && ilk.on.ic === '#i-bulb' && ilk.frz.ic === '#i-sunny' && ilk.lock.ic === '#i-unlock', JSON.stringify(ilk));
-  ok('A7 çizgi tipi ve kalınlık hücreleri dolu (Continuous · 0.25 mm varsayılan)', !!ilk && ilk.lt.length > 0 && /^\d\.\d\d$/.test(ilk.lw), JSON.stringify(ilk && { lt: ilk.lt, lw: ilk.lw }));
+  ok('A7 çizgi tipi ve kalınlık hücreleri dolu (Continuous · 0.25 mm varsayılan)', !!ilk && ilk.lt.length > 0 && /^\d[.,]\d\d$/.test(ilk.lw), JSON.stringify(ilk && { lt: ilk.lt, lw: ilk.lw }));
   const boyut = await ev(() => [...document.querySelectorAll('#layerList button, #layerPanel .layer-actions button, #layerPanel .panel-head button')].filter(b => { const r = b.getBoundingClientRect(); return r.width > 0 && r.height > 0 && (r.width < 40 || r.height < 40); }).map(b => (b.id || b.className) + ':' + Math.round(b.getBoundingClientRect().width) + 'x' + Math.round(b.getBoundingClientRect().height)));
   ok('A8 paneldeki görünür her düğme ≥ 40x40 px (eldivenli dokunuş)', boyut.length === 0, boyut.slice(0, 6).join(' '));
   const bas = await ev(() => getComputedStyle(document.querySelector('#layerList .lhead')).display);
@@ -228,10 +228,10 @@ console.log('katman', info.n, 'dolu', info.dolu.length, 'X =', X, 'geçerli =', 
   } else { await ev(() => window.dwgApp.onBack()); C.skip('D6 ikinci çizgi tipi', 'dosyada Continuous dışında çizgi tipi yok'); }
   await klik(`#layerList [data-llw="${ad}"]`);
   const wp = await ev(() => ({ baslik: document.getElementById('docTitle').textContent, n: document.querySelectorAll('#docBody [data-lw]').length, vars: (document.querySelector('#docBody [data-lw="25"]') || {}).textContent }));
-  ok('D7 kalınlık seçici AutoCAD standart listesini (24 değer) mm olarak sunar; 0,25 "varsayılan"', wp.baslik === 'Çizgi kalınlığı seç: ' + ad && wp.n === 24 && /0\.25 mm · varsayılan/.test(wp.vars || ''), JSON.stringify(wp));
+  ok('D7 kalınlık seçici AutoCAD standart listesini (24 değer) mm olarak sunar; 0,25 "varsayılan"', wp.baslik === 'Çizgi kalınlığı seç: ' + ad && wp.n === 24 && /0[.,]25 mm · varsayılan/.test(wp.vars || ''), JSON.stringify(wp));
   const lw0 = (await durum(ad)).lw, hedef = lw0 === 50 ? 70 : 50;
   await klik(`#docBody [data-lw="${hedef}"]`);
-  ok('D8 listeden kalınlık seçildi: lw (0,01 mm) ve hücre metni', (await durum(ad)).lw === hedef && (await satir(ad)).lw === (hedef / 100).toFixed(2), JSON.stringify({ lw: (await durum(ad)).lw, h: (await satir(ad)).lw }));
+  ok('D8 listeden kalınlık seçildi: lw (0,01 mm) ve hücre metni', (await durum(ad)).lw === hedef && (await satir(ad)).lw.replace(',', '.') === (hedef / 100).toFixed(2), JSON.stringify({ lw: (await durum(ad)).lw, h: (await satir(ad)).lw }));
   await undo();
   ok('D9 kalınlık geri alındı', (await durum(ad)).lw === lw0, `${(await durum(ad)).lw} / ${lw0}`);
 }

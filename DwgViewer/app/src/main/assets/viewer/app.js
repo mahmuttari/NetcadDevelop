@@ -2454,7 +2454,7 @@ const layerUi = { sort: 'name', onlyVis: false, sel: null };   // sel: yönetici
  * soluk görünür ama hangi bayrağın gizlediği (kapalı / donuk / izolasyon) simgelerden okunur.
  */
 const LW_LIST = [0, 5, 9, 13, 15, 18, 20, 25, 30, 35, 40, 50, 53, 60, 70, 80, 90, 100, 106, 120, 140, 158, 200, 211];   // AutoCAD standart kalınlıkları (0,01 mm)
-const lwText = (lw) => ((lw == null ? 25 : lw) / 100).toFixed(2);
+const lwText = (lw) => derece((lw == null ? 25 : lw) / 100, 2);   // arayüz dilinin ondalık ayırıcısıyla: TR 0,25 · EN 0.25
 function buildLayerList() {
   const q = ($('layerFilter').value || '').toLowerCase();
   const sortSel = $('layerSort'); if (sortSel) layerUi.sort = sortSel.value === 'count' ? 'count' : 'name';
