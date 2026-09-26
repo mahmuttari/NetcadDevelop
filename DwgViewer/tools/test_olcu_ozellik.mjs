@@ -164,8 +164,8 @@ await ev(() => { document.getElementById('docPanel').hidden = true; window.dwgAp
 
 // ---- 8. Dosyayı paylaş ------------------------------------------------------------------------------------
 {
-  const m = await ev(() => { const b = document.querySelector('#moreMenu [data-act="fileshare"]'); return b ? { lb: b.textContent.trim(), sira: [...document.querySelectorAll('#moreMenu [data-act]')].map(x => x.dataset.act).indexOf('fileshare') } : null; });
-  ok('8a "⋯" menüsünde "Dosyayı paylaş" (Çizim bilgisi\'nin altında)', m && m.lb === 'Dosyayı paylaş' && m.sira === 3, J(m));
+  const m = await ev(() => { const b = document.querySelector('#moreMenu [data-act="fileshare"]'); const s = [...document.querySelectorAll('#moreMenu [data-act]')].map(x => x.dataset.act); return b ? { lb: b.textContent.trim(), sira: s.indexOf('fileshare'), bilgi: s.indexOf('info') } : null; });
+  ok('8a "⋯" menüsünde "Dosyayı paylaş" (Çizim bilgisi\'nin altında)', m && m.lb === 'Dosyayı paylaş' && m.bilgi >= 0 && m.sira === m.bilgi + 1, J(m));
   // Android köprüsünün taklidi: yalnız paylaşım işlevleri; çağrılar kaydedilir
   const kur = () => ev(() => { window.__pay = []; window.Android = { shareCurrent: (n) => { window.__pay.push(['cur', n]); return 'ok'; }, shareFileB64: (b, n, m) => { window.__pay.push(['b64', n, m, atob(b).slice(0, 400)]); return 'ok'; } }; });
   const kaldir = () => ev(() => { delete window.Android; });
