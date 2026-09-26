@@ -20,6 +20,7 @@
  * Ortak: col (RGB; -1 = ön plan), lay, lt (ad), lts (çizgi tipi ölçeği), lw (1/100 mm), bb, info
  */
 import { parseAcis, tessellate, triangulate, newell } from './acis.js';
+import { dimXdataDecode, dimAppDef, dimDxf } from './annot.js';
 import { TAU, IDENT, mul, apply, isIdent, isSim, simScale, simRot, det, insertMatrix, arcPts, ellipsePts, bulgeArc, bsplinePts, catmullPts, opsBBox, flatten, hatchLines } from './geom.js';
 
 export const FG = -1;
@@ -352,7 +353,7 @@ export class SceneBuilder {
       const ds = this.dimStyleOf(e), k = ds.DIMSCALE > 0 ? ds.DIMSCALE : 1;
       // Yazı biçimi değişkenleri yalnız dosyada GERÇEKTEN yazılıysa verilir; yoksa düzenleyici görünen yazıdan
       // (ondalık, ön / son ek) ve ölçümden (çarpan) çıkarır — varsayılan 2 ondalığı dosyanın değeri sanmasın
-      const hdr = this.db.header || {}, known = (key, ty) => typeof (ds.src && ds.src[key]) === ty || typeof hdr[key] === ty;
+      const hdr = this.db.header || {}, known = (key, ty) => (ds.ovr && ds.ovr.has(key)) || typeof (ds.src && ds.src[key]) === ty || typeof hdr[key] === ty;
       inf.dim = { type: (e.dimensionType | 0) & 15, meas: e.measurement, p1: P(e.subDefinitionPoint1), p2: P(e.subDefinitionPoint2), d: P(e.definitionPoint), cp: P(e.centerPoint), tp: P(e.textPoint), rot: e.rotationAngle || 0, x1s: P(e.xline1Start), x1e: P(e.xline1End), x2s: P(e.xline2Start),
         // yazı geçersiz kılması biçim kodlarından arındırılır (\\A1; gibi), "<>" ölçülen değer yer tutucusu kalır
         ov: e.text && e.text !== '<>' ? textPlain(e.text) : '',
@@ -362,6 +363,14 @@ export class SceneBuilder {
           lfac: known('DIMLFAC', 'number') ? ds.DIMLFAC : undefined, post: known('DIMPOST', 'string') ? ds.DIMPOST : '',
           // ondalık ayırıcı da yalnız dosyada yazılıysa (yoksa 46 '.' öntanımlısı Türkçe arayüzde ölçüyü noktalı yazdırırdı); DWG tablosu karakter verir
           dsep: (known('DIMDSEP', 'number') || known('DIMDSEP', 'string')) ? (typeof ds.DIMDSEP === 'string' ? (ds.DIMDSEP.charCodeAt(0) || undefined) : ds.DIMDSEP) : undefined } };
+      // uygulamanın kendi XDATA'sındaki tam tanım (DXF'e bu uygulama yazdıysa): düzenleyici, varlık AutoCAD'de değişmemişse onu kullanır
+      const app = dimXdataDecode(e.xdata);
+      if (app) {
+        inf.dim.app = app;
+        // BENİMSEME: tanım hâlâ geçerliyse ölçü uygulama ölçüsü gibi davranır — grup kimliği (gid) ve tanım taşıyan parça
+        // (entity() DIMENSION dalı) sayesinde taşıma / kopya / dizi / ayna tanımı da dönüştürür, düzenleme tanımdan kurar
+        if (dimAppDef(inf.dim)) inf.gid = 'D' + e.handle;
+      }
     }
     if (e.type === 'TEXT' || e.type === 'MTEXT') { inf.text = textPlain(e.text); inf.style = e.styleName; }
     if (e.type === 'ATTRIB') { inf.text = textPlain(e.text ? e.text.text : ''); inf.tag = e.tag; }
@@ -798,8 +807,14 @@ export class SceneBuilder {
         if (blk && blk.entities && blk.entities.length) {
           // 12/22 (ins_pt): paylaşılan *D bloğunu kullanan ölçü kopyalarının ötelemesi (modern dosyalarda 0,0)
           const ip = e.insertionPoint, m = ip && (ip.x || ip.y) ? mul(ctx.m, [1, 0, 0, 1, ip.x, ip.y]) : ctx.m;
+          const i0 = this.prims.length;
           this.block(blk, { ...ctx, m, layer: e.layer, color: st.col, lt: st.ltName, lw: st.lw, depth: ctx.depth + 1, info });
-        } else this.dimFallback(e, { ...ctx, info });
+          if (!ctx.info && info.gid && info.dim && info.dim.app) {
+            const core = this.prims.slice(i0).find(p => p.k === 0 && !p.fill && p.info === info), f = dimDxf(info.dim.app);
+            if (core && f) { core.ent = { type: 'DIMENSION', gid: info.gid, def: JSON.parse(JSON.stringify(info.dim.app)), measure: info.dim.app.kind === 'angular' ? f.meas * 180 / Math.PI : f.meas }; core.et = 'DIMENSION'; }   // et: pano / blok (primToEnt itype) ölçü çekirdeğini tanısın
+            else delete info.gid;
+          }
+        } else { if (!ctx.info && info.gid && info.dim) delete info.gid; this.dimFallback(e, { ...ctx, info }); }   // bloksuz: tanım taşıyan parça yok, benimsenmez
         break;
       }
       case 'ACAD_TABLE': case 'TABLE': {
@@ -962,6 +977,8 @@ export class SceneBuilder {
       DIMGAP: num('DIMGAP', 0.625), DIMTSZ: num('DIMTSZ', 0), DIMTAD: num('DIMTAD', 0), DIMSE1: !!num('DIMSE1', 0), DIMSE2: !!num('DIMSE2', 0), DIMSD1: !!num('DIMSD1', 0), DIMSD2: !!num('DIMSD2', 0),
       // yazı biçimi (ölçü özellikleri düzenlenirken kutuya bunlar gelir): ondalık, açısal ondalık, uzunluk çarpanı, "<>" kalıplı ön / son ek
       DIMDEC: num('DIMDEC', 2), DIMADEC: num('DIMADEC', 0), DIMLFAC: num('DIMLFAC', 1), DIMPOST: str('DIMPOST', ''), DIMDSEP: num('DIMDSEP', 46), DIMZIN: num('DIMZIN', 8) };
+    const STR = { 3: 'DIMPOST' };
+    const ovr = new Set();
     const CODES = { 40: 'DIMSCALE', 41: 'DIMASZ', 42: 'DIMEXO', 44: 'DIMEXE', 140: 'DIMTXT', 147: 'DIMGAP', 142: 'DIMTSZ', 77: 'DIMTAD', 75: 'DIMSE1', 76: 'DIMSE2', 281: 'DIMSD1', 282: 'DIMSD2', 271: 'DIMDEC', 179: 'DIMADEC', 144: 'DIMLFAC', 278: 'DIMDSEP', 78: 'DIMZIN' };
     for (const x of e.xdata || []) {
       if (String(x.appName || x.app_name || '').toUpperCase() !== 'ACAD') continue;
@@ -969,16 +986,23 @@ export class SceneBuilder {
       let inDs = false;
       for (let i = 0; i < vals.length; i++) {
         const v = vals[i];
-        if (v.code === 1000) { inDs = String(v.value).toUpperCase() === 'DSTYLE'; continue; }
+        // DSTYLE listesi 1002 '}' ile biter. DEĞER olarak gelen 1000 dizgisi (DIMPOST "<> cm") listeyi KAPATMAZ — eskiden
+        // kapatıyordu: DIMPOST'tan sonra gelen bütün geçersiz kılmalar (DIMLFAC, DIMDSEP…) yok sayılıyordu
+        if (v.code === 1000 && String(v.value).toUpperCase() === 'DSTYLE') { inDs = true; continue; }
+        if (v.code === 1002 && v.value === '}') { inDs = false; continue; }
         if (!inDs || v.code !== 1070) continue;
-        const key = CODES[v.value | 0], nx = vals[i + 1];
-        if (!key || !nx || (nx.code !== 1070 && nx.code !== 1040)) continue;
+        // çiftler katıdır: (1070 değişken kodu, değer) — değer tanınmayan bir değişkene ait olsa da tüketilir, yoksa sıra kayar
+        const nx = vals[i + 1]; if (!nx) break; i++;
+        const skey = STR[v.value | 0], key = CODES[v.value | 0];
+        if (skey && nx.code === 1000) { ds[skey] = String(nx.value); ovr.add(skey); continue; }
+        if (!key || (nx.code !== 1070 && nx.code !== 1040)) continue;
         const val = parseFloat(nx.value);
         if (!isFinite(val)) continue;
-        ds[key] = typeof ds[key] === 'boolean' ? !!val : val; i++;
+        ds[key] = typeof ds[key] === 'boolean' ? !!val : val; ovr.add(key);
       }
     }
     if (!(ds.DIMSCALE > 0)) ds.DIMSCALE = 1;
+    ds.ovr = ovr;   // varlığın kendi geçersiz kıldığı değişkenler (yazılı sayılır)
     ds.src = src;   // hangi kayıttan okundu (tablo kaydı ya da başlık): bir değişkenin gerçekten yazılı olup olmadığı buradan anlaşılır
     return ds;
   }

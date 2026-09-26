@@ -429,3 +429,96 @@ export function autoDimStyle(inp) {
   const h = texts.length >= 3 && tMed > 0 ? niceLen(tMed) : niceLen((extW || 100) / 350);
   return { src: texts.length >= 3 && tMed > 0 ? 'C' : 'D', h, arrow: h, exo: r6(h / 4), exe: r6(h / 2), prec: null, adec: null, prefix: '', suffix: inp.units || '', factor: 1, dsep, repKey: null };
 }
+
+
+// ---------------------------------------------------------------------------------------
+// Ölçü tanımı ↔ gerçek DXF DIMENSION (AC1015) — v8.9.8: kaydedilip yeniden açılan ölçü düzenlenebilir kalır
+// ---------------------------------------------------------------------------------------
+export const DIM_APP = 'DWGOFFICEZIP';
+/**
+ * Tanımdan DIMENSION tanım noktaları. Yazıcı (edit.writeDxf) ve okuyucu doğrulaması (tools.dimDefFromFile) AYNI işlevi
+ * kullanır: okunan varlığın noktaları bu işlevin tanımdan ürettikleriyle eşleşmiyorsa XDATA'daki tanım bayattır.
+ *   type 0 dönük (yatay 50=0, düşey 50=90, dönük 50=rot) · 1 hizalı · 3 çap · 4 yarıçap · 5 üç noktalı açısal
+ *   p10 tanım noktası · p13 / p14 uzatma noktaları · p15 çap/yarıçapta çevre noktası, açısalda tepe · leader 40 · meas 42
+ */
+export function dimDxf(def) {
+  if (!def || typeof def !== 'object') return null;
+  const P = (def.pts || []).map(q => [q[0], q[1], q[2] || 0]);
+  if (def.kind === 'linear' && P.length >= 3) {
+    const [p1, p2, q] = P;
+    let dir, type = 0, rot = 0;
+    if (def.sub === 'horizontal') dir = [1, 0];
+    else if (def.sub === 'vertical') { dir = [0, 1]; rot = 90; }
+    else if (def.sub === 'rotated') { const r = def.rot || 0; dir = [Math.cos(r), Math.sin(r)]; rot = r / D2R; }
+    else { const v = sub(p2, p1); if (len(v) < 1e-12) return null; dir = unit(v); type = 1; }
+    const n = perp(dir), off = (q[0] - p1[0]) * n[0] + (q[1] - p1[1]) * n[1], t2 = (p2[0] - p1[0]) * dir[0] + (p2[1] - p1[1]) * dir[1];
+    const p10 = [p1[0] + n[0] * off + dir[0] * t2, p1[1] + n[1] * off + dir[1] * t2, p1[2]];
+    return { type, p10, p13: p1, p14: p2, rot, meas: Math.abs(t2) };
+  }
+  if (def.kind === 'radial' && P.length >= 2 && def.r > 0) {
+    // kılavuz uzunluğu dimRadial ile aynı: 2 × çizilen yazı yüksekliği (h × genel ölçek)
+    const c = P[0], d = unit(sub(P[1], c)), r = def.r, h = (def.h > 0 ? def.h : 2.5) * (def.scale > 0 ? def.scale : 1);
+    const on = [c[0] + d[0] * r, c[1] + d[1] * r, c[2]];
+    if (def.sub === 'diameter') return { type: 3, p10: [c[0] - d[0] * r, c[1] - d[1] * r, c[2]], p15: on, leader: h * 2, meas: 2 * r };
+    return { type: 4, p10: c, p15: on, leader: h * 2, meas: r };
+  }
+  if (def.kind === 'angular' && P.length >= 3) {
+    const [v, a, b] = P;
+    const L1 = len(sub(a, v)), L2 = len(sub(b, v));
+    if (!(L1 > 1e-12) || !(L2 > 1e-12)) return null;
+    const r = def.r > 0 ? def.r : Math.min(L1, L2) * 0.7;
+    const a0 = Math.atan2(a[1] - v[1], a[0] - v[0]);
+    let sw = Math.atan2(b[1] - v[1], b[0] - v[0]) - a0;
+    while (sw <= -Math.PI) sw += TAU;
+    while (sw > Math.PI) sw -= TAU;
+    const am = a0 + sw / 2;
+    return { type: 5, p10: [v[0] + Math.cos(am) * r, v[1] + Math.sin(am) * r, v[2]], p13: a, p14: b, p15: v, meas: Math.abs(sw) };
+  }
+  return null;
+}
+/** AC1015 DXF dizgisi: MTEXT kaçışları (\\ { }) ve ASCII dışı karakter \U+XXXX (dxf.js unescapeText / scene.mtextLines ikisini de çözer) */
+export const dxfText = (s) => String(s == null ? '' : s).replace(/[\\{}]/g, c => '\\' + c).replace(/[^\x20-\x7e]/g, c => '\\U+' + c.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0'));
+/** Uygulama XDATA'sı: tanımın tamamı JSON, boşluksuz ve ASCII (dxf.js değeri kırpar), 240 karakterlik 1000 parçaları */
+export function dimXdataEncode(def) {
+  const json = JSON.stringify({ v: 1, def }).replace(/[^\x21-\x7e]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
+  const out = [[1001, DIM_APP], [1000, 'DIMDEF'], [1070, 1]];
+  for (let i = 0; i < json.length; i += 240) out.push([1000, json.slice(i, i + 240)]);
+  return out;
+}
+const KINDS = new Set(['linear', 'radial', 'angular']);
+/** e.xdata (dxf.js / libredwg biçimi) → tanım ya da null (bozuk, tanınmayan sürüm) */
+export function dimXdataDecode(xdata) {
+  for (const x of xdata || []) {
+    if (String(x.appName || x.app_name || '').toUpperCase() !== DIM_APP) continue;
+    const vals = (x.value || x.values || []).map(v => (v && typeof v === 'object') ? v : { code: 0, value: v });
+    const i = vals.findIndex(v => v.code === 1000 && v.value === 'DIMDEF');
+    if (i < 0 || !vals[i + 1] || vals[i + 1].code !== 1070 || (vals[i + 1].value | 0) !== 1) continue;
+    let json = '';
+    for (let k = i + 2; k < vals.length && vals[k].code === 1000; k++) json += String(vals[k].value);
+    try {
+      const o = JSON.parse(json), d = o && o.def;
+      if (!d || !KINDS.has(d.kind) || !Array.isArray(d.pts) || !d.pts.every(q => Array.isArray(q) && q.length >= 2 && q.every(n => typeof n === 'number' && isFinite(n)))) continue;
+      return d;
+    } catch (_) { /* bozuk */ }
+  }
+  return null;
+}
+
+/**
+ * info.dim (scene.js) → uygulamanın XDATA tanımı, yalnız varlığın kendi alanlarıyla hâlâ örtüşüyorsa (AutoCAD'de değişmemişse):
+ * tür, tanım noktaları (10/13/14/15), yazı geçersiz kılması (1) ve etkin yazı yüksekliği (DIMTXT × DIMSCALE).
+ */
+export function dimAppDef(d) {
+  const a = d && d.app, f = dimDxf(a);
+  if (!f || f.type !== d.type) return null;
+  const tol = 1e-5;
+  for (const [q, r] of [[f.p10, d.d], [f.p13, d.p1], [f.p14, d.p2], [f.p15, d.cp]]) {
+    if (!q) continue;
+    if (!r || Math.hypot(q[0] - r[0], q[1] - r[1]) > tol) return null;
+  }
+  const want = String(a.text || '').trim();
+  if ((d.ov || '') !== (want === '<>' ? '' : want)) return null;
+  const s = d.sty || {}, k = a.scale > 0 ? a.scale : 1, h = (a.h > 0 ? a.h : 2.5) * k;
+  if (s.txt > 0 && Math.abs(s.txt - h) > 1e-9 * Math.max(1, h)) return null;
+  return JSON.parse(JSON.stringify(a));
+}

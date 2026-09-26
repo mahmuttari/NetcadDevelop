@@ -1807,8 +1807,9 @@ document.addEventListener('click', (e) => {
 /*
  * ÖLÇÜYE ÇİFT DOKUNUŞ (v8.9.8) — AutoCAD'de ölçüye çift tıklamak özelliklerini açar. Burada çift dokunuş hep
  * 2× yakınlaştırıyordu; ilk dokunuş da Seç aracında seçili ölçüyü bırakıyordu, yani "düzenlemek için dokun"
- * her yolda ölçüyü kaybettiriyordu. Ölçünün üstündeki çift dokunuş artık o ölçüyü (bütün parçalarıyla) seçer ve
- * "Ölçü özellikleri" kutusunu açar; ölçü dışında çift dokunuş eskisi gibi yakınlaştırır.
+ * her yolda ölçüyü kaybettiriyordu. Düzenleme bağlamında (Seç aracı, köşe tutamakları, fare, seçili ölçü) ölçünün
+ * üstündeki çift dokunuş artık o ölçüyü (bütün parçalarıyla) seçer ve "Ölçü özellikleri" kutusunu açar; salt
+ * görüntülerken, ölçü dışında ya da özellik kilitliyken çift dokunuş eskisi gibi yakınlaştırır.
  */
 function olcuCiftDokunus(sx, sy, ev) {
   if (S.mode !== 'view' || S.notesOn || editor.is3D()) return false;
@@ -1816,12 +1817,18 @@ function olcuCiftDokunus(sx, sy, ev) {
   if (T && T.running && T.active !== 'select') return false;
   const p = pick(toWorld(sx, sy), TOL.pick / S.view.scale);
   if (!p || !p.info || p.info.t !== 'DIMENSION' || !(p.info.gid || p.info.dim)) return false;
+  // Yalnız DÜZENLEME bağlamında (AutoCAD DBLCLKEDIT): Seç aracı, köşe tutamakları açık, fare ya da ölçü zaten seçili.
+  // Salt görüntülerken parmakla çift dokunuş yakınlaştırmaya devam eder (görüntüleyici alışkanlığı bozulmaz).
+  const bag = (T && T.active === 'select') || (editor.gripsOn && editor.gripsOn()) || (ev && ev.pointerType === 'mouse') || editor.sel.has(p);
+  if (!bag) return false;
+  // Özellik kilitliyse yükseltme kutusu açılmaz, seçim de değişmez: çift dokunuş olağan yakınlaştırmaya döner
+  if (!Ed.has('t:dimedit')) return false;
   const grp = T && T.groupOf ? T.groupOf(p) : [p];
   editor.sel.clear(); for (const q of grp) editor.sel.add(q);
   hide('infoPanel');
   hayaletKur(ev); drawOverlay();
   if (T && T.active === 'select') T.say();
-  if (Ed.gate('t:dimedit')) void T.editDims([...grp]);
+  void T.editDims([...grp]);
   return true;
 }
 function endPointer(ev) {
@@ -3332,7 +3339,7 @@ async function runBatch(op, paper) {
       } else if (op === 'text') {
         for (const r of collectTexts(S.prims)) texts.push([f.name, r.txt, r.tag, r.type, r.lay, fmt(r.x), fmt(r.y), fmt(r.z)]);
       } else if (op === 'dxf') {
-        const txt = writeDxf(S.scene.layouts[0].prims, S.layers, { ltypes: S.ltypes });
+        const txt = writeDxf(S.scene.layouts[0].prims, S.layers, { ltypes: S.ltypes, dimFmt: { prec: S.prec, pad: !!S.precPad, dsep: sepOf().ondalik || '.' } });
         saveTextFile(txt, baseName() + '.dxf', 'application/dxf');
       } else if (op === 'pdf') {
         await makePdf({ title: baseName(), paper: paper || 'A3', orient: 'l', area: 'ext', scale: 0, dpi: 150, margin: 10, frame: true, lw: true, all: false, vector: true });

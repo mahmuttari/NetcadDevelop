@@ -16,7 +16,7 @@ import { EditDoc, writeDxf, newId, entsToPrims } from './edit.js';
 import { View3D } from './view3d.js';
 import { openView3DOptions, buildViewCube, openCameraBookmarks, renderZScale, renderClip } from './view3d_panel.js';
 import { FG, ACI, BYLAYER, normCi, resolveColor } from './scene.js';
-import { toScreen, toWorld, fmt, fmtPlain, store } from './state.js';
+import { toScreen, toWorld, fmt, fmtPlain, store, sepOf } from './state.js';
 import { bgColor, fgColor, monoTone, entityCss, layerPalette, setSolidPlan } from './render.js';
 import { t, applyI18n, addStrings } from './i18n.js';
 import { TAU, meshMetrics, mul, flatten, HATCH_PATTERNS } from './geom.js';
@@ -38,6 +38,8 @@ import { primToEnt, listBlocks, loadBlock, saveBlock, entsBBox } from './blockli
 import { drawMarker as snapMarker, markerSvg as snapMarkerSvg, nameOf as snapModeName } from './osnap.js';
 import { MODES3, DEFAULT_MODES3, snap3 } from './osnap3.js';
 import { regionPick3 } from './sel3.js';
+/** DXF'e yazılan ölçülerin sayı biçimi (DIMDEC / DIMZIN / DIMDSEP): AutoCAD ölçüyü yeniden kurarsa yazı bizimkiyle aynı çıkar */
+const dimFmt = () => ({ prec: S.prec, pad: !!S.precPad, dsep: sepOf().ondalik || '.' });
 
 const $ = (id) => document.getElementById(id);
 const tt = (k, tr) => { const v = t(k); return v === k ? tr : v; };
@@ -235,11 +237,7 @@ function secimiTazele() {
  * NESNE sayısıdır — AutoCAD'de de ölçü tek nesnedir; "4 seçili" yazısı tek ölçüyü dört ayrı şey gibi gösteriyordu.
  * Kimlik: grup kimliği (gid) > dosya varlığının tanıtıcısı (info.h) > ilkelin anahtarı.
  */
-function nesneSayisi(set = ed.sel) {
-  const k = new Set();
-  for (const p of set) { const i = p && p.info; k.add(i && i.gid ? 'g:' + i.gid : i && i.h != null ? 'h:' + i.h : 'k:' + (p && p.key)); }
-  return k.size;
-}
+function nesneSayisi(set = ed.sel) { return tools ? tools.objCount(set) : set.size; }   // tek kimlik işlevi: tools.objKey
 ed.objCount = () => nesneSayisi();
 const tileHint = (act) => { const it = TILE[act]; return it ? tt('th_' + act, it.htr) : ''; };
 /** Açılır kutu başlığı: İngilizce karo etiketi komut adıdır (VISUALSTYLES); başlıkta okunur ad (Visual styles) durur */
@@ -947,9 +945,15 @@ function selectSimilar() {
   if (!ed.sel.size) { api.toast(t('noSel')); return; }
   const key = (p) => ((p.info && p.info.t) || p.et || ('k' + p.k)) + '|' + p.lay;
   const want = new Set([...ed.sel].map(key));
-  let n = 0;
-  for (const p of S.prims) { if (p.k === 4 || p.inf || ed.sel.has(p) || !want.has(key(p))) continue; if (typeof api.primVisible === 'function' && !api.primVisible(p)) continue; ed.sel.add(p); n++; }
-  api.drawOverlay(); refreshTiles();
+  // eşleşen nesnenin BÜTÜN parçaları eklenir (ölçünün oku / yazısı başka katmanda olsa da); sayı nesne sayısıdır
+  const added = [];
+  for (const p of S.prims) {
+    if (p.k === 4 || p.inf || ed.sel.has(p) || !want.has(key(p))) continue;
+    if (typeof api.primVisible === 'function' && !api.primVisible(p)) continue;
+    for (const q of tools.groupOf(p)) if (!ed.sel.has(q)) { ed.sel.add(q); added.push(q); }
+  }
+  const n = nesneSayisi(added);
+  secimiTazele(); refreshTiles();
   api.toast(t('selSimilarN').replace('%s', String(n)), 1600);
   if (n) haptic('snap');
 }
@@ -957,11 +961,11 @@ function selectSimilar() {
 function hideObjects(isolate) {
   if (!needModel()) return;
   if (!ed.sel.size) { api.toast(t('noSel')); return; }
-  const keys = [...ed.sel].map(p => p.key);
+  const keys = [...ed.sel].map(p => p.key), adet = nesneSayisi();
   call(api.hideObjects, keys, isolate);
   ed.sel.clear();
-  refreshTiles(); api.drawOverlay();
-  api.toast(t(isolate ? 'isolatedN' : 'hiddenN').replace('%s', String(keys.length)), { ms: 5000, action: { label: t('undoAction'), fn: () => showAllObjects() } });
+  refreshTiles(); secimiTazele();
+  api.toast(t(isolate ? 'isolatedN' : 'hiddenN').replace('%s', String(adet)), { ms: 5000, action: { label: t('undoAction'), fn: () => showAllObjects() } });
   haptic('toggle');
 }
 function showAllObjects() { call(api.showAllObjects); refreshTiles(); api.drawOverlay(); api.toast(t('shownAll'), 1400); }
@@ -1648,13 +1652,13 @@ function showProps(all) {
    * Sayım da mantıksal nesne üzerindendir: iki parçalı tarama listede "Tarama (1)" görünür.
    */
   const typeOf = (p) => (p.info && p.info.t === 'HATCH' ? 'HATCH' : (hatchAnyPart(p) ? 'HATCH' : ((p.info && p.info.t) || p.et || ('k' + p.k))));
-  const nesneKey = (p) => (p.info && p.info.gid) || ((p.info && p.info.t === 'INSERT' && p.info.h) || p.key);
+  const nesneKey = (p) => tools.objKey(p);
   const counts = new Map(); { const g = new Set(); for (const p of tam) { const k = typeOf(p) + '|' + nesneKey(p); if (g.has(k)) continue; g.add(k); counts.set(typeOf(p), (counts.get(typeOf(p)) || 0) + 1); } }
   const cur = ed.sel.size === tam.length ? '' : typeOf([...ed.sel][0]);
   const sel = [...ed.sel].filter(p => p.k !== 4);
   // Temsilci ilkel: taramada SINIR (desen çizgileri değil), böylece alanlar gerçek desenden okunur
   const first = sel.find(p => hatchBoundary(p) === p) || sel[0] || [...ed.sel][0];
-  const tur = `<select id="pType"><option value=""${cur === '' ? ' selected' : ''}>${esc(t('selAllTypes'))} (${tam.length})</option>${[...counts].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0]))).map(([k, n]) => `<option value="${esc(k)}"${k === cur ? ' selected' : ''}>${esc(tt('ety_' + k, k))} (${n})</option>`).join('')}</select>`;
+  const tur = `<select id="pType"><option value=""${cur === '' ? ' selected' : ''}>${esc(t('selAllTypes'))} (${nesneSayisi(tam)})</option>${[...counts].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0]))).map(([k, n]) => `<option value="${esc(k)}"${k === cur ? ' selected' : ''}>${esc(tt('ety_' + k, k))} (${n})</option>`).join('')}</select>`;
   const ltSel = `<select id="pLt"><option value="">${esc(t('selByLayer'))}</option>${Object.keys(S.ltypes || {}).map(k => `<option value="${esc(k)}"${(first.lt || '') === k ? ' selected' : ''}>${esc((S.ltypes[k] && S.ltypes[k].name) || k)}</option>`).join('')}</select>`;
   const L0 = S.layers.get(first.lay), lwCur = first.lw != null && first.lw >= 0 ? first.lw : (L0 ? L0.lw : 25);
   const lwSel = `<select id="pLw"><option value="-1">${esc(t('selByLayer'))}</option>${LW_LIST.map(v => `<option value="${v}"${v === lwCur ? ' selected' : ''}>${(v / 100).toFixed(2)} mm</option>`).join('')}</select>`;
@@ -1683,7 +1687,7 @@ function showProps(all) {
     // yoksa tarama grubu ikiye bölünür ve sonraki Sil / Taşı yarım gruba uygulanırdı.
     const keep = v ? tam.filter(p => typeOf(p) === v) : tam;
     ed.sel.clear(); for (const p of keep) ed.sel.add(p);
-    api.drawOverlay(); refreshTiles(); haptic('toggle');
+    secimiTazele(); refreshTiles(); haptic('toggle');
     showProps(tam);   // pencere daraltılmış seçimle yeniden kurulur (başlık, katman ve renk ilk nesneden)
   };
   const pd = $('pDim'); if (pd) pd.onclick = () => { api.hide('docPanel'); if (selDimPrim() && gate('t:dimedit')) void tools.editDims([...ed.sel]); };
@@ -1842,7 +1846,7 @@ ed.selMenu = selMenu; ed.selAction = selAction;
 ed.selMenuAt = (hit) => {
   if (!hit || ed.is3D() || S.mode !== 'view' || S.notesOn) return false;
   if (tools.running && tools.active !== 'select') return false;   // Seç dışındaki araç sürerken uzun basış aracın kendi işidir
-  if (!ed.sel.has(hit)) { ed.sel.clear(); for (const q of tools.groupOf(hit)) ed.sel.add(q); api.drawOverlay(); }
+  if (!ed.sel.has(hit)) { ed.sel.clear(); for (const q of tools.groupOf(hit)) ed.sel.add(q); secimiTazele(); }
   selMenu();
   return true;
 };
@@ -2103,7 +2107,7 @@ async function wblockDialog(name) {
     prims = []; for (const e of def.ents) for (const p of entsToPrims({ ...e, id: newId() }, S.layers, S.blocks)) prims.push(p);
     vars = { INSBASE: def.base.slice() }; fileName = def.name.replace(/[^\w.-]+/g, '_') + '.dxf';
   }
-  const text = writeDxf(prims, S.layers, { ltypes: S.ltypes, units: UNIT_CODE[S.units] || 0, blocks: S.blocks, vars });
+  const text = writeDxf(prims, S.layers, { dimFmt: dimFmt(), ltypes: S.ltypes, units: UNIT_CODE[S.units] || 0, blocks: S.blocks, vars });
   saveDxfText(text, fileName);
 }
 /** PURGE: kullanılmayan blok tanımları ve boş katmanlar (AutoCAD PURGE'ün iki kalemi), tek geri alma adımı */
@@ -2365,7 +2369,7 @@ const UNIT_CODE = { mm: 4, cm: 5, m: 6, km: 7, dm: 14, 'inç': 1, ft: 2 };
 function saveHizli() {
   if (!needDoc()) return;
   if (bses) { api.toast(t('beditCloseFirst')); return; }
-  const text = writeDxf(S.scene.layouts[0].prims, S.layers, { onlyEdited: false, ltypes: S.ltypes, units: UNIT_CODE[S.units] || 0, blocks: S.blocks, vars: S.vars });
+  const text = writeDxf(S.scene.layouts[0].prims, S.layers, { dimFmt: dimFmt(), onlyEdited: false, ltypes: S.ltypes, units: UNIT_CODE[S.units] || 0, blocks: S.blocks, vars: S.vars });
   saveDxfText(text, api.baseName() + '.dxf');
 }
 /** Dosya adından yol ayıracı ve dosya sisteminin kabul etmediği imleri atar */
@@ -2384,7 +2388,7 @@ async function saveFarkli() {
   ]);
   if (!r) return;
   if (r.delta && !(doc && doc.dirty)) { api.toast(t('noChanges')); return; }
-  const text = writeDxf(S.scene.layouts[0].prims, S.layers, { onlyEdited: !!r.delta, ltypes: S.ltypes, units: UNIT_CODE[S.units] || 0, blocks: S.blocks, vars: S.vars });
+  const text = writeDxf(S.scene.layouts[0].prims, S.layers, { dimFmt: dimFmt(), onlyEdited: !!r.delta, ltypes: S.ltypes, units: UNIT_CODE[S.units] || 0, blocks: S.blocks, vars: S.vars });
   saveDxfText(text, dosyaAdi(r.ad, api.baseName()));
 }
 function saveDxf(onlyEdited) {
@@ -2392,7 +2396,7 @@ function saveDxf(onlyEdited) {
   const model = S.scene.layouts[0];
   if (onlyEdited && !(doc && doc.dirty)) { api.toast(t('noChanges')); return; }
   if (bses) { api.toast(t('beditCloseFirst')); return; }
-  const text = writeDxf(model.prims, S.layers, { onlyEdited, ltypes: S.ltypes, units: UNIT_CODE[S.units] || 0, blocks: S.blocks, vars: S.vars });
+  const text = writeDxf(model.prims, S.layers, { dimFmt: dimFmt(), onlyEdited, ltypes: S.ltypes, units: UNIT_CODE[S.units] || 0, blocks: S.blocks, vars: S.vars });
   const name = api.baseName() + (onlyEdited ? '_degisiklikler' : '_duzenlenmis') + '.dxf';
   saveDxfText(text, name);
 }
@@ -2410,7 +2414,7 @@ function saveDxfText(text, name) {
 ed.dxfBase64 = (onlyEdited) => {
   if (!S.hasDoc) return null;
   if (bses) { api.toast(t('beditCloseFirst')); return null; }   // oturum açıkken model uzayı blok içeriğidir: Drive'a o yüklenmesin
-  const text = writeDxf(S.scene.layouts[0].prims, S.layers, { onlyEdited: !!onlyEdited, ltypes: S.ltypes, units: UNIT_CODE[S.units] || 0, blocks: S.blocks, vars: S.vars });
+  const text = writeDxf(S.scene.layouts[0].prims, S.layers, { dimFmt: dimFmt(), onlyEdited: !!onlyEdited, ltypes: S.ltypes, units: UNIT_CODE[S.units] || 0, blocks: S.blocks, vars: S.vars });
   const bytes = new TextEncoder().encode(text);
   let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
   return { b64: btoa(bin), name: api.baseName() + (onlyEdited ? '_degisiklikler' : '_duzenlenmis') + '.dxf' };
@@ -3149,8 +3153,16 @@ function bolgeBitir(d) {
   // project: kesit / kamera dışına düşen nokta GÖRÜNMÜYOR sayılır (snapHit3 ile aynı ölçüt).
   const izd = (x, y, z) => { const q = v3.project(x, y, z); return q && q[2] >= -1 && q[2] <= 1 ? q : null; };
   const res = regionPick3(model.prims, izd, shape, { crossing: d.crossing === true, visible: bolgeUygun });
-  let n = 0;
-  for (const p of res.prims) if (!ed.sel.has(p)) { ed.sel.add(p); n++; }
+  // 2B'deki kural: pencere nesnenin bütün (görünür) parçalarını ister, kesen tek parçayla bütün nesneyi alır
+  const vur = new Set(res.prims), grup = new Map();
+  for (const p of model.prims) {
+    if (p.k === 4 || !bolgeUygun(p)) continue;
+    const k = tools.objKey(p); let g = grup.get(k); if (!g) { g = { parts: [], any: false, all: true }; grup.set(k, g); }
+    g.parts.push(p); const h = vur.has(p); g.any = g.any || h; g.all = g.all && h;
+  }
+  const added = [];
+  for (const g of grup.values()) if (d.crossing === true ? g.any : g.all) for (const p of g.parts) if (!ed.sel.has(p)) { ed.sel.add(p); added.push(p); }
+  const n = nesneSayisi(added);
   api.toast(n ? `${n} ${t('selectedN')}` : t('selRegionNone'), 1400);
   if (n) haptic('snap');
   v3.setSelection(ed.sel); v3.render(); prompt3D();
@@ -4125,6 +4137,8 @@ ed.select = (prim) => { ed.sel.clear(); if (prim) ed.sel.add(prim); if (ed.is3D(
  * kutusu ve tutamakları çıkar; boş yere dokunmak seçimi bırakır. Bilgi paneli seçim rozetinden ya da
  * uzun basış menüsünden açılır. true dönerse app.js bilgi yolunu işletmez.
  */
+/** Köşe tutamakları kipi açık mı (app.js: çift dokunuşun düzenleme bağlamı) */
+ed.gripsOn = () => !!ui.grips;
 ed.gripTap = (hit) => {
   if (!ui.grips || tools.running || ed.is3D() || S.mode !== 'view' || S.notesOn) return false;
   ed.sel.clear();

@@ -15,7 +15,7 @@
  */
 import { TAU, mul, apply, isSim, simScale, simRot, det, arcPts, ellipsePts, opsBBox, flatten, cloudOps, extrudeMesh, patternDefs, pointInPoly } from './geom.js';
 import { FG, ACI, BYLAYER, BYBLOCK, normCi, isByLayer, resolveColor } from './scene.js';
-import { transformDef } from './annot.js';
+import { transformDef, dimDxf, dxfText, dimXdataEncode, dimAppDef, DIM_APP } from './annot.js';
 import { expandInsert, insMatrix, withMatrix, keyOf as blkKey, attrsFor, insFromInfo, decompose, xformEnts } from './blocks.js';
 
 const R2D = 180 / Math.PI;
@@ -340,12 +340,33 @@ const GECICI = (l) => ({ isoHidden: l.isoHidden, faded: l.faded, count: l.count 
  */
 export const UNDO_DEPTH = 10;
 /*
+ * KOPYANIN BİLGİSİ. Dosyadan gelen bir varlığın bütün ilkelleri (ölçünün çizgileri + okları + yazısı, tablonun hücreleri,
+ * çoklu kılavuz, MLINE…) tek bilgi nesnesini ve tek tanıtıcıyı (h) paylaşır; seçim, sayım ve "Ölçü özellikleri" nesneyi bu
+ * tanıtıcıdan bulur. Eskiden kopyanın her ilkeli kendi tanıtıcısını alıyordu: kopya parça parça seçiliyor, kopyalanan ölçü
+ * düzenlenince 8 parça yetim kalıyordu. Artık paylaşım AYNEN korunur: her eski bilgi nesnesi için tek yeni bilgi, aynı eski
+ * tanıtıcıdan gelenler için tek yeni tanıtıcı (grubun ilk yeni anahtarı — yeniden oynatmada da aynı). Dosya ölçüsünün tanım
+ * noktaları kopyanın yerine taşınır; grup kimliği (uygulama ölçüsü, tarama çifti) kopyada yenilenir.
+ */
+function copyInfo(p, key, cm, m, dz, zs) {
+  let ni = cm.info.get(p.info);
+  if (!ni) {
+    let nh = cm.h.get(p.info.h);
+    if (nh == null) { nh = key; cm.h.set(p.info.h, nh); }
+    ni = { ...p.info, h: nh, edited: true };
+    if (ni.t === 'DIMENSION' && ni.dim) ni = dimInfoXform(ni, m, dz, zs);
+    if (ni.gid) { if (!cm.gid.has(ni.gid)) cm.gid.set(ni.gid, newId()); ni.gid = cm.gid.get(ni.gid); }
+    cm.info.set(p.info, ni);
+  }
+  return ni;
+}
+const copyMaps = () => ({ info: new Map(), h: new Map(), gid: new Map() });
+/*
  * PAYLAŞILAN BİLGİ NESNESİ. Bir blok yerleştirmesinin bütün ilkelleri AYNI info nesnesini taşır (scene.js ve
  * blocks.expandInsert sözleşmesi); ilkel başına { ...info } kopyalamak bu bağı koparır ve öznitelik / dinamik
  * parametre düzenlemesi yalnız bir ilkele işlerdi. Bu yüzden bir komut içinde her eski info için TEK yeni info
  * üretilir (Map ile) ve paylaşım korunur. Yerleştirme bilgisine matris düzeltmesi de burada uygulanır.
  */
-function infoMapper(extra, insFn, ps) {
+function infoMapper(extra, insFn, ps, othFn) {
   const map = new Map(), canon = new Map();
   // Yerleştirme bilgisi TANITICIYA (h) göre tek kez üretilir: geometri ilkelinin bilgisi esastır, ekleme noktası işareti (k=4)
   // ve eski bir dosyada ayrışmış kopyalar aynı yeni nesneyi alır — grup hiçbir işlemde ayrışamaz
@@ -354,10 +375,35 @@ function infoMapper(extra, insFn, ps) {
     if (!info) return info;
     const ins = info.t === 'INSERT' && info.h ? 'h:' + info.h : null;
     let n = map.get(ins || info);
-    if (!n) { const src = ins ? (canon.get(info.h) || info) : info; n = { ...src, ...extra }; if (ins && typeof insFn === 'function') n = insFn(n) || n; map.set(ins || info, n); }
+    if (!n) {
+      const src = ins ? (canon.get(info.h) || info) : info; n = { ...src, ...extra };
+      if (ins && typeof insFn === 'function') n = insFn(n) || n;
+      else if (!ins && typeof othFn === 'function') n = othFn(n) || n;
+      map.set(ins || info, n);
+    }
     return n;
   };
 }
+/*
+ * DOSYADAN GELEN ÖLÇÜNÜN TANIMI (info.dim) da dönüşür. Ölçü özellikleri düzenlenince ölçü bu tanım noktalarından yeniden
+ * kurulur ve DXF'e yazarken DIMENSION'ın 10/13/14/15 alanları bunlardır: dönüşmeseydi taşınıp düzenlenen ölçü eski yerine
+ * sıçrar, kaydedilen dosyada ölçü ile bloğu ayrışırdı. Uzunluklar (yazı, ok, uzatma, ölçülen değer) ölçekle büyür; açı ölçüsü
+ * değişmez. Uygulamanın XDATA tanımı (dim.app) da aynı dönüşümü alır, yoksa bir sonraki okumada "bayat" sayılırdı.
+ */
+function dimInfoXform(info, m, dz, zs = 1) {
+  const d = info && info.dim;
+  if (!d) return info;
+  const pt = (q) => { const w = apply(m, q[0], q[1]); return [w[0], w[1], (q[2] || 0) * zs + dz]; };
+  const s = Math.sqrt(Math.abs(det(m))), nd = { ...d };
+  for (const k of ['p1', 'p2', 'd', 'cp', 'tp', 'x1s', 'x1e', 'x2s']) if (Array.isArray(d[k])) nd[k] = pt(d[k]);
+  const a0 = d.rot || 0, wx = m[0] * Math.cos(a0) + m[2] * Math.sin(a0), wy = m[1] * Math.cos(a0) + m[3] * Math.sin(a0);
+  nd.rot = ((Math.atan2(wy, wx) % Math.PI) + Math.PI) % Math.PI;   // doğrultunun işareti önemsiz: [0, π)
+  if (d.sty) { nd.sty = { ...d.sty }; for (const k of ['txt', 'asz', 'exo', 'exe']) if (typeof d.sty[k] === 'number') nd.sty[k] = d.sty[k] * s; }
+  if (typeof d.meas === 'number' && d.type !== 2 && d.type !== 5) nd.meas = d.meas * s;
+  if (d.app) nd.app = transformDef(d.app, pt, s, [m[0], m[1], m[2], m[3]]);
+  return { ...info, dim: nd, edited: true };
+}
+const dimXf = (m, dz, zs) => (i) => (i.t === 'DIMENSION' && i.dim ? dimInfoXform(i, m, dz, zs) : i);
 /** Yerleştirme bilgisinin matrisini m ile çarpar (x, y, rot, sx, sy türetilir); kot z' = z * zs + dz olur */
 function insXform(info, m, dz, zs = 1) {
   const w = withMatrix({ z: info.z }, mul(m, insMatrix(info)), dz, zs);
@@ -487,7 +533,7 @@ export class EditDoc {
         if (!ps.length) return null;
         const snaps = ps.map(p => clonePrim(p));
         const zs = cmd.zs == null ? 1 : cmd.zs;   // kot çarpanı (3B ölçekle); 1 = eski davranış
-        const ni = infoMapper({ edited: true }, (i) => insXform(i, cmd.m, cmd.dz || 0, zs), ps);   // yerleştirme matrisi de döner / ölçeklenir / yansır
+        const ni = infoMapper({ edited: true }, (i) => insXform(i, cmd.m, cmd.dz || 0, zs), ps, dimXf(cmd.m, cmd.dz || 0, zs));   // yerleştirme matrisi de döner / ölçeklenir / yansır; dosya ölçüsünün tanımı da
         for (const p of ps) { transformPrim(p, cmd.m, cmd.dz || 0, zs); p.info = ni(p.info); }
         C.rebuild();
         return () => { ps.forEach((p, i) => Object.assign(p, snaps[i])); C.rebuild(); };
@@ -496,7 +542,7 @@ export class EditDoc {
         const ps = this.findWhole(cmd.keys);
         if (!ps.length) return null;
         // Kopyalanan grup (ölçülendirme, balon) YENİ bir grup kimliği alır: kopya ile aslı birlikte seçilmesin
-        const gmap = new Map(), imap = new Map(), nk = cmd.newKeys || [], zs = cmd.zs == null ? 1 : cmd.zs;
+        const imap = new Map(), cm = copyMaps(), nk = cmd.newKeys || [], zs = cmd.zs == null ? 1 : cmd.zs;
         const created = ps.map((p, i) => {
           const c = clonePrim(p);
           const ih = p.info && p.info.t === 'INSERT' && p.info.h ? p.info.h : null;
@@ -504,7 +550,8 @@ export class EditDoc {
           c.key = i < nk.length ? nk[i] : (ih && imap.has(ih) ? imap.get(ih).h + (p.k === 4 ? '#ins' : '#e' + i) : newId());
           // Yerleştirme ilkelleri ortak info'yu paylaşmayı sürdürür; kopyanın tanıtıcısı grubun İLK yeni anahtarıdır (yeniden oynatmada da aynı)
           if (ih) { let ni = imap.get(ih); if (!ni) { ni = insXform({ ...p.info, h: c.key, edited: true }, cmd.m, cmd.dz || 0, zs); imap.set(ih, ni); } c.info = ni; }
-          else { c.info = { ...p.info, h: c.key, edited: true }; if (c.info.gid) { if (!gmap.has(c.info.gid)) gmap.set(c.info.gid, newId()); c.info.gid = gmap.get(c.info.gid); } }
+          else if (p.info && p.info.h != null) c.info = copyInfo(p, c.key, cm, cmd.m, cmd.dz || 0, zs);
+          else { c.info = { ...p.info, h: c.key, edited: true }; if (c.info.gid) { if (!cm.gid.has(c.info.gid)) cm.gid.set(c.info.gid, newId()); c.info.gid = cm.gid.get(c.info.gid); } }
           if (c.ent) { c.ent = { ...c.ent, id: c.key, ...(c.ent.gid && !(p.info && p.info.t === 'INSERT') ? { gid: c.info.gid } : {}) }; }
           transformPrim(c, cmd.m, cmd.dz || 0, zs); C.insert(c); return c;
         });
@@ -645,18 +692,16 @@ export class EditDoc {
         if (!ps.length) return null;
         const created = [];
         for (const it of cmd.items || []) {
-          const imap = new Map(), nk = it.newKeys || [], gmap = new Map();
+          const imap = new Map(), nk = it.newKeys || [], cm = copyMaps();
           ps.forEach((p, i) => {
             const c = clonePrim(p);
             const ih = p.info && p.info.t === 'INSERT' && p.info.h ? p.info.h : null;
             c.key = i < nk.length ? nk[i] : (ih && imap.has(ih) ? imap.get(ih).h + (p.k === 4 ? '#ins' : '#e' + i) : newId());
             if (ih) { let ni = imap.get(ih); if (!ni) { ni = insXform({ ...p.info, h: c.key, edited: true }, it.m, it.dz || 0); imap.set(ih, ni); } c.info = ni; }   // yerleştirme: ortak info, tek tanıtıcı
-            else {
-              c.info = { ...p.info, h: c.key, edited: true };
-              // Dizinin her kopyası YENİ bir grup kimliği alır ('copy' dalındaki kuralla aynı):
-              // yoksa bütün kopyalar aslıyla aynı gruba girer ve birine dokunmak hepsini seçerdi.
-              if (c.info.gid) { if (!gmap.has(c.info.gid)) gmap.set(c.info.gid, newId()); c.info.gid = gmap.get(c.info.gid); }
-            }
+            // Dizinin her kopyası YENİ bir grup kimliği ve tanıtıcı alır ('copy' dalındaki kuralla aynı):
+            // yoksa bütün kopyalar aslıyla aynı gruba girer ve birine dokunmak hepsini seçerdi.
+            else if (p.info && p.info.h != null) c.info = copyInfo(p, c.key, cm, it.m, it.dz || 0, 1);
+            else { c.info = { ...p.info, h: c.key, edited: true }; if (c.info.gid) { if (!cm.gid.has(c.info.gid)) cm.gid.set(c.info.gid, newId()); c.info.gid = cm.gid.get(c.info.gid); } }
             if (c.ent) c.ent = { ...c.ent, id: c.key, ...(c.ent.gid && !ih ? { gid: c.info.gid } : {}) };
             transformPrim(c, it.m, it.dz || 0);
             C.insert(c); created.push(c);
@@ -937,6 +982,45 @@ export function writeDxf(prims, layers, opts = {}) {
   const isIns = (p) => !!(p.info && p.info.t === 'INSERT' && p.info.blk && blocks.has(blkKey(p.info.name)));
   const insG = new Map();
   for (const p of ents) if (isIns(p)) { let g = insG.get(p.info.h); if (!g) { g = { info: p.info, prims: [] }; insG.set(p.info.h, g); } g.prims.push(p); }
+  /*
+   * GERÇEK DIMENSION (v8.9.8). Uygulama ölçüsü: tanım (ent.def) taşıyan parça + aynı gid'li oklar ve yazı. Grup TEK
+   * DIMENSION varlığı olarak yazılır; çizdiğimiz geometri birebir anonim *D bloğuna girer (AutoCAD ve bu uygulama bloğu
+   * çizer, yedek çizime düşülmez). Blok tanımlarının içindeki ölçüler de aynı yolla yazılır (*D blokları ayrı BLOCK'tur).
+   */
+  const dimGroupsOf = (list) => {
+    const m = new Map();
+    for (const p of list) { const g = p && p.info && p.info.gid; if (!g) continue; let G = m.get(g); if (!G) { G = { parts: [], core: null }; m.set(g, G); } G.parts.push(p); if (p.ent && p.ent.def && p.info.t === 'DIMENSION' && p.k === 0) G.core = p; }
+    for (const [g, G] of m) if (!G.core || !dimDxf(G.core.ent.def)) m.delete(g);
+    return m;
+  };
+  const dimFmt = { prec: 3, pad: false, dsep: '.', ...(opts.dimFmt || {}) };
+  const dimTop = opts.realDims === false ? new Map() : dimGroupsOf(ents);
+  const dimInBlk = new Map();   // blok anahtarı → Map(gid → grup)
+  if (opts.realDims !== false) for (const [k, d] of blocks) { const ps = []; for (const e of d.ents || []) { if (!e || e.type === 'INSERT' || e.type === 'ATTDEF' || e.hpart) continue; const q = entToPrim(e, layers); if (q) ps.push(q); } const m = dimGroupsOf(ps); if (m.size) dimInBlk.set(k, m); }
+  /*
+   * DOSYADAN GELEN ÖLÇÜLER (info.dim, grup kimliği yok): bu dosya bir önceki kayıtta bizim yazdığımız DXF olabilir ya da
+   * AutoCAD'in DWG / DXF'i. İkisi de yine DIMENSION olarak yazılır — yazılmasaydı bir kez kaydedilip açılan çizimin bütün
+   * ölçüleri ikinci kayıtta patlardı. XDATA tanımı hâlâ geçerliyse uygulama ölçüsü gibi, değilse okunan alanlarla (geçiş).
+   */
+  const R2Dd = 180 / Math.PI;
+  const passFields = (d) => {
+    const ok = (q) => Array.isArray(q) && q.length >= 2, t = d && d.type, meas = typeof d.meas === 'number' ? d.meas : undefined;
+    if ((t === 0 || t === 1) && ok(d.p1) && ok(d.p2) && ok(d.d)) return { type: t, p10: d.d, p13: d.p1, p14: d.p2, rot: (d.rot || 0) * R2Dd, meas };
+    if ((t === 3 || t === 4) && ok(d.d) && ok(d.cp)) return { type: t, p10: d.d, p15: d.cp, leader: 0, meas };
+    if (t === 5 && ok(d.d) && ok(d.cp) && ok(d.p1) && ok(d.p2)) return { type: 5, p10: d.d, p13: d.p1, p14: d.p2, p15: d.cp, meas };
+    if (t === 2 && ok(d.x1s) && ok(d.x1e) && ok(d.x2s) && ok(d.cp)) return { type: 2, p10: d.cp, p13: d.x1s, p14: d.x1e, p15: d.x2s, p16: d.d, meas };
+    return null;   // ordinat (6): X/Y bayrağı (64) bilgide saklanmıyor — patlatılmış yazılır
+  };
+  const fileDims = new Map();
+  if (opts.realDims !== false) for (const p of ents) {
+    const i = p.info; if (!i || i.t !== 'DIMENSION' || !i.dim || i.gid || !i.h || i.xref) continue;
+    let G = fileDims.get(i.h); if (!G) { G = { parts: [], file: i, def: dimAppDef(i.dim) }; fileDims.set(i.h, G); } G.parts.push(p);
+  }
+  for (const [h, G] of fileDims) { if (G.def && !dimDxf(G.def)) G.def = null; if (!G.def && !passFields(G.file.dim)) fileDims.delete(h); }
+  const allDims = [...dimTop.values(), ...fileDims.values()]; for (const m of dimInBlk.values()) allDims.push(...m.values());
+  { const taken = new Set([...blocks.keys()]); let n = 1; for (const G of allDims) { while (taken.has(blkKey('*D' + n))) n++; G.name = '*D' + n; taken.add(blkKey(G.name)); n++; } }
+  const dimOf = new Map(); for (const G of dimTop.values()) for (const p of G.parts) dimOf.set(p, G);
+  for (const G of fileDims.values()) for (const p of G.parts) dimOf.set(p, G);
   const usedLayers = new Set(ents.map(p => p.lay));
   for (const d of blocks.values()) for (const e of d.ents || []) if (e && e.layer) usedLayers.add(e.layer);
   const bb = ents.length ? ents.reduce((a, p) => [Math.min(a[0], p.bb[0]), Math.min(a[1], p.bb[1]), Math.max(a[2], p.bb[2]), Math.max(a[3], p.bb[3])], [Infinity, Infinity, -Infinity, -Infinity]) : [0, 0, 1, 1];
@@ -971,13 +1055,23 @@ export function writeDxf(prims, layers, opts = {}) {
   }
   w(0, 'ENDTAB');
   w(0, 'TABLE'); w(2, 'STYLE'); w(5, H()); w(100, 'AcDbSymbolTable'); w(70, 1);
-  w(0, 'STYLE'); w(5, H()); w(100, 'AcDbSymbolTableRecord'); w(100, 'AcDbTextStyleTableRecord'); w(2, 'Standard'); w(70, 0); w(40, 0); w(41, 1); w(50, 0); w(71, 0); w(42, 2.5); w(3, 'txt'); w(4, '');
+  const stH = H(); w(0, 'STYLE'); w(5, stH); w(100, 'AcDbSymbolTableRecord'); w(100, 'AcDbTextStyleTableRecord'); w(2, 'Standard'); w(70, 0); w(40, 0); w(41, 1); w(50, 0); w(71, 0); w(42, 2.5); w(3, 'txt'); w(4, '');
   w(0, 'ENDTAB');
+  // APPID: XDATA'nın uygulama adları (ACAD ölçü stili geçersiz kılmaları, uygulamanın ölçü tanımı) kayıtlı olmalı
+  { const t0 = H(); w(0, 'TABLE'); w(2, 'APPID'); w(5, t0); w(100, 'AcDbSymbolTable'); w(70, 2);
+    for (const a of ['ACAD', DIM_APP]) { w(0, 'APPID'); w(5, H()); w(330, t0); w(100, 'AcDbSymbolTableRecord'); w(100, 'AcDbRegAppTableRecord'); w(2, a); w(70, 0); }
+    w(0, 'ENDTAB'); }
+  // DIMSTYLE: DIMENSION 3 kodundaki ad (Standard); ölçüye özgü değerler varlığın ACAD DSTYLE XDATA'sındadır. Kayıt tanıtıcısı 105'tir.
+  { const t0 = H(); w(0, 'TABLE'); w(2, 'DIMSTYLE'); w(5, t0); w(100, 'AcDbSymbolTable'); w(70, 1); w(100, 'AcDbDimStyleTable');
+    w(0, 'DIMSTYLE'); w(105, H()); w(330, t0); w(100, 'AcDbSymbolTableRecord'); w(100, 'AcDbDimStyleTableRecord'); w(2, 'Standard'); w(70, 0);
+    w(40, 1); w(41, 2.5); w(42, 0.625); w(44, 1.25); w(140, 2.5); w(147, 0.625); w(73, 0); w(74, 0); w(77, 1); w(78, 8); w(271, 2); w(278, 46); w(340, stH);
+    w(0, 'ENDTAB'); }
   // BLOCK_RECORD: model / kâğıt uzayı ve uygulamanın her blok tanımı için bir kayıt (BLOCK'un sahibi 330 ile buraya bağlanır)
-  w(0, 'TABLE'); w(2, 'BLOCK_RECORD'); const brTab = H(); w(5, brTab); w(100, 'AcDbSymbolTable'); w(70, blocks.size + 2);
+  w(0, 'TABLE'); w(2, 'BLOCK_RECORD'); const brTab = H(); w(5, brTab); w(100, 'AcDbSymbolTable'); w(70, blocks.size + 2 + allDims.length);
   const rec = (name) => { const h = H(); w(0, 'BLOCK_RECORD'); w(5, h); w(330, brTab); w(100, 'AcDbSymbolTableRecord'); w(100, 'AcDbBlockTableRecord'); w(2, name); w(340, 0); return h; };
   const msH = rec('*Model_Space'), psH = rec('*Paper_Space'), recH = new Map();
   for (const [k, d] of blocks) recH.set(k, rec(d.name));
+  for (const G of allDims) G.rec = rec(G.name);
   w(0, 'ENDTAB');
   w(0, 'ENDSEC');
   // ---- varlık yazıcıları (ENTITIES ve BLOCKS ortak) ----
@@ -1053,7 +1147,10 @@ export function writeDxf(prims, layers, opts = {}) {
       const hatchAd = hatchTur ? String((p.info && p.info.pattern) || 'SOLID').toUpperCase() : '';
       // Desenli tarama DOLGUSUZ bir ilkeldir (çizgileri ayrı, hpart'lı bir yolda durur); yine de
       // DXF'e HATCH olarak çıkmalıdır, yoksa dosyada yalnız sınır çokgeni kalır ve tarama kaybolur.
-      if ((p.fill || (hatchAd && hatchAd !== 'SOLID')) && (hatchTur || p.et === 'SOLID' || p.et === 'TRACE')) {
+      // Blok tanımına / panoya giren dolu ok başı (blocklib.primToEnt türü 'PATH' yapar) da üç-dört köşeli, yaysız ise SOLID'dir:
+      // yoksa blok içindeki ölçünün okları dolgusuz LWPOLYLINE olarak yazılıyordu
+      const kucukDolu = p.fill && p.et === 'PATH' && ops.length <= 5 && ops.every(o => o[0] === 0 || o[0] === 1) && ops.filter(o => o[0] === 0).length === 1;
+      if ((p.fill || (hatchAd && hatchAd !== 'SOLID')) && (hatchTur || p.et === 'SOLID' || p.et === 'TRACE' || kucukDolu)) {
         // Dolu yüzeyler gerçek DXF varlığı olarak yazılır; LWPOLYLINE'a düşürmek dolguyu kaybettirirdi.
         // Alt yollar ayrı sınırdır (moveto her seferinde yeni yol açar).
         /*
@@ -1303,6 +1400,75 @@ export function writeDxf(prims, layers, opts = {}) {
     const p = entToPrim(e, layers);
     if (p) writeEnt(p, owner);
   };
+  const num = (v) => String(+(+v || 0).toPrecision(15));
+  const textMid = (t) => {
+    const c = Math.cos(t.rot || 0), sn = Math.sin(t.rot || 0), wd = 0.6 * t.h * Math.max(1, ...t.lines.map(l => l.length));
+    const dx = t.ha === 0 ? wd / 2 : t.ha === 2 ? -wd / 2 : 0, dy = t.va === 3 ? -t.h / 2 : t.va === 2 ? 0 : t.h / 2;
+    return [t.x + c * dx - sn * dy, t.y + sn * dx + c * dy, t.z || 0];
+  };
+  /** ACAD DSTYLE: ölçünün tanım değerleri AutoCAD değişkeni olarak — AutoCAD ölçüyü yeniden kurarsa aynı yazı ve boyları kullanır */
+  const dstyle = (def) => {
+    const ang = def.kind === 'angular', rad = def.kind === 'radial', o = [], h = def.h > 0 ? def.h : 2.5;
+    const R = (c, v) => o.push([1070, c], [1040, num(v)]), I = (c, v) => o.push([1070, c], [1070, v | 0]), S = (c, v) => o.push([1070, c], [1000, v]);
+    R(40, def.scale > 0 ? def.scale : 1); R(140, h); R(41, def.arrow > 0 ? def.arrow : h); R(42, def.exo >= 0 ? def.exo : h * 0.25); R(44, def.exe >= 0 ? def.exe : h * 0.5); R(147, h * 0.35);
+    I(77, 1); I(73, ang || rad ? 1 : 0); I(74, ang || rad ? 1 : 0);
+    const prec = Math.max(0, Math.min(8, def.prec == null ? dimFmt.prec : def.prec | 0));
+    if (ang) { I(179, prec); I(79, dimFmt.pad ? 0 : 2); }
+    else { I(271, prec); I(78, dimFmt.pad ? 0 : 8); R(144, def.factor > 0 ? def.factor : 1); S(3, (def.prefix || '') + '<>' + (def.suffix || '')); }
+    I(278, def.dsep > 0 ? def.dsep | 0 : String(dimFmt.dsep || '.').charCodeAt(0));   // ölçünün kendi ayırıcısı (dosyadan gelmişse), yoksa arayüzün
+    return [[1001, 'ACAD'], [1000, 'DSTYLE'], [1002, '{'], ...o, [1002, '}']];
+  };
+  const xd = (pairs) => { for (const [c, v] of pairs) w(c, c === 1000 ? String(v).replace(/[^\x20-\x7e]/g, ch => '\\U+' + ch.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0')) : v); };
+  const P3 = (c, q) => { w(c, f6(q[0])); w(c + 10, f6(q[1])); w(c + 20, f6(q[2] || 0)); };
+  /** DIMENSION varlığı (AC1015): AcDbDimension + tür alt sınıfı + ACAD DSTYLE + uygulama tanımı */
+  const passDstyle = (sy) => {
+    const o = [], R = (c, v) => o.push([1070, c], [1040, num(v)]), I = (c, v) => o.push([1070, c], [1070, v | 0]), S = (c, v) => o.push([1070, c], [1000, v]);
+    R(40, 1); if (sy.txt > 0) R(140, sy.txt); if (sy.asz >= 0) R(41, sy.asz); if (sy.exo >= 0) R(42, sy.exo); if (sy.exe >= 0) R(44, sy.exe);
+    if (typeof sy.dec === 'number') I(271, sy.dec); if (sy.adec >= 0) I(179, sy.adec); if (sy.lfac > 0) R(144, sy.lfac); if (sy.post) S(3, sy.post); if (sy.dsep > 0) I(278, sy.dsep);
+    return [[1001, 'ACAD'], [1000, 'DSTYLE'], [1002, '{'], ...o, [1002, '}']];
+  };
+  const writeDimension = (G, owner) => {
+    const def = G.core ? G.core.ent.def : G.def, fi = G.file;
+    const f = def ? dimDxf(def) : passFields(fi.dim), txt = G.parts.find(q => q.k === 1);
+    const head = G.core || { lay: fi.lay, col: fi.col, lt: null, info: fi };
+    common('DIMENSION', head, 'AcDbDimension', owner);
+    const tp = def ? (txt ? textMid(txt) : f.p10) : (Array.isArray(fi.dim.tp) ? fi.dim.tp : (txt ? textMid(txt) : f.p10));
+    w(2, G.name); P3(10, f.p10); P3(11, tp);
+    w(70, f.type | 32); w(71, 5); if (f.meas != null) w(42, num(f.meas));
+    w(1, def ? dxfText(def.text || '') : String(fi.text == null ? '' : fi.text).replace(/[^\x20-\x7e]/g, ch => '\\U+' + ch.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0')));
+    w(3, 'Standard');
+    if (f.type === 0 || f.type === 1) { w(100, 'AcDbAlignedDimension'); P3(13, f.p13); P3(14, f.p14); if (f.type === 0) { w(50, num(f.rot)); w(100, 'AcDbRotatedDimension'); } }
+    else if (f.type === 3 || f.type === 4) { w(100, f.type === 3 ? 'AcDbDiametricDimension' : 'AcDbRadialDimension'); P3(15, f.p15); w(40, num(f.leader || 0)); }
+    else if (f.type === 5) { w(100, 'AcDb3PointAngularDimension'); P3(13, f.p13); P3(14, f.p14); P3(15, f.p15); }
+    else if (f.type === 2) { w(100, 'AcDb2LineAngularDimension'); P3(13, f.p13); P3(14, f.p14); P3(15, f.p15); P3(16, f.p16); }
+    if (def) { xd(dstyle(def)); xd(dimXdataEncode(def)); } else xd(passDstyle(fi.dim.sty || {}));
+  };
+  /** *D bloğunun içi: parçalar KATMAN 0 / BLOKTAN renkle (DIMENSION'ın katman ve rengini alsınlar); ölçü çizgileri ayrı LINE / ARC */
+  const writeDimBlockParts = (G) => {
+    const c = G.core, cci = c ? normCi(c.info && c.info.ci) : null, fi = G.file;
+    for (const p of G.parts) {
+      // uygulama ölçüsü: parça ölçünün katman / rengindeyse BLOKTAN; dosya ölçüsü: parçalar ortak bilgiyi paylaşır, renk ÇÖZÜLMÜŞ renkle karşılaştırılır
+      const same = c ? (p.lay === c.lay && normCi(p.info && p.info.ci) === cci) : (p.lay === fi.lay && p.col === fi.col);
+      const own = () => { const L = layers.get(p.lay); return { ...p, info: { ...p.info, ci: aciOf(p.col, L ? L.color : null) } }; };
+      const q = same ? { ...p, lay: '0', lt: null, info: { ...p.info, ci: BYBLOCK } } : (c ? p : own());
+      if (q.k === 1 && c) {
+        // Ölçü yazısı MTEXT (AutoCAD'in kendi ölçü bloklarındaki gibi): MTEXT kaçışları iki yönde de çözülür ({ } \\ korunur).
+        // Alt hizalı (7/8/9) ek noktası taban çizgisidir; okuyucu bunu TEXT'in taban çizgisiyle aynı yere çizer.
+        common('MTEXT', q, 'AcDbMText', G.rec);
+        P3(10, [q.x, q.y, q.z || 0]); w(40, f6(q.h)); w(41, 0); w(71, (q.va === 3 ? 1 : q.va === 2 ? 4 : 7) + (q.ha === 1 ? 1 : q.ha === 2 ? 2 : 0)); w(72, 1);
+        w(1, q.lines.map(dxfText).join('\\P')); w(50, f6((q.rot || 0) * R2D));
+        continue;
+      }
+      if (q.k === 1) { writeEnt({ ...q, lines: q.lines.map(l => l.replace(/[^\x20-\x7e]/g, ch => '\\U+' + ch.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0'))) }, G.rec); continue; }
+      if (q.k === 0 && !q.fill) {   // çok parçalı yol (uzatma + ölçü çizgisi, açısal yay): her alt yol ayrı varlık — tek LWPOLYLINE zikzak çizerdi
+        let cur = null; const subs = [];
+        for (const o of q.ops) { if (o[0] === 0) { cur = [o]; subs.push(cur); } else if (cur) cur.push(o); }
+        for (const s2 of subs) if (s2.length >= 2) writeEnt({ ...q, ops: s2, closed: false }, G.rec);
+        continue;
+      }
+      writeEnt(q, G.rec);
+    }
+  };
   // BLOCKS: model / kâğıt uzayı boş kayıtları ve uygulamanın blok tanımları (tanım uzayında, taban 10/20/30)
   w(0, 'SECTION'); w(2, 'BLOCKS');
   const blockHead = (name, owner, base, flags) => { w(0, 'BLOCK'); w(5, H()); w(330, owner); w(100, 'AcDbEntity'); w(8, '0'); w(100, 'AcDbBlockBegin'); w(2, name); w(70, flags); w(10, f6(base[0])); w(20, f6(base[1])); w(30, f6(base[2])); w(3, name); w(1, ''); };
@@ -1312,15 +1478,24 @@ export function writeDxf(prims, layers, opts = {}) {
   for (const [k, d] of blocks) {
     const owner = recH.get(k), list = d.ents || [];
     blockHead(d.name, owner, Array.isArray(d.base) ? d.base : [0, 0, 0], list.some(e => e && e.type === 'ATTDEF') ? 2 : 0);
-    for (const e of list) writeDefEnt(e, owner);
+    const dm = dimInBlk.get(k);
+    if (!dm) { for (const e of list) writeDefEnt(e, owner); }
+    else {
+      const entG = new Map(); for (const G of dm.values()) for (const p of G.parts) entG.set(p.ent, G);   // entToPrim ilkeli ent'i taşır (base.ent)
+      const done = new Set();
+      for (const e of list) { const G = entG.get(e); if (G) { if (!done.has(G)) { done.add(G); writeDimension(G, owner); } continue; } writeDefEnt(e, owner); }
+    }
     blockEnd(owner);
   }
+  for (const G of allDims) { blockHead(G.name, G.rec, [0, 0, 0], 1); writeDimBlockParts(G); blockEnd(G.rec); }
   w(0, 'ENDSEC');
   // ENTITIES: çizim sırasıyla; yerleştirme grubu ilk ilkelinin yerinde tek INSERT olarak
   w(0, 'SECTION'); w(2, 'ENTITIES');
   const written = new Set();
   for (const p of ents) {
     if (isIns(p)) { const g = insG.get(p.info.h); if (!g || written.has(g)) continue; written.add(g); writeInsert(g.info, null, g.prims.filter(q => q.ai != null)); continue; }
+    const dg = dimOf.get(p);
+    if (dg) { if (!written.has(dg)) { written.add(dg); writeDimension(dg, null); } continue; }
     writeEnt(p, null);
   }
   w(0, 'ENDSEC');

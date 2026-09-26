@@ -70,7 +70,9 @@ export function primToEnt(p) {
     color: typeof inf.ci === 'number' ? inf.ci : 256,
   };
   if (inf.gid) ort.gid = inf.gid;                       // grup kimliği: parçalar birlikte seçilir
-  if (typeof p.et === 'string') ort.itype = p.et;       // bilgi türü üstüne yazımı (ok başı, ölçü parçası)
+  // bilgi türü üstüne yazımı (ok başı, ölçü parçası). Açıklama grubunun (ölçü, kılavuz, balon, bulut) parçası kendi türünü
+  // değil grubun türünü taşır: yapıştırılan ölçünün oku ve yazısı da "ölçüleri gizle" süzgecine girsin
+  if (typeof p.et === 'string') ort.itype = inf.gid && ['DIMENSION', 'LEADER', 'BALLOON', 'CLOUD'].includes(inf.t) ? inf.t : p.et;
   if (Array.isArray(p.vis) && p.vis.length) ort.vis = p.vis.slice();   // dinamik blok görünürlük durumları (blocks.js)
   if (p.ent && p.ent.def && typeof p.ent.def === 'object') {
     // ölçü tanımı: bloğa alınan / panoya kopyalanan ölçü hedefte de düzenlenebilir kalsın

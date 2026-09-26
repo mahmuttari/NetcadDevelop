@@ -16,7 +16,7 @@ import { alignMatrix } from './blocks.js';
 import { t, addStrings } from './i18n.js';
 import { askText, askForm, askConfirm } from './dialog.js';
 import { sepOf } from './state.js';
-import { dimLinear, dimRadial, dimAngular, leaderEnts, cloudEnt, balloonEnts, arrayItems, hatchEnts, autoDimStyle } from './annot.js';
+import { dimLinear, dimRadial, dimAngular, leaderEnts, cloudEnt, balloonEnts, arrayItems, hatchEnts, autoDimStyle, dimAppDef } from './annot.js';
 import { cmdOf } from './acad.js';
 import { constrain as deskConstrain } from './desktop.js';
 
@@ -1115,7 +1115,15 @@ export class ToolManager {
     // entToPrim 256'yı ön plan rengi sayar, oysa dosyadaki parçalar katman rengiyle çizilmişti
     return { keys: parts.map(q => q.key), def, gid: newId(), layer: p.lay, color: inf.ci >= 1 && inf.ci <= 255 ? inf.ci : -1, file: true };
   }
+  /**
+   * Bu uygulamanın DXF'e yazdığı ölçünün TAM tanımı (XDATA DWGOFFICEZIP). Yalnız varlığın kendi tanım noktaları, tür, yazı
+   * geçersiz kılması ve yazı yüksekliği tanımdan üretilenlerle hâlâ örtüşüyorsa kullanılır: ölçü AutoCAD'de uzatılmış ya da
+   * özellikleri değiştirilmişse XDATA bayattır ve tanım DXF alanlarından kurulur.
+   */
+  appDimDef(d) { return dimAppDef(d); }
   dimDefFromFile(d, parts, base0) {
+    const own = this.appDimDef(d);
+    if (own) return own;
     const base = { ...(base0 || this.dimNeutral()) }, sty = d.sty || {};   // tarafsız temel: kullanıcının ön / son eki dosya ölçüsüne sızmaz
     if (sty.dsep > 0) base.dsep = sty.dsep;
     const txt = parts.find(q => q.k === 1);
@@ -1711,13 +1719,20 @@ export class ToolManager {
    * dosyadan gelen DIMENSION varlığının parçaları (aynı tanıtıcı) birlikte seçilir; öteki her şey tek başına.
    * Seç aracı da, tutamak kipindeki boşta dokunuş da bu tek tanımı kullanır.
    */
+  /*
+   * NESNE KİMLİĞİ (AutoCAD'deki "bir nesne"). Grup kimliği (uygulama ölçüsü, balon, tarama çifti) > dosya tanıtıcısı (dosya
+   * ölçüsü, blok yerleştirmesi, tablo, çoklu kılavuz, MLINE — bir varlığın bütün ilkelleri aynı tanıtıcıyı taşır) > ilkel
+   * anahtarı. Dokunuşla seçim, pencere / kesen seçim ve kullanıcıya gösterilen bütün sayılar ("[1 seçili]", rozet, menü
+   * başlığı) bu tek işlevden geçer: 4 parçalı ölçü "4 seçili" görünmez, pencere onu parçalayamaz.
+   */
+  objKey(p) { const i = p && p.info; return i && i.gid ? 'g:' + i.gid : i && i.h != null ? 'h:' + i.h : 'p:' + (p && p.key); }
+  objCount(iter) { const s = new Set(); for (const p of iter || []) if (p && p.k !== 4) s.add(this.objKey(p)); return s.size; }
   groupOf(p) {
-    const gid = p.info && p.info.gid, fdim = !gid && p.info && p.info.t === 'DIMENSION' && p.info.h;
-    // Blok yerleştirmesi AutoCAD'de de tek nesnedir: bütün ilkelleri (ekleme noktası işareti hariç) birlikte seçilir
-    const ins = !gid && p.info && p.info.t === 'INSERT' && p.info.h;
-    return gid ? this.api.visiblePrims().filter(q => q.info && q.info.gid === gid)
-      : fdim ? this.api.visiblePrims().filter(q => q.info && q.info.t === 'DIMENSION' && q.info.h === p.info.h)
-        : ins ? this.api.visiblePrims().filter(q => q.k !== 4 && q.info && q.info.t === 'INSERT' && q.info.h === p.info.h) : [p];
+    const k = this.objKey(p);
+    if (k.startsWith('p:')) return [p];
+    // ekleme noktası işareti (k=4) nesneye sayılmaz ve seçilmez (AutoCAD'de de yerleştirme tek nesnedir)
+    const g = this.api.visiblePrims().filter(q => q.k !== 4 && this.objKey(q) === k);
+    return g.length ? g : [p];
   }
   /** Aynala: "Orijinal kalsın" düğmesi — açıkken kopya (AutoCAD <N>), kapalıyken kaynak silinir (Yes) */
   toggleMirrorKeep() { if (this.active !== 'mirror') return; this.mirrorKeep = !this.mirrorKeep; this.say(); }
@@ -1727,15 +1742,30 @@ export class ToolManager {
   selectRegion(shape, crossing) {
     if (this.active === 'stretch') this.region = { shape, crossing };   // AutoCAD STRETCH: pencerenin İÇİNDEKİ köşeler taşınır
     const A = this.api, list = A.selectable ? A.selectable() : A.visiblePrims();
-    let n = 0;
+    /*
+     * AutoCAD kuralı nesne başınadır: PENCERE nesnenin bütün parçaları içindeyse, KESEN herhangi bir parçası dokunuyorsa
+     * nesnenin TAMAMINI seçer. Eskiden her ilkel ayrı sınanıyordu: ölçünün yalnız yazısını çevreleyen pencere yazıyı, bir oku
+     * kesen kutu yalnız o oku seçiyor; ardından Sil ya da Taşı ölçüyü parçalıyordu. Germe (STRETCH) köşe seçimi değişmez.
+     */
+    const G = new Map();
     for (const p of list) {
-      if (p.k === 4 || p.inf || A.sel.has(p) || !p.bb || !isFinite(p.bb[0])) continue;
+      if (p.k === 4 || p.inf || !p.bb || !isFinite(p.bb[0])) continue;
       const hit = shape.rect ? (crossing ? primCrossesRect(p, shape.rect) : bboxInRect(p.bb, shape.rect)) : (crossing ? primCrossesPoly(p, shape.poly) : primInPoly(p, shape.poly));
-      if (hit) { A.sel.add(p); n++; }
+      const k = this.objKey(p);
+      let g = G.get(k); if (!g) { g = { parts: [], any: false, all: true }; G.set(k, g); }
+      g.parts.push(p); g.any = g.any || !!hit; g.all = g.all && !!hit;
+    }
+    let n = 0;
+    for (const g of G.values()) {
+      if (!(crossing ? g.any : g.all)) continue;
+      let yeni = false;
+      for (const p of g.parts) if (!A.sel.has(p)) { A.sel.add(p); yeni = true; }
+      if (yeni) n++;
     }
     this.say(); A.overlay();
-    return n;
+    return n;   // eklenen NESNE sayısı ("1 nesne seçildi")
   }
+
 
   /*
    * ÇOKGEN (AutoCAD POLYGON, Inscribed): çembere iç teğet düzgün çokgen. Kenar sayısı önce sorulur
