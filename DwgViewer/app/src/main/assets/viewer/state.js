@@ -86,11 +86,33 @@ export const UNIT_TO_M = { 1: 0.0254, 2: 0.3048, 3: 1609.344, 4: 0.001, 5: 0.01,
  * açı gibi basamağı sabit olması gereken yerler değeri açıkça geçer ve ayardan etkilenmez.
  * S.precPad açıksa son sıfırlar yazılır (12,50 gibi) — cetvel okumasında basamak sayısı sabit kalır.
  */
+/*
+ * SAYI YERELİ ARAYÜZ DİLİNDEN (v8.9.8). Eskiden 'tr-TR' sabitti: İngilizce arayüzde de "32,318 m²"
+ * ve "508.919,277" yazıyordu. Artık ondalık ve binlik ayracı arayüz diline uyar (en 32.318 · de 32,318 ·
+ * fr 32,318 · ru 32,318 …). Arapça ve Hintçede Latin rakamı korunur (-u-nu-latn): mühendislik
+ * çiziminde ölçü ve koordinatlar Latin rakamıyla okunur. Dil <html lang> özniteliğinden okunur
+ * (i18n.applyDoc yazar); işçide ya da Node'da belge yoksa Türkçe kalır.
+ */
+const NUM_LOC = { tr: 'tr-TR', en: 'en-US', ar: 'ar-u-nu-latn', de: 'de-DE', es: 'es-ES', fr: 'fr-FR', hi: 'hi-IN-u-nu-latn', id: 'id-ID',
+  it: 'it-IT', ja: 'ja-JP', ko: 'ko-KR', pt: 'pt-PT', ru: 'ru-RU', vi: 'vi-VN', zh: 'zh-CN' };
+/** Arayüz dilinin Intl yerel kodu (sayı ve tarih biçimi için) */
+export function numLocale() {
+  let l = 'tr';
+  try { l = String(document.documentElement.lang || 'tr').slice(0, 2).toLowerCase(); } catch (_) { /* işçi / Node */ }
+  return NUM_LOC[l] || 'tr-TR';
+}
+/** Arayüz dilinin ayraçları: { binlik, ondalik } (Excel görüntüleyici ve CSV için) */
+export function sepOf() {
+  try {
+    const p = new Intl.NumberFormat(numLocale()).formatToParts(12345.6);
+    return { binlik: (p.find(x => x.type === 'group') || {}).value || '', ondalik: (p.find(x => x.type === 'decimal') || {}).value || ',' };
+  } catch (_) { return { binlik: '.', ondalik: ',' }; }
+}
 const nfCache = new Map();
 function nfOf(d, pad) {
-  const key = d + (pad ? 'p' : '');
+  const loc = numLocale(), key = loc + '|' + d + (pad ? 'p' : '');
   let f = nfCache.get(key);
-  if (!f) { f = new Intl.NumberFormat('tr-TR', { maximumFractionDigits: d, minimumFractionDigits: pad ? d : 0 }); nfCache.set(key, f); }
+  if (!f) { f = new Intl.NumberFormat(loc, { maximumFractionDigits: d, minimumFractionDigits: pad ? d : 0 }); nfCache.set(key, f); }
   return f;
 }
 /** Ondalık basamak sayısı sınırı (ayar bu aralıkta tutulur) */

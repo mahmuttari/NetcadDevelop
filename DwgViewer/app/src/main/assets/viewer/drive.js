@@ -8,7 +8,7 @@
  *  - Panel: #drivePanel — hesap satırı, kısayol çipleri (Drive'ım / Paylaşılanlar / Son / Yıldızlı), arama,
  *    kırıntı, liste, "daha fazla", yükleme (geçerli çizim / DXF / PDF), klasör oluşturma, dosya menüsü.
  */
-import { S, store, fmt } from './state.js';
+import { S, store, fmt, numLocale } from './state.js';
 import { t } from './i18n.js';
 import { kindOf, iconFor } from './docs.js';
 import { askText, askConfirm, askForm } from './dialog.js';
@@ -155,7 +155,7 @@ function renderList() {
   h += '<div class="list arc-list">';
   for (const f of items) {
     const isDir = f.mimeType === FOLDER, gdoc = !isDir && f.mimeType && f.mimeType.startsWith(GDOC);
-    const meta = [gdoc ? gdocLabel(f.mimeType) : fmtSize(+f.size), f.modifiedTime ? new Date(f.modifiedTime).toLocaleDateString('tr-TR') : '', f.shared ? tt('shared', 'paylaşılan') : ''].filter(Boolean).join(' · ');
+    const meta = [gdoc ? gdocLabel(f.mimeType) : fmtSize(+f.size), f.modifiedTime ? new Date(f.modifiedTime).toLocaleDateString(numLocale()) : '', f.shared ? tt('shared', 'paylaşılan') : ''].filter(Boolean).join(' · ');
     h += `<div class="item arc-item drive-item" data-id="${esc(f.id)}" data-name="${esc(f.name)}" data-mime="${esc(f.mimeType || '')}" data-size="${esc(f.size || '')}" data-dir="${isDir ? 1 : 0}" data-link="${esc(f.webViewLink || '')}">${isDir ? ICON('i-open') : gdoc ? ICON('i-text') : iconFor(f.name)}<span class="nm">${esc(f.name)}</span><small>${esc(meta)}</small><button type="button" class="lbtn" data-drive="menu" aria-label="${esc(t('more'))}">${ICON('i-more')}</button></div>`;
   }
   h += '</div>';

@@ -332,7 +332,7 @@ export function buildViewCube(container, v3, host = {}) {
   });
   // kuzey işareti
   const north = document.createElementNS(NS, 'text');
-  north.setAttribute('text-anchor', 'middle'); north.setAttribute('dominant-baseline', 'central'); north.setAttribute('font-size', '0.34'); north.setAttribute('font-weight', '700'); north.setAttribute('font-family', 'system-ui, sans-serif'); north.setAttribute('fill', '#ff453a'); north.setAttribute('pointer-events', 'none'); north.textContent = 'K';
+  north.setAttribute('text-anchor', 'middle'); north.setAttribute('dominant-baseline', 'central'); north.setAttribute('font-size', '0.34'); north.setAttribute('font-weight', '700'); north.setAttribute('font-family', 'system-ui, sans-serif'); north.setAttribute('fill', '#ff453a'); north.setAttribute('pointer-events', 'none'); north.textContent = t('northLetter');   // K / N / С / 北 … (arayüz dili)
   gNorth.appendChild(north);
   container.appendChild(svg);
   // mini düğmeler

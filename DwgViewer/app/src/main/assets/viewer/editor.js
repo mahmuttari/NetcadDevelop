@@ -532,7 +532,7 @@ function vstylePop(btn) {
   if (!v3 || !ed.is3D()) { if (!needModel()) return; enter3D(); }
   if (!v3) return;
   const html = `<div class="pop-title">${esc(tileLabel('vstyle'))}</div><div class="vs-grid">${VSTYLES.map(([id, k, tr]) => `<button type="button" data-vs="${id}" class="${v3.opts.style === id ? 'on' : ''}"><svg class="ic" aria-hidden="true"><use href="#i-vs-${id}"/></svg><span>${esc(tt(k, tr))}</span></button>`).join('')}</div>` +
-    `<div class="pop-row"><button type="button" class="btn small" data-vs-more="1">${esc(tt('dispTitle', 'Ekran ayarları'))} › 3B</button></div>`;
+    `<div class="pop-row"><button type="button" class="btn small" data-vs-more="1">${esc(tt('dispTitle', 'Ekran ayarları'))} › ${esc(tt('mode3d', '3B'))}</button></div>`;
   const pop = openPop(btn, html);
   pop.addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-vs]'); if (b) { v3.set('style', b.dataset.vs); pop.querySelectorAll('[data-vs]').forEach(x => x.classList.toggle('on', x === b)); refreshTiles(); haptic('toggle'); return; }

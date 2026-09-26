@@ -11,7 +11,7 @@
  *  - Dropbox / OneDrive / Box listelenmez: geliştirici uygulaması kaydı gerektirir (README).
  */
 import { t } from './i18n.js';
-import { S, fmt } from './state.js';
+import { S, fmt, numLocale } from './state.js';
 import { kindOf, iconFor } from './docs.js';
 import * as Drive from './drive.js';
 import { askConfirm, askText, askForm } from './dialog.js';
@@ -175,7 +175,7 @@ function explorerHtml() {
   if (!items.length && !nav.error) h += emptyBox('folder', tt('openEmptyDir', 'Klasör boş'), tt('openEmptyDirText', 'Bu klasörde gösterilecek dosya yok.'));
   h += '<div class="list arc-list">';
   for (const it of items) {
-    const meta = it.dir ? '' : [fmtSize(+it.size), it.time > 0 ? new Date(it.time).toLocaleDateString('tr-TR') : ''].filter(Boolean).join(' · ');
+    const meta = it.dir ? '' : [fmtSize(+it.size), it.time > 0 ? new Date(it.time).toLocaleDateString(numLocale()) : ''].filter(Boolean).join(' · ');
     h += `<div class="item arc-item open-item wd-item" data-cloud="entry" data-path="${esc(it.path)}" data-name="${esc(it.name)}" data-dir="${it.dir ? 1 : 0}" data-size="${Number(it.size) || 0}">${it.dir ? ICON('i-open') : iconFor(it.name)}<span class="nm">${esc(it.name)}</span>${meta ? `<small>${esc(meta)}</small>` : ''}${it.dir ? '<svg class="ic open-chev" aria-hidden="true"><use href="#i-chevron"/></svg>' : ''}<button type="button" class="lbtn" data-cloud="menu" aria-label="${esc(t('more'))}">${ICON('i-more')}</button></div>`;
   }
   return h + '</div></div>';

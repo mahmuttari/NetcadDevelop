@@ -2,7 +2,7 @@
  * DWG OfficeZip – uygulama: yükleme, çizim döngüsü, dokunma, paneller ve araçlar.
  * Çözümleme worker.js'te, geometri geom.js'te, çizim render.js'te.
  */
-import { S, toWorld, toScreen, fitView, zoomAtScreen, visibleRect, UNITS, UNIT_TO_M, fmt, fmtUnit, store, clampPrec, PREC_MIN, PREC_MAX } from './state.js';
+import { S, toWorld, toScreen, fitView, zoomAtScreen, visibleRect, UNITS, UNIT_TO_M, fmt, fmtUnit, store, clampPrec, PREC_MIN, PREC_MAX, numLocale } from './state.js';
 import { RTree, snapPoint, snapCandidates, primDist, flatten, pathLength, pathLength3, polyArea, meshMetrics, TAU, segmentsOf, segIntersect } from './geom.js';
 import { FG, ACI, primSignature } from './scene.js';
 import { drawFrame, rgbCss, bgColor, fgColor, tracePath, renderRegion, gridState, niceStep, worldTransform as renderWorldTransform, worldOrigin, plotRgb, plotKey } from './render.js';
@@ -3712,7 +3712,7 @@ function loadPhoto(id, url) {
 function openPhoto(n) {
   const rec = photos.get(n.photo);
   const src = rec ? rec.img.src : '/file/' + n.photo;
-  openDoc(t('photo'), `<div class="full"><img src="${esc(src)}" style="max-width:100%;border-radius:8px"></div><div class="full muted">${esc(n.text || '')} · ${new Date(n.t).toLocaleString('tr-TR')}</div>`);
+  openDoc(t('photo'), `<div class="full"><img src="${esc(src)}" style="max-width:100%;border-radius:8px"></div><div class="full muted">${esc(n.text || '')} · ${new Date(n.t).toLocaleString(numLocale())}</div>`);
 }
 
 // ---- GPS --------------------------------------------------------------------------------
@@ -3755,7 +3755,7 @@ function showGps() {
   const rows = [[t('crs'), S.geo.active ? S.geo.crs.name : t('gpsNoCrs')],
     [t('positionLbl'), S.gps.lat != null ? `φ ${S.gps.lat.toFixed(6)}  λ ${S.gps.lon.toFixed(6)}  ±${fmt(S.gps.acc, 0)} m` : (S.gps.on ? t('gpsWait') : t('gpsOff'))]];
   if (S.gps.lat != null && S.geo.active) { const d = S.geo.toDrawing(S.gps.lon, S.gps.lat); if (d) rows.push([t('drawingCoord'), fmt(d[0]) + ' ; ' + fmt(d[1])]); }
-  rows.push([`<div class="full btns"><button class="btn small" id="gOn">${S.gps.on ? t('gpsOff') : t('gpsOn')}</button><button class="btn small" id="gGo">${t('gpsHere')}</button><label class="chk"><input type="checkbox" id="gFollow" ${S.gps.follow ? 'checked' : ''}> ${t('gpsFollow')}</label><button class="btn small" id="gSet">${t('settings')}</button></div>`]);
+  rows.push([`<div class="full btns"><button class="btn small" id="gOn">${S.gps.on ? tt('gpsTurnOff', "GPS'i kapat") : t('gpsOn')}</button><button class="btn small" id="gGo">${t('gpsHere')}</button><label class="chk"><input type="checkbox" id="gFollow" ${S.gps.follow ? 'checked' : ''}> ${t('gpsFollow')}</label><button class="btn small" id="gSet">${t('settings')}</button></div>`]);
   openDoc(t('gps'), kv(rows));
   $('gOn').onclick = () => { gpsToggle(!S.gps.on); showGps(); };
   $('gGo').onclick = () => { if (!S.gps.on) gpsToggle(true); gpsGoto(); };
@@ -4739,7 +4739,7 @@ async function makePdf(o) {
       const { bb, sayfaOlcek } = uc3 ? { bb: S.ext || visibleRect(), sayfaOlcek: 0 } : pdfAlani(o, all, cizimGmm, cizimYmm);
       const bilgi = [`${t('file')}: ${S.fileName}`, uc3 ? tt('pdfArea3d', '3B görünüş (resim)') : layouts[S.layoutIndex].name, idxs.length > 1 ? `${pages.length + 1} / ${idxs.length}` : '',
         uc3 ? ucBoyutBilgi() : (sayfaOlcek ? `${t('pdfScale')}${sayfaOlcek}` : ''), S.units ? `${t('drawingUnit')}: ${S.units}` : '',
-        S.geo.active ? S.geo.crs.name : '', new Date().toLocaleString('tr-TR')].filter(Boolean).join('   ·   ');
+        S.geo.active ? S.geo.crs.name : '', new Date().toLocaleString(numLocale())].filter(Boolean).join('   ·   ');
       if (uc3) { pages.push(rasterSayfa({ wmm, hmm, kenarMm, kunyeMm, cizimGmm, cizimYmm, bb, sayfaOlcek: 0, bilgi, pxPerMm, o, gorsel })); }
       else if (vec) {
         basilan += vektorSayfa(belge, { wmm, hmm, kenarMm, kunyeMm, cizimGmm, cizimYmm, bb, sayfaOlcek, bilgi, o });
@@ -5454,7 +5454,7 @@ $('fileInput').addEventListener('change', async (ev) => { const f = ev.target.fi
 function buildRecent() {
   const list = Open.recentList().slice(0, 8);   // Android: Bridge.getRecent; tarayıcı: oturum listesi
   $('recentWrap').hidden = !list.length;
-  $('recentList').innerHTML = list.map((r, i) => `<div class="item" data-i="${i}" data-name="${esc(r.name)}">${r.thumb ? `<img src="/file/thumb_${esc(r.key)}?${r.time}" alt="">` : `<div class="noimg">${Docs.iconFor(r.name)}</div>`}<div class="nm">${esc(r.name)}<div class="meta">${fmt(r.size / 1024 / 1024, 2)} MB · ${new Date(r.time).toLocaleString('tr-TR')}</div></div></div>`).join('');
+  $('recentList').innerHTML = list.map((r, i) => `<div class="item" data-i="${i}" data-name="${esc(r.name)}">${r.thumb ? `<img src="/file/thumb_${esc(r.key)}?${r.time}" alt="">` : `<div class="noimg">${Docs.iconFor(r.name)}</div>`}<div class="nm">${esc(r.name)}<div class="meta">${fmt(r.size / 1024 / 1024, 2)} MB · ${new Date(r.time).toLocaleString(numLocale())}</div></div></div>`).join('');
   $('recentList').onclick = (ev) => { const it = ev.target.closest('.item'); if (it) Open.openRecent(list[Number(it.dataset.i)].uri); };
   Open.refresh();
 }

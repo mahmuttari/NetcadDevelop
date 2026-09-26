@@ -17,7 +17,7 @@
  *  - Gömme: mount(hostEl, tab) aynı görünümü (Cihaz gezgini: kökler, kırıntı, liste, arama) ana ekranın Dosya › Yerel bölümüne
  *    çizer; #openPanel alt sayfası çizim açıkken kullanılmaya devam eder. unmount() gömmeyi kaldırır. Kök / klasör durumu ortaktır.
  */
-import { store, fmt } from './state.js';
+import { store, fmt, numLocale } from './state.js';
 import { t } from './i18n.js';
 import { kindOf, iconFor, isCad } from './docs.js';
 import { askConfirm, askText } from './dialog.js';
@@ -31,7 +31,7 @@ const A = () => window.Android;
 const ICON = (id) => `<svg class="ic" aria-hidden="true"><use href="#${id}"/></svg>`;
 const call = (fn, ...a) => { try { return typeof fn === 'function' ? fn(...a) : undefined; } catch (e) { console.warn(e); return undefined; } };
 const fmtSize = (n) => n == null || !(n >= 0) ? '' : n < 1024 ? n + ' B' : n < 1048576 ? fmt(n / 1024, 0) + ' KB' : fmt(n / 1048576, 2) + ' MB';
-const fmtDate = (ms) => ms > 0 ? new Date(ms).toLocaleDateString('tr-TR') : '';
+const fmtDate = (ms) => ms > 0 ? new Date(ms).toLocaleDateString(numLocale()) : '';
 const hasFs = () => !!(A() && A().fsRoots);
 /** Android 11+ (API 30) İndirilenler kökünün kendisini ağaç seçiciyle vermez; sürüm bilinmiyorsa açıklama gösterilir */
 const dlHint = () => { const a = A(); if (!(a && a.fsRoots)) return ''; let sdk = 30; if (a.sdkInt) { try { sdk = Number(a.sdkInt()); } catch (_) { /* eski köprü */ } } return sdk >= 30 ? tt('openDlHint', 'Android 11 ve üstünde İndirilenler\'in kendisi seçilemez; içindeki bir alt klasörü seçin (Android/data seçilemez).') : ''; };

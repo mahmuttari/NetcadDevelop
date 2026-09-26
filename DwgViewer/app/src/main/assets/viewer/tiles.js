@@ -2,6 +2,7 @@
 import { S, visibleRect } from './state.js';
 import { lonLatToTile, tileToLonLat, zoomForResolution, BASEMAPS, toCrs, attrOf } from './proj.js';
 import { fromPoints } from './geom.js';
+import { worldOrigin } from './render.js';   // döngüsel içe aktarma: yalnız çizim anında çağrılır
 
 const cache = new Map();   // url → { img, ok, err }
 let pending = 0;
@@ -70,7 +71,13 @@ export function drawBasemap(ctx) {
     const nw = tileToLonLat(x, y, z), ne = tileToLonLat(x + 1, y, z), sw = tileToLonLat(x, y + 1, z);
     const p0 = S.geo.toDrawing(nw[0], nw[1]), p1 = S.geo.toDrawing(ne[0], ne[1]), p2 = S.geo.toDrawing(sw[0], sw[1]);
     if (!p0 || !p1 || !p2) continue;
-    const m = fromPoints(p0, p1, p2);
+    /*
+     * render.worldTransform (v6.4'ten beri) kökeni görünüm merkezine (OX, OY) alır ve çizim ilkelleri
+     * o merkeze GÖRE yazılır; karo köşeleri de aynı kökene çekilmelidir. Mutlak koordinatla verilince
+     * gerçek koordinatlı (ör. TM30, 508 000 ; 4 507 000) bir çizimde altlık ekranın çok dışına düşüyordu.
+     */
+    const [ox, oy] = worldOrigin();
+    const m = fromPoints([p0[0] - ox, p0[1] - oy], [p1[0] - ox, p1[1] - oy], [p2[0] - ox, p2[1] - oy]);
     ctx.save();
     ctx.transform(m[0] / 256, m[1] / 256, m[2] / 256, m[3] / 256, m[4], m[5]);
     ctx.drawImage(c2.img, 0, 0, 256, 256);

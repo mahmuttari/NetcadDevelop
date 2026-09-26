@@ -29,7 +29,7 @@
  *    Java tarafı ayrıca iki gösterim arasında en az 60 s taban koruması uygular; Pro'da showAd hemen onAd(reason, false) döner.
  *  - Sınama kancası: __ads = { tick(nowMs), state() } — tick verilen zamana göre karar verir.
  */
-import { S } from './state.js';
+import { S, numLocale } from './state.js';
 import { t } from './i18n.js';
 import { askConfirm, askText } from './dialog.js';
 
@@ -263,7 +263,7 @@ export const unlockCount = (x, from = tier()) =>
 // Pro paneli (#proPanel)
 // ---------------------------------------------------------------------------------
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const dateText = (epochSec) => { try { return new Date(epochSec * 1000).toLocaleDateString(document.documentElement.lang === 'en' ? 'en-GB' : 'tr-TR'); } catch (_) { return String(epochSec); } };
+const dateText = (epochSec) => { try { return new Date(epochSec * 1000).toLocaleDateString(numLocale()); } catch (_) { return String(epochSec); } };
 /** Paketin özellik satırları: "tierFeat_<basamak>" anahtarı, satırlar "|" ile ayrılır.
  * Her satırın önünde onay imi durur; im, kartın kendi renk belirtecini (--t) alır. */
 function featureList(x) {

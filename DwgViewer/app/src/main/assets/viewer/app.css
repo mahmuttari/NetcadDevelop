@@ -362,6 +362,11 @@ body.glove .ask-field .opt-text { min-height: 52px; }
 .sheet-handle::before { content: ""; width: 40px; height: 4px; border-radius: 2px; background: var(--line); }
 .panel-head { display: flex; align-items: center; gap: 6px; padding: 4px 8px 6px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .panel-head strong { flex: 1 1 auto; font-size: calc(15px * var(--fs)); }
+/* Ölçü paneli: ipucu metni uzun dillerde kapat düğmesini ikinci satıra itmesin; ipucu kısalır (…), düğmeler tek satırda kalır */
+#measurePanel .panel-head { flex-wrap: nowrap; }
+#measurePanel .panel-head strong { flex: 0 0 auto; }
+#measureHint { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#measurePanel .panel-head .btn { flex: 0 0 auto; }
 .panel-head input[type=search] { flex: 1 1 auto; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font-size: calc(14px * var(--fs)); min-width: 0; min-height: 40px; }
 .panel-body { overflow: auto; padding: 6px 12px; min-height: 0; -webkit-overflow-scrolling: touch; }
 .muted { color: var(--muted); font-size: calc(12px * var(--fs)); }
@@ -437,6 +442,21 @@ body.glove .ask-field .opt-text { min-height: 52px; }
 .kv .full.btns { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0; }
 .kv input, .kv select { width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font-size: calc(14px * var(--fs)); min-height: 40px; }
 .kv input[type=color] { min-height: 40px; padding: 2px; }
+/* onay kutusu ve seçim düğmesi metin kutusu gibi %100 genişlik / 40 px almaz (boş beyaz kare görünüyordu) */
+/*
+ * Form içi onay kutusu ve seçim düğmesi: dokunma alanı 40 × 40 px (sınama: dokunma hedefleri ≥ 40 px),
+ * görünen kutu 22 px. Eskiden metin kutusu kuralı (%100 genişlik, 40 px) yerel kutuyu dev bir BEYAZ kare
+ * olarak çizdiriyordu. Renk temaya uyar: çerçeve --muted, işaretli dolgu --accent (maskeyle boyanır).
+ */
+.kv input[type=checkbox], .kv input[type=radio] { -webkit-appearance: none; appearance: none; flex: 0 0 auto;
+  width: 40px; height: 40px; min-height: 40px; margin: 0; padding: 0; border: 0; border-radius: 0; cursor: pointer;
+  background: var(--muted); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect x='9.5' y='9.5' width='21' height='21' rx='4.5' fill='none' stroke='%23000' stroke-width='2.4'/%3E%3C/svg%3E") center / 40px 40px no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect x='9.5' y='9.5' width='21' height='21' rx='4.5' fill='none' stroke='%23000' stroke-width='2.4'/%3E%3C/svg%3E") center / 40px 40px no-repeat; }
+.kv input[type=checkbox]:checked { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath d='M13.5 20.5l4.5 4.5 9-10' fill='none' stroke='%231a1a1a' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 40px 40px no-repeat, var(--accent);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect x='8.3' y='8.3' width='23.4' height='23.4' rx='5' fill='%23000'/%3E%3C/svg%3E"); mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect x='8.3' y='8.3' width='23.4' height='23.4' rx='5' fill='%23000'/%3E%3C/svg%3E"); }
+.kv input[type=radio] { -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='10.5' fill='none' stroke='%23000' stroke-width='2.4'/%3E%3C/svg%3E"); mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='10.5' fill='none' stroke='%23000' stroke-width='2.4'/%3E%3C/svg%3E"); }
+.kv input[type=radio]:checked { background: var(--accent); -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='10.5' fill='none' stroke='%23000' stroke-width='2.4'/%3E%3Ccircle cx='20' cy='20' r='5.5' fill='%23000'/%3E%3C/svg%3E"); mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='10.5' fill='none' stroke='%23000' stroke-width='2.4'/%3E%3Ccircle cx='20' cy='20' r='5.5' fill='%23000'/%3E%3C/svg%3E"); }
+.kv input[type=checkbox]:disabled, .kv input[type=radio]:disabled { opacity: .45; cursor: default; }
+.kv input[type=checkbox]:focus-visible, .kv input[type=radio]:focus-visible { outline: none; background-color: var(--fg); }
 .kv label.chk { display: flex; align-items: center; gap: 8px; min-height: 40px; }
 /* Tek satırda iki alan (özel kâğıt G × Y) ya da düğme + bilgi (PDF pencere seçimi) */
 .kv .pair { display: flex; align-items: center; gap: 6px; min-height: 40px; }

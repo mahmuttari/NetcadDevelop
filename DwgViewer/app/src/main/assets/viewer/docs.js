@@ -18,7 +18,7 @@
  *  - Arşivden çıkan DWG/DXF çizim olarak açılır; diğerleri belge görünümünde (iç içe arşiv desteklenir).
  *  - .ppt / .pptx / .rtf / .odt gibi biçimler için Google Drive ile PDF'e dönüştürme önerilir (drive.js).
  */
-import { fmt, store } from './state.js';
+import { fmt, store, numLocale, sepOf } from './state.js';
 import { t } from './i18n.js';
 import { CP857, decodeCp } from './codepage.js';
 import { lockAttr, lockBadge, lockText } from './edition.js';
@@ -329,7 +329,7 @@ function sayfaGorunum(s) {
 /** Belgeyi okuyup basılabilir sayfalara çevirir (eski xlsxToHtml'in yerini alır) */
 export async function xlsxSayfalar(d) {
   const kitap = await kitapAc(d);
-  const hazir = XB.hazirla(kitap);
+  const hazir = XB.hazirla(kitap, { ayar: sepOf() });   // ondalık / binlik ayracı arayüz dilinden (Excel'in kendi davranışı)
   const sheets = hazir.sayfalar.map(sayfaGorunum);
   sheets.bicim = hazir.bicim;
   sheets.uyarilar = hazir.uyarilar;
@@ -755,12 +755,12 @@ function renderArchive(d) {
   const crumbs = d.path.split('/').filter(Boolean);
   let html = `<div class="doc-crumbs"><button type="button" class="chip" data-crumb="">${ICON('i-layers')} ${esc(d.name)}</button>` + crumbs.map((c, i) => `<span>›</span><button type="button" class="chip" data-crumb="${esc(crumbs.slice(0, i + 1).join('/') + '/')}">${esc(c)}</button>`).join('') + '</div><div class="list arc-list">';
   const cikarBtn = `<button type="button" class="lbtn" data-arc-out="1" title="${esc(tt('arcExtract', 'Çıkar'))}" aria-label="${esc(tt('arcExtract', 'Çıkar'))}">${ICON('i-download')}</button>`;
-  for (const [dn, info] of [...dirs.entries()].sort((a, b) => a[0].localeCompare(b[0], 'tr'))) html += `<div class="item arc-item" data-entry="${esc(d.path + dn + '/')}" data-dir="1">${ICON('i-open')}<span class="nm">${esc(dn)}</span><small>${info.n} ${esc(tt('files', 'dosya'))} · ${fmtSize(info.size)}</small>${cikarBtn}</div>`;
-  for (const f of files) html += `<div class="item arc-item" data-entry="${esc(f.name)}">${iconFor(f.name)}<span class="nm">${esc(f.label)}</span><small>${fmtSize(f.size)}${f.time ? ' · ' + new Date(f.time).toLocaleDateString('tr-TR') : ''}</small>${cikarBtn}</div>`;
+  for (const [dn, info] of [...dirs.entries()].sort((a, b) => a[0].localeCompare(b[0], 'tr'))) html += `<div class="item arc-item" data-entry="${esc(d.path + dn + '/')}" data-dir="1">${ICON('i-open')}<span class="nm">${esc(dn)}</span><small>${info.n} ${esc(t('files'))} · ${fmtSize(info.size)}</small>${cikarBtn}</div>`;
+  for (const f of files) html += `<div class="item arc-item" data-entry="${esc(f.name)}">${iconFor(f.name)}<span class="nm">${esc(f.label)}</span><small>${fmtSize(f.size)}${f.time ? ' · ' + new Date(f.time).toLocaleDateString(numLocale()) : ''}</small>${cikarBtn}</div>`;
   if (!dirs.size && !files.length) html += `<div class="muted">${esc(t('noResult'))}</div>`;
   els.body.innerHTML = html + '</div>';
   const total = arc.entries.filter(e => !e.dir).length;
-  const c = $('arcCount'); if (c) c.textContent = total + ' ' + tt('files', 'dosya');
+  const c = $('arcCount'); if (c) c.textContent = total + ' ' + t('files');   // tt() İngilizcedeki 'files' değerini anahtar sanıp Türkçeye düşüyordu
   // Araç çubuğundaki düğme bulunulan yere bakar: kökte bütün arşiv, klasörde o klasör
   const b = $('arcAll');
   if (b) {
@@ -945,16 +945,17 @@ function formulNormalle(f) {
 }
 /** Hücrenin kaynak dosyadan gelen sayı biçimi kodu ("dd.mm.yyyy" gibi) */
 const bicimKodu = (e, r, c) => (e.bicimler && e.bicimler[r] ? e.bicimler[r][c] : null);
-/** Hesap sonucunun ekrandaki hâli: sayı Türkçe ondalıkla, hata kendi koduyla */
+/** Hesap sonucunun ekrandaki hâli: sayı arayüz dilinin ondalığıyla, hata kendi koduyla */
 function gosterim(v, kod) {
+  const ay = sepOf();
   if (v == null) return '';
   if (typeof v === 'object' && v.e) return String(v.e);
   // biçim kodu olan hücre görüntüleyiciyle aynı yoldan biçimlenir (tarih seri sayısı olarak görünmesin)
   if (kod != null && (typeof v === 'number' || typeof v === 'boolean')) {
-    try { return bicimle(v, kod).metin; } catch (_) { /* çözülemedi: düz yazım */ }
+    try { return bicimle(v, kod, ay).metin; } catch (_) { /* çözülemedi: düz yazım */ }
   }
-  if (typeof v === 'number') return Number.isInteger(v) ? String(v) : String(+v.toFixed(10)).replace('.', ',');
-  if (typeof v === 'boolean') return v ? 'DOĞRU' : 'YANLIŞ';
+  if (typeof v === 'number') return Number.isInteger(v) ? String(v) : String(+v.toFixed(10)).replace('.', ay.ondalik);
+  if (typeof v === 'boolean') return numLocale() === 'tr-TR' ? (v ? 'DOĞRU' : 'YANLIŞ') : (v ? 'TRUE' : 'FALSE');
   return String(v);
 }
 /*
