@@ -359,7 +359,9 @@ export class SceneBuilder {
         // etkin stil: yazı yüksekliği, ok boyu, uzatma boşluğu / taşması (DIMSCALE uygulanmış), ondalıklar, çarpan, ön / son ek
         sty: { txt: ds.DIMTXT * k, asz: (ds.DIMTSZ > 0 ? 0 : ds.DIMASZ) * k, exo: ds.DIMEXO * k, exe: ds.DIMEXE * k,
           dec: known('DIMDEC', 'number') ? ds.DIMDEC : undefined, adec: known('DIMADEC', 'number') ? ds.DIMADEC : -1,
-          lfac: known('DIMLFAC', 'number') ? ds.DIMLFAC : undefined, post: known('DIMPOST', 'string') ? ds.DIMPOST : '', dsep: ds.DIMDSEP } };
+          lfac: known('DIMLFAC', 'number') ? ds.DIMLFAC : undefined, post: known('DIMPOST', 'string') ? ds.DIMPOST : '',
+          // ondalık ayırıcı da yalnız dosyada yazılıysa (yoksa 46 '.' öntanımlısı Türkçe arayüzde ölçüyü noktalı yazdırırdı); DWG tablosu karakter verir
+          dsep: (known('DIMDSEP', 'number') || known('DIMDSEP', 'string')) ? (typeof ds.DIMDSEP === 'string' ? (ds.DIMDSEP.charCodeAt(0) || undefined) : ds.DIMDSEP) : undefined } };
     }
     if (e.type === 'TEXT' || e.type === 'MTEXT') { inf.text = textPlain(e.text); inf.style = e.styleName; }
     if (e.type === 'ATTRIB') { inf.text = textPlain(e.text ? e.text.text : ''); inf.tag = e.tag; }
@@ -454,7 +456,32 @@ export class SceneBuilder {
       entityCount: this.entityCount,
       blockCount: this.blocksByName.size,
       header: this.headerInfo(),
+      dimstyle: this.currentDimStyle(),
     };
+  }
+
+  /*
+   * GEÇERLİ ÖLÇÜ STİLİ (v8.9.8) — yeni ölçülerin varsayılanı için (tools.dimDefaults → annot.autoDimStyle).
+   * Başlıktaki $DIM* değerleri AutoCAD'in GEÇERLİ ayarlarıdır (kaydedilmemiş stil geçersiz kılmaları dahil); başlıkta
+   * DIMTXT yoksa $DIMSTYLE adlı tablo kaydı, o da yoksa öntanımlılar ('default'). DIMSCALE HAM verilir (0 = ek açıklamalı
+   * ya da görünüm alanından; karar autoDimStyle'da). known: değişken dosyada gerçekten yazılı mı.
+   */
+  currentDimStyle() {
+    try {
+      const h = this.db.header || {};
+      const name = typeof h.DIMSTYLE === 'string' ? h.DIMSTYLE : '';
+      const hasHdr = typeof h.DIMTXT === 'number' && isFinite(h.DIMTXT);
+      const ds = this.dimStyleOf({ styleName: hasHdr ? '\u0000' : name });   // eşleşmeyen ad: dimStyleOf başlığa düşer
+      const raw = ds.src || {};
+      const src = hasHdr ? 'header' : (raw === h ? 'default' : 'table');
+      const rawScale = hasHdr && typeof h.DIMSCALE === 'number' ? h.DIMSCALE : (typeof raw.DIMSCALE === 'number' ? raw.DIMSCALE : 1);
+      const known = (k, t) => typeof raw[k] === t || typeof h[k] === t;
+      const n = (v) => (typeof v === 'number' && isFinite(v) ? v : undefined);
+      return { name, src, txt: n(ds.DIMTXT), asz: n(ds.DIMASZ), exo: n(ds.DIMEXO), exe: n(ds.DIMEXE), gap: n(ds.DIMGAP), tsz: n(ds.DIMTSZ), scale: n(rawScale),
+        dec: n(ds.DIMDEC), adec: n(ds.DIMADEC), lfac: n(ds.DIMLFAC), post: typeof ds.DIMPOST === 'string' ? ds.DIMPOST : '',
+        dsep: typeof ds.DIMDSEP === 'string' ? (ds.DIMDSEP.charCodeAt(0) || undefined) : n(ds.DIMDSEP), zin: n(ds.DIMZIN),
+        known: { dec: known('DIMDEC', 'number'), adec: known('DIMADEC', 'number'), lfac: known('DIMLFAC', 'number'), post: known('DIMPOST', 'string'), dsep: known('DIMDSEP', 'number') || known('DIMDSEP', 'string') } };
+    } catch (_) { return null; }
   }
 
   headerInfo() {

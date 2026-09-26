@@ -48,7 +48,8 @@ const sonGid = () => ev(() => { const ps = window.dwgApp.state.scene.layouts[0].
 /** Özellikler kutusuna sıraya konmuş cevapla düzenleme (kutu açılmaz, cevap hemen döner) */
 const duzenle = async (gid, cevap) => { await queueAnswers(page, cevap); return ev(async (g) => { const p = window.dwgApp.state.scene.layouts[0].prims.find(q => q.info && q.info.gid === g); return window.dwgApp.editor.tools.editDim(p); }, gid); };
 const gunluk = () => ev(() => { const d = window.dwgApp.editor.doc; return { log: d.log.length, u: d.undoStack.length, r: d.redoStack.length }; });
-const fmt = (v, d) => ev(async ([v, d]) => { const St = await import('./state.js'); return St.fmt(v, d == null ? undefined : d); }, [v, d]);
+// v8.9.8: ölçü yazısı basamak gruplamaz (AutoCAD gibi "1120", "1.120" değil); ondalık ayırıcı dosyanın DIMDSEP'i yazılıysa o
+const fmt = (v, d, dsep) => ev(async ([v, d, dsep]) => { const St = await import('./state.js'); return St.fmtPlain(v, d == null ? undefined : d, dsep); }, [v, d, dsep]);
 const xf = (g, m) => ev(([g, m]) => { const ps = window.dwgApp.state.scene.layouts[0].prims.filter(p => p.info && p.info.gid === g); return window.dwgApp.editor.runCmd({ op: 'xform', keys: ps.map(p => p.key), m, dz: 0 }); }, [g, m]);
 const rotM = (a, cx, cy) => { const c = Math.cos(a), s = Math.sin(a); return [c, s, -s, c, cx - c * cx + s * cy, cy - s * cx - c * cy]; };
 /** Aracı başlatır: çalışan araç önce iptal edilir (aynı karoya ikinci dokunuş aracı kapatırdı), bilgi paneli kapatılır */
@@ -76,7 +77,8 @@ await arac('t:dim');
 await tapWorld(200, 300); await tapWorld(700, 300); await tapWorld(200, 500);
 const g1 = await sonGid(); const d1 = await grup(g1);
 ok('2a doğrusal ölçü dört parça, tanım (def) DIMENSION parçasında', await prims() === n0 + 4 && d1.n === 4 && !!d1.def && d1.def.kind === 'linear' && d1.def.sub === 'aligned' && d1.def.pts.length === 3, J(d1.def));
-ok('2b tanım varsayılanları: ok = yükseklik, boşluk h/4, taşma h/2, ondalık ayardan, çarpan 1, yazı boş', d1.def.h > 0 && near(d1.def.arrow, d1.def.h) && near(d1.def.exo, d1.def.h * 0.25) && near(d1.def.exe, d1.def.h * 0.5) && d1.def.prec === null && d1.def.factor === 1 && d1.def.text === '', J(d1.def));
+// v8.9.8: varsayılan çizimin kendi ölçülerinden (example_2000: ISO-25, yazı 2,5, DIMDEC 2, son ek yok)
+ok('2b tanım varsayılanları çizimin ölçülerinden: yazı 2,5, ok = yükseklik, boşluk h/4, taşma h/2, ondalık 2, çarpan 1, yazı boş', near(d1.def.h, 2.5) && near(d1.def.arrow, d1.def.h) && near(d1.def.exo, d1.def.h * 0.25) && near(d1.def.exe, d1.def.h * 0.5) && d1.def.prec === 2 && d1.def.factor === 1 && d1.def.text === '' && d1.def.suffix === '', J(d1.def));
 ok('2c ölçü yazısı 500 + birim', /^500/.test(d1.text) && d1.text.endsWith(d1.def.suffix), d1.text);
 
 // ---- 3. Özellikler kutusu: yazı, yükseklik, ok, ondalık, ön / son ek, çarpan, boşluk, taşma ------------

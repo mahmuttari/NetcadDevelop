@@ -129,8 +129,9 @@ ok('4a h dörtte bire indi; ok (= h), boşluk (h/4), taşma (h/2) onunla birlikt
 ok('4b genel ölçek korunur (0,5), çizimdeki yazı = h × 0,5', d4.def.scale === 0.5 && near(d4.th, d4.def.h * 0.5, 1e-5), J([d4.def.scale, d4.th]));
 
 // ---- 5. "Yeni ölçüler de bu ayarlarla" ------------------------------------------------------------------
-const st = await ev(() => JSON.parse(localStorage.getItem('dimsty:' + window.dwgApp.state.fileKey) || 'null'));
-ok('5a stil bu çizim için saklandı (h, genel ölçek, katman, renk)', st && near(st.h, d4.def.h, 1e-9) && st.scale === 0.5 && st.layer === hedef && st.color === 1, J(st));
+// stil çizimin başlık değişkenlerinde (AutoCAD adlarıyla; geri alınabilir, DXF'e yazılır)
+const st = await ev(() => ({ ...window.dwgApp.state.vars }));
+ok('5a stil bu çizim için başlık değişkenlerine yazıldı (DIMTXT, DIMSCALE, katman, renk)', st && st.DIMAPP === 1 && near(st.DIMTXT, d4.def.h, 1e-9) && st.DIMSCALE === 0.5 && st.DIMLAYERAPP === hedef && st.DIMCLRAPP === 1, J(st));
 await arac('t:dimh');
 await tapWorld(900, 300); await tapWorld(1400, 300); await tapWorld(900, 450);
 await ev(() => { const E = window.dwgApp.editor; if (E.tools.running) E.tools.cancel(); });

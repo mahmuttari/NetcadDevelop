@@ -1194,6 +1194,18 @@ export function writeDxf(prims, layers, opts = {}) {
           return;
         }
       }
+      /*
+       * ÇOK PARÇALI DOLGUSUZ YOL (v8.9.8): her "moveto" yeni bir parçadır. Hepsi tek LWPOLYLINE'a yazılınca parçaların
+       * uçları birbirine bağlanıyordu — ölçünün uzatma çizgileri ile ölçü çizgisi arasında, açı ölçüsünün kolu ile
+       * yayı arasında çapraz çizgiler çıkıyordu. Her parça kendi varlığı olarak yazılır (yay ARC, düz parça LINE /
+       * LWPOLYLINE). Dolgulu çok parçalı yol (tarama sınırı) aşağıda kendi yolundan gider.
+       */
+      if (!p.fill && ops.reduce((n, o) => n + (o[0] === 0 ? 1 : 0), 0) > 1) {
+        let cur = null; const parts = [];
+        for (const o of ops) { if (o[0] === 0) { cur = [o]; parts.push(cur); } else if (cur) cur.push(o); }
+        for (const part of parts) if (part.length >= 2) writeEnt({ ...p, ops: part, closed: false }, owner);
+        return;
+      }
       if (ops.length === 2 && ops[1][0] === 2 && Math.abs((ops[1][5] - ops[1][4]) - TAU) < 1e-9) {
         const o = ops[1]; common('CIRCLE', p, 'AcDbCircle', owner); w(10, f6(o[1])); w(20, f6(o[2])); w(30, f6(o[6] || 0)); w(40, f6(o[3])); return;
       }

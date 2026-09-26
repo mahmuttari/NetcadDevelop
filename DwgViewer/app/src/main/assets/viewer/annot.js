@@ -352,3 +352,80 @@ export function hatchEnts(pts, o = {}) {
   return { ...duz(istenen, an), dustu: true, istenenDesen: ad };
 }
 
+
+/*
+ * YENİ ÖLÇÜNÜN VARSAYILAN BOYU (v8.9.8). Eskiden yazı yüksekliği çizimin TAM kutusunun 1/91'iydi: birkaç uzak nesne
+ * kutuyu şişiriyor ve kullanıcının ekranındaki gibi 1120 mm'lik ölçüye 450–820 mm yazı çıkıyordu (example_2000'de
+ * 42 m!). Buradaki sıra, AutoCAD'deki "geçerli ölçü stili"nin çizimde GERÇEKTEN görünen karşılığını arar;
+ * ilk uyan kazanır:
+ *   (A) çizimdeki model uzayı ölçülerinin EKRANDAKİ yazı yüksekliğinin ortancası (geçerli stildekiler önce, doğrusal
+ *       ölçüler önce); ok / uzatma o ölçünün stilinden, yazıya oranla
+ *   (B) geçerli ölçü stili (DIMTXT × DIMSCALE) — ama yalnız çizime uyuyorsa: dokunulmamış ISO-25 / Standard şablonu
+ *       (2,5 / 0,18) mm planında okunmaz 2,5 mm yazı verir; şablon yalnız yazıların ortancasına ya da çizim genişliğine
+ *       uyuyorsa kabul edilir
+ *   (C) yazıların (TEXT / MTEXT) ortanca yüksekliği, yuvarlak sayıya
+ *   (D) çizimin sağlam genişliği (nesne merkezlerinin %5–%95 aralığı × 1,1) / 350, yuvarlak sayıya
+ * A ve B'de birim son eki yalnız DIMPOST'tan gelir (AutoCAD birim eklemez); C ve D'de çarpan 1 ise çizim birimi eklenir.
+ */
+/** Yuvarlak uzunluk: {1, 1,25, 1,5, 2, 2,5, 3, 4, 5, 6, 8} × 10^n içinden logaritmik olarak en yakını */
+export function niceLen(v) {
+  if (!(v > 0) || !isFinite(v)) return v;
+  const e = Math.floor(Math.log10(v)), b = Math.pow(10, e);
+  let best = v, bd = Infinity;
+  for (const m of [1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) { const c = m * b, d = Math.abs(Math.log(c / v)); if (d < bd) { bd = d; best = c; } }
+  return +best.toPrecision(6);
+}
+const med = (a) => { const v = a.filter(x => x > 0 && isFinite(x)).sort((p, q) => p - q); return v.length ? v[(v.length - 1) >> 1] : NaN; };
+const q = (sorted, f) => sorted[Math.min(sorted.length - 1, Math.max(0, Math.round((sorted.length - 1) * f)))];
+/** Sağlam çizim genişliği: nesne merkezlerinin %5–%95 aralığının büyüğü × 1,1 (uzak tek tük nesneler kutuyu şişirmesin) */
+export function robustWidth(xs, ys) {
+  if (!xs || xs.length < 2) return 0;
+  const a = xs.slice().sort((p, r) => p - r), b = ys.slice().sort((p, r) => p - r);
+  return 1.1 * Math.max(q(a, 0.95) - q(a, 0.05), q(b, 0.95) - q(b, 0.05));
+}
+const r6 = (v) => (typeof v === 'number' && isFinite(v) ? +v.toPrecision(6) : v);
+const postSplit = (post) => { const s = String(post || ''), i = s.indexOf('<>'); return i >= 0 ? [s.slice(0, i), s.slice(i + 2)] : ['', s]; };
+const TEMPLATES = [[2.5, 2.5, 0.625, 1.25], [0.18, 0.18, 0.0625, 0.18]];
+/**
+ * inp: { cur (scene.dimstyle), dims: [{ style, type, h (ekrandaki yazı), sty, key }], texts: [h…], extW, units }
+ * Dönüş: { src: 'A'|'B'|'C'|'D', h, arrow, exo, exe, prec, adec, prefix, suffix, factor, dsep, repKey }
+ */
+export function autoDimStyle(inp) {
+  const cur = inp.cur || null, dims = (inp.dims || []).filter(d => d && d.h > 0), texts = inp.texts || [], extW = inp.extW > 0 ? inp.extW : 0;
+  const tMed = med(texts);
+  const dsep = cur && cur.known && cur.known.dsep && cur.dsep > 0 ? cur.dsep : undefined;
+  // (A) çizimdeki ölçüler
+  if (dims.length) {
+    const nm = cur && cur.name ? String(cur.name).toUpperCase() : '';
+    let pool = nm ? dims.filter(d => String(d.style || '').toUpperCase() === nm) : [];
+    if (!pool.length) pool = dims;
+    const lin = pool.filter(d => d.type === 0 || d.type === 1);
+    if (lin.length) pool = lin;
+    const hM = med(pool.map(d => d.h));
+    let rep = pool[0];
+    for (const d of pool) if (Math.abs(d.h - hM) < Math.abs(rep.h - hM)) rep = d;
+    const st = rep.sty || {}, k = st.txt > 0 ? hM / st.txt : 1;   // ek açıklamalı ölçü: stil yüksekliği ile ekrandaki ayrı
+    return { src: 'A', h: r6(hM), arrow: r6(st.asz > 0 ? st.asz * k : hM), exo: r6(st.exo >= 0 ? st.exo * k : hM / 4), exe: r6(st.exe >= 0 ? st.exe * k : hM / 2),
+      prec: null, adec: null, prefix: '', suffix: '', factor: 1, dsep: st.dsep > 0 ? st.dsep : dsep, repKey: rep.key };
+  }
+  // (B) geçerli stil, çizime uyuyorsa
+  if (cur && cur.src !== 'default' && cur.txt > 0) {
+    const sc = cur.scale > 0 ? cur.scale : 1, hS = cur.txt * sc;
+    const near = (a, b) => Math.abs(a - b) <= 1e-6 * Math.max(1, Math.abs(b));
+    const sablon = sc === 1 && TEMPLATES.some(T => near(cur.txt, T[0]) && near(cur.asz, T[1]) && near(cur.exo, T[2]) && near(cur.exe, T[3]));
+    const R = extW > 0 ? extW / hS : 0;
+    const ok = sablon
+      ? (texts.length >= 3 ? (hS >= tMed / 4 && hS <= tMed * 4) : (R >= 50 && R <= 1200))
+      : ((texts.length < 3 || (hS >= tMed / 10 && hS <= tMed * 10)) && (!extW || (R >= 20 && R <= 20000)));
+    if (ok) {
+      const [prefix, suffix] = cur.known && cur.known.post ? postSplit(cur.post) : ['', ''];
+      return { src: 'B', h: r6(hS), arrow: r6(cur.tsz > 0 ? hS : (cur.asz > 0 ? cur.asz * sc : hS)), exo: r6(cur.exo >= 0 ? cur.exo * sc : hS / 4), exe: r6(cur.exe >= 0 ? cur.exe * sc : hS / 2),
+        prec: cur.known && cur.known.dec && cur.dec >= 0 ? Math.min(6, cur.dec | 0) : null,
+        adec: cur.known && cur.known.adec ? Math.min(6, (cur.adec < 0 ? cur.dec : cur.adec) | 0) : null,
+        prefix, suffix, factor: cur.known && cur.known.lfac && cur.lfac > 0 ? cur.lfac : 1, dsep, repKey: null };
+    }
+  }
+  // (C) yazıların ortancası · (D) sağlam genişlik
+  const h = texts.length >= 3 && tMed > 0 ? niceLen(tMed) : niceLen((extW || 100) / 350);
+  return { src: texts.length >= 3 && tMed > 0 ? 'C' : 'D', h, arrow: h, exo: r6(h / 4), exe: r6(h / 2), prec: null, adec: null, prefix: '', suffix: inp.units || '', factor: 1, dsep, repKey: null };
+}

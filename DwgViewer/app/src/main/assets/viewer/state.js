@@ -120,6 +120,21 @@ export const PREC_MIN = 0, PREC_MAX = 6;
 export const clampPrec = (n) => { const v = Math.round(Number(n)); return isFinite(v) ? Math.max(PREC_MIN, Math.min(PREC_MAX, v)) : 3; };
 export function fmt(v, d) { if (v == null || !isFinite(v)) return '–'; return nfOf(clampPrec(d == null ? S.prec : d), S.precPad).format(v); }
 export const fmtUnit = (v, d) => fmt(v, d) + (S.units ? ' ' + S.units : '');
+/*
+ * ÖLÇÜ YAZISI BİÇİMİ (v8.9.8): binlik ayırıcı YOK, ondalık ayırıcı ölçü stilinin DIMDSEP'i (karakter kodu) ya da arayüz
+ * dilininki. AutoCAD ölçü yazısında basamak gruplamaz; "1.120 mm" Türkçe'de bin yüz yirmi okunur ama çizimde
+ * yadırganır — ölçü "1120" yazar. Ondalık sayısı ve sondaki sıfırlar fmt ile aynı kuraldadır.
+ */
+const nfPlain = new Map();
+export function fmtPlain(v, d, dsep) {
+  if (v == null || !isFinite(v)) return '–';
+  const dd = clampPrec(d == null ? S.prec : d), loc = numLocale(), key = loc + '|' + dd + (S.precPad ? 'p' : '');
+  let f = nfPlain.get(key);
+  if (!f) { f = new Intl.NumberFormat(loc, { maximumFractionDigits: dd, minimumFractionDigits: S.precPad ? dd : 0, useGrouping: false }); nfPlain.set(key, f); }
+  let s = f.format(v);
+  if (dsep > 0) { const yerel = sepOf().ondalik, ch = String.fromCharCode(dsep); if (ch && ch !== yerel && (ch === '.' || ch === ',')) s = s.replace(yerel, ch); }
+  return s;
+}
 
 /** yerel depolama (Android'de dosya, tarayıcıda localStorage) */
 export const store = {

@@ -16,7 +16,7 @@ import { alignMatrix } from './blocks.js';
 import { t, addStrings } from './i18n.js';
 import { askText, askForm, askConfirm } from './dialog.js';
 import { sepOf } from './state.js';
-import { dimLinear, dimRadial, dimAngular, leaderEnts, cloudEnt, balloonEnts, arrayItems, hatchEnts } from './annot.js';
+import { dimLinear, dimRadial, dimAngular, leaderEnts, cloudEnt, balloonEnts, arrayItems, hatchEnts, autoDimStyle } from './annot.js';
 import { cmdOf } from './acad.js';
 import { constrain as deskConstrain } from './desktop.js';
 
@@ -963,7 +963,9 @@ export class ToolManager {
   /** Açıklama üreticilerine verilen ortak seçenekler (yazı yüksekliği, katman, renk, grup) */
   annotOpts(extra) {
     const A = this.api;
-    return { h: A.textHeight() * 2.2, layer: A.layer(), color: A.color(), gid: newId(), ...(extra || {}) };
+    // lider, balon ve bulut yazısı ölçülerle aynı boyda (v8.9.8: ölçü varsayılanı çizimden gelir)
+    let h; try { const d = this.dimDefaults(); h = d.h * (d.scale > 0 ? d.scale : 1); } catch (_) { h = A.textHeight(); }
+    return { h, layer: A.layer(), color: A.color(), gid: newId(), ...(extra || {}) };
   }
   /** Birden çok varlığı TEK komutla ekler: tek geri alma, tek kayıt satırı */
   commitMany(ents) {
@@ -997,21 +999,56 @@ export class ToolManager {
    * noktalarından (info.dim) bu biçime çevrilir.
    */
   /*
-   * Yeni ölçünün tanım varsayılanları. Kullanıcı bir ölçünün özelliklerini "Yeni ölçüler de bu ayarlarla çizilsin"
-   * işaretliyken değiştirdiyse o ayarlar bu çizim için saklanır (A.dimStyleGet) ve sonraki ölçüler onlarla çizilir —
-   * AutoCAD'de geçerli ölçü stilinin (DIMSTYLE) karşılığı. Yoksa eski varsayılan: yazı çizim genişliğinin 1/91'i.
+   * YENİ ÖLÇÜNÜN TANIM VARSAYILANLARI (v8.9.8). Sıra:
+   *   0. Bu çizimde kullanıcının son seçtiği ayarlar (özellik kutusunda "Yeni ölçüler de bu ayarlarla çizilsin";
+   *      çizimin başlık değişkenlerinde, geri alınabilir — A.dimStyleGet)
+   *   1. Çizimin kendisinden (annot.autoDimStyle): dosyadaki ölçülerin ekrandaki boyu → çizime uyan geçerli ölçü
+   *      stili → yazıların ortancası → sağlam çizim genişliği. Dosyadaki bir ölçü örnek alındıysa ondalık, ön / son ek
+   *      ve çarpan da ondan okunur.
    * scale: genel ölçek (DIMSCALE) — yazı, ok, uzatma boşluğu ve taşması onunla çarpılır; ölçülen değer değişmez.
+   * Eskiden yazı çizimin tam kutusunun 1/91'iydi: birkaç uzak nesne kutuyu şişirince 1120 mm'lik ölçüye 450–820 mm yazı çıkıyordu.
    */
   dimDefaults() {
-    const A = this.api, h = A.textHeight() * 2.2;
-    const base = { h, arrow: h, exo: h * 0.25, exe: h * 0.5, scale: 1, prec: null, prefix: '', suffix: A.units(), factor: 1, text: '' };
+    const A = this.api;
     const st = A.dimStyleGet ? A.dimStyleGet() : null;
-    if (!st) return base;
-    for (const k of ['h', 'arrow', 'exo', 'exe', 'scale', 'factor']) if (typeof st[k] === 'number' && isFinite(st[k]) && (st[k] > 0 || ((k === 'exo' || k === 'exe') && st[k] >= 0))) base[k] = st[k];
-    if (st.prec === null || (typeof st.prec === 'number' && st.prec >= 0 && st.prec <= 6)) base.prec = st.prec;
-    for (const k of ['prefix', 'suffix']) if (typeof st[k] === 'string') base[k] = st[k];
-    return base;
+    if (st && st.h > 0) {
+      const d = this.dimNeutral();
+      for (const k of ['h', 'arrow', 'scale', 'factor']) if (typeof st[k] === 'number' && st[k] > 0) d[k] = st[k];
+      for (const k of ['exo', 'exe']) if (typeof st[k] === 'number' && st[k] >= 0) d[k] = st[k];
+      if (!(st.arrow > 0)) d.arrow = d.h;
+      d.prec = st.prec === null || (typeof st.prec === 'number' && st.prec >= 0 && st.prec <= 6) ? st.prec : null;
+      d.prefix = typeof st.prefix === 'string' ? st.prefix : ''; d.suffix = typeof st.suffix === 'string' ? st.suffix : '';
+      if (st.dsep > 0) d.dsep = st.dsep;
+      return d;
+    }
+    try {
+      const inp = A.dimAuto ? A.dimAuto() : null;
+      if (!inp) return this.dimNeutral();
+      const r = autoDimStyle({ ...inp, units: A.units() });
+      const d = { h: r.h, arrow: r.arrow, exo: r.exo, exe: r.exe, scale: 1, prec: r.prec, prefix: r.prefix, suffix: r.suffix, factor: r.factor, text: '' };
+      if (r.adec != null) d.adec = r.adec;
+      if (r.dsep > 0) d.dsep = r.dsep;
+      if (r.repKey != null) {
+        // örnek ölçünün yazı biçimi: ondalık, ön / son ek, çarpan (yarıçap / çap önekleri araçlar kendileri ekler)
+        const rep = A.allPrims().find(q => q.key === r.repKey);
+        const inf = rep && rep.info;
+        if (inf && inf.dim) {
+          const parts = A.allPrims().filter(q => q.info && q.info.h === inf.h && q.info.t === 'DIMENSION');
+          const fd = this.dimDefFromFile(inf.dim, parts, this.dimNeutral());
+          if (fd) {
+            d.prec = fd.kind === 'angular' ? null : fd.prec;
+            d.prefix = /^(R |⌀ )$/.test(fd.prefix || '') ? '' : (fd.prefix || '');
+            d.suffix = fd.kind === 'angular' ? '' : (fd.suffix || '');
+            d.factor = fd.kind === 'angular' ? 1 : (fd.factor > 0 ? fd.factor : 1);
+            if (inf.dim.sty && inf.dim.sty.dsep > 0) d.dsep = inf.dim.sty.dsep;
+          }
+        }
+      }
+      return d;
+    } catch (_) { return this.dimNeutral(); }
   }
+  /** Tarafsız temel: çizimden hiçbir şey okunmadan (dosya ölçüsü dönüştürülürken; kullanıcı ayarı sızmasın) */
+  dimNeutral() { const A = this.api, h = A.textHeight(); return { h, arrow: h, exo: h * 0.25, exe: h * 0.5, scale: 1, prec: null, prefix: '', suffix: A.units(), factor: 1, text: '' }; }
   /** Ölçü üreticisine verilen seçenekler: saklanan stilde katman / renk varsa onlar (AutoCAD DIMLAYER), yoksa geçerli olanlar */
   dimOpts() {
     const A = this.api, o = this.annotOpts(), st = A.dimStyleGet ? A.dimStyleGet() : null;
@@ -1023,7 +1060,9 @@ export class ToolManager {
   dimLabel(def, measure) {
     const A = this.api;
     const val = measure * (def.factor > 0 ? def.factor : 1);
-    const num = def.prec == null ? (def.kind === 'angular' ? A.fmt(val, 2) : A.fmt(val)) : A.fmt(val, Math.max(0, Math.min(6, def.prec | 0)));   // state.fmt en çok 6 ondalık basar
+    // ölçü yazısında binlik ayırıcı yok, ondalık ayırıcı stilin DIMDSEP'i ya da arayüz dilininki (A.fmtDim; sınamalarda A.fmt)
+    const F = A.fmtDim ? (v, d) => A.fmtDim(v, d, def.dsep) : (v, d) => A.fmt(v, d);
+    const num = def.prec == null ? (def.kind === 'angular' ? F(val, 2) : F(val)) : F(val, Math.max(0, Math.min(6, def.prec | 0)));   // en çok 6 ondalık
     const auto = (def.prefix || '') + num + (def.suffix || '');
     const ov = def.text == null ? '' : String(def.text).trim();
     return ov ? ov.replace(/<>/g, auto) : auto;
@@ -1076,8 +1115,9 @@ export class ToolManager {
     // entToPrim 256'yı ön plan rengi sayar, oysa dosyadaki parçalar katman rengiyle çizilmişti
     return { keys: parts.map(q => q.key), def, gid: newId(), layer: p.lay, color: inf.ci >= 1 && inf.ci <= 255 ? inf.ci : -1, file: true };
   }
-  dimDefFromFile(d, parts) {
-    const base = this.dimDefaults(), sty = d.sty || {};
+  dimDefFromFile(d, parts, base0) {
+    const base = { ...(base0 || this.dimNeutral()) }, sty = d.sty || {};   // tarafsız temel: kullanıcının ön / son eki dosya ölçüsüne sızmaz
+    if (sty.dsep > 0) base.dsep = sty.dsep;
     const txt = parts.find(q => q.k === 1);
     const angular = d.type === 2 || d.type === 5;
     // yazı yüksekliği, ok boyu, uzatma boşluğu / taşması: etkin ölçü stilinden; stil yoksa yazı parçasından
@@ -1267,7 +1307,8 @@ export class ToolManager {
       layer: r.layer === VAR || r.layer === V.layer || !r.layer ? undefined : String(r.layer),
       color: r.color === '' || r.color == null || String(r.color) === String(V.color) ? undefined : Number(r.color),
     };
-    // hiçbir alan değişmediyse uygulamanın ölçüsü yeniden kurulmaz (boş bir geri alma adımı üretilmez); yalnız stil saklanır
+    // hiçbir alan değişmediyse uygulamanın ölçüsü yeniden kurulmaz ve stil de yazılmaz: dokunmadan "Uygula" hiçbir şey
+    // yapmaz (boş bir geri alma adımı, "kaydedilmemiş değişiklik" uyarısı üretilmez)
     const degisti = Object.values(ch).some(v => v !== undefined);
     const items = gs.map(g => {
       const d = g.def, nd = { ...d };
@@ -1290,14 +1331,17 @@ export class ToolManager {
       if (ch.exe !== undefined && (d.kind === 'linear' || d.kind === 'angular')) nd.exe = ch.exe;
       return { g: { ...g, layer: ch.layer !== undefined ? ch.layer : g.layer, color: ch.color !== undefined ? ch.color : g.color }, def: nd };
     });
-    if (r.asDefault) {
-      // bu çizimde sonraki ölçüler bu ayarlarla çizilir (ilk ölçünün sonuç tanımı ve katman / renk)
-      const f = items[0], d = f.def;
-      if (A.dimStyleSet) A.dimStyleSet({ h: d.h, arrow: d.arrow, exo: d.exo, exe: d.exe, scale: d.scale > 0 ? d.scale : 1, prec: d.kind === 'angular' ? null : d.prec, prefix: d.kind === 'linear' ? d.prefix : '', suffix: d.kind === 'linear' ? d.suffix : A.units(), factor: d.factor > 0 ? d.factor : 1, layer: f.g.layer, color: f.g.color });
+    // "Yeni ölçüler de bu ayarlarla": ilk ölçünün sonuç tanımı ve katman / renk çizimin başlık değişkenlerine yazılır —
+    // ölçünün yeniden kurulmasıyla AYNI komutta (tek geri alma ikisini birden geri alır)
+    let stilCmd = null;
+    if (r.asDefault && A.dimStyleCmd) {
+      const f = items[0], d = f.def, lin = d.kind === 'linear';
+      stilCmd = A.dimStyleCmd({ h: d.h, arrow: d.arrow, exo: d.exo, exe: d.exe, scale: d.scale > 0 ? d.scale : 1, prec: d.kind === 'angular' ? null : d.prec,
+        prefix: lin ? d.prefix : '', suffix: lin ? d.suffix : A.units(), factor: lin && d.factor > 0 ? d.factor : 1, layer: f.g.layer, color: f.g.color, dsep: d.dsep });
     }
     // dosyadan gelen ölçüde "Uygula" dönüştürmedir (tanımdan yeniden kurulur), değişiklik olmasa da
     if (!degisti && !gs.some(g => g.file)) return true;
-    return this.regenDims(items);
+    return this.regenDims(items, stilCmd ? [stilCmd] : []);
   }
   /** Tek grubu tanımdan yeniden kurar (eski çağıranlar için) */
   regenDim(g, def) { return this.regenDims([{ g, def }]); }
@@ -1306,7 +1350,7 @@ export class ToolManager {
    * komuttur (birden çok ölçüde 'group'), yani tek geri alma. Yeniden kurulan ölçüler seçili kalır: kullanıcı
    * sonucu görür ve kutuyu yeniden açıp ince ayar yapabilir.
    */
-  regenDims(items) {
+  regenDims(items, extra = []) {
     const A = this.api, cmds = [], gids = [];
     let label = '', file = false;
     for (const { g, def } of items) {
@@ -1316,6 +1360,7 @@ export class ToolManager {
       cmds.push({ op: 'replace', keys: g.keys, ents });
       gids.push(g.gid); label = label || built.label; file = file || g.file;
     }
+    cmds.push(...extra);
     const ok = A.run(cmds.length === 1 ? cmds[0] : { op: 'group', cmds });
     if (ok) {
       A.sel.clear();
@@ -1335,7 +1380,8 @@ export class ToolManager {
     while (sweep > Math.PI) sweep -= TAU;
     const deg = Math.abs(sweep) * R2D;
     if (!(deg > 1e-9)) { A.toast(t('dimFail')); return; }
-    const res = this.buildDim({ ...this.dimDefaults(), kind: 'angular', pts: [v, a, b], prec: 2, suffix: '\u00b0' }, this.dimOpts());
+    const dd = this.dimDefaults();
+    const res = this.buildDim({ ...dd, kind: 'angular', pts: [v, a, b], prec: dd.adec != null ? dd.adec : 2, prefix: '', suffix: '\u00b0', factor: 1 }, this.dimOpts());
     if (!res) { A.toast(t('dimFail')); return; }
     this.commitMany(res.ents);
     A.toast(res.label);

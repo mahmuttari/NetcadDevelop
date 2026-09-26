@@ -16,13 +16,13 @@ import { EditDoc, writeDxf, newId, entsToPrims } from './edit.js';
 import { View3D } from './view3d.js';
 import { openView3DOptions, buildViewCube, openCameraBookmarks, renderZScale, renderClip } from './view3d_panel.js';
 import { FG, ACI, BYLAYER, normCi, resolveColor } from './scene.js';
-import { toScreen, toWorld, fmt, store } from './state.js';
+import { toScreen, toWorld, fmt, fmtPlain, store } from './state.js';
 import { bgColor, fgColor, monoTone, entityCss, layerPalette, setSolidPlan } from './render.js';
 import { t, applyI18n, addStrings } from './i18n.js';
 import { TAU, meshMetrics, mul, flatten, HATCH_PATTERNS } from './geom.js';
 import * as D from './display.js';
 import { askText, askForm, askConfirm } from './dialog.js';
-import { leaderEnts, hatchEnts } from './annot.js';
+import { leaderEnts, hatchEnts, robustWidth, niceLen } from './annot.js';
 import * as Gz from './gizmo.js';
 import * as DG from './dimgrip.js';
 import { has, gate, need, rank, tier, tierName, lockAttr, lockBadge, lockBadgeFor, openProPanel } from './edition.js';
@@ -266,7 +266,12 @@ export function initEditor(a) {
     result: showResult,
     layer: () => ed.curLayer,
     color: () => ed.curColor,
-    textHeight: () => Math.max(1e-6, (S.ext ? (S.ext[2] - S.ext[0]) : 100) / 200),
+    // Yazı yüksekliği varsayılanı (v8.9.8): çizimdeki yazıların ortancası; yazı yoksa sağlam genişlik / 350 × 0,8.
+    // Eskiden tam kutunun 1/200'üydü: uzak birkaç nesne kutuyu şişirince yazılar ve ölçüler dev çıkıyordu.
+    textHeight: () => { const I = dimAutoInput(); if (!I) return Math.max(1e-6, (S.ext ? (S.ext[2] - S.ext[0]) : 100) / 200); const tm = I.tMed; return Math.max(1e-6, tm > 0 && I.texts.length >= 3 ? niceLen(tm) : niceLen(((I.extW || 100) / 350) * 0.8)); },
+    dimAuto: () => dimAutoInput(),
+    vars: () => S.vars,
+    fmtDim: (v, d, dsep) => fmtPlain(v, d, dsep),
     units: () => S.units ? ' ' + S.units : '',
     unitToM: () => S.unitToM,
     // Açı kısıtları (ortho / kutupsal). Araç kendi kısıtını hesaplamaz, durumu buradan okur.
@@ -287,7 +292,7 @@ export function initEditor(a) {
     objCount: () => nesneSayisi(),
     colorOptions: (lay, cur) => colorOptionsFor(lay, cur),
     dimStyleGet: () => dimStyleGet(),
-    dimStyleSet: (st) => dimStyleSet(st),
+    dimStyleCmd: (st) => dimStyleCmd(st),
     trType: (x) => tt('ety_' + x, x),               // DXF tür adının yerelleşmiş karşılığı (yoksa adın kendisi)
     hatchPattern: () => ed.curPattern,              // çizilecek taramanın deseni (SOLID varsayılan)
     meshMetrics: (p) => { try { return p && p.vtx && p.idx ? meshMetrics(p.vtx, p.idx) : null; } catch (_) { return null; } },
@@ -1359,15 +1364,57 @@ function colorOptionsFor(lay, cur) {
  * kalmaz. Ölçü boyları çizimin birimine bağlıdır (mm çiziminde 250, m çiziminde 0,25), bu yüzden ayar çizime
  * özeldir, bütün dosyalara taşınmaz.
  */
-const dimStyleKey = () => (S.fileKey ? 'dimsty:' + S.fileKey : null);
+/*
+ * Ayarlar çizimin BAŞLIK DEĞİŞKENLERİ olarak, AutoCAD'in kendi adlarıyla saklanır (DIMTXT, DIMASZ, DIMEXO, DIMEXE,
+ * DIMSCALE, DIMDEC, DIMPOST, DIMLFAC) — 'vars' komutuyla: geri alınabilir, düzenleme günlüğüyle yeniden açılışta
+ * geri gelir ve DXF'e yazılır. DIMAPP = bu uygulamanın koyduğu (dosyadan okunan başlıkla karışmasın); katman ve renk
+ * uygulamaya özgü DIMLAYERAPP / DIMCLRAPP'tadır.
+ */
 function dimStyleGet() {
-  const k = dimStyleKey(); if (!k) return null;
-  const v = store.json(k, null);
-  return v && typeof v === 'object' ? v : null;
+  const v = S.vars;
+  if (!v || !v.DIMAPP) return null;
+  const n = (x) => (typeof x === 'number' && isFinite(x) ? x : undefined);
+  const sc = n(v.DIMSCALE) > 0 ? v.DIMSCALE : 1, post = typeof v.DIMPOST === 'string' ? v.DIMPOST : '';
+  const i = post.indexOf('<>');
+  return { h: n(v.DIMTXT), arrow: n(v.DIMASZ), exo: n(v.DIMEXO), exe: n(v.DIMEXE), scale: sc, prec: v.DIMDEC == null || v.DIMDEC < 0 ? null : v.DIMDEC,
+    prefix: i >= 0 ? post.slice(0, i) : '', suffix: i >= 0 ? post.slice(i + 2) : post, factor: n(v.DIMLFAC) > 0 ? v.DIMLFAC : 1,
+    layer: typeof v.DIMLAYERAPP === 'string' ? v.DIMLAYERAPP : undefined, color: n(v.DIMCLRAPP), dsep: n(v.DIMDSEP) };
 }
-function dimStyleSet(st) {
-  const k = dimStyleKey(); if (!k || !st) return;
-  try { store.set(k, JSON.stringify(st)); } catch (_) { /* depolama dolu: yalnız bu oturum etkilenir */ }
+/** Stil → 'vars' komutu (değişmiyorsa null: boş günlük satırı üretilmez) */
+function dimStyleCmd(st) {
+  if (!st) return null;
+  const set = { DIMAPP: 1, DIMTXT: st.h, DIMASZ: st.arrow, DIMEXO: st.exo, DIMEXE: st.exe, DIMSCALE: st.scale > 0 ? st.scale : 1,
+    DIMDEC: st.prec == null ? -1 : st.prec, DIMPOST: (st.prefix || st.suffix) ? (st.prefix || '') + '<>' + (st.suffix || '') : '', DIMLFAC: st.factor > 0 ? st.factor : 1,
+    DIMLAYERAPP: st.layer, DIMCLRAPP: st.color };
+  if (st.dsep > 0) set.DIMDSEP = st.dsep;
+  const v = S.vars || {};
+  const ayni = Object.keys(set).every(k => v[k] === set[k] || (typeof v[k] === 'number' && typeof set[k] === 'number' && Math.abs(v[k] - set[k]) <= 1e-12 * Math.max(1, Math.abs(set[k]))));
+  return ayni ? null : { op: 'vars', set };
+}
+/*
+ * YENİ ÖLÇÜ VARSAYILANININ GİRDİLERİ (annot.autoDimStyle için): model uzayının TEK taramasında dosyadaki ölçülerin
+ * ekrandaki yazı yükseklikleri, yazıların yükseklikleri ve nesne merkezlerinden sağlam genişlik. Açılan her dosya için
+ * bir kez, ilk ölçüde hesaplanır (132 bin nesnede birkaç ms); düzenlemeler önbelleği bozmaz (uygulamanın ölçüleri
+ * dosya ölçüsü sayılmaz, düzenlenen dosya ölçüsü uygulamanınki olur).
+ */
+function dimAutoInput() {
+  if (!S || !S.scene || !S.scene.layouts || !S.scene.layouts[0]) return null;
+  if (S.dimAuto && S.dimAuto.scene === S.scene && S.dimAuto.key === S.fileKey) return S.dimAuto.inp;
+  const P = S.scene.layouts[0].prims, xs = [], ys = [], texts = [], groups = new Map();
+  for (const p of P) {
+    if (!p || p.inf || p.k === 4 || !p.bb || !isFinite(p.bb[0]) || !isFinite(p.bb[2])) continue;
+    xs.push((p.bb[0] + p.bb[2]) / 2); ys.push((p.bb[1] + p.bb[3]) / 2);
+    const i = p.info;
+    if (i && i.t === 'DIMENSION' && i.dim && i.h != null && !i.gid) {
+      let g = groups.get(i.h);
+      if (!g) { g = { style: i.style, type: i.dim.type, sty: i.dim.sty, h: 0, key: p.key, hkey: i.h }; groups.set(i.h, g); }
+      if (p.k === 1 && p.h > g.h) g.h = p.h;
+    } else if (p.k === 1 && i && (i.t === 'TEXT' || i.t === 'MTEXT') && p.h > 0) texts.push(p.h);
+  }
+  const ts = texts.slice().sort((a, b) => a - b);
+  const inp = { cur: S.scene.dimstyle || null, dims: [...groups.values()].filter(g => g.h > 0), texts, tMed: ts.length ? ts[(ts.length - 1) >> 1] : 0, extW: robustWidth(xs, ys) };
+  S.dimAuto = { scene: S.scene, key: S.fileKey, inp };
+  return inp;
 }
 function pickColor() {
   if (!needDoc()) return;

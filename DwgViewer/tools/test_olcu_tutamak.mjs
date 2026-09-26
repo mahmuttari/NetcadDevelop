@@ -57,7 +57,7 @@ const fmt = (v, d) => ev(async ([v, d]) => { const St = await import('./state.js
 // ---- 1. Düşey ölçü; Seç aracıyla seç → tutamaklar ------------------------------------------------------------------
 await ev((b) => window.dwgApp.zoomExtents(b), [0, 0, 1200, 1200]); await bekle(200);
 // küçük yazı: tutamaklar birbirine binmesin (varsayılan yazı çizim genişliğinden gelir)
-await ev((fk) => localStorage.setItem('dimsty:' + fk, JSON.stringify({ h: 20, arrow: 20, exo: 5, exe: 10, scale: 1, prec: null, prefix: '', suffix: '', factor: 1 })), await ev(() => window.dwgApp.state.fileKey));
+await ev(() => window.dwgApp.editor.doc.run({ op: 'vars', set: { DIMAPP: 1, DIMTXT: 20, DIMASZ: 20, DIMEXO: 5, DIMEXE: 10, DIMSCALE: 1, DIMDEC: -1, DIMPOST: '', DIMLFAC: 1 } }));
 await arac('t:dimv');
 await tapWorld(200, 300); await tapWorld(200, 800); await tapWorld(500, 550);
 await ev(() => { const E = window.dwgApp.editor; if (E.tools.running) E.tools.cancel(); });
