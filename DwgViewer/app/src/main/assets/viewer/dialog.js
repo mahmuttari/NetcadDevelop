@@ -33,13 +33,15 @@ function el() {
       return;
     }
     // Açılıştan hemen sonra gelen tıklama kutuyu açan dokunuşun kendisidir (parmak kalkınca gelen click): o
-    // hiçbir düğmeyi çalıştırmaz, arka plana düşse de kutuyu kapatmaz
-    const yeni = cur && performance.now() - (cur.openedAt || 0) < 200;
+    // hiçbir düğmeyi çalıştırmaz, arka plana düşse de kutuyu kapatmaz. Kutu AÇIKKEN başlamış bir basış (pointerdown)
+    // ise gerçek dokunuştur, ne kadar çabuk gelirse gelsin çalışır (hızlı kullanıcı / sınama 100 ms'de basıyordu).
+    const yeni = cur && !cur.basti && performance.now() - (cur.openedAt || 0) < 200;
     if (yeni && ev.isTrusted) return;
     if (ev.target.closest('#askOk')) finish(true);
     else if (ev.target.closest('#askNo')) finish(false);
     else if (ev.target === d) finish(false);   // kart dışına dokunuş = vazgeç
   });
+  d.addEventListener('pointerdown', () => { if (cur) cur.basti = true; }, true);
   d.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); finish(false); }
     else if (ev.key === 'Enter' && !(ev.target && ev.target.tagName === 'TEXTAREA' && !ev.ctrlKey)) { ev.preventDefault(); ev.stopPropagation(); finish(true); }
