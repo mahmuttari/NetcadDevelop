@@ -32,6 +32,10 @@ function el() {
       if (inp) { const v = inp.value || ''; inp.value = v && !/\s$/.test(v) ? v + ' ' + wb.dataset.word : v + wb.dataset.word; inp.focus(); }
       return;
     }
+    // Açılıştan hemen sonra gelen tıklama kutuyu açan dokunuşun kendisidir (parmak kalkınca gelen click): o
+    // hiçbir düğmeyi çalıştırmaz, arka plana düşse de kutuyu kapatmaz
+    const yeni = cur && performance.now() - (cur.openedAt || 0) < 200;
+    if (yeni && ev.isTrusted) return;
     if (ev.target.closest('#askOk')) finish(true);
     else if (ev.target.closest('#askNo')) finish(false);
     else if (ev.target === d) finish(false);   // kart dışına dokunuş = vazgeç
@@ -66,7 +70,7 @@ function open(kind, label, fieldHtml, o) {
   d.classList.toggle('confirm', kind === 'confirm');
   d.hidden = false;
   return new Promise((resolve) => {
-    cur = { resolve, kind, words: !!o.words, prevFocus: document.activeElement };
+    cur = { resolve, kind, words: !!o.words, prevFocus: document.activeElement, openedAt: performance.now() };
     const inp = d.querySelector('#askIn');
     setTimeout(() => { try { (inp || $('askOk')).focus(); if (inp && inp.select && !o.multiline) inp.select(); } catch (_) { /* yok */ } }, 0);
   });

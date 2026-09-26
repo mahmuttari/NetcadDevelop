@@ -72,12 +72,31 @@ export function dimLinear(kind, p1, p2, q, o) {
     arrowEnt(d1, inward, a, o),
     arrowEnt(d2, [-inward[0], -inward[1]], a, o),
   ];
-  const mid = [(d1[0] + d2[0]) / 2, (d1[1] + d2[1]) / 2, d1[2]];
   let rot = Math.atan2(dir[1], dir[0]);
   if (rot > Math.PI / 2 + 1e-9 || rot < -Math.PI / 2 - 1e-9) rot += Math.PI;   // yazı hiçbir zaman baş aşağı durmaz
-  const tp = add(mid, perp([Math.cos(rot), Math.sin(rot)]), h * 0.35);
-  ents.push(stamp({ type: 'TEXT', pts: [[tp[0], tp[1], mid[2]]], text: o.label == null ? '' : String(o.label), h, rot, ha: 1, va: 0 }, o));
-  return { ents, measure };
+  const up = perp([Math.cos(rot), Math.sin(rot)]);
+  /*
+   * YAZI KONUMU (v8.9.8, tutamakla taşınan yazı). o.tp yazının ORTA noktasıdır (DXF kod 11). AutoCAD'in DIMTMOVE=0
+   * davranışı: yazı ölçü çizgisinin üstünde kalır, dik yöndeki taşıma ölçü çizgisini de taşır (o iş tutamak
+   * matematiğinde q ile yapılır); burada yalnız ÇİZGİ BOYUNCA konum kullanılır. Yazı uzatma çizgilerinin dışına
+   * çıkarsa ölçü çizgisi yazının altına kadar uzar (o.tw: yazı genişliği tahmini).
+   */
+  let tt = (t1 + t2) / 2, out = false;
+  if (Array.isArray(o.tp)) {
+    tt = (o.tp[0] - base[0]) * dir[0] + (o.tp[1] - base[1]) * dir[1];
+    const lo = Math.min(t1, t2), hi = Math.max(t1, t2), hw = (o.tw > 0 ? o.tw : 0) / 2;
+    if (tt - hw < lo - 1e-9 || tt + hw > hi + 1e-9) {
+      out = true;
+      const ucA = tt + hw > hi ? hi : lo, ucB = tt + hw > hi ? tt + hw : tt - hw;   // en yakın ölçü çizgisi ucundan yazının öteki kenarına
+      segs.push([[base[0] + dir[0] * ucA, base[1] + dir[1] * ucA, d1[2]], [base[0] + dir[0] * ucB, base[1] + dir[1] * ucB, d1[2]]]);
+    }
+  }
+  const onLine = [base[0] + dir[0] * tt, base[1] + dir[1] * tt, d1[2]];
+  const tp = add(onLine, up, h * 0.35);
+  ents.push(stamp({ type: 'TEXT', pts: [[tp[0], tp[1], d1[2]]], text: o.label == null ? '' : String(o.label), h, rot, ha: 1, va: 0 }, o));
+  // yapı geometrisi (tutamaklar ve yazı konumu için): ölçü çizgisi uçları, doğrultu, dik yön, öteleme, yazı ortası
+  const tmid = add(tp, up, h * 0.5);
+  return { ents, measure, geo: { d1, d2, base, dir, n, off, up, t1, t2, tmid: [tmid[0], tmid[1], d1[2]], out } };
 }
 
 /*
@@ -93,6 +112,7 @@ export function dimLinear(kind, p1, p2, q, o) {
 export function transformDef(d, pt, s, lin) {
   if (!d || typeof d !== 'object') return d;
   const nd = { ...d, pts: (d.pts || []).map(pt) };
+  if (Array.isArray(d.tp)) nd.tp = pt(d.tp);   // tutamakla taşınmış yazı konumu da dönüşür
   for (const k of ['r', 'h', 'arrow', 'exo', 'exe']) if (typeof d[k] === 'number' && d[k] > 0) nd[k] = d[k] * s;
   if (d.kind === 'linear' && (d.sub === 'horizontal' || d.sub === 'vertical' || d.sub === 'rotated') && Array.isArray(lin)) {
     const a0 = d.sub === 'horizontal' ? 0 : d.sub === 'vertical' ? Math.PI / 2 : (d.rot || 0);
@@ -125,7 +145,9 @@ export function dimRadial(kind, center, r, at, o) {
   const right = dir[0] >= 0;
   const tp = [tail[0] + (right ? h * 0.4 : -h * 0.4), tail[1] + h * 0.35, tail[2]];
   ents.push(stamp({ type: 'TEXT', pts: [tp], text: o.label == null ? '' : String(o.label), h, rot: 0, ha: right ? 0 : 2, va: 0 }, o));
-  return { ents, measure };
+  const tw = (o.label == null ? 0 : String(o.label).length) * h * 0.6;
+  const tmid = [tp[0] + (right ? tw / 2 : -tw / 2), tp[1] + h * 0.5, tp[2]];
+  return { ents, measure, geo: { c: [center[0], center[1], center[2] || 0], on, from, tail, tmid } };
 }
 
 /** Açı ölçülendirmesi: tepe v, kollar a ve b; yay yarıçapı r (verilmezse kısa kolun %70'i) */
@@ -159,7 +181,8 @@ export function dimAngular(v, a, b, o) {
   const am = a0 + sweep / 2;
   const tp = [v[0] + Math.cos(am) * (r + h * 0.8), v[1] + Math.sin(am) * (r + h * 0.8), z];
   ents.push(stamp({ type: 'TEXT', pts: [tp], text: o.label == null ? '' : String(o.label), h, rot: 0, ha: 1, va: 0 }, o));
-  return { ents, measure, r };   // r: kullanılan yay yarıçapı (verilmemişse kısa kolun %70'i) — tanım bunu saklar
+  const arcMid = [v[0] + Math.cos(am) * r, v[1] + Math.sin(am) * r, z];
+  return { ents, measure, r, geo: { v: [v[0], v[1], z], p0, p1, arcMid, tmid: [tp[0], tp[1] + h * 0.5, z], r } };   // r: kullanılan yay yarıçapı (verilmemişse kısa kolun %70'i) — tanım bunu saklar
 }
 
 /** Lider (kılavuz çizgili açıklama): pts yol, son noktadan sonra yazı; ilk noktada ok */

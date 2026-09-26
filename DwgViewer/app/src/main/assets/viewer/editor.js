@@ -24,6 +24,7 @@ import * as D from './display.js';
 import { askText, askForm, askConfirm } from './dialog.js';
 import { leaderEnts, hatchEnts } from './annot.js';
 import * as Gz from './gizmo.js';
+import * as DG from './dimgrip.js';
 import { has, gate, need, rank, tier, tierName, lockAttr, lockBadge, lockBadgeFor, openProPanel } from './edition.js';
 import { cmdOf, namesOf, repeatable, resolve as acadResolve, suggest as acadSuggest, COMMANDS as ACAD } from './acad.js';
 import * as Desk from './desktop.js';
@@ -112,7 +113,7 @@ const TABS = [
     { cap: 'grpCur', items: [T('layer', 'i-layers', 'Katman', 'Layer', 'Geçerli katman ve yeni katman', 'Current layer'), T('color', 'i-palette', 'Renk', 'Color', 'Geçerli renk (ACI)', 'Current color')] },
     { cap: 'grpHist', items: [T('undo', 'i-undo', 'Geri al', 'Undo'), T('redo', 'i-redo', 'Yinele', 'Redo')] } ] },
   { id: 'annot', i18n: 'tabAnnot', icon: 'i-dim', groups: [
-    { cap: 'grpDim', items: [T('t:dim', 'i-dim', 'Doğrusal ölçü', 'Linear', 'İki nokta + ölçü çizgisi; eğik ölçü', 'Two points + dimension line; aligned'), T('t:dimh', 'i-dim-h', 'Yatay ölçü', 'Horizontal', 'Yatay mesafeyi ölçülendirir', 'Dimension the horizontal distance'), T('t:dimv', 'i-dim-v', 'Düşey ölçü', 'Vertical', 'Düşey mesafeyi ölçülendirir', 'Dimension the vertical distance'), T('t:dimr', 'i-radius', 'Yarıçap', 'Radius', 'Daire ya da yaya dokunun', 'Tap a circle or arc'), T('t:dimd', 'i-diameter', 'Çap', 'Diameter', 'Daire ya da yaya dokunun', 'Tap a circle or arc'), T('t:dima', 'i-angle', 'Açı ölçüsü', 'Angular', 'Tepe + iki kol', 'Vertex + two arms'), T('t:dimedit', 'i-dimedit', 'Ölçüyü düzenle', 'Edit dimension', 'Ölçü yazısı, yükseklik, ok boyu, ondalık, ön / son ek, çarpan; dosyadan gelen ölçüler de', 'Dimension text, height, arrow, decimals, prefix / suffix, scale factor; file dimensions too')] },
+    { cap: 'grpDim', items: [T('t:dim', 'i-dim', 'Doğrusal ölçü', 'Linear', 'İki nokta + ölçü çizgisi; eğik ölçü', 'Two points + dimension line; aligned'), T('t:dimedit', 'i-dimedit', 'Ölçüyü düzenle', 'Edit dimension', 'Seçili ölçülerin yazısı, katmanı, rengi, genel ölçeği, ok boyu, ondalığı; dosyadan gelen ölçüler de', 'Text, layer, color, overall scale, arrow and decimals of the selected dimensions; file dimensions too'), T('t:dimh', 'i-dim-h', 'Yatay ölçü', 'Horizontal', 'Yatay mesafeyi ölçülendirir', 'Dimension the horizontal distance'), T('t:dimv', 'i-dim-v', 'Düşey ölçü', 'Vertical', 'Düşey mesafeyi ölçülendirir', 'Dimension the vertical distance'), T('t:dimr', 'i-radius', 'Yarıçap', 'Radius', 'Daire ya da yaya dokunun', 'Tap a circle or arc'), T('t:dimd', 'i-diameter', 'Çap', 'Diameter', 'Daire ya da yaya dokunun', 'Tap a circle or arc'), T('t:dima', 'i-angle', 'Açı ölçüsü', 'Angular', 'Tepe + iki kol', 'Vertex + two arms')] },
     { cap: 'grpMark', items: [T('t:leader', 'i-leader', 'Açıklama', 'Leader', 'Ok başlı kılavuz çizgi ve yazı', 'Leader line with an arrow and text'), T('t:cloud', 'i-cloud', 'Revizyon bulutu', 'Revision cloud', 'Değişen bölgeyi bulutla çevreler', 'Cloud around a revised area'), T('t:balloon', 'i-balloon', 'Numaralandır', 'Numbering', 'Artan numaralı balon; her dokunuşta bir sonraki', 'Balloon with an auto-incrementing number'), T('t:hatch', 'i-hatch', 'Tarama', 'Hatch', 'Kapalı alanın içine dokunun, dolgu ekler', 'Tap inside a closed area to fill it'), T('hatchpat', 'i-hatch', 'Desen', 'Pattern', 'Çizilecek taramanın deseni, ölçeği ve açısı', 'Pattern, scale and angle for new hatches'), T('markdim', 'i-dim', 'Ölçümü işle', 'Mark measurement', 'Son ölçüm sonucunu açıklama olarak çizime yazar', 'Write the last measurement onto the drawing')] },
     { cap: 'grpCur', items: [T('layer', 'i-layers', 'Katman', 'Layer'), T('color', 'i-palette', 'Renk', 'Color')] },
     { cap: 'grpHist', items: [T('undo', 'i-undo', 'Geri al', 'Undo'), T('redo', 'i-redo', 'Yinele', 'Redo')] } ] },
@@ -218,6 +219,28 @@ registerTiles();
 const tileLabel = (act) => { const it = TILE[act]; return it ? tt('tl_' + act, it.tr) : act; };
 /** "1 object" / "3 objects": tekil-çoğul ayrımı olan dillerde doğru biçim (EN 'Selection · 1 objects' yazıyordu) */
 const nesneSay = (n) => `${n} ${n === 1 ? t('objectN') : t('objectsN')}`;
+/*
+ * GERİ AL / YİNELE SONRASI SEÇİM (v8.9.8). "replace" komutu ilkelleri YENİ nesnelerle değiştirir. rebuild() seçimi
+ * canlı parçalara taşır (aynı grubun yeni parçaları); burada Seç aracının "[n seçili]" istemi tazelenir.
+ */
+function secimiTazele() {
+  // ölü parçaların atılması ve grubun yeni parçalarının seçilmesi rebuild()'dedir (her belge değişikliğinde çalışır);
+  // burada yalnız istem ve kaplama tazelenir
+  if (tools && tools.running && tools.active === 'select') tools.say();
+  api.drawOverlay();
+}
+/*
+ * SEÇİMDEKİ NESNE SAYISI (v8.9.8). Seçim kümesi çizim İLKELLERİNİ tutar: uygulamanın bir ölçüsü dört parçadır
+ * (çizgiler, iki ok, yazı), dosyadaki bir blok ya da tarama onlarca parça olabilir. Kullanıcıya gösterilen sayı
+ * NESNE sayısıdır — AutoCAD'de de ölçü tek nesnedir; "4 seçili" yazısı tek ölçüyü dört ayrı şey gibi gösteriyordu.
+ * Kimlik: grup kimliği (gid) > dosya varlığının tanıtıcısı (info.h) > ilkelin anahtarı.
+ */
+function nesneSayisi(set = ed.sel) {
+  const k = new Set();
+  for (const p of set) { const i = p && p.info; k.add(i && i.gid ? 'g:' + i.gid : i && i.h != null ? 'h:' + i.h : 'k:' + (p && p.key)); }
+  return k.size;
+}
+ed.objCount = () => nesneSayisi();
 const tileHint = (act) => { const it = TILE[act]; return it ? tt('th_' + act, it.htr) : ''; };
 /** Açılır kutu başlığı: İngilizce karo etiketi komut adıdır (VISUALSTYLES); başlıkta okunur ad (Visual styles) durur */
 const tileName = (act) => { const it = TILE[act], l = tileLabel(act); return it && it.en && l === cmdOf(act) ? it.en : l; };
@@ -261,6 +284,7 @@ export function initEditor(a) {
     allPrims: () => (S.scene ? S.scene.layouts[0].prims : []),
     // Ölçü özellikleri kutusu (v8.9.8): katman listesi, renk kareleri, bu çizimde yeni ölçülerin ayarları
     layerNames: () => [...S.layers.keys()].sort((a, b) => a.localeCompare(b, 'tr')),
+    objCount: () => nesneSayisi(),
     colorOptions: (lay, cur) => colorOptionsFor(lay, cur),
     dimStyleGet: () => dimStyleGet(),
     dimStyleSet: (st) => dimStyleSet(st),
@@ -356,7 +380,13 @@ function rebuild() {
   if (isFinite(bb[0])) model.ext = bb;
   S.modelTree = new api.RTree(model.prims, p => p.bb);
   if (S.scene.layouts[S.layoutIndex].isModel) { S.prims = model.prims; S.tree = S.modelTree; S.ext = model.ext; }
-  for (const p of [...ed.sel]) if (!model.prims.includes(p)) ed.sel.delete(p);
+  // Seçimdeki ölmüş ilkeller atılır; bir grubun (ölçü, balon…) parçasıysa aynı grubun YENİ parçaları seçilir: ölçü
+  // yeniden kurulunca, geri alınınca ya da yinelenince seçili kalır (tutamakları ve rozeti kaybolmaz)
+  if (ed.sel.size) {
+    const canli = new Set(model.prims), gids = new Set();
+    for (const p of [...ed.sel]) if (!canli.has(p)) { ed.sel.delete(p); if (p.info && p.info.gid) gids.add(p.info.gid); }
+    if (gids.size) for (const q of model.prims) if (q.info && gids.has(q.info.gid)) ed.sel.add(q);
+  }
   S.cacheValid = false;
   if (ed.is3D()) refresh3D();
 }
@@ -763,6 +793,12 @@ function act(name, btn) {
       if (u3) { void start3DTool(u3); markActive('3:' + u3); return; }
       const ad = tileLabel(name); exit3D(); api.toast(t('need2d').replace('%s', ad), 3000);
     }
+    /*
+     * ÖNCE NESNE, SONRA KOMUT (v8.9.8). Seçimde ölçülendirme varken "Ölçüyü düzenle" yeniden "ölçüye dokunun"
+     * demez: kullanıcı ölçüyü zaten seçmiştir. Kutu seçimdeki bütün ölçülerle doğrudan açılır (AutoCAD'de önce
+     * seçip sonra komut vermek).
+     */
+    if (tn === 'dimedit' && selDimPrim()) { if (tools.running && tools.active !== 'select') { tools.cancel(); markActive(null); } void tools.editDims([...ed.sel]); return; }
     if (tools.active === tn || (tn === 'array' && /^array/.test(tools.active || ''))) { tools.cancel(); markActive(null); } else { tools.start(tn); markActive(name); }
     return;
   }
@@ -833,8 +869,8 @@ function act(name, btn) {
     case 'polar': togglePolar(); break;
     case 'cmdhelp': showCmdList(); break;
     case 'display': call(api.openDisplayOptions, { seg: ed.is3D() ? '3d' : '2d' }); break;
-    case 'undo': if (doc && doc.undo()) { refreshUndo(); api.requestRender(); if (ed.is3D()) { refresh3D(); v3.render(); } api.toast(t('undone')); } break;
-    case 'redo': if (doc && doc.redo()) { refreshUndo(); api.requestRender(); if (ed.is3D()) { refresh3D(); v3.render(); } api.toast(t('redone')); } break;
+    case 'undo': if (doc && doc.undo()) { secimiTazele(); refreshUndo(); api.requestRender(); if (ed.is3D()) { refresh3D(); v3.render(); } api.toast(t('undone')); } break;
+    case 'redo': if (doc && doc.redo()) { secimiTazele(); refreshUndo(); api.requestRender(); if (ed.is3D()) { refresh3D(); v3.render(); } api.toast(t('redone')); } break;
     case 'save': saveHizli(); break;
     case 'saveas': saveFarkli(); break;
     case 'savedxf': saveDxf(false); break;
@@ -995,13 +1031,15 @@ const BTN = { finish: ['finishBtn', () => tools.finish()], close: ['close', () =
   alignscale: ['alignScaleBtn', () => tools.toggleAlignScale()], wipepoly: ['wipePolyBtn', () => tools.setWipePoly()],
   // Tarama: desen seçici komut çubuğundan açılır; seçim bitince istem yeni desen adıyla tazelenir
   hatchpat: ['hatchPatBtn', () => { void hatchPatPop().then(() => { if (tools && tools.active === 'hatch') tools.say(); }); }],
+  // Seç aracında seçimde ölçü varken: "Ölçü özellikleri" kutusu doğrudan komut çubuğundan (Bitir'in yanında)
+  dimedit: ['dimSelMenu', () => { if (!selDimPrim()) { api.toast(t('notDim')); return; } if (gate('t:dimedit')) void tools.editDims([...ed.sel]); }],
   cancel: ['cancelBtn', () => { tools.cancel(); markActive(null); ed.sel.clear(); api.drawOverlay(); }] };
 /*
  * Komut çubuğu düğmesi: SVG simge + etiket. Çeviri metinlerinin başındaki ince Unicode imleri
  * (✓ ↶ ✕) atılır; simgeyi yazı tipi değil SVG çizer, böylece her dilde aynı dolgunlukta görünür.
  * Bitir birincil (vurgu renkli) düğmedir: çubuğun onay eylemi odur.
  */
-const CMD_ICON = { finish: 'i-check', close: 'i-closepath', back: 'i-undo', selall: 'i-selectall', cancel: 'i-close', selbox: 'i-selbox', sellasso: 'i-lasso', modescreen: 'i-crosshair', modevalue: 'i-ruler', mirrorkeep: 'i-copyobj', mirrorx: 'i-mirror-x', mirrory: 'i-mirror', alignscale: 'i-scale', wipepoly: 'i-pline', hatchpat: 'i-hatch' };
+const CMD_ICON = { finish: 'i-check', close: 'i-closepath', back: 'i-undo', selall: 'i-selectall', cancel: 'i-close', selbox: 'i-selbox', sellasso: 'i-lasso', modescreen: 'i-crosshair', modevalue: 'i-ruler', mirrorkeep: 'i-copyobj', mirrorx: 'i-mirror-x', mirrory: 'i-mirror', alignscale: 'i-scale', wipepoly: 'i-pline', hatchpat: 'i-hatch', dimedit: 'i-dimedit' };
 const CMD_ICON_ONLY = new Set(['selbox', 'sellasso', 'mirrorx', 'mirrory']);   // yalnız simge: beş düğme 412 px'te tek satıra sığsın; ad başlık / aria-label'da
 function cmdBtnHtml(attr, k, label) {
   const lbl = String(label == null ? '' : label).replace(/^[✓↶✕⟲←]+\s*/, '');
@@ -1589,7 +1627,7 @@ function showProps(all) {
   }
   if (same && (first.info && first.info.t === 'DIMENSION')) rows.push([`<div class="full btns"><button class="btn small" id="pDim">${esc(t('dimSelMenu'))}</button></div>`]);
   rows.push([`<div class="full btns"><button class="btn primary small" id="pOk">${esc(t('apply'))}</button></div>`]);
-  api.openDoc(`${t('propsTitle')} (${nesneSay(ed.sel.size)})`, api.kv(rows));
+  api.openDoc(`${t('propsTitle')} (${nesneSay(nesneSayisi())})`, api.kv(rows));
   let ci = null;
   $('docBody').onclick = (ev) => { const b = ev.target.closest('[data-ci]'); if (b) { ci = Number(b.dataset.ci); document.querySelectorAll('#docBody [data-ci]').forEach(x => x.classList.toggle('active', x === b)); } };
   $('pType').onchange = () => {
@@ -1661,7 +1699,7 @@ function selMenu() {
   let items = !selDimPrim() ? SEL_MENU : yalnizOlcu ? [['dimedit', 'i-dimedit'], ...SEL_MENU] : [...SEL_MENU.slice(0, 10), ['dimedit', 'i-dimedit'], ...SEL_MENU.slice(10)];
   // seçimde blok yerleştirmesi varsa "Blok düzenle" kartı da gelir (Özellikler'in önünde)
   if ([...ed.sel].some(p => p.info && p.info.t === 'INSERT' && p.info.name)) { const i = items.findIndex(x => x[0] === 'props'); items = [...items.slice(0, i), ['bedit', 'i-bedit'], ...items.slice(i)]; }
-  api.openDoc(`${t('selMenuTitle')} · ${nesneSay(ed.sel.size)}`,
+  api.openDoc(`${t('selMenuTitle')} · ${nesneSay(nesneSayisi())}`,
     `<div class="full os-grid sel-grid">${items.map(([id, ic]) => `<button type="button" class="os-card" data-sm="${id}"><svg class="ic" aria-hidden="true"><use href="#${ic}"/></svg><span>${esc(selMenuLabel(id))}</span></button>`).join('')}</div>`);
   $('docBody').onclick = (ev) => { const b = ev.target.closest('[data-sm]'); if (!b) return; api.hide('docPanel'); selAction(b.dataset.sm); };
 }
@@ -2376,7 +2414,7 @@ function gizmoOn() {
 }
 function gizmoLayout() {
   if (!gizmoOn()) return null;
-  const bb = Gz.boxOf(ed.sel);
+  const bb = secimKutusu();
   return bb ? Gz.layout(bb, toScreen, { fs: ui.fontScale, glove: ui.glove }) : null;
 }
 /*
@@ -2467,22 +2505,108 @@ ed.mercek3State = () => (p3.aim ? { ...mercek3Yeri(), fx: p3.aim.sx, fy: p3.aim.
  * bakarak seçer: nesne isteminde küçük kare (pickbox) çizilir ve yakalama aranmaz. Bölge sürüklemesi
  * de nesne seçimidir — kutu çizilirken yakalama işaretinin belirmesi anlamsızdır.
  */
-ed.pickingObject = () => !!(selDrag || (tools && tools.running && tools.pickingObject()));
+ed.pickingObject = () => !!(selDrag || (tools && tools.running && tools.pickingObject() && !(giz && giz.kind === 'dim')));
 /** Seçim rozeti: seçimin sol üst köşesinde sayı + kalem; dokununca seçim menüsü (Sil, Taşı, Renk…) */
 function updateSelBadge() {
   const el = $('selBadge'); if (!el) return;
   const show = ed.sel.size > 0 && !ed.is3D() && !giz && !selDrag && !S.gestureActive && !(tools.running && !tools.selecting && tools.active !== 'select');
   if (!show) { el.hidden = true; return; }
-  const bb = Gz.boxOf(ed.sel);
+  const bb = secimKutusu();
   if (!bb || !isFinite(bb[0])) { el.hidden = true; return; }
   const s = toScreen(bb[0], bb[3]);
   const x = Math.max(6, Math.min(S.W - 70, s[0] - 20)), y = Math.max(6, Math.min(S.H - 54, s[1] - 58));
   el.style.left = x + 'px'; el.style.top = y + 'px';
-  const n = el.querySelector('.n'); if (n) n.textContent = String(ed.sel.size);
+  const n = el.querySelector('.n'); if (n) n.textContent = String(nesneSayisi());
   el.hidden = false;
 }
+/*
+ * ÖLÇÜ TUTAMAKLARI (v8.9.8) — hesap dimgrip.js'tedir. Görünürlük: 2B model uzayı, TEK ölçü seçili (uygulamanın
+ * ölçüsü ya da dosyadan gelen, yeniden kurulabilen ölçü; bütün parçalarıyla), seçim kutusu açık (ui.gizmo),
+ * hiçbir araç çalışmıyor ya da Seç aracı dokunma kipinde (AutoCAD'in önce-seç durumu). Köşe tutamakları
+ * karosundan bağımsızdır: AutoCAD'de de ölçünün tutamakları seçimle kendiliğinden gelir. Sürükleme sırasında
+ * belge DEĞİŞMEZ: ölçü geçici tanımdan her harekette yeniden kurulup yalnız kaplamada çizilir; bırakışta tek
+ * 'replace' komutu işlenir (tek geri alma adımı, aynı grup kimliği), ölçü seçili kalır.
+ */
+let dgCache = { sig: '', T: null }, dgSonDokunus = null;
+function dimGripsOn() {
+  if (!S || !S.hasDoc || !doc || !ed.sel.size || ed.is3D() || S.mode !== 'view' || S.notesOn || ui.gizmo === false || (S.layoutIndex || 0) !== 0) return false;
+  if (!tools.running) return true;
+  return tools.active === 'select' && tools.selecting && tools.selMode === 'tap';
+}
+function dimGripTarget() {
+  if (!dimGripsOn()) return null;
+  const sig = [...ed.sel].map(p => p.key).join('|') + '#' + doc.log.length + ':' + doc.undoStack.length + ':' + doc.redoStack.length;
+  if (dgCache.sig === sig) return dgCache.T;
+  dgCache = { sig, T: null };
+  const parts = [...ed.sel], first = parts[0], inf = first && first.info;
+  if (!inf || inf.t !== 'DIMENSION') return null;
+  const gid = inf.gid, h = inf.h;
+  // seçimin TAMAMI tek ölçü olmalı; katmanı kilitli ya da kapalıysa tutamak yok
+  if (!parts.every(p => p.info && p.info.t === 'DIMENSION' && (gid ? p.info.gid === gid : (!p.info.gid && p.info.h === h)))) return null;
+  const L = S.layers.get(first.lay); if (L && (L.locked || L.visible === false)) return null;
+  const g = tools.dimGroup(first); if (!g || g.keys.length !== parts.length) return null;   // yarım seçimle tutamak çıkmaz
+  const built = tools.buildDim(g.def, { layer: g.layer, color: g.color, gid: g.gid });
+  if (!built || !built.geo) return null;
+  const grips = DG.gripsOf(g.def, built.geo);
+  if (!grips.length) return null;
+  dgCache.T = { g, def: g.def, geo: built.geo, grips, parts: new Set(parts), label: built.label };
+  return dgCache.T;
+}
+function dimGripLayout() {
+  const T = giz && giz.kind === 'dim' ? giz.T : dimGripTarget();
+  if (!T) return null;
+  const grips = giz && giz.kind === 'dim' && giz.built ? DG.gripsOf(giz.def, giz.built.geo) : T.grips;
+  return { T, ...DG.layoutGrips(grips, toScreen, { fs: ui.fontScale, glove: ui.glove }) };
+}
+/*
+ * SEÇİMİN KUTUSU. Uygulamanın yazı ilkelinin kutusu, yazının dönebileceği her yönü kapsayan bir DAİREDİR (seçim ve
+ * ağaç için güvenli); tek ölçü seçiliyken bu daire kutuyu ve rozeti ekranın dışına taşıyordu (dönme tutamağı 412 px
+ * ekranda x=1009'da). Tek ölçüde kutu, ölçünün çizgileri ve yazının kendi boyutundan kurulur.
+ */
+function secimKutusu() {
+  const T = dimGripTarget();
+  if (!T) return Gz.boxOf(ed.sel);
+  let bb = null;
+  const kat = (b) => { bb = bb ? [Math.min(bb[0], b[0]), Math.min(bb[1], b[1]), Math.max(bb[2], b[2]), Math.max(bb[3], b[3])] : b.slice(); };
+  for (const p of ed.sel) if (p.k === 0 && p.bb && isFinite(p.bb[0])) kat(p.bb);
+  const tm = T.geo.tmid, h = (T.def.h > 0 ? T.def.h : 2.5) * (T.def.scale > 0 ? T.def.scale : 1);
+  if (tm) { const r = Math.max(String(T.label || '').length * h * 0.3, h * 0.5); kat([tm[0] - r, tm[1] - r, tm[0] + r, tm[1] + r]); }
+  return bb || Gz.boxOf(ed.sel);
+}
+/** Sürükleme önizlemesinin yazısı (ekran uzayında; ölçünün yazı yüksekliği ve açısıyla) */
+function dimOnizlemeYazi(c, prims, col) {
+  for (const q of prims) {
+    if (q.k !== 1 || !q.lines) continue;
+    const s = toScreen(q.x, q.y), px = q.h * S.view.scale;
+    if (!(px >= 3)) continue;
+    c.save(); c.translate(s[0], s[1]); c.rotate(-(q.rot || 0));
+    c.font = `${Math.min(600, px)}px sans-serif`; c.fillStyle = col; c.textBaseline = 'alphabetic';
+    c.textAlign = q.ha === 1 ? 'center' : q.ha === 2 ? 'right' : 'left';
+    c.fillText(q.lines.join(' '), 0, 0); c.restore();
+  }
+}
+/** Sınama kancası: ölçü tutamaklarının durumu */
+ed.dimGripInfo = () => {
+  const GL = dimGripLayout(); if (!GL) return null;
+  return { ids: GL.grips.map(g => g.id), world: GL.grips.map(g => [g.x, g.y]), pts: GL.pts.map(p => p.slice()), hitR: GL.hitR, gid: GL.T.g.gid, file: !!GL.T.g.file,
+    busy: !!(giz && giz.kind === 'dim'), label: giz && giz.kind === 'dim' && giz.info ? giz.info.label : GL.T.label, sn: giz && giz.kind === 'dim' && giz.sn ? giz.sn.kind : null };
+};
 /** İşaretçi bir tutamağa indi mi? true dönerse app.js kaydırma/dokunma yapmaz. */
 ed.gizmoDown = (sx, sy, o = {}) => {
+  // Ölçü tutamakları HER ŞEYDEN ÖNCE bakılır: Seç aracının örtük penceresi, kutu ve dinamik blok tutamakları sonra
+  if (!selDrag) {
+    const DGL = dimGripLayout();
+    if (DGL) {
+      const i = DG.hitGrip(sx, sy, DGL);
+      if (i >= 0) {
+        if (!gate('t:dimedit')) return true;
+        const gr = DGL.grips[i];
+        giz = { kind: 'dim', id: gr.id, i, T: DGL.T, g0: [gr.x, gr.y, gr.z], s0: [sx, sy], w0: toWorld(sx, sy), moved: false, def: null, built: null, prev: null, sn: null, info: null };
+        haptic('snap'); api.drawOverlay();
+        return true;
+      }
+    }
+  }
   // o.handlesOnly: "Kalem çizer, parmak gezinir" kipinde parmak için — bölge seçimi ve örtük pencere parmağa
   // kapalıdır (seçim kalemin işi), ama seçim kutusunun tutamakları ve köşe tutamakları açık hedeflerdir: sürüklenebilir.
   if (!o.handlesOnly && selDragArmed()) { selDrag = { mode: tools.selMode, pts: [[sx, sy]], x0: sx, y0: sy, x1: sx, y1: sy, crossing: null }; return true; }
@@ -2516,7 +2640,7 @@ ed.gizmoDown = (sx, sy, o = {}) => {
     haptic('snap');
     return true;
   }
-  giz = { kind, bb: Gz.boxOf(ed.sel), w0: toWorld(sx, sy), m: null, info: null };
+  giz = { kind, bb: secimKutusu(), w0: toWorld(sx, sy), m: null, info: null };
   haptic('snap');
   return true;
 };
@@ -2528,6 +2652,25 @@ ed.gizmoMove = (sx, sy) => {
     api.drawOverlay(); return true;
   }
   if (!giz) return false;
+  if (giz.kind === 'dim') {
+    if (!giz.moved && Math.hypot(sx - giz.s0[0], sy - giz.s0[1]) < 6) return true;   // ölü bölge: parmak titremesi yazıyı taşımasın
+    giz.moved = true;
+    const w = toWorld(sx, sy), T = giz.T;
+    let q = [giz.g0[0] + (w[0] - giz.w0[0]), giz.g0[1] + (w[1] - giz.w0[1])];   // tutamak parmağa sıçramaz, parmakla birlikte kayar
+    // nesne yakalama: başka nesnelerin noktalarına oturur, ölçünün KENDİ parçalarına değil
+    const sn = api.snapPeek ? api.snapPeek(q, { grip: true, skip: T.parts }) : null;
+    if (sn) q = [sn.p[0], sn.p[1]];
+    giz.sn = sn || null;
+    const nd = DG.dragDef(T.def, giz.id, q, { geo0: T.geo, g0: giz.g0, arms: (v, a, b, p) => tools.angularArms(v, a, b, p) });
+    const b = nd ? tools.buildDim(nd, { layer: T.g.layer, color: T.g.color, gid: T.g.gid }) : null;
+    if (nd && DG.validBuilt(nd, b)) {   // geçersiz ara durum (sıfır uzunluk): son geçerli önizleme kalır
+      giz.def = nd; giz.built = b;
+      giz.prev = b.ents.flatMap((e, j) => entsToPrims({ ...e, id: 'dgp' + j }, S.layers, S.blocks));
+      giz.info = { tip: 'dim', label: b.label };
+    }
+    api.drawOverlay();
+    return true;
+  }
   if (giz.kind === 'dyn') {
     const w = toWorld(sx, sy);
     if (Math.hypot(w[0] - giz.w0[0], w[1] - giz.w0[1]) * S.view.scale > 4) giz.moved = true;
@@ -2575,6 +2718,22 @@ ed.gizmoUp = (commit) => {
   }
   const g = giz; giz = null;
   if (!g) return false;
+  if (g.kind === 'dim') {
+    dgCache.sig = '';
+    if (commit && !g.moved) {
+      // kıpırdamayan dokunuş seçimi bozmaz; AYNI tutamağa hızlı ikinci dokunuş ölçünün özellik kutusunu açar (çift dokunuş)
+      const now = performance.now(), son = dgSonDokunus;
+      dgSonDokunus = { t: now, i: g.i };
+      if (son && son.i === g.i && now - son.t < 400) { dgSonDokunus = null; if (gate('t:dimedit')) void tools.editDims([...ed.sel]); }
+      api.drawOverlay(); return true;
+    }
+    if (commit && g.def && g.built && !DG.sameDef(g.def, g.T.def)) {
+      tools.regenDims([{ g: g.T.g, def: g.def }]);
+      refreshUndo(); haptic('toggle');
+    }
+    api.drawOverlay();
+    return true;
+  }
   if (g.kind === 'dyn') {
     const prm = g.prm;
     if (commit && prm) {
@@ -2626,13 +2785,20 @@ export function overlay(c) {
     // ops'uyla çizilir. Önizleme ile bırakışta işlenen komut aynı Gz.movedOps'tan gelir.
     const surukVi = giz && giz.vi != null && giz.p ? giz : null;
     const tasinan = surukVi ? new Map(surukVi.moves.map(m => [m.prim, Gz.movedOpsMany(m.ops0, m.idx, surukVi.p[0], surukVi.p[1])])) : null;   // çakışan köşeleri taşınan her yol önizlemede de taşınmış çizilir
+    const dimOnz = giz && giz.kind === 'dim' && giz.prev ? giz.prev : null;
+    if (dimOnz) c.globalAlpha = 0.3;   // ölçü sürüklenirken eski hâli soluk, yenisi dolu çizilir
+    const dimT = !dimOnz ? dimGripTarget() : null;
     for (const p of ed.sel) {
       if (p.k === 0) {
         c.beginPath();
         api.tracePath(c, tasinan && tasinan.has(p) ? tasinan.get(p) : p.ops);
         if (p.closed) c.closePath();
         c.stroke();
-      } else api.strokeWorldRect(c, p.bb);
+      } else if (!dimT && !dimOnz) api.strokeWorldRect(c, p.bb);   // tek ölçüde yazının daire kutusu çizilmez (tutamağı var)
+    }
+    if (dimOnz) {
+      c.globalAlpha = 1; c.setLineDash([]); c.lineWidth = Math.max(1.2, sw - 1) / S.view.scale; c.fillStyle = acc;
+      for (const q of dimOnz) if (q.k === 0) { c.beginPath(); api.tracePath(c, q.ops); if (q.fill) c.fill(); else c.stroke(); }
     }
     c.restore(); c.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);
     const L = gizmoLayout();
@@ -2660,6 +2826,31 @@ export function overlay(c) {
         c.textAlign = 'left';
       }
     }
+  }
+  if (ed.sel.size) {   // ölçü tutamakları kutunun ÜSTÜNDE çizilir (dokunuşta da önce onlara bakılır)
+      const DGL = dimGripLayout();
+      if (DGL) {
+        if (giz && giz.kind === 'dim' && giz.prev) dimOnizlemeYazi(c, giz.prev, acc);
+        DG.drawGrips(c, DGL, { grip: '#4da3ff', hot: '#ff4d4d', edge: bgColor() }, { active: giz && giz.kind === 'dim' ? giz.i : -1 });
+        if (giz && giz.kind === 'dim' && giz.moved) {
+          const hp = DGL.pts[giz.i];
+          if (giz.sn && api.osnap) {   // yakalama işareti: ölçü neye oturacak
+            const s = toScreen(giz.sn.p[0], giz.sn.p[1]);
+            c.save(); c.strokeStyle = '#3ddc84'; c.fillStyle = '#3ddc84'; c.lineWidth = 2; c.setLineDash([]);
+            api.osnap.drawMarker(c, s[0], s[1], giz.sn.kind, 8);
+            c.font = 'bold 10px sans-serif'; c.textBaseline = 'bottom'; c.textAlign = 'left';
+            c.fillText(api.osnap.abbrOf(giz.sn.kind), s[0] + 11, s[1] - 10);
+            c.restore();
+          }
+          const txt = giz.info && giz.info.label;
+          if (txt && hp) {   // canlı ölçü değeri, sürüklenen tutamağın üstünde
+            c.save(); c.font = `bold ${Math.round(12 * ui.fontScale)}px sans-serif`; c.textAlign = 'center'; c.textBaseline = 'bottom';
+            const w = c.measureText(txt).width + 12, x = Math.max(w / 2 + 4, Math.min(S.W - w / 2 - 4, hp[0])), y = Math.max(22 * ui.fontScale, hp[1] - DGL.hitR);
+            c.fillStyle = bgColor(); c.globalAlpha = 0.9; c.fillRect(x - w / 2, y - 18 * ui.fontScale, w, 18 * ui.fontScale);
+            c.globalAlpha = 1; c.fillStyle = acc; c.fillText(txt, x, y - 3 * ui.fontScale); c.restore();
+          }
+        }
+      }
   }
   drawSelDrag(c); updateSelBadge();
   if (bses && bses.kind === 'bedit') {   // blok düzenleyici: taban noktası işareti (AutoCAD'in BASE noktası)

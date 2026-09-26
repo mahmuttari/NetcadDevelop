@@ -1784,6 +1784,46 @@ function penErase(sx, sy) {
   return true;
 }
 let gestureView0 = null; // jest başındaki görünüm (geçmiş için)
+/*
+ * HAYALET TIKLAMA KORUMASI (v8.9.8). Dokunmatikte ve kalemde parmak kalkınca tarayıcı AYNI dokunuş için bir
+ * de "click" gönderir ve onu O ANDA parmağın altında ne varsa ona verir. Tuvaldeki dokunuş pointerup'ta işlenip
+ * bir kutu ya da menü açtıysa (Ölçüyü düzenle, Yazı düzenle, uzun basış menüsü), bu click yeni açılan şeye düşer:
+ * kutu arka planına düşerse kutu anında kapanır, menüde bir karta düşerse o kart çalışır (kullanıcı ölçüye uzun
+ * basınca "Kopyala" başlıyordu). Tuvalde işlenen dokunuştan sonra, aynı yerde ve kısa sürede gelen ve tuvalin
+ * DIŞINA düşen tek click yutulur. Fare bundan etkilenmez (tıklama basış ile bırakışın ortak atasına gider).
+ */
+let ghostClick = null;
+function hayaletKur(ev) { if (ev && (ev.pointerType === 'touch' || ev.pointerType === 'pen')) ghostClick = { until: performance.now() + 450, x: ev.clientX, y: ev.clientY }; }
+document.addEventListener('click', (e) => {
+  const g = ghostClick;
+  if (!g) return;
+  if (!e.isTrusted || performance.now() > g.until) { ghostClick = null; return; }
+  if (Math.hypot(e.clientX - g.x, e.clientY - g.y) > 40) return;
+  const vpEl = document.getElementById('viewport');
+  if (vpEl && vpEl.contains(e.target)) { ghostClick = null; return; }   // tuvalin kendi düğmeleri (rozet, yüzen düğmeler) çalışır
+  ghostClick = null;
+  e.preventDefault(); e.stopImmediatePropagation();
+}, true);
+/*
+ * ÖLÇÜYE ÇİFT DOKUNUŞ (v8.9.8) — AutoCAD'de ölçüye çift tıklamak özelliklerini açar. Burada çift dokunuş hep
+ * 2× yakınlaştırıyordu; ilk dokunuş da Seç aracında seçili ölçüyü bırakıyordu, yani "düzenlemek için dokun"
+ * her yolda ölçüyü kaybettiriyordu. Ölçünün üstündeki çift dokunuş artık o ölçüyü (bütün parçalarıyla) seçer ve
+ * "Ölçü özellikleri" kutusunu açar; ölçü dışında çift dokunuş eskisi gibi yakınlaştırır.
+ */
+function olcuCiftDokunus(sx, sy, ev) {
+  if (S.mode !== 'view' || S.notesOn || editor.is3D()) return false;
+  const T = editor.tools;
+  if (T && T.running && T.active !== 'select') return false;
+  const p = pick(toWorld(sx, sy), TOL.pick / S.view.scale);
+  if (!p || !p.info || p.info.t !== 'DIMENSION' || !(p.info.gid || p.info.dim)) return false;
+  const grp = T && T.groupOf ? T.groupOf(p) : [p];
+  editor.sel.clear(); for (const q of grp) editor.sel.add(q);
+  hide('infoPanel');
+  hayaletKur(ev); drawOverlay();
+  if (T && T.active === 'select') T.say();
+  if (Ed.gate('t:dimedit')) void T.editDims([...grp]);
+  return true;
+}
 function endPointer(ev) {
   const elenen = palm.up(ev, performance.now());
   if (ev.pointerType === 'pen') { S.pen.kind = null; S.pen.pressure = 0; }
@@ -1823,8 +1863,8 @@ function endPointer(ev) {
        */
       const adaylar = uiPrefs().snapPick === false ? []
         : findSnapList(toWorld(h.sx, h.sy), { prev: edCall('lastToolPoint'), max: 6 }).filter(c => !SUREKLI_KIP.has(c.kind));
-      if (adaylar.length >= 2 && openSnapPick(h.sx, h.sy, adaylar, h.fx, h.fy)) { if (pointers.size === 0) { gestureView0 = null; requestRender(); } return; }
-      lastTap = 0; lastTapPos = null; void onTap(h.sx, h.sy);
+      if (adaylar.length >= 2 && openSnapPick(h.sx, h.sy, adaylar, h.fx, h.fy)) { hayaletKur(ev); if (pointers.size === 0) { gestureView0 = null; requestRender(); } return; }
+      lastTap = 0; lastTapPos = null; hayaletKur(ev); void onTap(h.sx, h.sy);
     }
     if (pointers.size === 0) { gestureView0 = null; requestRender(); }
     return;
@@ -1847,13 +1887,15 @@ function endPointer(ev) {
     requestRender(); return;
   }
   if (gesture && gesture.type === 'dtap' && pointers.size === 0 && ev.type === 'pointerup') {
-    if (!gesture.moved) { zoomAtScreen(gesture.sx, gesture.sy, 2); }
+    if (!gesture.moved && !olcuCiftDokunus(gesture.sx, gesture.sy, ev)) { zoomAtScreen(gesture.sx, gesture.sy, 2); }
     lastTap = 0; lastTapPos = null;
   } else if (gesture && gesture.type === 'pan' && !gesture.moved && !gesture.longFired && pointers.size === 0 && ev.type === 'pointerup') {
     if (gesture.twoTap && performance.now() - gesture.twoTap.t < 250) { zoomAtScreen(gesture.twoTap.mid[0], gesture.twoTap.mid[1], 0.5); lastTap = 0; }
     else if (gesture.navOnly) { lastTap = 0; lastTapPos = null; }   // kalem kipi: parmak seçmez
     else if (gesture.mid) { lastTap = 0; lastTapPos = null; }        // orta tuş yalnız kaydırır, seçmez
-    else if (!gesture.fromPinch) { lastTap = performance.now(); lastTapPos = [sx, sy]; onTap(sx, sy); }
+    else if (!gesture.fromPinch) { lastTap = performance.now(); lastTapPos = [sx, sy]; hayaletKur(ev); onTap(sx, sy); }
+  } else if (gesture && gesture.longFired && ev.type === 'pointerup') {
+    hayaletKur(ev);   // uzun basış menüyü parmağın altında açtı: bırakışın click'i bir karta düşmesin
   }
   if (pointers.size === 0) {
     gesture = null; S.gestureActive = false; clearTimeout(fullTimer);
@@ -2231,7 +2273,8 @@ function showInfo(p) {
   $('infoBody').innerHTML = kv(full ? rows.concat(more) : rows);
   ensureInfoActions();
   { const db = $('iaDetail'); if (db) { db.hidden = !more.length; db.classList.toggle('on', full); db.textContent = full ? tt('infoLess', 'Daha az') : tt('infoMore', 'Ayrıntılar') + ' (' + more.filter(r => r.length > 1).length + ')'; } }
-  { const ab = $('iaArea'); if (ab) { ab.hidden = !(p.k === 5 && p.idx && p.idx.length >= 3); Ed.lockMark(ab, 'area3d', 'pill'); } }   // yüzey ölçüsü yalnız üçgen ağı olan gövdede; kilitliyse rozetli
+  { const ab = $('iaArea'); if (ab) { ab.hidden = !(p.k === 5 && p.idx && p.idx.length >= 3); Ed.lockMark(ab, 'area3d', 'pill'); } }
+  { const db = $('iaDim'); if (db) { db.hidden = !(p.info && p.info.t === 'DIMENSION' && (p.info.gid || p.info.dim)); Ed.lockMark(db, 't:dimedit', 'pill'); } }   // ölçünün bilgisinden doğrudan düzenleme   // yüzey ölçüsü yalnız üçgen ağı olan gövdede; kilitliyse rozetli
   show('infoPanel');
 }
 /** Bilgi paneli eylem çipleri (başlık altı): Buradan ölç · Katmanı izole et · Aynı katmandakileri seç */
@@ -2240,6 +2283,7 @@ function ensureInfoActions() {
   const row = document.createElement('div'); row.id = 'infoActions'; row.className = 'info-actions';
   row.innerHTML = `<button type="button" class="chip" data-ia="measure">${tt('measureFrom', 'Buradan ölç')}</button><button type="button" class="chip" data-ia="iso">${tt('isolate', 'Katmanı izole et')}</button><button type="button" class="chip" data-ia="samelayer">${tt('selectSameLayer', 'Aynı katmandakileri seç')}</button>`
     + `<button type="button" class="chip" id="iaArea" data-ia="area" hidden>${esc(t('surfArea'))}</button>`
+    + `<button type="button" class="chip" id="iaDim" data-ia="dimedit" hidden>${esc(t('dimSelMenu'))}</button>`
     + `<button type="button" class="chip" id="iaDetail" data-ia="detail" hidden></button>`;
   const body = $('infoBody'); body.parentElement.insertBefore(row, body);
   row.addEventListener('click', (ev) => {
@@ -2248,6 +2292,11 @@ function ensureInfoActions() {
     if (b.dataset.ia === 'measure') { const pts = p.k === 0 ? flatten(p.ops) : p.k === 5 ? [[(p.bb[0] + p.bb[2]) / 2, (p.bb[1] + p.bb[3]) / 2]] : [[p.x, p.y]]; hide('infoPanel'); setMode('measure'); if (pts[0]) { S.measure.push([pts[0][0], pts[0][1], undefined]); updateMeasure(); drawOverlay(); } }
     else if (b.dataset.ia === 'detail') { const u = uiPrefs(); u.infoFull = !u.infoFull; try { editorMod.applyUi(); } catch (_) { /* yok */ } showInfo(p); }
     else if (b.dataset.ia === 'area') showMeshArea(p);
+    else if (b.dataset.ia === 'dimedit') {   // dokunulan ölçü (bütün parçalarıyla) seçilir, kutu açılır
+      const T = editor.tools, grp = T && T.groupOf ? T.groupOf(p) : [p];
+      hide('infoPanel'); editor.sel.clear(); for (const q of grp) editor.sel.add(q); drawOverlay();
+      if (Ed.gate('t:dimedit')) void T.editDims([...grp]);
+    }
     else if (b.dataset.ia === 'iso') isolateLayers([p.lay]);
     else if (b.dataset.ia === 'samelayer') {
       const same = S.prims.filter(q => q.lay === p.lay && q.k !== 4 && primVisible(q));

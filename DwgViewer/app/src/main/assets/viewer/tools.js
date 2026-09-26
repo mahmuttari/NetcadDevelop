@@ -268,7 +268,7 @@ export class ToolManager {
       this.api.prompt(text, { input: num ? 'number' : 'point', buttons: ['modescreen', 'modevalue', 'cancel'], focus: this.mode === 'value' && this.val == null });
       return;
     }
-    if (this.selecting) text += (this.selMode === 'box' ? t('selBoxHint') : this.selMode === 'lasso' ? t('selLassoHint') : toolStep(this.active, 0)) + `  [${this.api.sel.size} ${t('selCount')}]`;
+    if (this.selecting) text += (this.selMode === 'box' ? t('selBoxHint') : this.selMode === 'lasso' ? t('selLassoHint') : toolStep(this.active, 0)) + `  [${this.api.objCount ? this.api.objCount() : this.api.sel.size} ${t('selCount')}]`;   // nesne sayısı: tek ölçü "1 seçili"dir, 4 değil
     else if (this.active === 'mirror' && this.mirrorAxis && !this.pts.length) text += t(this.mirrorAxis === 'x' ? 'mirrorAxisX' : 'mirrorAxisY');   // eksen seçildi: tek nokta yeter
     else if (this.active === 'wipeout' && this.wipePoly) text += t('wipePolyHint');   // polyline'dan maske: kapalı yola dokunulur
     else text += toolStep(this.active, Math.min(this.step, def.steps.length - 1));
@@ -279,6 +279,8 @@ export class ToolManager {
     const wantsNumber = (NUMBER_STEP[this.active] != null && this.step === NUMBER_STEP[this.active] && !this.selecting) || sidesStep;
     const buttons = [];
     if (this.selecting || ['pline', 'pline3d', 'face3d', 'area', 'copy', 'line', 'dist', 'leader', 'cloud', 'wipeout'].includes(this.active) || (this.active === 'matchprop' && this.step === 1) || (this.active === 'align' && this.pts.length >= 2)) buttons.push('finish');
+    // Seç aracında ölçü seçiliyse "Ölçü özellikleri" Bitir'in hemen yanında (kullanıcının ekranındaki çubuk)
+    if (this.selecting && this.active === 'select' && [...this.api.sel].some(p => p.info && p.info.t === 'DIMENSION' && (p.info.gid || p.info.dim))) buttons.push('dimedit');
     if (['pline', 'area', 'cloud', 'wipeout'].includes(this.active) && this.pts.length > 2) buttons.push('close');
     if (this.active === 'wipeout' && !this.pts.length && !this.wipePoly) buttons.push('wipepoly');   // AutoCAD WIPEOUT "Polyline" seçeneği
     if (this.active === 'align' && !this.selecting) buttons.push('alignscale');                    // "Scale objects based on alignment points?"
@@ -547,6 +549,9 @@ export class ToolManager {
     }
     if (act === 'dimedit') { await this.editDim(p); return; }
     if (act === 'edittext') {
+      // ölçünün yazısı ölçünün tanımından kurulur: elle değiştirilirse sonraki ölçü düzenlemesinde sessizce geri
+      // dönerdi. Ölçü yazısına dokunulunca "Ölçü özellikleri" açılır (Ölçü yazısı alanı orada)
+      if (p.info && p.info.t === 'DIMENSION' && (p.info.gid || p.info.dim)) { await this.editDims([p]); return; }
       if (p.k !== 1) { A.toast(t('notText')); return; }
       await this.editText(p);
       return;
@@ -1032,15 +1037,20 @@ export class ToolManager {
     if (def.kind === 'angular' && P.length >= 3 && !(def.r > 0)) def.r = Math.min(Math.hypot(P[1][0] - P[0][0], P[1][1] - P[0][1]), Math.hypot(P[2][0] - P[0][0], P[2][1] - P[0][1])) * 0.7;
     // genel ölçek (DIMSCALE): yazı, ok, uzatma boşluğu ve taşması onunla çarpılır; geometri ve ölçülen değer değişmez
     const k = def.scale > 0 ? def.scale : 1, h = (def.h > 0 ? def.h : 2.5) * k;
-    const opts = { ...o, h, arrow: (def.arrow > 0 ? def.arrow : def.h > 0 ? def.h : 2.5) * k, gap: def.exo >= 0 ? def.exo * k : undefined, ext: def.exe >= 0 ? def.exe * k : undefined, rot: def.rot || 0, label: '', def };
+    const opts = { ...o, h, arrow: (def.arrow > 0 ? def.arrow : def.h > 0 ? def.h : 2.5) * k, gap: def.exo >= 0 ? def.exo * k : undefined, ext: def.exe >= 0 ? def.exe * k : undefined, rot: def.rot || 0, label: '', def,
+      tp: def.kind === 'linear' && Array.isArray(def.tp) ? def.tp : undefined };   // tutamakla taşınmış yazı (yalnız doğrusal)
     let res = null;
-    if (def.kind === 'linear' && P.length >= 3) res = dimLinear(def.sub || 'aligned', P[0], P[1], P[2], opts);
+    if (def.kind === 'linear' && P.length >= 3) {
+      res = dimLinear(def.sub || 'aligned', P[0], P[1], P[2], opts);
+      // yazı uzatma çizgilerinin dışına taşındıysa ölçü çizgisi yazının altına kadar uzasın: yazı genişliği etiketle bilinir
+      if (res && res.geo && res.geo.out) res = dimLinear(def.sub || 'aligned', P[0], P[1], P[2], { ...opts, tw: this.dimLabel(def, res.measure).length * h * 0.6 });
+    }
     else if (def.kind === 'radial' && P.length >= 2 && def.r > 0) res = dimRadial(def.sub === 'diameter' ? 'diameter' : 'radius', P[0], def.r, P[1], opts);
     else if (def.kind === 'angular' && P.length >= 3) res = dimAngular(P[0], P[1], P[2], { ...opts, r: def.r > 0 ? def.r : 0 });
     if (!res) return null;
     const label = this.dimLabel(def, res.measure);
     for (const e of res.ents) if (e.type === 'TEXT') e.text = label;
-    return { ents: res.ents, measure: res.measure, label };
+    return { ents: res.ents, measure: res.measure, label, geo: res.geo || null };
   }
   /**
    * Dokunulan parçanın ölçü grubu: { keys, def, gid, layer, color, file } ya da null.
@@ -1311,6 +1321,7 @@ export class ToolManager {
       A.sel.clear();
       for (const q of A.allPrims()) if (q.info && gids.includes(q.info.gid)) A.sel.add(q);
       A.render(); A.overlay();
+      if (this.active) this.say();   // Seç aracının istemindeki "[n seçili]" ve komut çubuğu tazelenir
       A.toast((file ? t('dimFromFile') + ' · ' : '') + (items.length > 1 ? t('dimUpdatedN').replace('%s', items.length) : t('dimUpdated') + ': ' + label));
     }
     return ok;

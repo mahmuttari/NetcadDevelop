@@ -273,7 +273,14 @@ export function setPrimZ(p, z) {
   }
   if (p.k === 0) for (const o of p.ops) { if (o[0] === 0 || o[0] === 1) o[3] = z; else if (o[0] === 2 || o[0] === -2) o[6] = z; }
   else p.z = z;
-  if (p.ent) { p.ent.pts = (p.ent.pts || []).map(q => [q[0], q[1], z]); }
+  if (p.ent) {
+    p.ent.pts = (p.ent.pts || []).map(q => [q[0], q[1], z]);
+    // ölçülendirme: parçaların kendi noktaları (segs / arcs) ve TANIMI da yeni kota iner — yoksa ölçü sonradan
+    // düzenlenince (özellikler, tutamak) tanımdan eski kotta yeniden kurulurdu
+    if (Array.isArray(p.ent.segs)) p.ent.segs = p.ent.segs.map(sg => sg.map(q => [q[0], q[1], z]));
+    if (Array.isArray(p.ent.arcs)) p.ent.arcs = p.ent.arcs.map(a => { const b = a.slice(); b[6] = z; return b; });
+    if (p.ent.def) p.ent = { ...p.ent, def: transformDef(p.ent.def, q => [q[0], q[1], z], 1, null) };
+  }
 }
 /**
  * İlkelin derin kopyası. Ağ ilkelinin (k=5) yazılı dizileri JSON turundan geçirilemez — Float32Array
