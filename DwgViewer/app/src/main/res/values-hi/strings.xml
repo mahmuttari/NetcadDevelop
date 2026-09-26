@@ -14,4 +14,5 @@
     <string name="splash_rights">सर्वाधिकार सुरक्षित।</string>
     <string name="share_view">दृश्य साझा करें</string>
     <string name="share_failed">दृश्य साझा नहीं किया जा सका</string>
+    <string name="share_file_failed">फ़ाइल साझा नहीं की जा सकी</string>
 </resources>

@@ -15,6 +15,7 @@ import { newId, offsetPoints } from './edit.js';
 import { alignMatrix } from './blocks.js';
 import { t, addStrings } from './i18n.js';
 import { askText, askForm, askConfirm } from './dialog.js';
+import { sepOf } from './state.js';
 import { dimLinear, dimRadial, dimAngular, leaderEnts, cloudEnt, balloonEnts, arrayItems, hatchEnts } from './annot.js';
 import { cmdOf } from './acad.js';
 import { constrain as deskConstrain } from './desktop.js';
@@ -140,6 +141,8 @@ const NUMBER_STEP = { circle: 1, rotate: 2, scale: 2, setz: 1, thick: 1, textsiz
 /** Nokta değil NESNE (ya da kapalı alan) seçilerek çalışan araçlar */
 const OBJECT_TOOLS = new Set(['radius', 'edittext', 'dimedit', 'dimr', 'dimd', 'explode', 'attr', 'hatch', 'fillarea', 'ident', 'trim', 'extend', 'fillet', 'chamfer', 'offset', 'divide', 'measure', 'matchprop', 'boundary', 'arraypath', 'bedit', 'refedit', 'ncopy']);
 /** Çok noktalı ölçülendirme / açıklama araçları: taslakları çizgi olarak gösterilir */
+/** Renk indeksi: 0 bloktan, 1-255 ACI, 256 katmandan (null / -1 / taşkın → 256) — scene.normCi ile aynı kural */
+const normColor = (ci) => (ci === 0 ? 0 : ci >= 1 && ci <= 255 ? ci : 256);
 const PATH_TOOLS = new Set(['dim', 'dimh', 'dimv', 'dima', 'leader', 'cloud']);
 /** Sonraki numara: sayıysa artar, harfle bitiyorsa harf ilerler ("A1"→"A2", "B"→"C") */
 function nextLabel(sN) {
@@ -538,7 +541,7 @@ export class ToolManager {
       }
       const kind = act === 'dimd' ? 'diameter' : 'radius';
       const def = { ...this.dimDefaults(), kind: 'radial', sub: kind, pts: [[o[1], o[2], o[6] || 0], [w[0], w[1], o[6] || 0]], r: o[3], prefix: kind === 'diameter' ? '\u2300 ' : 'R ' };
-      const res = this.buildDim(def, this.annotOpts());
+      const res = this.buildDim(def, this.dimOpts());
       if (res) { this.commitMany(res.ents); A.toast(res.label); } else A.toast(t('dimFail'));
       return;
     }
@@ -971,7 +974,7 @@ export class ToolManager {
     const A = this.api;
     const kind = this.active === 'dimh' ? 'horizontal' : this.active === 'dimv' ? 'vertical' : 'aligned';
     const [p1, p2, q] = this.pts;
-    const res = this.buildDim({ ...this.dimDefaults(), kind: 'linear', sub: kind, pts: [p1, p2, q] }, this.annotOpts());
+    const res = this.buildDim({ ...this.dimDefaults(), kind: 'linear', sub: kind, pts: [p1, p2, q] }, this.dimOpts());
     if (!res) { A.toast(t('dimFail')); return; }
     this.commitMany(res.ents);
     A.toast(res.label);
@@ -988,7 +991,29 @@ export class ToolManager {
    * dönüştürür (edit.transformPrim). Dosyadan gelen DIMENSION varlıkları ilk düzenlemede tanım
    * noktalarından (info.dim) bu biçime çevrilir.
    */
-  dimDefaults() { const A = this.api, h = A.textHeight() * 2.2; return { h, arrow: h, exo: h * 0.25, exe: h * 0.5, prec: null, prefix: '', suffix: A.units(), factor: 1, text: '' }; }
+  /*
+   * Yeni ölçünün tanım varsayılanları. Kullanıcı bir ölçünün özelliklerini "Yeni ölçüler de bu ayarlarla çizilsin"
+   * işaretliyken değiştirdiyse o ayarlar bu çizim için saklanır (A.dimStyleGet) ve sonraki ölçüler onlarla çizilir —
+   * AutoCAD'de geçerli ölçü stilinin (DIMSTYLE) karşılığı. Yoksa eski varsayılan: yazı çizim genişliğinin 1/91'i.
+   * scale: genel ölçek (DIMSCALE) — yazı, ok, uzatma boşluğu ve taşması onunla çarpılır; ölçülen değer değişmez.
+   */
+  dimDefaults() {
+    const A = this.api, h = A.textHeight() * 2.2;
+    const base = { h, arrow: h, exo: h * 0.25, exe: h * 0.5, scale: 1, prec: null, prefix: '', suffix: A.units(), factor: 1, text: '' };
+    const st = A.dimStyleGet ? A.dimStyleGet() : null;
+    if (!st) return base;
+    for (const k of ['h', 'arrow', 'exo', 'exe', 'scale', 'factor']) if (typeof st[k] === 'number' && isFinite(st[k]) && (st[k] > 0 || ((k === 'exo' || k === 'exe') && st[k] >= 0))) base[k] = st[k];
+    if (st.prec === null || (typeof st.prec === 'number' && st.prec >= 0 && st.prec <= 6)) base.prec = st.prec;
+    for (const k of ['prefix', 'suffix']) if (typeof st[k] === 'string') base[k] = st[k];
+    return base;
+  }
+  /** Ölçü üreticisine verilen seçenekler: saklanan stilde katman / renk varsa onlar (AutoCAD DIMLAYER), yoksa geçerli olanlar */
+  dimOpts() {
+    const A = this.api, o = this.annotOpts(), st = A.dimStyleGet ? A.dimStyleGet() : null;
+    if (st && typeof st.layer === 'string' && st.layer && (!A.layerNames || A.layerNames().includes(st.layer))) o.layer = st.layer;
+    if (st && typeof st.color === 'number') o.color = st.color;
+    return o;
+  }
   /** Etiket: geçersiz kılma varsa o (<> ölçülen değerle değişir), yoksa ön ek + biçimli ölçü + son ek */
   dimLabel(def, measure) {
     const A = this.api;
@@ -1005,7 +1030,9 @@ export class ToolManager {
     // açısal ölçüde yay yarıçapı tanımda saklanır (annot.dimAngular'ın varsayılanı: kısa kolun %70'i) ki taşıma /
     // düzenleme sonrası yeniden kurulan yay aynı kalsın
     if (def.kind === 'angular' && P.length >= 3 && !(def.r > 0)) def.r = Math.min(Math.hypot(P[1][0] - P[0][0], P[1][1] - P[0][1]), Math.hypot(P[2][0] - P[0][0], P[2][1] - P[0][1])) * 0.7;
-    const opts = { ...o, h: def.h > 0 ? def.h : 2.5, arrow: def.arrow > 0 ? def.arrow : def.h, gap: def.exo >= 0 ? def.exo : undefined, ext: def.exe >= 0 ? def.exe : undefined, rot: def.rot || 0, label: '', def };
+    // genel ölçek (DIMSCALE): yazı, ok, uzatma boşluğu ve taşması onunla çarpılır; geometri ve ölçülen değer değişmez
+    const k = def.scale > 0 ? def.scale : 1, h = (def.h > 0 ? def.h : 2.5) * k;
+    const opts = { ...o, h, arrow: (def.arrow > 0 ? def.arrow : def.h > 0 ? def.h : 2.5) * k, gap: def.exo >= 0 ? def.exo * k : undefined, ext: def.exe >= 0 ? def.exe * k : undefined, rot: def.rot || 0, label: '', def };
     let res = null;
     if (def.kind === 'linear' && P.length >= 3) res = dimLinear(def.sub || 'aligned', P[0], P[1], P[2], opts);
     else if (def.kind === 'radial' && P.length >= 2 && def.r > 0) res = dimRadial(def.sub === 'diameter' ? 'diameter' : 'radius', P[0], def.r, P[1], opts);
@@ -1140,44 +1167,152 @@ export class ToolManager {
     for (const [pa, pb] of [[a, b], [flip(a), b], [a, flip(b)], [flip(a), flip(b)]]) if (inside(pa, pb)) return [pa, pb];
     return [a, b];
   }
-  /** Ölçü özellikleri kutusu: yazı, yükseklik, ok, ondalık, ön / son ek, çarpan → grup yeniden kurulur (tek geri alma) */
-  async editDim(p) {
-    const A = this.api;
-    const g = this.dimGroup(p);
-    if (!g) { A.toast(t(p && p.info && p.info.t === 'DIMENSION' ? 'dimUnsupported' : 'notDim')); return false; }
-    // Sayı alanları yerel ayardan BAĞIMSIZ ve dokunulmadan onaylanınca değeri değiştirmeyecek kadar tam yazılır:
-    // A.fmt binlik ayracı koyar ("2.200" → 2,2 okunurdu), üç ondalığa yuvarlama ise 0,0025'i 0,003 yapardı
-    const def = g.def, fx = (v) => (typeof v === 'number' && isFinite(v) ? String(+v.toPrecision(12)) : '');
-    const fields = [
-      { id: 'text', label: t('dimText'), type: 'text', value: def.text || '' },
-      { id: 'h', label: t('dimTextH'), type: 'number', value: fx(def.h) },
-      { id: 'arrow', label: t('dimArrow'), type: 'number', value: fx(def.arrow) },
-      { id: 'prec', label: t('dimPrec'), type: 'select', value: def.prec == null ? 'auto' : String(Math.max(0, Math.min(6, def.prec | 0))), options: [['auto', t('dimPrecAuto')], ['0', '0'], ['1', '1'], ['2', '2'], ['3', '3'], ['4', '4'], ['5', '5'], ['6', '6']] },
-      { id: 'prefix', label: t('dimPrefix'), type: 'text', value: def.prefix || '' },
-      { id: 'suffix', label: t('dimSuffix'), type: 'text', value: def.suffix || '' },
-    ];
-    if (def.kind !== 'angular') fields.push({ id: 'factor', label: t('dimFactor'), type: 'number', value: fx(def.factor > 0 ? def.factor : 1) });
-    if (def.kind === 'linear') fields.push({ id: 'exo', label: t('dimExo'), type: 'number', value: fx(def.exo >= 0 ? def.exo : def.h * 0.25) });
-    if (def.kind === 'linear' || def.kind === 'angular') fields.push({ id: 'exe', label: t('dimExe'), type: 'number', value: fx(def.exe >= 0 ? def.exe : def.h * 0.5) });
-    const r = await askForm(t('dimEditTitle'), fields, { ok: t('apply'), hint: t('dimTextHint') });
-    if (!r) return false;
-    // sayı alanı: kutu sayı verir; sıraya konmuş cevap (sınama) ya da bozuk giriş dizgi olabilir → ondalık virgül de kabul
-    const num = (v, d) => { const n = typeof v === 'number' ? v : parseFloat(String(v == null ? '' : v).replace(',', '.')); return isFinite(n) && n > 0 ? n : d; };
-    const num0 = (v, d) => { const n = typeof v === 'number' ? v : parseFloat(String(v == null ? '' : v).replace(',', '.')); return isFinite(n) && n >= 0 ? n : d; };   // 0 geçerli (boşluksuz uzatma)
-    const nd = { ...def, text: String(r.text == null ? '' : r.text).trim(), h: num(r.h, def.h), arrow: num(r.arrow, def.arrow), prec: r.prec === 'auto' ? null : parseInt(r.prec, 10), prefix: String(r.prefix == null ? '' : r.prefix), suffix: String(r.suffix == null ? '' : r.suffix) };
-    if (def.kind !== 'angular') nd.factor = num(r.factor, def.factor > 0 ? def.factor : 1);
-    if (def.kind === 'linear') nd.exo = num0(r.exo, def.exo);
-    if (def.kind === 'linear' || def.kind === 'angular') nd.exe = num0(r.exe, def.exe);
-    return this.regenDim(g, nd);
+  /** Tek ölçünün özellik kutusu (Ölçüyü düzenle aracı, sınamalar) — editDims'in tek ölçülü hâli */
+  async editDim(p) { return this.editDims([p]); }
+  /** Parçalardan ölçü grupları: her ölçü (uygulamanınki gid'iyle, dosyanınki tanıtıcısıyla) bir kez */
+  dimGroupsOf(parts) {
+    const out = [], seen = new Set();
+    for (const p of parts || []) {
+      const inf = p && p.info;
+      if (!inf || inf.t !== 'DIMENSION') continue;
+      const key = inf.gid ? 'g:' + inf.gid : inf.h ? 'h:' + inf.h : null;
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      const g = this.dimGroup(p);
+      if (g) out.push(g);
+    }
+    return out;
   }
-  /** Grubu tanımdan yeniden kurar: eski parçalar silinir, yeniler aynı grup kimliğiyle eklenir (replace = tek adım) */
-  regenDim(g, def) {
+  /*
+   * ÖLÇÜ ÖZELLİKLERİ KUTUSU (v8.9.8). Kullanıcı istekleri: "Burada renk ve katman ayarı olsun, ayrıca tüm
+   * özellikle ölçekleme yani mevcut yazı boyutu ve ok boyutunu küçültme AutoCAD'de olduğu gibi ölçü ölçeği
+   * değişmeden."
+   *   - Katman ve renk: ölçünün bütün parçaları birlikte taşınır / boyanır.
+   *   - Genel ölçek (DIMSCALE): yazı, ok, uzatma boşluğu ve taşması birlikte büyür / küçülür; ölçülen değer ve
+   *     çarpan (DIMLFAC) değişmez. Tanımda ayrı alandır (def.scale): 0,5 yapılıp geri 1 yapılınca ölçü eski hâline döner.
+   *   - Birden çok ölçü seçiliyse hepsi birlikte düzenlenir (AutoCAD Özellikler paleti): değeri ölçüden ölçüye değişen
+   *     alan boş gelir, boş bırakılırsa her ölçüde olduğu gibi kalır; hepsi tek geri alma adımıdır.
+   * Sayılar arayüz dilinin ondalık ayırıcısıyla ve en çok 6 anlamlı basamakla yazılır ("112.406432482" TR'de yüz on
+   * iki bin okunuyordu); dokunulmayan alan yuvarlanmış değeri değil TAM değeri korur. Yazı yüksekliği değişip ok /
+   * uzatma alanlarına dokunulmadıysa, yüksekliğe bağlı varsayılanlarda duranlar (ok = h, boşluk = h/4, taşma = h/2)
+   * yükseklikle birlikte değişir: yalnız yazı küçültülünce uzatma çizgileri eski büyük boyda kalmasın.
+   */
+  async editDims(parts) {
     const A = this.api;
-    const built = this.buildDim(def, { layer: g.layer, color: g.color, gid: g.gid });
-    if (!built) { A.toast(t('dimFail')); return false; }
-    const ents = built.ents.map(e => ({ ...e, id: newId(), layer: e.layer || g.layer, color: e.color == null ? g.color : e.color }));
-    const ok = A.run({ op: 'replace', keys: g.keys, ents });
-    if (ok) { A.sel.clear(); A.render(); A.overlay(); A.toast((g.file ? t('dimFromFile') + ' · ' : '') + t('dimUpdated') + ': ' + built.label); }
+    const gs = this.dimGroupsOf(parts);
+    if (!gs.length) { const p = (parts || [])[0]; A.toast(t(p && p.info && p.info.t === 'DIMENSION' ? 'dimUnsupported' : 'notDim')); return false; }
+    const many = gs.length > 1, dec = sepOf().ondalik || ',';
+    const disp = (v) => (typeof v === 'number' && isFinite(v) ? String(+v.toPrecision(6)).replace('.', dec) : '');
+    const same = (a, b) => a === b || (typeof a === 'number' && typeof b === 'number' && Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(a)));
+    const common = (fn) => { const v0 = fn(gs[0]); return gs.every(g => same(fn(g), v0)) ? v0 : undefined; };
+    const D = (g) => g.def;
+    const V = {
+      text: common(g => D(g).text || ''), layer: common(g => g.layer), color: common(g => normColor(g.color)),
+      scale: common(g => (D(g).scale > 0 ? D(g).scale : 1)), h: common(g => D(g).h), arrow: common(g => D(g).arrow),
+      prec: common(g => (D(g).prec == null ? 'auto' : String(Math.max(0, Math.min(6, D(g).prec | 0))))),
+      prefix: common(g => D(g).prefix || ''), suffix: common(g => D(g).suffix || ''),
+      factor: common(g => (D(g).factor > 0 ? D(g).factor : 1)),
+      exo: common(g => (D(g).exo >= 0 ? D(g).exo : D(g).h * 0.25)), exe: common(g => (D(g).exe >= 0 ? D(g).exe : D(g).h * 0.5)),
+    };
+    const VAR = '\u0000';   // "değer ölçüden ölçüye değişiyor" seçeneği (select alanlarında)
+    const sel = (cur, opts) => (cur === undefined ? [[VAR, t('dimVariesOpt')], ...opts] : opts);
+    const layers = A.layerNames ? A.layerNames() : [];
+    if (V.layer !== undefined && !layers.includes(V.layer)) layers.unshift(V.layer);
+    const anyLinear = gs.some(g => D(g).kind === 'linear'), anyExe = gs.some(g => D(g).kind === 'linear' || D(g).kind === 'angular');
+    const allAngular = gs.every(g => D(g).kind === 'angular');
+    const fields = [
+      { id: 'text', label: t('dimText'), type: 'text', value: V.text === undefined ? '' : V.text },
+      { id: 'layer', label: t('layer'), type: 'select', value: V.layer === undefined ? VAR : V.layer, options: sel(V.layer, layers.map(n => [n, n])) },
+      { id: 'color', label: t('color'), type: 'swatch', value: V.color === undefined ? '' : String(V.color), options: A.colorOptions ? A.colorOptions(V.layer === undefined ? null : V.layer, V.color) : [] },
+      { id: 'scale', label: t('dimScale'), type: 'number', value: disp(V.scale) },
+      { id: 'h', label: t('dimTextH'), type: 'number', value: disp(V.h) },
+      { id: 'arrow', label: t('dimArrow'), type: 'number', value: disp(V.arrow) },
+      { id: 'prec', label: t('dimPrec'), type: 'select', value: V.prec === undefined ? VAR : V.prec, options: sel(V.prec, [['auto', t('dimPrecAuto')], ['0', '0'], ['1', '1'], ['2', '2'], ['3', '3'], ['4', '4'], ['5', '5'], ['6', '6']]) },
+      { id: 'prefix', label: t('dimPrefix'), type: 'text', value: V.prefix === undefined ? '' : V.prefix },
+      { id: 'suffix', label: t('dimSuffix'), type: 'text', value: V.suffix === undefined ? '' : V.suffix },
+    ];
+    if (!allAngular) fields.push({ id: 'factor', label: t('dimFactor'), type: 'number', value: disp(V.factor) });
+    if (anyLinear) fields.push({ id: 'exo', label: t('dimExo'), type: 'number', value: disp(V.exo) });
+    if (anyExe) fields.push({ id: 'exe', label: t('dimExe'), type: 'number', value: disp(V.exe) });
+    fields.push({ id: 'asDefault', label: t('dimAsDefault'), type: 'check', value: true });
+    const hint = t('dimScaleHint') + ' ' + t('dimTextHint') + (many ? ' ' + t('dimVaries') : '');
+    const r = await askForm(many ? t('dimEditMany').replace('%s', gs.length) : t('dimEditTitle'), fields, { ok: t('apply'), hint });
+    if (!r) return false;
+    // Alan değişti mi? Sayı alanı: kutunun gösterdiği (yuvarlanmış) değerden farklı bir sayı girildiyse; metin: farklıysa.
+    // Sıraya konmuş cevap (sınama) sayı ya da dizgi verebilir; ondalık virgül de kabul edilir.
+    const parse = (v) => (typeof v === 'number' ? v : parseFloat(String(v == null ? '' : v).trim().replace(',', '.')));
+    const numCh = (id, cur, min0) => {
+      if (!(id in r)) return undefined;
+      const n = parse(r[id]);
+      if (!isFinite(n) || (min0 ? n < 0 : n <= 0)) return undefined;             // boş ya da geçersiz: dokunulmamış sayılır
+      const shown = parse(disp(cur));
+      return cur !== undefined && isFinite(shown) && Math.abs(n - shown) <= 1e-12 * Math.max(1, Math.abs(shown)) ? undefined : n;
+    };
+    const txtCh = (id, cur) => { if (!(id in r)) return undefined; const v = String(r[id] == null ? '' : r[id]); return (cur === undefined && v === '') || v === cur ? undefined : v; };
+    const ch = {
+      text: txtCh('text', V.text), prefix: txtCh('prefix', V.prefix), suffix: txtCh('suffix', V.suffix),
+      scale: numCh('scale', V.scale), h: numCh('h', V.h), arrow: numCh('arrow', V.arrow), factor: numCh('factor', V.factor),
+      exo: numCh('exo', V.exo, true), exe: numCh('exe', V.exe, true),
+      prec: r.prec === VAR || r.prec === V.prec || r.prec == null ? undefined : (r.prec === 'auto' ? null : parseInt(r.prec, 10)),
+      layer: r.layer === VAR || r.layer === V.layer || !r.layer ? undefined : String(r.layer),
+      color: r.color === '' || r.color == null || String(r.color) === String(V.color) ? undefined : Number(r.color),
+    };
+    // hiçbir alan değişmediyse uygulamanın ölçüsü yeniden kurulmaz (boş bir geri alma adımı üretilmez); yalnız stil saklanır
+    const degisti = Object.values(ch).some(v => v !== undefined);
+    const items = gs.map(g => {
+      const d = g.def, nd = { ...d };
+      if (ch.text !== undefined) nd.text = ch.text.trim();
+      if (ch.prefix !== undefined) nd.prefix = ch.prefix;
+      if (ch.suffix !== undefined) nd.suffix = ch.suffix;
+      if (ch.prec !== undefined) nd.prec = ch.prec;
+      if (ch.scale !== undefined) nd.scale = ch.scale;
+      if (ch.factor !== undefined && d.kind !== 'angular') nd.factor = ch.factor;
+      if (ch.h !== undefined) {
+        nd.h = ch.h;
+        // yüksekliğe bağlı varsayılanda duran ok / uzatma değerleri yükseklikle birlikte değişir (kullanıcı onlara dokunmadıysa)
+        const k = d.h > 0 ? ch.h / d.h : 1, rel = (v, f) => typeof v === 'number' && d.h > 0 && Math.abs(v - d.h * f) <= 1e-9 * Math.max(1, d.h);
+        if (ch.arrow === undefined && rel(d.arrow, 1)) nd.arrow = d.arrow * k;
+        if (ch.exo === undefined && rel(d.exo, 0.25)) nd.exo = d.exo * k;
+        if (ch.exe === undefined && rel(d.exe, 0.5)) nd.exe = d.exe * k;
+      }
+      if (ch.arrow !== undefined) nd.arrow = ch.arrow;
+      if (ch.exo !== undefined && d.kind === 'linear') nd.exo = ch.exo;
+      if (ch.exe !== undefined && (d.kind === 'linear' || d.kind === 'angular')) nd.exe = ch.exe;
+      return { g: { ...g, layer: ch.layer !== undefined ? ch.layer : g.layer, color: ch.color !== undefined ? ch.color : g.color }, def: nd };
+    });
+    if (r.asDefault) {
+      // bu çizimde sonraki ölçüler bu ayarlarla çizilir (ilk ölçünün sonuç tanımı ve katman / renk)
+      const f = items[0], d = f.def;
+      if (A.dimStyleSet) A.dimStyleSet({ h: d.h, arrow: d.arrow, exo: d.exo, exe: d.exe, scale: d.scale > 0 ? d.scale : 1, prec: d.kind === 'angular' ? null : d.prec, prefix: d.kind === 'linear' ? d.prefix : '', suffix: d.kind === 'linear' ? d.suffix : A.units(), factor: d.factor > 0 ? d.factor : 1, layer: f.g.layer, color: f.g.color });
+    }
+    // dosyadan gelen ölçüde "Uygula" dönüştürmedir (tanımdan yeniden kurulur), değişiklik olmasa da
+    if (!degisti && !gs.some(g => g.file)) return true;
+    return this.regenDims(items);
+  }
+  /** Tek grubu tanımdan yeniden kurar (eski çağıranlar için) */
+  regenDim(g, def) { return this.regenDims([{ g, def }]); }
+  /*
+   * Grupları tanımlarından yeniden kurar: eski parçalar silinir, yeniler aynı grup kimliğiyle eklenir. Hepsi TEK
+   * komuttur (birden çok ölçüde 'group'), yani tek geri alma. Yeniden kurulan ölçüler seçili kalır: kullanıcı
+   * sonucu görür ve kutuyu yeniden açıp ince ayar yapabilir.
+   */
+  regenDims(items) {
+    const A = this.api, cmds = [], gids = [];
+    let label = '', file = false;
+    for (const { g, def } of items) {
+      const built = this.buildDim(def, { layer: g.layer, color: g.color, gid: g.gid });
+      if (!built) { A.toast(t('dimFail')); return false; }
+      const ents = built.ents.map(e => ({ ...e, id: newId(), layer: g.layer || e.layer, color: g.color == null ? e.color : g.color }));
+      cmds.push({ op: 'replace', keys: g.keys, ents });
+      gids.push(g.gid); label = label || built.label; file = file || g.file;
+    }
+    const ok = A.run(cmds.length === 1 ? cmds[0] : { op: 'group', cmds });
+    if (ok) {
+      A.sel.clear();
+      for (const q of A.allPrims()) if (q.info && gids.includes(q.info.gid)) A.sel.add(q);
+      A.render(); A.overlay();
+      A.toast((file ? t('dimFromFile') + ' · ' : '') + (items.length > 1 ? t('dimUpdatedN').replace('%s', items.length) : t('dimUpdated') + ': ' + label));
+    }
     return ok;
   }
   /** Açı ölçülendirmesi (tepe + iki kol) */
@@ -1189,7 +1324,7 @@ export class ToolManager {
     while (sweep > Math.PI) sweep -= TAU;
     const deg = Math.abs(sweep) * R2D;
     if (!(deg > 1e-9)) { A.toast(t('dimFail')); return; }
-    const res = this.buildDim({ ...this.dimDefaults(), kind: 'angular', pts: [v, a, b], prec: 2, suffix: '\u00b0' }, this.annotOpts());
+    const res = this.buildDim({ ...this.dimDefaults(), kind: 'angular', pts: [v, a, b], prec: 2, suffix: '\u00b0' }, this.dimOpts());
     if (!res) { A.toast(t('dimFail')); return; }
     this.commitMany(res.ents);
     A.toast(res.label);

@@ -50,6 +50,7 @@ export default {
   stQuickGrid: '栅格', stQuickLw: '线宽', stQuickText: '文字', stQuickOsnap: '对象捕捉', stQuickPan: '平移 (PAN)', stQuickPlot: '创建 PDF（打印）', stQuickUndo: '撤销（最多 10 步）', stQuickRedo: '重做（最多 10 步）', osnapOn: '对象捕捉已开启', osnapOff: '对象捕捉已关闭',
   selMenuTitle: '选择', selMakeBlock: '创建块', selChangeLayer: '更改图层', selClear: '清除选择', selBadge: '选择菜单', selBoxBtn: '窗口 / 窗交框', selLassoBtn: '多边形（套索）', selBoxHint: '拖动 — 从左到右：完全在内的对象（窗口），从右到左：接触到的对象（窗交）', selLassoHint: '绘制多边形 — 向右开始：仅内部，向左：包括接触到的', selRegionNone: '区域内没有可选对象', selByLayer: '随层 (ByLayer)',
   dimEditTitle: '标注属性', dimText: '标注文字', dimTextHint: '留空：测量值；<> 将替换为测量值', dimTextH: '文字高度', dimArrow: '箭头大小', dimPrec: '小数位数', dimPrecAuto: '按设置', dimPrefix: '前缀', dimSuffix: '后缀', dimFactor: '比例因子（DIMLFAC）', dimUpdated: '标注已更新', notDim: '不是标注', dimSelMenu: '标注属性', dimFromFile: '已重建文件中的标注',
+  dimScale: '全局比例 (DIMSCALE)', dimScaleHint: '全局比例同时放大或缩小文字、箭头和尺寸界线；测量值不变。', dimVaries: '已选择多个标注：留空的字段在每个标注中保持不变。', dimVariesOpt: '—（不同）', dimAsDefault: '新标注也使用这些设置', dimEditMany: '标注特性 · %s 个标注', dimUpdatedN: '已更新 %s 个标注',
   dimUnsupported: '此类标注无法重建（坐标标注、弧长标注或块内标注）', gripsDim: '标注的各部分通过“编辑标注”修改，而不是夹点', dimExo: '尺寸界线偏移', dimExe: '尺寸界线超出量',
   modeAsk: '屏幕还是数值？（屏幕：点选 · 数值：先输入）', modeScreenBtn: '屏幕', modeValueBtn: '数值', mirrorKeepBtn: '保留原对象', mirrorXBtn: '水平镜像轴 (X)', mirrorYBtn: '垂直镜像轴 (Y)', mirrorAxisX: '水平镜像轴经过的点', mirrorAxisY: '垂直镜像轴经过的点', dirTapHint: '长度 %s → 点按方向', modeTypeFirst: '请先输入数值（或选择“屏幕”）', trimLen: '输入要截去的长度', extendLen: '输入要加长的长度', lenClosed: '闭合路径或圆弧端点：无法按长度修改', lenTooLong: '路径比该长度短', cornerBehind: '点在了顶点后方：请点在角内',
   selWindowLbl: '窗口', selCrossingLbl: '交叉',
@@ -398,5 +399,6 @@ export default {
   denseBars: '紧凑栏（细命令行）',
   // --- v7.89 · ekrandaki görüntüyü paylaşma
   waShare: '发送到 WhatsApp', shareView: '分享视图', shareTarget: '分享', shareNoDoc: '请先打开一张图纸', shareCaption: '由 DWG OfficeZip 分享', shareNotInstalled: '%s 未安装在此设备上', shareOther: '其他应用', shareFail: '无法分享视图', shareSaved: '视图已保存；请从相册发送', shareDocFail: '无法从此设备分享该文档',
+  fileShare: '分享文件', fileShareOrig: '原始文件', fileShareOrigHint: '按打开时的原样：%s', fileShareDxf: '包含您的更改 (DXF)', fileShareDxfHint: '包含您添加的标注和图形；由于无法写入 DWG，以 DXF 发送', fileShareFail: '无法分享文件',
   psOpen: '按地点选择：省 / 区 · 地图 · 地址', psTitle: '选择投影', psProvince: '省 / 区', psMap: '地图', psAddress: '地址', psCoord: '坐标', psDrawing: '取自图纸', psPickIl: '省', psPickIlce: '区', psIlCenter: '全省（中心）', psSearch: '搜索', psSearchPh: '街区、街道、地名…', psGps: '我的位置', psCoordPh: '40.7654, 29.9187', psApply: '选择', psScale: '比例因子', psFalseE: '东偏常数', psZone3: '3° 带', psZone6: '6° 带 (UTM)', psCM: '中央子午线', psEdge: '到带界的距离', psEdgeWarn: '作业区靠近带界 (%s)。若无法完全落在同一带内，选带属于项目决策。', psOutside: '所选点位于土耳其境外；建议仅限土耳其分带。', psDatumNote: '基准面无法由坐标推断：同一带内 ED50 与 ITRF96 相差数百米。请从项目文件中确认基准面。', psNoNet: '地址搜索需要联网。', psNoResult: '没有结果。', psBadCoord: '无法读取坐标。', psDrawGuess: '由图纸坐标推测', psDrawNone: '图纸坐标不落在任何土耳其分带内；请按省/区或在地图上选择位置。', psPicked: '所选位置', psSelected: '已选择坐标系',
 };

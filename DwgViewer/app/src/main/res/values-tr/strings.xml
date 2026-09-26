@@ -15,4 +15,5 @@
     <string name="splash_rights">Tüm hakları saklıdır.</string>
     <string name="share_view">Görünümü paylaş</string>
     <string name="share_failed">Görüntü paylaşılamadı</string>
+    <string name="share_file_failed">Dosya paylaşılamadı</string>
 </resources>

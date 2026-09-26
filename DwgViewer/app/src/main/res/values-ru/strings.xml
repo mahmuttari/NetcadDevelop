@@ -14,4 +14,5 @@
     <string name="splash_rights">Все права защищены.</string>
     <string name="share_view">Поделиться видом</string>
     <string name="share_failed">Не удалось поделиться изображением</string>
+    <string name="share_file_failed">Не удалось поделиться файлом</string>
 </resources>

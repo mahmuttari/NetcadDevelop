@@ -259,6 +259,11 @@ export function initEditor(a) {
     visiblePrims: () => S.prims.filter(p => !(S.layers.get(p.lay) && !S.layers.get(p.lay).visible) && objShown(p)),
     selectable: () => S.prims.filter(p => { const l = S.layers.get(p.lay); return !(l && (!l.visible || l.locked)) && objShown(p); }),   // bölge seçimi: görünür ve kilitsiz katmanlar
     allPrims: () => (S.scene ? S.scene.layouts[0].prims : []),
+    // Ölçü özellikleri kutusu (v8.9.8): katman listesi, renk kareleri, bu çizimde yeni ölçülerin ayarları
+    layerNames: () => [...S.layers.keys()].sort((a, b) => a.localeCompare(b, 'tr')),
+    colorOptions: (lay, cur) => colorOptionsFor(lay, cur),
+    dimStyleGet: () => dimStyleGet(),
+    dimStyleSet: (st) => dimStyleSet(st),
     trType: (x) => tt('ety_' + x, x),               // DXF tür adının yerelleşmiş karşılığı (yoksa adın kendisi)
     hatchPattern: () => ed.curPattern,              // çizilecek taramanın deseni (SOLID varsayılan)
     meshMetrics: (p) => { try { return p && p.vtx && p.idx ? meshMetrics(p.vtx, p.idx) : null; } catch (_) { return null; } },
@@ -1300,6 +1305,32 @@ function colorSwatches(sel, lay) {
     return `<button type="button" data-ci="${i}" class="${i === cur ? 'active' : ''}${i === BYLAYER ? ' bylayer' : ''}" style="background:${bg}" title="${ipucu}">${i === BYLAYER ? 'K' : ''}</button>`;
   }).join('')}</div>`;
 }
+/** Form kutusunun renk kareleri (askForm 'swatch'): [değer, ad, css, harf]; seçenekte olmayan geçerli renk sona eklenir */
+function colorOptionsFor(lay, cur) {
+  const ids = [BYLAYER, 1, 2, 3, 4, 5, 6, 7, 8, 9, 30, 40, 50, 90, 130, 150, 170, 190, 210, 230, 250, 252, 254];
+  const c = cur == null ? null : normCi(cur);
+  if (c != null && !ids.includes(c)) ids.push(c);
+  const L = S.layers && lay != null ? S.layers.get(lay) : null;
+  return ids.map(i => i === BYLAYER ? [i, t('fromLayer') + (L ? ' \u00b7 ' + L.name : ''), ciCss(L ? L.color : null), 'K']
+    : i === 0 ? [i, t('fromBlock'), 'var(--bg)', 'B'] : [i, String(i), ciCss(ACI[i]), '']);
+}
+/*
+ * BU ÇİZİMDE YENİ ÖLÇÜLERİN AYARLARI (v8.9.8). Ölçü özellikleri kutusunda "Yeni ölçüler de bu ayarlarla çizilsin"
+ * işaretliyken uygulanan ayarlar (yazı, ok, genel ölçek, ondalık, ön / son ek, çarpan, katman, renk) çizime
+ * bağlı saklanır: yazısı büyük çıkan ölçüyü küçülten kullanıcı, sonraki her ölçüyü yeniden küçültmek zorunda
+ * kalmaz. Ölçü boyları çizimin birimine bağlıdır (mm çiziminde 250, m çiziminde 0,25), bu yüzden ayar çizime
+ * özeldir, bütün dosyalara taşınmaz.
+ */
+const dimStyleKey = () => (S.fileKey ? 'dimsty:' + S.fileKey : null);
+function dimStyleGet() {
+  const k = dimStyleKey(); if (!k) return null;
+  const v = store.json(k, null);
+  return v && typeof v === 'object' ? v : null;
+}
+function dimStyleSet(st) {
+  const k = dimStyleKey(); if (!k || !st) return;
+  try { store.set(k, JSON.stringify(st)); } catch (_) { /* depolama dolu: yalnız bu oturum etkilenir */ }
+}
 function pickColor() {
   if (!needDoc()) return;
   api.openDoc(t('curColor'), `<div class="full">${colorSwatches(ed.curColor, ed.curLayer)}</div><div class="full muted">${esc(t('colorHint'))} <input id="eCi" type="number" min="1" max="255" style="width:90px" value="${normCi(ed.curColor) === BYLAYER ? '' : ed.curColor}"> <button class="btn small" id="eCiOk">${esc(t('ok'))}</button></div>`);
@@ -1570,7 +1601,7 @@ function showProps(all) {
     api.drawOverlay(); refreshTiles(); haptic('toggle');
     showProps(tam);   // pencere daraltılmış seçimle yeniden kurulur (başlık, katman ve renk ilk nesneden)
   };
-  const pd = $('pDim'); if (pd) pd.onclick = () => { const p = selDimPrim(); api.hide('docPanel'); if (p && gate('t:dimedit')) void tools.editDim(p); };
+  const pd = $('pDim'); if (pd) pd.onclick = () => { api.hide('docPanel'); if (selDimPrim() && gate('t:dimedit')) void tools.editDims([...ed.sel]); };
   $('pOk').onclick = () => {
     const cmds = [];
     const keys = [...ed.sel].map(p => p.key);
@@ -1625,7 +1656,9 @@ const selDimPrim = () => [...ed.sel].find(p => p.info && p.info.t === 'DIMENSION
 function selMenu() {
   if (!ed.sel.size) { api.toast(t('selEmpty')); return; }
   // seçimde ölçülendirme varsa "Ölçü özellikleri" kartı da gelir (Özellikler'in önünde)
-  let items = selDimPrim() ? [...SEL_MENU.slice(0, 10), ['dimedit', 'i-dimedit'], ...SEL_MENU.slice(10)] : SEL_MENU;
+  // yalnız ölçülendirme seçiliyse kart EN BAŞTA durur: kullanıcı ölçüyü düzenlemek için seçmiştir
+  const yalnizOlcu = [...ed.sel].every(p => p.info && p.info.t === 'DIMENSION');
+  let items = !selDimPrim() ? SEL_MENU : yalnizOlcu ? [['dimedit', 'i-dimedit'], ...SEL_MENU] : [...SEL_MENU.slice(0, 10), ['dimedit', 'i-dimedit'], ...SEL_MENU.slice(10)];
   // seçimde blok yerleştirmesi varsa "Blok düzenle" kartı da gelir (Özellikler'in önünde)
   if ([...ed.sel].some(p => p.info && p.info.t === 'INSERT' && p.info.name)) { const i = items.findIndex(x => x[0] === 'props'); items = [...items.slice(0, i), ['bedit', 'i-bedit'], ...items.slice(i)]; }
   api.openDoc(`${t('selMenuTitle')} · ${nesneSay(ed.sel.size)}`,
@@ -1704,7 +1737,7 @@ function selAction(id) {
     case 'hide': hideObjects(false); break;
     case 'iso': hideObjects(true); break;
     case 'cut': act('cutclip'); break;
-    case 'dimedit': { const p = selDimPrim(); if (!p) { api.toast(t('notDim')); return; } if (!gate('t:dimedit')) return; void tools.editDim(p); break; }
+    case 'dimedit': { if (!selDimPrim()) { api.toast(t('notDim')); return; } if (!gate('t:dimedit')) return; void tools.editDims([...ed.sel]); break; }
     case 'clear': if (tools.running && tools.active === 'select') { tools.cancel(); markActive(null); } ed.sel.clear(); api.drawOverlay(); break;
     default: break;
   }

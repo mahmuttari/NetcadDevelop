@@ -642,6 +642,53 @@ public class MainActivity extends androidx.activity.ComponentActivity {
         for (File f : fs) if (f.isFile() && f.lastModified() < sinir) { if (!f.delete()) f.deleteOnExit(); }
     }
 
+    /** Paylaşım önbelleği (cacheDir/paylas): her çağrıda bir günden eski kalıntılar silinir */
+    private File paylasimKlasoru() throws IOException {
+        File d = new File(getCacheDir(), "paylas");
+        if (!d.exists() && !d.mkdirs()) throw new IOException("önbellek klasörü açılamadı");
+        eskiPaylasimlariSil(d);
+        return d;
+    }
+
+    /*
+     * Paylaşılan dosyanın adı. safe() Türkçe harfleri de "_" yapar ("KÖPRÜ.dwg" → "K_PR_.dwg");
+     * alıcı dosyayı bu adla görür. Burada yalnız dosya sisteminin kabul etmediği imler ve yol
+     * ayraçları atılır, harfler korunur.
+     */
+    private static String paylasimAdi(String name, String yedek) {
+        String a = name == null ? "" : name.replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]+", "_").replaceFirst("^\\.+", "").trim();
+        if (a.length() > 120) a = a.substring(a.length() - 120);
+        return a.isEmpty() ? yedek : a;
+    }
+
+    /*
+     * Paylaşım türü. image/vnd.dwg gibi bir tür verilirse WhatsApp gibi uygulamalar dosyayı RESİM
+     * sanıp açmaya çalışır ve gönderemez; CAD dosyaları genel ikili türle (belge olarak) gider.
+     */
+    private static String paylasimTuru(String ad) {
+        String l = ad.toLowerCase(java.util.Locale.ROOT);
+        if (l.endsWith(".dxf")) return "application/dxf";
+        if (l.endsWith(".pdf")) return "application/pdf";
+        return "application/octet-stream";
+    }
+
+    private void dosyaPaylas(File f, String ad, String mime) {
+        final Uri u = FileProvider.getUriForFile(this, getPackageName() + ".files", f);
+        runOnUiThread(() -> {
+            Intent i = new Intent(Intent.ACTION_SEND);
+            i.setType(mime);
+            i.putExtra(Intent.EXTRA_STREAM, u);
+            i.putExtra(Intent.EXTRA_SUBJECT, ad);
+            i.setClipData(ClipData.newRawUri(ad, u));   // seçicinin önizlemesi de okuyabilsin
+            i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            try { startActivity(Intent.createChooser(i, ad)); }
+            catch (Exception e) {
+                Log.w(TAG, "dosyaPaylas", e);
+                Toast.makeText(MainActivity.this, R.string.share_file_failed, Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
     // ---- dosya seçici ---------------------------------------------------------------------
     private void openPicker(String purpose, String mime) { openPicker(purpose, mime, false); }
 
@@ -1364,6 +1411,52 @@ public class MainActivity extends androidx.activity.ComponentActivity {
                 return "ok";
             } catch (Exception e) {
                 Log.w(TAG, "shareImage", e);
+                return "";
+            }
+        }
+
+        /*
+         * AÇIK ÇİZİMİ DOSYA OLARAK PAYLAŞMA (v8.9.8). Kullanıcı isteği: "Bu menüde dosyayı paylaş olsun."
+         *
+         * Çizim ya uygulamanın kendi deposundadır (currentFile) ya da seçicinin verdiği bir içerik
+         * adresidir (currentUri). İçerik adresini olduğu gibi başka uygulamaya vermek, sağlayıcının
+         * izin devrine bağlıdır: Drive'dan ya da bir e-posta ekinden açılan dosyada alıcı çoğu kez
+         * "dosya açılamadı" der. Bu yüzden dosya paylaşım önbelleğine (cacheDir/paylas) KOPYALANIR ve
+         * FileProvider ile verilir — shareImage'in yolu. Kopya bir gün sonra silinir; galeriye ya da
+         * İndirilenler'e bir şey yazılmaz.
+         *
+         * name: gönderilecek ad (boşsa açık dosyanın adı). Dönüş: "ok" · "" (açık dosya yok / okunamadı).
+         */
+        @JavascriptInterface
+        public String shareCurrent(String name) {
+            try {
+                final String ad = paylasimAdi(name == null || name.isEmpty() ? currentName : name, "cizim.dwg");
+                InputStream in = null;
+                if (currentFile != null) in = new FileInputStream(currentFile);
+                else if (currentUri != null) in = getContentResolver().openInputStream(currentUri);
+                if (in == null) return "";
+                File f = new File(paylasimKlasoru(), ad);
+                try (InputStream src = in; OutputStream out = new FileOutputStream(f)) { MainActivity.copy(src, out); }
+                dosyaPaylas(f, ad, paylasimTuru(ad));
+                return "ok";
+            } catch (Exception e) {
+                Log.w(TAG, "shareCurrent", e);
+                return "";
+            }
+        }
+
+        /** Bellekte üretilen içeriği (düzenlenmiş çizimin DXF'i) dosya olarak paylaşır. Dönüş: "ok" · "" */
+        @JavascriptInterface
+        public String shareFileB64(String base64, String fileName, String mime) {
+            try {
+                final String ad = paylasimAdi(fileName, "cizim.dxf");
+                byte[] bytes = Base64.decode(base64, Base64.DEFAULT);
+                File f = new File(paylasimKlasoru(), ad);
+                try (FileOutputStream out = new FileOutputStream(f)) { out.write(bytes); }
+                dosyaPaylas(f, ad, mime == null || mime.isEmpty() ? paylasimTuru(ad) : mime);
+                return "ok";
+            } catch (Exception e) {
+                Log.w(TAG, "shareFileB64", e);
                 return "";
             }
         }

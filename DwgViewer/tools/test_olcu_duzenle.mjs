@@ -201,13 +201,19 @@ ok('11b açısal: taşma 20 uygulanır (kol = r + 20), çarpan açıya uygulanma
   await ev((g) => { const E = window.dwgApp.editor; E.sel.clear(); for (const p of window.dwgApp.state.scene.layouts[0].prims.filter(p => p.info && p.info.gid === g)) E.sel.add(p); E.selMenu(); }, g1); await bekle(200);
   const m = await ev(() => { const b = document.querySelector('#docBody [data-sm="dimedit"]'); const ids = [...document.querySelectorAll('#docBody [data-sm]')].map(e => e.dataset.sm); return { var: !!b, ad: b ? b.textContent.trim() : '', n: ids.length, sira: ids.indexOf('dimedit'), props: ids.indexOf('props') }; });
   // v7.93: seçim menüsü 18 karttan 23'e çıktı (Dizi, Patlat, Panoya kopyala, Özellik eşle, Yakınlaştır)
-  ok('12a ölçü seçiliyken seçim menüsünde "Ölçü özellikleri" kartı (24 kart, Özellikler kartının önünde)',
-    m.var && m.ad === 'Ölçü özellikleri' && m.n === 24 && m.sira === 10 && m.sira < m.props, J(m));
+  // v8.9.8: seçimde yalnız ölçülendirme varsa kart EN BAŞTADIR (kullanıcı ölçüyü düzenlemek için seçmiştir)
+  ok('12a yalnız ölçü seçiliyken seçim menüsünde "Ölçü özellikleri" kartı ilk sırada (24 kart)',
+    m.var && m.ad === 'Ölçü özellikleri' && m.n === 24 && m.sira === 0 && m.sira < m.props, J(m));
   const l12 = await gunluk();
   await queueAnswers(page, { prefix: 'S=' });
   await page.click('#docBody [data-sm="dimedit"]'); await bekle(300);
   const d12 = await grup(g1), l12b = await gunluk(), selN = await ev(() => window.dwgApp.editor.sel.size);
-  ok('12b karttan düzenleme: ölçü yeniden kuruldu, tek adım, seçim bırakıldı', d12.text.startsWith('S=') && l12b.log === l12.log + 1 && selN === 0, J([d12.text, l12, l12b, selN]));
+  // v8.9.8: yeniden kurulan ölçü SEÇİLİ KALIR (dört parçası): sonuç görülür, kutu yeniden açılabilir
+  ok('12b karttan düzenleme: ölçü yeniden kuruldu, tek adım, yeni parçalar seçili', d12.text.startsWith('S=') && l12b.log === l12.log + 1 && selN === 4, J([d12.text, l12, l12b, selN]));
+  // ölçüyle birlikte başka nesne seçiliyse kart Özellikler'in önünde, 11. sırada kalır
+  await ev((g) => { const E = window.dwgApp.editor, P = window.dwgApp.state.scene.layouts[0].prims; E.sel.clear(); for (const p of P.filter(p => p.info && p.info.gid === g)) E.sel.add(p); E.sel.add(P.find(q => q.k === 0 && !(q.info && q.info.t === 'DIMENSION'))); E.selMenu(); }, g1); await bekle(200);
+  const m2 = await ev(() => { const ids = [...document.querySelectorAll('#docBody [data-sm]')].map(e => e.dataset.sm); return { n: ids.length, sira: ids.indexOf('dimedit'), props: ids.indexOf('props') }; });
+  ok('12b2 ölçü + başka nesne seçiliyken kart 11. sırada, Özellikler\'in önünde', m2.n === 24 && m2.sira === 10 && m2.sira < m2.props, J(m2));
   await ev(() => { const E = window.dwgApp.editor; E.sel.clear(); const p = window.dwgApp.state.scene.layouts[0].prims.find(q => q.k === 0 && !(q.info && q.info.t === 'DIMENSION')); E.sel.add(p); E.selMenu(); }); await bekle(200);
   ok('12c ölçü seçili değilken kart yok (23 kart)', await ev(() => !document.querySelector('#docBody [data-sm="dimedit"]') && document.querySelectorAll('#docBody [data-sm]').length === 23));
   await ev(() => { window.dwgApp.editor.sel.clear(); document.getElementById('docPanel').hidden = true; });

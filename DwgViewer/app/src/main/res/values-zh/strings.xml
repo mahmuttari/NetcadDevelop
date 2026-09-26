@@ -14,4 +14,5 @@
     <string name="splash_rights">保留所有权利。</string>
     <string name="share_view">分享视图</string>
     <string name="share_failed">无法分享视图</string>
+    <string name="share_file_failed">无法分享文件</string>
 </resources>

@@ -3452,7 +3452,7 @@ function refreshMenu() {
 function menuAction(act) {
   closeMenu();
   if (!Ed.gate(act)) return;   // Ücretsiz sürümde Pro eylemi (notes / profile / compare / pdf): yükseltme kutusu
-  const needDoc = ['info', 'layouts', 'notes', 'profile', 'compare', 'xrefs', 'views', 'png', 'pdf', 'textout', 'markdim', 'findrep', 'blocklib', 'copyclip', 'pasteclip', 'mesh3d', 'tableout', 'blocks', 'xattach', 'xbind', 'xopen', 'xdetach'];
+  const needDoc = ['info', 'fileshare', 'layouts', 'notes', 'profile', 'compare', 'xrefs', 'views', 'png', 'pdf', 'textout', 'markdim', 'findrep', 'blocklib', 'copyclip', 'pasteclip', 'mesh3d', 'tableout', 'blocks', 'xattach', 'xbind', 'xopen', 'xdetach'];
   if (needDoc.includes(act) && !S.hasDoc) { toast(t('openFirst')); return; }
   switch (act) {
     case 'info': showDocInfo(); break;
@@ -3479,6 +3479,7 @@ function menuAction(act) {
     case 'png': savePng(); break;
     case 'wshare': paylasGorunum('com.whatsapp', 'WhatsApp'); break;
     case 'share': paylasGorunum('', ''); break;
+    case 'fileshare': paylasDosya(); break;
     case 'pdf': showPdf(); break;
     case 'textout': showTextOut(); break;
     case 'markdim': markMeasurement(); break;
@@ -4362,6 +4363,50 @@ async function paylasTarayici(data, name, alt) {
   } catch (e) { console.warn(e); }
   savePng(data, name);
   toast(tt('shareSaved', 'Görüntü kaydedildi; paylaşmak için telefondaki uygulamayı kullanın'), { ms: 5000 });
+}
+/*
+ * DOSYAYI PAYLAŞ (v8.9.8). Kullanıcı isteği: "Bu menüde dosyayı paylaş olsun." "Görünümü paylaş" ekranın RESMİNİ
+ * gönderir; bu ise ÇİZİMİN KENDİSİNİ. Kaydedilmemiş değişiklik yoksa açılan dosya olduğu gibi gider. Değişiklik
+ * varsa sorulur: özgün dosya mı, değişiklikleriyle birlikte DXF mi — DWG yazılamaz, sessizce özgünü göndermek
+ * kullanıcının eklediği ölçüleri karşı taraftan saklardı. DXF seçeneği "DXF kaydet" ile aynı yetkidedir.
+ */
+function paylasDosya() {
+  if (!S.hasDoc) { toast(tt('shareNoDoc', 'Önce bir çizim açın'), { type: 'error' }); return; }
+  const E = window.dwgApp && window.dwgApp.editor;
+  if (!(E && E.doc && E.doc.dirty)) { paylasOzgun(); return; }
+  openDoc(t('fileShare'), `<div class="full list ctx-list pick-list fs-list">
+    <div class="item" data-fs="dxf"><b>${esc(t('fileShareDxf'))}</b><div class="muted">${esc(t('fileShareDxfHint'))}</div></div>
+    <div class="item" data-fs="orig"><b>${esc(t('fileShareOrig'))}</b><div class="muted">${esc(t('fileShareOrigHint').replace('%s', S.fileName || ''))}</div></div></div>`);
+  $('docBody').onclick = (ev) => { const it = ev.target.closest('[data-fs]'); if (!it) return; hide('docPanel'); if (it.dataset.fs === 'dxf') paylasDxf(); else paylasOzgun(); };
+}
+function paylasOzgun() {
+  const r = A() && A().shareCurrent ? A().shareCurrent(S.fileName || '') : '';
+  // tarayıcı yapısında açılan dosyanın baytları saklanmaz: gönderilecek bir şey yoktur
+  if (!r) { toast(t('fileShareFail'), { type: 'error' }); return; }
+  haptic('tap');
+}
+function paylasDxf() {
+  if (!Ed.gate('savedxf')) return;
+  const E = window.dwgApp && window.dwgApp.editor;
+  const r = E && E.dxfBase64 ? E.dxfBase64(false) : null;
+  if (!r) return;
+  const name = baseName() + '.dxf';
+  if (A() && A().shareFileB64) {
+    if (!A().shareFileB64(r.b64, name, 'application/dxf')) { toast(t('fileShareFail'), { type: 'error' }); return; }
+    haptic('tap');
+    return;
+  }
+  void paylasTarayiciDosya(r.b64, name, 'application/dxf');
+}
+async function paylasTarayiciDosya(b64, name, mime) {
+  const bin = atob(b64), u8 = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  try {
+    const f = new File([u8], name, { type: mime });
+    if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f] }); return; }
+  } catch (e) { console.warn(e); }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([u8], { type: mime })); a.download = name;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
 }
 let lastPng = null;
 const baseName = () => (S.fileName || 'cizim').replace(/\.(dwg|dxf|dgn)$/i, '');

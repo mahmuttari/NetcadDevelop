@@ -14,4 +14,5 @@
     <string name="splash_rights">Tutti i diritti riservati.</string>
     <string name="share_view">Condividi vista</string>
     <string name="share_failed">Impossibile condividere la vista</string>
+    <string name="share_file_failed">Impossibile condividere il file</string>
 </resources>

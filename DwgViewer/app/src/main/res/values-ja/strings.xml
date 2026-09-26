@@ -14,4 +14,5 @@
     <string name="splash_rights">無断転載を禁じます。</string>
     <string name="share_view">表示を共有</string>
     <string name="share_failed">ビューを共有できませんでした</string>
+    <string name="share_file_failed">ファイルを共有できませんでした</string>
 </resources>
