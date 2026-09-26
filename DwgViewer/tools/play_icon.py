@@ -18,7 +18,7 @@ for y in range(W):
         if d == 0: sx, sy = cx, cy
         else: sx, sy = cx + dx / d * rr, cy + dy / d * rr
         po[x, y] = px[int(round(min(max(sx, 0), W - 1))), int(round(min(max(sy, 0), W - 1)))]
-out.save(sys.argv[2])
+out.convert('RGBA').save(sys.argv[2])   # Play 32 bit PNG (alfa kanallı) ister
 # Play önizlemesi: %20 yarıçaplı maske, beyaz zemin üzerinde
 m = Image.new('L', (W, W), 0); ImageDraw.Draw(m).rounded_rectangle((0, 0, W - 1, W - 1), radius=int(W * 0.2), fill=255)
 prev = Image.new('RGB', (W, W), (255, 255, 255)); prev.paste(out, (0, 0), m); prev.save(sys.argv[3])
